@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- v3.1.0 - Chainlit Main Agent (主系統) UI Mockup -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 750" width="1100" height="750">
+  <defs>
+    <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#4F46E5;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#7C3AED;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="chatSettingsGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#F0F9FF;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#E0F2FE;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="1" dy="1" stdDeviation="2" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+  
+  <!-- Browser Frame -->
+  <rect width="1100" height="750" fill="#F3F4F6" rx="8"/>
+  
+  <!-- Browser Header -->
+  <rect x="0" y="0" width="1100" height="35" fill="#E5E7EB" rx="8"/>
+  <circle cx="20" cy="17" r="6" fill="#EF4444"/>
+  <circle cx="40" cy="17" r="6" fill="#F59E0B"/>
+  <circle cx="60" cy="17" r="6" fill="#10B981"/>
+  <rect x="100" y="8" width="350" height="20" rx="4" fill="white"/>
+  <text x="120" y="22" font-family="Arial" font-size="10" fill="#6B7280">localhost:3000 - AI-QMS</text>
+  
+  <!-- Chainlit Top Bar -->
+  <rect x="0" y="35" width="1100" height="50" fill="url(#headerGrad)"/>
+  
+  <!-- Hamburger / History sidebar toggle -->
+  <rect x="15" y="48" width="28" height="24" rx="4" fill="rgba(255,255,255,0.2)"/>
+  <text x="22" y="65" font-family="Arial" font-size="14" fill="white">=</text>
+  <text x="55" y="66" font-family="Arial" font-size="11" fill="rgba(255,255,255,0.7)">History</text>
+  
+  <!-- Center Title -->
+  <text x="550" y="66" text-anchor="middle" font-family="Arial" font-size="16" font-weight="bold" fill="white">AI-QMS Smart Assistant</text>
+  
+  <!-- Settings gear icon -->
+  <rect x="1040" y="48" width="40" height="24" rx="4" fill="rgba(255,255,255,0.2)"/>
+  <text x="1052" y="65" font-family="Arial" font-size="14" fill="white">⚙️</text>
+  
+  <!-- Left Sidebar (History) -->
+  <rect x="0" y="85" width="220" height="665" fill="#1F2937"/>
+  <text x="15" y="110" font-family="Arial" font-size="11" font-weight="bold" fill="#9CA3AF">Chat History</text>
+  
+  <rect x="10" y="120" width="200" height="35" rx="5" fill="#374151"/>
+  <text x="20" y="142" font-family="Arial" font-size="10" fill="#D1D5DB">QM-001 版本查詢</text>
+  
+  <rect x="10" y="162" width="200" height="35" rx="5" fill="#374151"/>
+  <text x="20" y="184" font-family="Arial" font-size="10" fill="#D1D5DB">ISO 13485 法規問答</text>
+  
+  <rect x="10" y="204" width="200" height="35" rx="5" fill="#374151"/>
+  <text x="20" y="226" font-family="Arial" font-size="10" fill="#D1D5DB">文件管理操作紀錄</text>
+  
+  <!-- New Chat Button -->
+  <rect x="10" y="260" width="200" height="35" rx="5" fill="#3B82F6" filter="url(#shadow)"/>
+  <text x="110" y="282" text-anchor="middle" font-family="Arial" font-size="11" font-weight="bold" fill="white">+ New Chat</text>
+  
+  <!-- Profile Dropdown (top of chat area) -->
+  <rect x="230" y="95" width="250" height="30" rx="4" fill="#F0F9FF" stroke="#93C5FD" stroke-width="1"/>
+  <text x="245" y="115" font-family="Arial" font-size="11" font-weight="bold" fill="#1E40AF">Profile: 主系統 (Main Agent)</text>
+  <text x="465" y="115" font-family="Arial" font-size="10" fill="#6B7280">▼</text>
+  
+  <!-- Main Content Area -->
+  <rect x="230" y="130" width="860" height="520" fill="white" rx="8" filter="url(#shadow)"/>
+  
+  <!-- AI Welcome Message -->
+  <rect x="250" y="145" width="600" height="60" rx="8" fill="#EFF6FF"/>
+  <text x="265" y="168" font-family="Arial" font-size="12" font-weight="bold" fill="#1E40AF">AI Assistant</text>
+  <text x="265" y="188" font-family="Arial" font-size="11" fill="#374151">您好！我是 AI-QMS 智慧助理。可以根據系統中的文件內容回答問題。</text>
+  
+  <!-- User Question -->
+  <rect x="650" y="220" width="350" height="40" rx="8" fill="#DBEAFE"/>
+  <text x="665" y="245" font-family="Arial" font-size="11" fill="#1E40AF">User: QM-001 品質手冊的主要內容是什麼？</text>
+  
+  <!-- AI Response with Citation -->
+  <rect x="250" y="275" width="700" height="140" rx="8" fill="#EFF6FF"/>
+  <text x="265" y="298" font-family="Arial" font-size="12" font-weight="bold" fill="#1E40AF">AI Assistant</text>
+  <text x="265" y="318" font-family="Arial" font-size="11" fill="#374151">根據 QM-001 ISO 13485 Quality Manual 文件，品質手冊的主要內容包含：</text>
+  <text x="265" y="338" font-family="Arial" font-size="11" fill="#374151">1. 品質管理系統範圍與要求</text>
+  <text x="265" y="358" font-family="Arial" font-size="11" fill="#374151">2. 文件化程序的引用</text>
+  <text x="265" y="378" font-family="Arial" font-size="11" fill="#374151">3. 品質管理過程的交互作用描述</text>
+  
+  <!-- Citation Box -->
+  <rect x="265" y="388" width="500" height="22" rx="4" fill="#ECFDF5" stroke="#10B981" stroke-width="1"/>
+  <text x="275" y="403" font-family="Arial" font-size="10" fill="#059669">📚 參考文件: QM-001 ISO 13485 Quality Manual (V2) | 搜尋匹配度: 92%</text>
+  
+  <!-- Second User Question -->
+  <rect x="700" y="430" width="300" height="40" rx="8" fill="#DBEAFE"/>
+  <text x="715" y="455" font-family="Arial" font-size="11" fill="#1E40AF">User: 系統中有多少份文件？</text>
+  
+  <!-- AI Response -->
+  <rect x="250" y="485" width="500" height="60" rx="8" fill="#EFF6FF"/>
+  <text x="265" y="508" font-family="Arial" font-size="12" font-weight="bold" fill="#1E40AF">AI Assistant</text>
+  <text x="265" y="528" font-family="Arial" font-size="11" fill="#374151">目前系統中有 14 份有效文件、1 份已進版 (QM-001 V1)、1 份已作廢。</text>
+  
+  <!-- No-Hallucination Badge -->
+  <rect x="250" y="555" width="350" height="20" rx="4" fill="#FEF3C7" stroke="#D97706" stroke-width="1"/>
+  <text x="265" y="569" font-family="Arial" font-size="9" fill="#92400E">⚠️ No-Hallucination Policy: 所有回答均來自系統儲存的文件內容</text>
+  
+  <!-- ChatSettings Panel (right side overlay) -->
+  <rect x="870" y="130" width="220" height="260" rx="8" fill="url(#chatSettingsGrad)" stroke="#93C5FD" stroke-width="1" filter="url(#shadow)"/>
+  <text x="890" y="155" font-family="Arial" font-size="12" font-weight="bold" fill="#1E40AF">⚙️ ChatSettings</text>
+  
+  <!-- Provider Select -->
+  <text x="890" y="178" font-family="Arial" font-size="10" fill="#6B7280">LLM Provider:</text>
+  <rect x="890" y="183" width="180" height="26" rx="4" fill="white" stroke="#D1D5DB" stroke-width="1"/>
+  <text x="900" y="201" font-family="Arial" font-size="10" fill="#374151">OpenRouter</text>
+  <text x="1050" y="201" font-family="Arial" font-size="10" fill="#6B7280">▼</text>
+  
+  <!-- Model Select -->
+  <text x="890" y="228" font-family="Arial" font-size="10" fill="#6B7280">Model:</text>
+  <rect x="890" y="233" width="180" height="26" rx="4" fill="white" stroke="#D1D5DB" stroke-width="1"/>
+  <text x="900" y="251" font-family="Arial" font-size="10" fill="#374151">gemini-2.5-flash-lite</text>
+  <text x="1050" y="251" font-family="Arial" font-size="10" fill="#6B7280">▼</text>
+  
+  <!-- API Key Input -->
+  <text x="890" y="278" font-family="Arial" font-size="10" fill="#6B7280">API Key:</text>
+  <rect x="890" y="283" width="180" height="26" rx="4" fill="white" stroke="#D1D5DB" stroke-width="1"/>
+  <text x="900" y="301" font-family="Arial" font-size="10" fill="#9CA3AF">sk-or-***...***</text>
+  
+  <!-- Connection Status -->
+  <rect x="890" y="320" width="180" height="22" rx="4" fill="#ECFDF5" stroke="#10B981" stroke-width="1"/>
+  <text x="980" y="335" text-anchor="middle" font-family="Arial" font-size="10" fill="#059669">✅ 連線成功</text>
+  
+  <!-- Confirm Button -->
+  <rect x="890" y="352" width="180" height="28" rx="4" fill="#3B82F6"/>
+  <text x="980" y="371" text-anchor="middle" font-family="Arial" font-size="11" font-weight="bold" fill="white">Confirm</text>
+  
+  <!-- Chat Input Area -->
+  <rect x="240" y="660" width="840" height="30" rx="8" fill="#F3F4F6" stroke="#3B82F6" stroke-width="1"/>
+  <text x="260" y="680" font-family="Arial" font-size="11" fill="#9CA3AF">輸入問題或指令...</text>
+  <rect x="1030" y="664" width="40" height="22" rx="4" fill="#3B82F6"/>
+  <text x="1043" y="680" font-family="Arial" font-size="10" fill="white">Send</text>
+  
+  <!-- Footer -->
+  <rect x="0" y="710" width="1100" height="40" fill="#1F2937"/>
+  <text x="550" y="735" text-anchor="middle" font-family="Arial" font-size="10" fill="#9CA3AF">Main Agent UI (Chainlit v3.1.0 - Port 3000) | Profile: 主系統 | LLM: OpenRouter | Docs: 14 active | MarkItDown OCR</text>
+  
+  <!-- Data Flow Annotations -->
+  <line x1="980" y1="390" x2="980" y2="415" stroke="#F59E0B" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <text x="990" y="410" font-family="Arial" font-size="8" fill="#D97706">ChatSettings → LiteLLM</text>
+  
+  <line x1="660" y1="585" x2="660" y2="610" stroke="#3B82F6" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <text x="670" y="605" font-family="Arial" font-size="8" fill="#1E40AF">@cl.on_message → search_documents() → LLM Q&amp;A</text>
+  
+  <line x1="330" y1="125" x2="330" y2="140" stroke="#8B5CF6" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <text x="340" y="138" font-family="Arial" font-size="8" fill="#7C3AED">@cl.set_chat_profiles</text>
+</svg>

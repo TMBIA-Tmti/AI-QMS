@@ -1,0 +1,57 @@
+[project]
+# AI-QMS Phase 1 Document Control System
+# Version: v3.0.0 (Chainlit)
+
+# List of environment variables to be provided by each user to use the app.
+user_env = []
+
+# Duration (in seconds) during which the session is saved when the connection is lost
+session_timeout = 3600
+
+# Enable third parties caching
+cache = false
+
+# Authorized origins
+allow_origins = ["*"]
+
+# Follow symlink for asset mount (needed for junction at C:\Users\MDR\AI-QMS)
+follow_symlink = true
+
+[features]
+# Process and display HTML in messages
+unsafe_allow_html = false
+
+# Process and display mathematical expressions
+latex = false
+
+# Autoscroll new user messages
+user_message_autoscroll = true
+
+# Automatically tag threads with the current chat profile
+auto_tag_thread = true
+
+# Allow users to edit their own messages
+edit_message = false
+
+# Authorize users to spontaneously upload files with messages
+[features.spontaneous_file_upload]
+    enabled = true
+    accept = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/vnd.ms-powerpoint", "application/vnd.openxmlformats-officedocument.presentationml.presentation", "image/*", "text/*"]
+    max_files = 20
+    max_size_mb = 500
+
+[UI]
+# Name of the assistant
+name = "AI-QMS"
+
+# Default theme
+default_theme = "light"
+
+# Chain of Thought display mode
+cot = "hidden"
+
+# Layout
+# layout = "wide"
+
+[meta]
+generated_by = "1.3.0"

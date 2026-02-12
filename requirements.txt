@@ -1,0 +1,67 @@
+# Core dependencies
+flask>=3.0.3
+flask-cors>=4.0.1
+python-dotenv>=1.0.1
+
+# LangChain & LangGraph
+langchain>=0.3.7
+langchain-core>=0.3.15
+langchain-community>=0.3.5
+langchain-text-splitters>=0.3.2
+langchain-openai>=0.3.0
+langgraph>=0.2.45
+langgraph-checkpoint>=2.0.0
+langgraph-sdk>=0.1.35
+
+# Vector Database
+chromadb>=0.5.18
+
+# Database
+psycopg2-binary>=2.9.9
+sqlalchemy>=2.0.35
+
+# Document Conversion (Primary: MarkItDown)
+markitdown[all]>=0.1.4
+
+# PDF Processing (fallback + utilities)
+pypdf>=4.3.1
+PyPDF2>=3.0.0
+pdf2image>=1.17.0
+Pillow>=10.0.0
+
+# Office Document Processing (Word, Excel, PowerPoint)
+python-docx>=1.1.0
+openpyxl>=3.1.2
+python-pptx>=0.6.23
+
+# Windows-only: Legacy Office formats (.doc, .xls, .ppt)
+# Uncomment on Windows if needed:
+# pywin32>=306
+
+# Gradio UI (NEW - for Sub-Agent interface)
+gradio>=4.44.0
+
+# LiteLLM (NEW - Multi-provider LLM abstraction)
+litellm>=1.48.0
+
+# OpenAI (for Vision API)
+openai>=1.50.0
+
+# Anthropic (for Claude Vision)
+anthropic>=0.34.0
+
+# Google Generative AI (for Gemini)
+google-generativeai>=0.8.0
+
+# Local LLM
+ollama>=0.3.3
+
+# Utilities
+python-multipart>=0.0.17
+aiofiles>=24.1.0
+pydantic>=2.9.2
+httpx>=0.27.0
+
+# Dev
+pytest>=8.3.3
+pytest-asyncio>=0.24.0

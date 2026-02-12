@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+venv/
+env/
+.venv/
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+chainlit_*.log
+main_agent_*.log
+
+# Data (user-generated)
+data/*.json
+!data/.gitkeep
+uploads/*
+!uploads/.gitkeep
+markdown_storage/documents/*
+!markdown_storage/documents/.gitkeep
+markdown_storage/metadata/*.json
+!markdown_storage/metadata/.gitkeep
+markdown_storage/ocr_artifacts/*
+!markdown_storage/ocr_artifacts/.gitkeep
+markdown_storage/index/*
+!markdown_storage/index/.gitkeep
+
+# Cache
+.ruff_cache/
+.sisyphus/
+.files/
+nul
+
+# Temp
+*.tmp
+*.bak

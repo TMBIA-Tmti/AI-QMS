@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- v3.1.0 - MarkItDown OCR Pipeline (replaced Vision-First) -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 650" width="800" height="650">
+  <defs>
+    <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#059669;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#065F46;stop-opacity:1" />
+    </linearGradient>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#6B7280"/>
+    </marker>
+    <marker id="arrowhead-green" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#10B981"/>
+    </marker>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="1" dy="1" stdDeviation="2" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="800" height="650" fill="#F0FDF4"/>
+  
+  <!-- Title -->
+  <rect x="0" y="0" width="800" height="50" fill="url(#headerGrad)"/>
+  <text x="400" y="32" text-anchor="middle" font-family="Arial" font-size="18" font-weight="bold" fill="white">MarkItDown OCR Pipeline 流程圖 (v3.1.0)</text>
+  
+  <!-- Start Node -->
+  <ellipse cx="400" cy="90" rx="80" ry="25" fill="#3B82F6" filter="url(#shadow)"/>
+  <text x="400" y="88" text-anchor="middle" font-family="Arial" font-size="11" font-weight="bold" fill="white">文件上傳</text>
+  <text x="400" y="102" text-anchor="middle" font-family="Arial" font-size="9" fill="#DBEAFE">spontaneous_file_upload</text>
+  
+  <line x1="400" y1="115" x2="400" y2="145" stroke="#6B7280" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- Format Detection -->
+  <rect x="290" y="150" width="220" height="45" rx="6" fill="white" stroke="#6B7280" stroke-width="2" filter="url(#shadow)"/>
+  <text x="400" y="170" text-anchor="middle" font-family="Arial" font-size="11" font-weight="bold" fill="#374151">格式檢測</text>
+  <text x="400" y="185" text-anchor="middle" font-family="Arial" font-size="9" fill="#6B7280">(PDF / Word .docx / Excel .xlsx)</text>
+  
+  <line x1="400" y1="195" x2="400" y2="225" stroke="#6B7280" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- MarkItDown Processing (Main box) -->
+  <rect x="200" y="230" width="400" height="70" rx="8" fill="#D1FAE5" stroke="#10B981" stroke-width="3" filter="url(#shadow)"/>
+  <text x="400" y="258" text-anchor="middle" font-family="Arial" font-size="14" font-weight="bold" fill="#065F46">📷 MarkItDown (microsoft/markitdown)</text>
+  <text x="400" y="280" text-anchor="middle" font-family="Arial" font-size="10" fill="#059669">PDF / Word (.docx) / Excel (.xlsx) → Markdown 文字內容</text>
+  <text x="400" y="293" text-anchor="middle" font-family="Arial" font-size="9" fill="#059669">asyncio.to_thread() 背景執行</text>
+  
+  <line x1="400" y1="300" x2="400" y2="330" stroke="#10B981" stroke-width="2" marker-end="url(#arrowhead-green)"/>
+  
+  <!-- Post-Processing -->
+  <rect x="100" y="335" width="600" height="130" rx="8" fill="white" stroke="#059669" stroke-width="2" filter="url(#shadow)"/>
+  <text x="400" y="358" text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold" fill="#065F46">後處理分析 (Regex-Based)</text>
+  
+  <!-- Three parallel boxes -->
+  <rect x="120" y="370" width="170" height="50" rx="6" fill="#ECFDF5" stroke="#10B981" stroke-width="1.5"/>
+  <text x="205" y="390" text-anchor="middle" font-family="Arial" font-size="10" font-weight="bold" fill="#065F46">🔍 版本偵測</text>
+  <text x="205" y="408" text-anchor="middle" font-family="Arial" font-size="8" fill="#059669">同行 + 跨行匹配</text>
+  <text x="205" y="418" text-anchor="middle" font-family="Arial" font-size="7" fill="#6B7280">V1, V2, V1.1 等任意格式</text>
+  
+  <rect x="315" y="370" width="170" height="50" rx="6" fill="#ECFDF5" stroke="#10B981" stroke-width="1.5"/>
+  <text x="400" y="390" text-anchor="middle" font-family="Arial" font-size="10" font-weight="bold" fill="#065F46">🔏 簽章偵測</text>
+  <text x="400" y="408" text-anchor="middle" font-family="Arial" font-size="8" fill="#059669">簽名 OR 蓋章 (擇一)</text>
+  <text x="400" y="418" text-anchor="middle" font-family="Arial" font-size="7" fill="#6B7280">OCR 文字中搜尋關鍵字</text>
+  
+  <rect x="510" y="370" width="170" height="50" rx="6" fill="#ECFDF5" stroke="#10B981" stroke-width="1.5"/>
+  <text x="595" y="390" text-anchor="middle" font-family="Arial" font-size="10" font-weight="bold" fill="#065F46">📋 Doc ID 擷取</text>
+  <text x="595" y="408" text-anchor="middle" font-family="Arial" font-size="8" fill="#059669">從檔名前綴擷取</text>
+  <text x="595" y="418" text-anchor="middle" font-family="Arial" font-size="7" fill="#6B7280">QM-001, QP-423 等</text>
+  
+  <!-- Regulatory scanning -->
+  <rect x="120" y="430" width="560" height="28" rx="4" fill="#FEF3C7" stroke="#D97706" stroke-width="1"/>
+  <text x="400" y="449" text-anchor="middle" font-family="Arial" font-size="9" fill="#92400E">⚖️ 法規掃描 (Regex): ISO, IEC, EN ISO, FDA 21 CFR, EU MDR, TFDA, MDCG 等 30+ 國際標準</text>
+  
+  <line x1="400" y1="465" x2="400" y2="495" stroke="#10B981" stroke-width="2" marker-end="url(#arrowhead-green)"/>
+  
+  <!-- Version Comparison -->
+  <polygon points="400,500 480,535 400,570 320,535" fill="white" stroke="#D97706" stroke-width="2" filter="url(#shadow)"/>
+  <text x="400" y="532" text-anchor="middle" font-family="Arial" font-size="10" font-weight="bold" fill="#374151">版本比對</text>
+  <text x="400" y="546" text-anchor="middle" font-family="Arial" font-size="8" fill="#6B7280">registry</text>
+  
+  <!-- Three outcomes -->
+  <!-- New doc -->
+  <line x1="320" y1="535" x2="200" y2="535" stroke="#10B981" stroke-width="2" marker-end="url(#arrowhead-green)"/>
+  <text x="260" y="525" text-anchor="middle" font-family="Arial" font-size="9" fill="#10B981">新文件</text>
+  <rect x="80" y="518" width="110" height="35" rx="6" fill="#D1FAE5" stroke="#10B981" stroke-width="2"/>
+  <text x="135" y="535" text-anchor="middle" font-family="Arial" font-size="10" font-weight="bold" fill="#065F46">✅ 直接儲存</text>
+  <text x="135" y="548" text-anchor="middle" font-family="Arial" font-size="8" fill="#059669">Markdown DB</text>
+  
+  <!-- Duplicate -->
+  <line x1="480" y1="535" x2="600" y2="535" stroke="#EF4444" stroke-width="2"/>
+  <text x="540" y="525" text-anchor="middle" font-family="Arial" font-size="9" fill="#EF4444">重複</text>
+  <rect x="610" y="518" width="110" height="35" rx="6" fill="#FEE2E2" stroke="#EF4444" stroke-width="2"/>
+  <text x="665" y="535" text-anchor="middle" font-family="Arial" font-size="10" font-weight="bold" fill="#DC2626">❌ 拒絕上傳</text>
+  <text x="665" y="548" text-anchor="middle" font-family="Arial" font-size="8" fill="#B91C1C">同版本已存在</text>
+  
+  <!-- Version update -->
+  <line x1="400" y1="570" x2="400" y2="595" stroke="#D97706" stroke-width="2"/>
+  <text x="415" y="588" font-family="Arial" font-size="9" fill="#D97706">進版</text>
+  <rect x="310" y="598" width="180" height="35" rx="6" fill="#FEF3C7" stroke="#D97706" stroke-width="2"/>
+  <text x="400" y="615" text-anchor="middle" font-family="Arial" font-size="10" font-weight="bold" fill="#92400E">🔄 進版確認流程</text>
+  <text x="400" y="628" text-anchor="middle" font-family="Arial" font-size="8" fill="#78350F">cl.Action → Chat Input</text>
+  
+  <!-- Legend -->
+  <rect x="20" y="70" width="150" height="55" rx="6" fill="white" stroke="#E5E7EB" stroke-width="1"/>
+  <text x="30" y="88" font-family="Arial" font-size="10" font-weight="bold" fill="#374151">圖例</text>
+  <rect x="30" y="95" width="30" height="12" rx="3" fill="#D1FAE5" stroke="#10B981" stroke-width="1.5"/>
+  <text x="68" y="105" font-family="Arial" font-size="8" fill="#374151">處理步驟</text>
+  <rect x="30" y="112" width="30" height="12" rx="3" fill="#FEF3C7" stroke="#D97706" stroke-width="1.5"/>
+  <text x="68" y="122" font-family="Arial" font-size="8" fill="#374151">決策/法規</text>
+  
+  <!-- Stats Box -->
+  <rect x="620" y="70" width="160" height="65" rx="6" fill="white" stroke="#E5E7EB" stroke-width="1"/>
+  <text x="630" y="88" font-family="Arial" font-size="10" font-weight="bold" fill="#374151">預期效能 (v3.1.0)</text>
+  <text x="630" y="105" font-family="Arial" font-size="8" fill="#6B7280">MarkItDown 處理: 2-5 秒/檔</text>
+  <text x="630" y="118" font-family="Arial" font-size="8" fill="#6B7280">版本偵測: 同行+跨行</text>
+  <text x="630" y="131" font-family="Arial" font-size="8" fill="#059669">✓ 單一引擎 (無 Fallback)</text>
+</svg>

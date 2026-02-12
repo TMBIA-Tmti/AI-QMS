@@ -1,0 +1,328 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" width="1200" height="900">
+  <defs>
+    <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#4F46E5;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#7C3AED;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="uiGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#E0F2FE;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#BAE6FD;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="llmGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#FEF3C7;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#FDE68A;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="ocrGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#D1FAE5;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#A7F3D0;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="dataGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#E5E7EB;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#D1D5DB;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="exportGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#FCE7F3;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#FBCFE8;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="2" dy="2" stdDeviation="3" flood-opacity="0.2"/>
+    </filter>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#0284C7"/>
+    </marker>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="1200" height="900" fill="#F9FAFB"/>
+  
+  <!-- Title -->
+  <rect x="0" y="0" width="1200" height="60" fill="url(#headerGrad)"/>
+  <text x="600" y="38" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="24" font-weight="bold">AI-QMS Phase 1 文件控制系統架構圖</text>
+  <text x="1180" y="38" text-anchor="end" fill="white" font-family="Arial, sans-serif" font-size="12">v3.1.0 | 2026-02-12</text>
+  
+  <!-- Layer 1: Chainlit App Layer -->
+  <g transform="translate(20, 80)">
+    <rect x="0" y="0" width="1160" height="200" rx="10" fill="url(#uiGrad)" stroke="#0284C7" stroke-width="2" filter="url(#shadow)"/>
+    <text x="20" y="25" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#0369A1">Chainlit v3.1.0 (Port 3000) - 單一 Chat App</text>
+    
+    <!-- Chat Profile: Main Agent -->
+    <g transform="translate(30, 40)">
+      <rect x="0" y="0" width="350" height="90" rx="8" fill="white" stroke="#4F46E5" stroke-width="1.5"/>
+      <text x="175" y="20" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#4F46E5">Chat Profile: 主系統 (Main Agent)</text>
+      <text x="20" y="40" font-family="Arial, sans-serif" font-size="10" fill="#475569">• LLM Q&amp;A (📚 引用文件，No-Hallucination)</text>
+      <text x="20" y="55" font-family="Arial, sans-serif" font-size="10" fill="#475569">• 文件搜尋 (Markdown DB 全文檢索)</text>
+      <text x="20" y="70" font-family="Arial, sans-serif" font-size="10" fill="#475569">• 法規查詢 (ISO, IEC, FDA 等 30+ 國)</text>
+      <text x="20" y="85" font-family="Arial, sans-serif" font-size="10" fill="#475569">• 對話歷史管理</text>
+    </g>
+    
+    <!-- Chat Profile: Doc Control -->
+    <g transform="translate(400, 40)">
+      <rect x="0" y="0" width="350" height="90" rx="8" fill="white" stroke="#DB2777" stroke-width="1.5"/>
+      <rect x="0" y="0" width="80" height="18" rx="4" fill="#DBEAFE" stroke="#3B82F6" stroke-width="1"/>
+      <text x="40" y="13" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" font-weight="bold" fill="#1E40AF">POC 範圍</text>
+      <text x="175" y="20" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#DB2777">Chat Profile: 文件管制 (Doc Control)</text>
+      <text x="20" y="40" font-family="Arial, sans-serif" font-size="10" fill="#475569">• 文件上傳 + MarkItDown OCR (PDF/Word/Excel)</text>
+      <text x="20" y="55" font-family="Arial, sans-serif" font-size="10" fill="#475569">• 版本控制 (進版 / 作廢 / 重複偵測)</text>
+      <text x="20" y="70" font-family="Arial, sans-serif" font-size="10" fill="#475569">• 列表 / 文件清單 / 法規清單</text>
+      <text x="20" y="85" font-family="Arial, sans-serif" font-size="10" fill="#475569">• Word/Excel 匯出 + cl.File 下載</text>
+    </g>
+    
+    <!-- ChatSettings -->
+    <g transform="translate(770, 40)">
+      <rect x="0" y="0" width="370" height="90" rx="8" fill="white" stroke="#D97706" stroke-width="1.5"/>
+      <text x="185" y="18" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#D97706">⚙️ ChatSettings (齒輪按鈕)</text>
+      <text x="15" y="38" font-family="Arial, sans-serif" font-size="9" fill="#78350F">• Provider 選擇 → 連線測試 → Model 選擇 → API Key</text>
+      <text x="15" y="53" font-family="Arial, sans-serif" font-size="9" fill="#78350F">• 兩輪設定流程 (Provider → 測試 → Model + Key)</text>
+      <text x="15" y="68" font-family="Arial, sans-serif" font-size="9" fill="#78350F">• 支援 16+ Providers (LiteLLM 統一抽象層)</text>
+      <text x="15" y="83" font-family="Arial, sans-serif" font-size="9" fill="#78350F">• 連線測試期間齒輪按鈕禁用</text>
+    </g>
+    
+    <!-- Interaction elements -->
+    <g transform="translate(30, 145)">
+      <rect x="0" y="0" width="1100" height="40" rx="6" fill="#F0F9FF" stroke="#93C5FD" stroke-width="1"/>
+      <text x="20" y="15" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="#1E40AF">互動元件:</text>
+      <rect x="90" y="5" width="130" height="22" rx="4" fill="#DBEAFE"/>
+      <text x="155" y="20" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#1E40AF">spontaneous_file_upload</text>
+      <rect x="230" y="5" width="120" height="22" rx="4" fill="#DBEAFE"/>
+      <text x="290" y="20" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#1E40AF">cl.Action Buttons</text>
+      <rect x="360" y="5" width="110" height="22" rx="4" fill="#DBEAFE"/>
+      <text x="415" y="20" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#1E40AF">cl.File 下載連結</text>
+      <rect x="480" y="5" width="120" height="22" rx="4" fill="#DBEAFE"/>
+      <text x="540" y="20" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#1E40AF">Chat Input (確認)</text>
+      <rect x="610" y="5" width="130" height="22" rx="4" fill="#DBEAFE"/>
+      <text x="675" y="20" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#1E40AF">Markdown 表格輸出</text>
+      <rect x="750" y="5" width="100" height="22" rx="4" fill="#FEF3C7" stroke="#D97706" stroke-width="1"/>
+      <text x="800" y="20" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#92400E">Chat Profiles</text>
+    </g>
+  </g>
+  
+  <!-- Arrow down -->
+  <path d="M 600 285 L 600 305" stroke="#64748B" stroke-width="2" fill="none"/>
+  <polygon points="600,315 595,305 605,305" fill="#64748B"/>
+  
+  <!-- Layer 2: LLM Provider Layer -->
+  <g transform="translate(20, 320)">
+    <rect x="0" y="0" width="1160" height="110" rx="10" fill="url(#llmGrad)" stroke="#D97706" stroke-width="2" filter="url(#shadow)"/>
+    <text x="20" y="22" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#92400E">LLM Provider 抽象層 (LiteLLM) - 16+ Providers</text>
+    
+    <!-- Row 1: Direct API -->
+    <text x="30" y="44" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="#065F46">直接 API:</text>
+    
+    <g transform="translate(95, 32)">
+      <rect x="0" y="0" width="80" height="28" rx="5" fill="white" stroke="#10B981" stroke-width="1.5"/>
+      <text x="40" y="12" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#059669">OpenAI</text>
+      <text x="40" y="23" text-anchor="middle" font-family="Arial, sans-serif" font-size="7" fill="#64748B">GPT-4.1, o3</text>
+    </g>
+    <g transform="translate(185, 32)">
+      <rect x="0" y="0" width="80" height="28" rx="5" fill="white" stroke="#8B5CF6" stroke-width="1.5"/>
+      <text x="40" y="12" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#7C3AED">Anthropic</text>
+      <text x="40" y="23" text-anchor="middle" font-family="Arial, sans-serif" font-size="7" fill="#64748B">Claude Sonnet 4</text>
+    </g>
+    <g transform="translate(275, 32)">
+      <rect x="0" y="0" width="80" height="28" rx="5" fill="white" stroke="#3B82F6" stroke-width="1.5"/>
+      <text x="40" y="12" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#2563EB">Google</text>
+      <text x="40" y="23" text-anchor="middle" font-family="Arial, sans-serif" font-size="7" fill="#64748B">Gemini 2.5</text>
+    </g>
+    <g transform="translate(365, 32)">
+      <rect x="0" y="0" width="80" height="28" rx="5" fill="white" stroke="#0EA5E9" stroke-width="1.5"/>
+      <text x="40" y="12" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#0284C7">DeepSeek</text>
+      <text x="40" y="23" text-anchor="middle" font-family="Arial, sans-serif" font-size="7" fill="#64748B">R1, V3</text>
+    </g>
+    <g transform="translate(455, 32)">
+      <rect x="0" y="0" width="60" height="28" rx="5" fill="white" stroke="#1D4ED8" stroke-width="1.5"/>
+      <text x="30" y="12" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#1E40AF">xAI</text>
+      <text x="30" y="23" text-anchor="middle" font-family="Arial, sans-serif" font-size="7" fill="#64748B">Grok 4</text>
+    </g>
+    <g transform="translate(525, 32)">
+      <rect x="0" y="0" width="70" height="28" rx="5" fill="white" stroke="#EC4899" stroke-width="1.5"/>
+      <text x="35" y="12" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#DB2777">Mistral</text>
+      <text x="35" y="23" text-anchor="middle" font-family="Arial, sans-serif" font-size="7" fill="#64748B">Large 3</text>
+    </g>
+    <g transform="translate(605, 32)">
+      <rect x="0" y="0" width="70" height="28" rx="5" fill="white" stroke="#06B6D4" stroke-width="1.5"/>
+      <text x="35" y="12" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#0891B2">Cohere</text>
+      <text x="35" y="23" text-anchor="middle" font-family="Arial, sans-serif" font-size="7" fill="#64748B">Command A</text>
+    </g>
+    <g transform="translate(685, 32)">
+      <rect x="0" y="0" width="80" height="28" rx="5" fill="white" stroke="#A855F7" stroke-width="1.5"/>
+      <text x="40" y="12" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#9333EA">Perplexity</text>
+      <text x="40" y="23" text-anchor="middle" font-family="Arial, sans-serif" font-size="7" fill="#64748B">Sonar Pro</text>
+    </g>
+    
+    <!-- Row 2: Gateway + Local -->
+    <text x="30" y="78" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="#7C2D12">網關:</text>
+    <g transform="translate(65, 66)">
+      <rect x="0" y="0" width="90" height="28" rx="5" fill="white" stroke="#F97316" stroke-width="1.5"/>
+      <text x="45" y="12" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#EA580C">OpenRouter</text>
+      <text x="45" y="23" text-anchor="middle" font-family="Arial, sans-serif" font-size="7" fill="#64748B">100+ 模型</text>
+    </g>
+    <g transform="translate(165, 66)">
+      <rect x="0" y="0" width="75" height="28" rx="5" fill="white" stroke="#A855F7" stroke-width="1.5"/>
+      <text x="37" y="12" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#9333EA">Requesty</text>
+      <text x="37" y="23" text-anchor="middle" font-family="Arial, sans-serif" font-size="7" fill="#64748B">快取網關</text>
+    </g>
+    <g transform="translate(250, 66)">
+      <rect x="0" y="0" width="75" height="28" rx="5" fill="white" stroke="#06B6D4" stroke-width="1.5"/>
+      <text x="37" y="12" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#0891B2">Together</text>
+      <text x="37" y="23" text-anchor="middle" font-family="Arial, sans-serif" font-size="7" fill="#64748B">開源模型</text>
+    </g>
+    <g transform="translate(335, 66)">
+      <rect x="0" y="0" width="60" height="28" rx="5" fill="white" stroke="#F43F5E" stroke-width="1.5"/>
+      <text x="30" y="12" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#E11D48">Groq</text>
+      <text x="30" y="23" text-anchor="middle" font-family="Arial, sans-serif" font-size="7" fill="#64748B">LPU</text>
+    </g>
+    <g transform="translate(405, 66)">
+      <rect x="0" y="0" width="80" height="28" rx="5" fill="white" stroke="#EF4444" stroke-width="1.5"/>
+      <text x="40" y="12" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#DC2626">Fireworks</text>
+      <text x="40" y="23" text-anchor="middle" font-family="Arial, sans-serif" font-size="7" fill="#64748B">優化推理</text>
+    </g>
+    <g transform="translate(495, 66)">
+      <rect x="0" y="0" width="80" height="28" rx="5" fill="white" stroke="#8B5CF6" stroke-width="1.5"/>
+      <text x="40" y="12" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#7C3AED">DeepInfra</text>
+      <text x="40" y="23" text-anchor="middle" font-family="Arial, sans-serif" font-size="7" fill="#64748B">成本優化</text>
+    </g>
+    
+    <text x="610" y="78" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="#0369A1">本地:</text>
+    <g transform="translate(645, 66)">
+      <rect x="0" y="0" width="80" height="28" rx="5" fill="white" stroke="#F59E0B" stroke-width="1.5"/>
+      <text x="40" y="12" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#D97706">Ollama</text>
+      <text x="40" y="23" text-anchor="middle" font-family="Arial, sans-serif" font-size="7" fill="#64748B">本地 LLM</text>
+    </g>
+    <g transform="translate(735, 66)">
+      <rect x="0" y="0" width="80" height="28" rx="5" fill="white" stroke="#EC4899" stroke-width="1.5"/>
+      <text x="40" y="12" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#DB2777">LM Studio</text>
+      <text x="40" y="23" text-anchor="middle" font-family="Arial, sans-serif" font-size="7" fill="#64748B">開發測試</text>
+    </g>
+    
+    <!-- Dynamic selection note -->
+    <g transform="translate(840, 32)">
+      <rect x="0" y="0" width="300" height="62" rx="8" fill="#FEF3C7" stroke="#D97706" stroke-width="1"/>
+      <text x="150" y="16" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="#92400E">🔄 動態 Provider 選擇</text>
+      <text x="15" y="32" font-family="Arial, sans-serif" font-size="8" fill="#78350F">• ChatSettings UI 即時切換</text>
+      <text x="15" y="44" font-family="Arial, sans-serif" font-size="8" fill="#78350F">• LiteLLM 統一 API 抽象</text>
+      <text x="15" y="56" font-family="Arial, sans-serif" font-size="8" fill="#78350F">• Model Cache (342 個 OpenRouter 模型)</text>
+    </g>
+  </g>
+  
+  <!-- Arrow down -->
+  <path d="M 600 435 L 600 455" stroke="#64748B" stroke-width="2" fill="none"/>
+  <polygon points="600,465 595,455 605,455" fill="#64748B"/>
+  
+  <!-- Layer 3: Processing + Data + Export -->
+  <g transform="translate(20, 470)">
+    <!-- OCR Processing -->
+    <rect x="0" y="0" width="380" height="160" rx="10" fill="url(#ocrGrad)" stroke="#059669" stroke-width="2" filter="url(#shadow)"/>
+    <text x="20" y="25" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#065F46">處理引擎 (MarkItDown Pipeline)</text>
+    
+    <g transform="translate(20, 40)">
+      <rect x="0" y="0" width="340" height="40" rx="6" fill="white" stroke="#10B981" stroke-width="2"/>
+      <text x="170" y="16" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#059669">📷 MarkItDown (microsoft/markitdown)</text>
+      <text x="170" y="32" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#64748B">PDF / Word (.docx) / Excel (.xlsx) → Markdown</text>
+    </g>
+    
+    <g transform="translate(20, 90)">
+      <rect x="0" y="0" width="100" height="28" rx="4" fill="white" stroke="#059669" stroke-width="1"/>
+      <text x="50" y="18" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#065F46">🔍 版本偵測</text>
+    </g>
+    <g transform="translate(130, 90)">
+      <rect x="0" y="0" width="100" height="28" rx="4" fill="white" stroke="#059669" stroke-width="1"/>
+      <text x="50" y="18" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#065F46">🔏 簽章偵測</text>
+    </g>
+    <g transform="translate(240, 90)">
+      <rect x="0" y="0" width="100" height="28" rx="4" fill="white" stroke="#059669" stroke-width="1"/>
+      <text x="50" y="18" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#065F46">📋 Doc ID 擷取</text>
+    </g>
+    
+    <g transform="translate(20, 125)">
+      <rect x="0" y="0" width="220" height="22" rx="4" fill="#ECFDF5" stroke="#10B981" stroke-width="1"/>
+      <text x="110" y="15" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" fill="#065F46">兩策略偵測: 同行匹配 + 跨行匹配</text>
+    </g>
+  </g>
+  
+  <!-- Data Layer -->
+  <g transform="translate(420, 470)">
+    <rect x="0" y="0" width="380" height="160" rx="10" fill="url(#dataGrad)" stroke="#6B7280" stroke-width="2" filter="url(#shadow)"/>
+    <text x="20" y="25" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#374151">資料層</text>
+    
+    <g transform="translate(20, 38)">
+      <rect x="0" y="0" width="160" height="50" rx="6" fill="white" stroke="#10B981" stroke-width="2"/>
+      <text x="80" y="18" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="#059669">📁 Markdown Storage</text>
+      <text x="80" y="32" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" fill="#64748B">documents/ (14 active)</text>
+      <text x="80" y="44" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" fill="#64748B">registry.json (Singleton)</text>
+    </g>
+    
+    <g transform="translate(200, 38)">
+      <rect x="0" y="0" width="160" height="50" rx="6" fill="white" stroke="#3B82F6" stroke-width="1.5"/>
+      <text x="80" y="18" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="#1E40AF">🔒 Audit Log</text>
+      <text x="80" y="32" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" fill="#64748B">SHA-256 雜湊鏈</text>
+      <text x="80" y="44" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" fill="#64748B">audit_log.json</text>
+    </g>
+    
+    <g transform="translate(20, 98)">
+      <rect x="0" y="0" width="160" height="45" rx="6" fill="white" stroke="#8B5CF6" stroke-width="1.5"/>
+      <text x="80" y="18" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="#6D28D9">📊 Model Cache</text>
+      <text x="80" y="35" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" fill="#64748B">342 OpenRouter models</text>
+    </g>
+    
+    <g transform="translate(200, 98)">
+      <rect x="0" y="0" width="160" height="45" rx="6" fill="#FEF2F2" stroke="#EF4444" stroke-width="1"/>
+      <text x="80" y="18" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="#DC2626">⚠️ 穩定性限制</text>
+      <text x="80" y="35" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" fill="#7F1D1D">建議 15 檔上限</text>
+    </g>
+  </g>
+  
+  <!-- Export Layer -->
+  <g transform="translate(820, 470)">
+    <rect x="0" y="0" width="360" height="160" rx="10" fill="url(#exportGrad)" stroke="#DB2777" stroke-width="2" filter="url(#shadow)"/>
+    <text x="20" y="25" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#9D174D">匯出工具</text>
+    
+    <g transform="translate(20, 38)">
+      <rect x="0" y="0" width="320" height="35" rx="6" fill="white" stroke="#DB2777" stroke-width="1.5"/>
+      <text x="160" y="15" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="#9D174D">📄 Word 匯出 (python-docx)</text>
+      <text x="160" y="28" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" fill="#64748B">法規清單 / 文件清單 Word 下載</text>
+    </g>
+    
+    <g transform="translate(20, 80)">
+      <rect x="0" y="0" width="320" height="35" rx="6" fill="white" stroke="#DB2777" stroke-width="1.5"/>
+      <text x="160" y="15" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="#9D174D">📊 Excel 匯出 (openpyxl)</text>
+      <text x="160" y="28" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" fill="#64748B">法規清單 Excel 下載</text>
+    </g>
+    
+    <g transform="translate(20, 122)">
+      <rect x="0" y="0" width="320" height="28" rx="6" fill="white" stroke="#059669" stroke-width="1.5"/>
+      <text x="160" y="18" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="#059669">📎 cl.File → Action Button 觸發下載</text>
+    </g>
+  </g>
+  
+  <!-- Legend -->
+  <g transform="translate(20, 650)">
+    <rect x="0" y="0" width="1160" height="65" rx="8" fill="white" stroke="#E5E7EB" stroke-width="1"/>
+    <text x="20" y="20" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#374151">圖例說明</text>
+    
+    <rect x="20" y="35" width="60" height="18" rx="4" fill="#DBEAFE" stroke="#3B82F6" stroke-width="1"/>
+    <text x="90" y="49" font-family="Arial, sans-serif" font-size="10" fill="#374151">POC 範圍</text>
+    
+    <rect x="180" y="35" width="60" height="18" rx="4" fill="#ECFDF5" stroke="#10B981" stroke-width="2"/>
+    <text x="250" y="49" font-family="Arial, sans-serif" font-size="10" fill="#374151">核心功能</text>
+    
+    <rect x="340" y="35" width="60" height="18" rx="4" fill="#FEF3C7" stroke="#D97706" stroke-width="1"/>
+    <text x="410" y="49" font-family="Arial, sans-serif" font-size="10" fill="#374151">LLM 配置</text>
+    
+    <text x="520" y="49" font-family="Arial, sans-serif" font-size="10" fill="#6B7280">硬體需求: RTX 5060 Ti (16GB) + 32GB RAM</text>
+    
+    <text x="800" y="49" font-family="Arial, sans-serif" font-size="10" fill="#6B7280">Python 3.11 (Conda: QMS) | 單一 App: Port 3000</text>
+  </g>
+  
+  <!-- Compliance Badges -->
+  <g transform="translate(20, 725)">
+    <rect x="0" y="0" width="1160" height="35" rx="6" fill="#EFF6FF" stroke="#3B82F6" stroke-width="1"/>
+    <text x="20" y="22" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#1E40AF">合規性:</text>
+    <rect x="80" y="8" width="120" height="20" rx="10" fill="#DBEAFE"/>
+    <text x="140" y="22" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#1E40AF">ISO 13485:2016</text>
+    <rect x="210" y="8" width="140" height="20" rx="10" fill="#DBEAFE"/>
+    <text x="280" y="22" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#1E40AF">FDA 21 CFR Part 11</text>
+    <rect x="360" y="8" width="120" height="20" rx="10" fill="#DBEAFE"/>
+    <text x="420" y="22" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#1E40AF">EU MDR 2017/745</text>
+  </g>
+</svg>

@@ -1,0 +1,159 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 700">
+  <defs>
+    <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#4ecdc4"/>
+      <stop offset="100%" style="stop-color:#44a08d"/>
+    </linearGradient>
+    <linearGradient id="chainlitGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea"/>
+      <stop offset="100%" style="stop-color:#764ba2"/>
+    </linearGradient>
+    <linearGradient id="profileGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#f093fb"/>
+      <stop offset="100%" style="stop-color:#f5576c"/>
+    </linearGradient>
+    <linearGradient id="engineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#43e97b"/>
+      <stop offset="100%" style="stop-color:#38f9d7"/>
+    </linearGradient>
+    <linearGradient id="dbGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#4facfe"/>
+      <stop offset="100%" style="stop-color:#00f2fe"/>
+    </linearGradient>
+    <linearGradient id="exportGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffecd2"/>
+      <stop offset="100%" style="stop-color:#fcb69f"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="1000" height="700" fill="#1a1a2e"/>
+  
+  <!-- Title -->
+  <text x="500" y="40" text-anchor="middle" fill="url(#headerGrad)" font-size="24" font-weight="bold" font-family="Arial">AI-QMS Phase 1 Document Control - 系統架構圖 v3.1.0</text>
+  
+  <!-- Chainlit App Layer -->
+  <rect x="50" y="65" width="900" height="195" rx="12" fill="#2d2d44" stroke="#667eea" stroke-width="2"/>
+  <text x="500" y="90" text-anchor="middle" fill="#667eea" font-size="16" font-weight="bold">Chainlit v3.1.0 (Port 3000) - 單一 Chat App</text>
+  
+  <!-- Chat Profiles -->
+  <rect x="80" y="105" width="380" height="65" rx="8" fill="url(#chainlitGrad)"/>
+  <text x="270" y="128" text-anchor="middle" fill="#fff" font-size="13" font-weight="bold">Chat Profile: 主系統 (Main Agent)</text>
+  <text x="270" y="148" text-anchor="middle" fill="#ddd" font-size="10">LLM Q&amp;A (📚 引用文件) | 文件搜尋 | 法規查詢</text>
+  <text x="270" y="162" text-anchor="middle" fill="#ddd" font-size="10">No-Hallucination Policy: 僅從儲存內容回答</text>
+  
+  <rect x="480" y="105" width="450" height="65" rx="8" fill="url(#profileGrad)"/>
+  <text x="705" y="128" text-anchor="middle" fill="#fff" font-size="13" font-weight="bold">Chat Profile: 文件管制 (Doc Control)</text>
+  <text x="705" y="148" text-anchor="middle" fill="#fff" font-size="10">文件上傳 + MarkItDown OCR | 版本控制 (進版/作廢)</text>
+  <text x="705" y="162" text-anchor="middle" fill="#fff" font-size="10">列表 / 文件清單 / 法規清單 | Word/Excel 匯出</text>
+  
+  <!-- ChatSettings -->
+  <rect x="80" y="185" width="850" height="55" rx="8" fill="#3d3d5c" stroke="#ffc107" stroke-width="1.5"/>
+  <text x="505" y="208" text-anchor="middle" fill="#ffc107" font-size="12" font-weight="bold">⚙️ ChatSettings (齒輪按鈕) - 動態 LLM 配置</text>
+  <rect x="100" y="218" width="120" height="18" rx="4" fill="#4a4a6a"/>
+  <text x="160" y="231" text-anchor="middle" fill="#eee" font-size="9">Provider 選擇</text>
+  <text x="232" y="231" fill="#ffc107" font-size="10">→</text>
+  <rect x="248" y="218" width="110" height="18" rx="4" fill="#4a4a6a"/>
+  <text x="303" y="231" text-anchor="middle" fill="#eee" font-size="9">連線測試</text>
+  <text x="370" y="231" fill="#ffc107" font-size="10">→</text>
+  <rect x="386" y="218" width="110" height="18" rx="4" fill="#4a4a6a"/>
+  <text x="441" y="231" text-anchor="middle" fill="#eee" font-size="9">Model 選擇</text>
+  <text x="508" y="231" fill="#ffc107" font-size="10">→</text>
+  <rect x="524" y="218" width="110" height="18" rx="4" fill="#4a4a6a"/>
+  <text x="579" y="231" text-anchor="middle" fill="#eee" font-size="9">API Key 輸入</text>
+  
+  <!-- 16+ Providers badge -->
+  <rect x="660" y="216" width="260" height="22" rx="11" fill="#ffc107"/>
+  <text x="790" y="231" text-anchor="middle" fill="#1a1a2e" font-size="10" font-weight="bold">16+ Providers (OpenRouter, OpenAI, Anthropic...)</text>
+  
+  <!-- Arrows down -->
+  <polygon points="300,270 295,260 305,260" fill="#43e97b"/>
+  <polygon points="500,270 495,260 505,260" fill="#4facfe"/>
+  <polygon points="750,270 745,260 755,260" fill="#fcb69f"/>
+  
+  <!-- Processing Engine -->
+  <rect x="50" y="280" width="320" height="200" rx="10" fill="#2d2d44" stroke="#43e97b" stroke-width="2"/>
+  <text x="210" y="305" text-anchor="middle" fill="#43e97b" font-size="14" font-weight="bold">處理引擎</text>
+  
+  <rect x="70" y="320" width="280" height="40" rx="6" fill="url(#engineGrad)"/>
+  <text x="210" y="337" text-anchor="middle" fill="#1a1a2e" font-size="11" font-weight="bold">📷 MarkItDown (OCR 引擎)</text>
+  <text x="210" y="353" text-anchor="middle" fill="#1a1a2e" font-size="9">PDF / Word / Excel → Markdown</text>
+  
+  <rect x="70" y="370" width="130" height="35" rx="5" fill="#3d3d5c"/>
+  <text x="135" y="392" text-anchor="middle" fill="#eee" font-size="10">🔍 版本偵測</text>
+  <rect x="220" y="370" width="130" height="35" rx="5" fill="#3d3d5c"/>
+  <text x="285" y="392" text-anchor="middle" fill="#eee" font-size="10">🔏 簽章偵測</text>
+  
+  <rect x="70" y="415" width="130" height="35" rx="5" fill="#3d3d5c"/>
+  <text x="135" y="437" text-anchor="middle" fill="#eee" font-size="10">📋 Doc ID 擷取</text>
+  <rect x="220" y="415" width="130" height="35" rx="5" fill="#3d3d5c"/>
+  <text x="285" y="437" text-anchor="middle" fill="#eee" font-size="10">🤖 LLM (LiteLLM)</text>
+  
+  <!-- Data Layer -->
+  <rect x="390" y="280" width="260" height="200" rx="10" fill="#2d2d44" stroke="#4facfe" stroke-width="2"/>
+  <text x="520" y="305" text-anchor="middle" fill="#4facfe" font-size="14" font-weight="bold">資料層</text>
+  
+  <rect x="410" y="320" width="220" height="45" rx="6" fill="url(#dbGrad)"/>
+  <text x="520" y="340" text-anchor="middle" fill="#1a1a2e" font-size="11" font-weight="bold">📁 Markdown Storage</text>
+  <text x="520" y="356" text-anchor="middle" fill="#1a1a2e" font-size="9">documents/ + metadata/ + registry.json</text>
+  
+  <rect x="410" y="375" width="220" height="40" rx="6" fill="url(#dbGrad)"/>
+  <text x="520" y="393" text-anchor="middle" fill="#1a1a2e" font-size="11" font-weight="bold">🔒 Audit Log (SHA-256 鏈)</text>
+  <text x="520" y="407" text-anchor="middle" fill="#1a1a2e" font-size="9">audit_log.json (防竄改)</text>
+  
+  <rect x="410" y="425" width="220" height="40" rx="6" fill="url(#dbGrad)"/>
+  <text x="520" y="443" text-anchor="middle" fill="#1a1a2e" font-size="11" font-weight="bold">📊 Model Cache</text>
+  <text x="520" y="457" text-anchor="middle" fill="#1a1a2e" font-size="9">model_cache.json (342 模型)</text>
+  
+  <!-- Export Tools -->
+  <rect x="670" y="280" width="280" height="200" rx="10" fill="#2d2d44" stroke="#fcb69f" stroke-width="2"/>
+  <text x="810" y="305" text-anchor="middle" fill="#fcb69f" font-size="14" font-weight="bold">匯出工具</text>
+  
+  <rect x="690" y="320" width="240" height="40" rx="6" fill="url(#exportGrad)"/>
+  <text x="810" y="340" text-anchor="middle" fill="#1a1a2e" font-size="11" font-weight="bold">📄 Word 匯出 (python-docx)</text>
+  <text x="810" y="354" text-anchor="middle" fill="#1a1a2e" font-size="9">法規清單 / 文件清單 下載</text>
+  
+  <rect x="690" y="370" width="240" height="40" rx="6" fill="url(#exportGrad)"/>
+  <text x="810" y="390" text-anchor="middle" fill="#1a1a2e" font-size="11" font-weight="bold">📊 Excel 匯出 (openpyxl)</text>
+  <text x="810" y="404" text-anchor="middle" fill="#1a1a2e" font-size="9">法規清單 Excel 下載</text>
+  
+  <rect x="690" y="420" width="240" height="40" rx="6" fill="url(#exportGrad)"/>
+  <text x="810" y="440" text-anchor="middle" fill="#1a1a2e" font-size="11" font-weight="bold">📎 cl.File 下載</text>
+  <text x="810" y="454" text-anchor="middle" fill="#1a1a2e" font-size="9">Chainlit Action Button → 檔案連結</text>
+  
+  <!-- Key Features Bar -->
+  <rect x="50" y="500" width="900" height="90" rx="10" fill="#2d2d44" stroke="#4ecdc4" stroke-width="1.5"/>
+  <text x="500" y="525" text-anchor="middle" fill="#4ecdc4" font-size="14" font-weight="bold">🔑 v3.1.0 關鍵特性</text>
+  
+  <rect x="70" y="540" width="160" height="35" rx="5" fill="#3d3d5c"/>
+  <text x="150" y="562" text-anchor="middle" fill="#eee" font-size="10">✅ 單一 App (Port 3000)</text>
+  
+  <rect x="245" y="540" width="160" height="35" rx="5" fill="#3d3d5c"/>
+  <text x="325" y="562" text-anchor="middle" fill="#eee" font-size="10">✅ Chat Profiles 切換</text>
+  
+  <rect x="420" y="540" width="160" height="35" rx="5" fill="#3d3d5c"/>
+  <text x="500" y="562" text-anchor="middle" fill="#eee" font-size="10">✅ MarkItDown OCR</text>
+  
+  <rect x="595" y="540" width="160" height="35" rx="5" fill="#3d3d5c"/>
+  <text x="675" y="562" text-anchor="middle" fill="#eee" font-size="10">✅ 15 檔建議上限</text>
+  
+  <rect x="770" y="540" width="160" height="35" rx="5" fill="#3d3d5c"/>
+  <text x="850" y="562" text-anchor="middle" fill="#eee" font-size="10">✅ SHA-256 稽核鏈</text>
+  
+  <!-- Compliance -->
+  <rect x="50" y="610" width="900" height="35" rx="8" fill="#2d2d44" stroke="#667eea" stroke-width="1"/>
+  <text x="80" y="632" fill="#667eea" font-size="11" font-weight="bold">合規性:</text>
+  <rect x="145" y="617" width="130" height="22" rx="11" fill="#3d3d5c"/>
+  <text x="210" y="633" text-anchor="middle" fill="#eee" font-size="9">ISO 13485:2016</text>
+  <rect x="285" y="617" width="150" height="22" rx="11" fill="#3d3d5c"/>
+  <text x="360" y="633" text-anchor="middle" fill="#eee" font-size="9">FDA 21 CFR Part 11</text>
+  <rect x="445" y="617" width="140" height="22" rx="11" fill="#3d3d5c"/>
+  <text x="515" y="633" text-anchor="middle" fill="#eee" font-size="9">EU MDR 2017/745</text>
+  
+  <!-- Hardware -->
+  <rect x="620" y="617" width="310" height="22" rx="11" fill="#3d3d5c"/>
+  <text x="775" y="633" text-anchor="middle" fill="#888" font-size="9">硬體: RTX 5060 Ti (16GB) + 32GB RAM | Python 3.11 (Conda: QMS)</text>
+  
+  <!-- Version info -->
+  <text x="950" y="690" text-anchor="end" fill="#666" font-size="10">v3.1.0 | 2026-02-12 | Chainlit Single App Architecture</text>
+</svg>
