@@ -1,10 +1,6 @@
 # AI-QMS: AI-Powered Quality Management System for Medical Devices
 
 <p align="center">
-  <img src="docs/diagrams/AI-QMS-Phase1-System-Architecture.svg" alt="AI-QMS Architecture" width="800">
-</p>
-
-<p align="center">
   <strong>
     <a href="#中文說明">中文</a> | 
     <a href="#english">English</a> | 
@@ -26,7 +22,7 @@
 
 ### 主 Agent (Main Agent)
 - QMS 品質管理系統智慧助手
-- 自然語言對話介面，支援中/英/日多語言
+- 自然語言對話介面，支援 20 國語言 UI
 - 文件搜尋、查詢、狀態監控
 - 稽核紀錄查詢與匯出 (Word/Excel)
 - LLM 連線測試與提供商切換
@@ -42,6 +38,11 @@
 - **交叉引用偵測** — 版本更新後自動搜尋引用該文件的關聯文件
 - **Markdown 儲存層** — 轉換文件為 Markdown 格式，供跨 Agent 資料提取
 - **原始檔案下載** — 透過 AI 對話指令下載原始文件
+
+### v3.2.0 新增功能
+- **20 國語言 UI 介面** — 支援繁體中文、簡體中文、英文、日文、韓文、法文、德文、西班牙文、葡萄牙文、義大利文、俄文、阿拉伯文、印地文、泰文、越南文、印尼文、馬來文、土耳其文、荷蘭文、波蘭文，可在設定中即時切換
+- **API Key 安全遮罩** — API Key 輸入後自動隱藏（僅顯示末 4 碼），可透過開關切換顯示/隱藏
+- **語言選擇器** — ChatSettings 設定面板新增語言選擇，所有 UI 文字即時切換
 
 ## 系統架構
 
@@ -97,14 +98,39 @@
 
 ## 下載與安裝
 
-### 方法一：使用 Git Clone (推薦)
+### 前置準備（第一次使用電腦開發的人請先完成以下步驟）
+
+**步驟 1：安裝 Git**
+
+Git 是一個版本控制工具，用來下載和管理程式碼。
+
+1. 前往 https://git-scm.com/downloads
+2. 點擊下載適合您作業系統的安裝檔（Windows / Mac / Linux）
+3. 執行安裝檔，所有選項保持預設即可，一路點擊「Next」直到安裝完成
+
+**步驟 2：安裝 Miniconda（推薦）**
+
+Miniconda 是一個 Python 環境管理工具，可以幫您建立獨立的 Python 環境，避免套件衝突。
+
+1. 前往 https://docs.anaconda.com/miniconda/install/
+2. 下載適合您作業系統的安裝檔
+3. 執行安裝檔，建議勾選「Add to PATH」選項
+4. 安裝完成後，開啟「Anaconda Prompt」（可在開始選單中找到）
+
+> **不想安裝 Miniconda？** 您也可以直接安裝 Python 3.11：前往 https://www.python.org/downloads/ 下載 Python 3.11 版本，安裝時務必勾選「Add Python to PATH」。
+
+### 下載專案
+
+**方法一：使用 Git Clone（推薦）**
+
+開啟命令提示字元（按 `Win + R`，輸入 `cmd`，按 Enter），然後輸入：
 
 ```bash
 git clone https://github.com/TMBIA-Tmti/AI-QMS.git
 cd AI-QMS
 ```
 
-### 方法二：下載 ZIP
+**方法二：下載 ZIP**
 
 1. 點擊本頁面右上方綠色 **「Code」** 按鈕
 2. 選擇 **「Download ZIP」**
@@ -112,12 +138,16 @@ cd AI-QMS
 
 ## 快速開始
 
-### 1. 建立 Conda 環境
+### 1. 建立 Python 環境
+
+開啟 Anaconda Prompt（或命令提示字元），輸入以下指令：
 
 ```bash
 conda create --name QMS python=3.11 --yes
 conda activate QMS
 ```
+
+> 如果您沒有安裝 Miniconda，請確認已安裝 Python 3.11，直接跳到步驟 2。
 
 ### 2. 安裝相依套件
 
@@ -125,29 +155,21 @@ conda activate QMS
 pip install -r requirements.txt
 ```
 
-### 3. 設定環境變數
-
-```powershell
-# 使用 Ollama (本地)
-$env:LLM_PROVIDER = "ollama"
-$env:OLLAMA_BASE_URL = "http://localhost:11434"
-
-# 或使用 OpenAI
-$env:LLM_PROVIDER = "openai"
-$env:OPENAI_API_KEY = "your-api-key"
-```
-
-### 4. 啟動系統
+### 3. 啟動系統
 
 ```bash
-# 方式一：雙擊啟動 (推薦)
 start.bat
+```
 
-# 方式二：直接啟動 Chainlit
+或直接啟動 Chainlit：
+
+```bash
 start_chainlit.bat
 ```
 
 瀏覽器將自動開啟 http://localhost:3000
+
+> **API Key 設定：** 啟動後在應用程式右上角的設定面板中直接輸入 API Key，無需設定環境變數。
 
 ## 對話指令
 
@@ -155,13 +177,18 @@ start_chainlit.bat
 |------|------|
 | `幫助` / `help` | 顯示使用指南 |
 | `狀態` / `status` | 顯示系統狀態 |
-| `列表` / `list` | 列出所有文件 |
-| `搜尋 <關鍵字>` / `search <keyword>` | 搜尋文件 |
-| `作廢 <文件編號> <原因>` | 作廢文件 |
-| `稽核紀錄` / `audit` | 查看稽核紀錄 |
-| `下載稽核紀錄 word` | 匯出稽核紀錄為 .docx |
-| `下載稽核紀錄 excel` | 匯出稽核紀錄為 .xlsx |
-| `連線測試` / `connection test` | 測試 LLM 連線 |
+| `文件清單` | 現行正式版本文件 |
+| `列表` / `list` | 所有文件紀錄（含進版、作廢） |
+| `搜尋 <關鍵字>` | 搜尋文件內容 |
+| `下載 <文件編號>` | 下載原始文件（如：下載 QP-852） |
+| `作廢 <文件編號>` | 作廢文件（如：作廢 OTHER-016） |
+| `文件更動紀錄` | 查看文件更動紀錄 |
+| `下載文件更動紀錄 word` | 匯出文件更動紀錄為 .docx |
+| `下載文件更動紀錄 excel` | 匯出文件更動紀錄為 .xlsx |
+| `法規清單` | 列出所有引用的法規標準 |
+| `下載法規清單 word/excel` | 匯出法規清單 |
+| `下載引用清單 word/excel` | 匯出進版引用清單 |
+| `刪除資料庫` | 刪除所有文件（需確認） |
 
 ## 技術堆疊
 
@@ -188,7 +215,7 @@ The system adopts a **Main Agent + Sub-Agent** architecture, where the Main Agen
 
 ### Main Agent
 - Intelligent QMS assistant with natural language interface
-- Multilingual support (Chinese / English / Japanese)
+- 20-language UI support
 - Document search, query, and system status monitoring
 - Audit log query and export (Word/Excel)
 - LLM connection testing and provider switching
@@ -204,6 +231,11 @@ The system adopts a **Main Agent + Sub-Agent** architecture, where the Main Agen
 - **Cross-Reference Detection** — Auto-search for related documents after version updates
 - **Markdown Storage Layer** — Convert documents to Markdown for cross-agent data extraction
 - **Original File Download** — Download original files via AI chat commands
+
+### v3.2.0 New Features
+- **20-Language UI** — Supports Traditional Chinese, Simplified Chinese, English, Japanese, Korean, French, German, Spanish, Portuguese, Italian, Russian, Arabic, Hindi, Thai, Vietnamese, Indonesian, Malay, Turkish, Dutch, Polish. Switch languages in real-time via settings
+- **API Key Security Masking** — API Key is automatically masked after input (shows only last 4 characters). Toggle show/hide with a switch
+- **Language Selector** — New language selector in ChatSettings panel for instant UI language switching
 
 ## System Architecture
 
@@ -259,14 +291,39 @@ The system adopts a **Main Agent + Sub-Agent** architecture, where the Main Agen
 
 ## Download & Install
 
-### Option 1: Git Clone (Recommended)
+### Prerequisites (First-time setup for beginners)
+
+**Step 1: Install Git**
+
+Git is a version control tool used to download and manage source code.
+
+1. Go to https://git-scm.com/downloads
+2. Download the installer for your operating system (Windows / Mac / Linux)
+3. Run the installer, keep all default options, click "Next" until installation is complete
+
+**Step 2: Install Miniconda (Recommended)**
+
+Miniconda is a Python environment manager that creates isolated Python environments to avoid package conflicts.
+
+1. Go to https://docs.anaconda.com/miniconda/install/
+2. Download the installer for your operating system
+3. Run the installer, check "Add to PATH" option if available
+4. After installation, open "Anaconda Prompt" (find it in Start Menu)
+
+> **Don't want to install Miniconda?** You can install Python 3.11 directly: go to https://www.python.org/downloads/ and download Python 3.11. Make sure to check "Add Python to PATH" during installation.
+
+### Download the Project
+
+**Option 1: Git Clone (Recommended)**
+
+Open a command prompt (press `Win + R`, type `cmd`, press Enter), then type:
 
 ```bash
 git clone https://github.com/TMBIA-Tmti/AI-QMS.git
 cd AI-QMS
 ```
 
-### Option 2: Download ZIP
+**Option 2: Download ZIP**
 
 1. Click the green **"Code"** button at the top of this page
 2. Select **"Download ZIP"**
@@ -274,12 +331,16 @@ cd AI-QMS
 
 ## Quick Start
 
-### 1. Create Conda Environment
+### 1. Create Python Environment
+
+Open Anaconda Prompt (or Command Prompt) and type:
 
 ```bash
 conda create --name QMS python=3.11 --yes
 conda activate QMS
 ```
+
+> If you didn't install Miniconda, make sure Python 3.11 is installed and skip to step 2.
 
 ### 2. Install Dependencies
 
@@ -287,29 +348,21 @@ conda activate QMS
 pip install -r requirements.txt
 ```
 
-### 3. Configure Environment Variables
-
-```powershell
-# Using Ollama (Local)
-$env:LLM_PROVIDER = "ollama"
-$env:OLLAMA_BASE_URL = "http://localhost:11434"
-
-# Or using OpenAI
-$env:LLM_PROVIDER = "openai"
-$env:OPENAI_API_KEY = "your-api-key"
-```
-
-### 4. Launch System
+### 3. Launch System
 
 ```bash
-# Option 1: Double-click to launch (Recommended)
 start.bat
+```
 
-# Option 2: Launch Chainlit directly
+Or launch Chainlit directly:
+
+```bash
 start_chainlit.bat
 ```
 
 Browser will automatically open http://localhost:3000
+
+> **API Key Setup:** After launch, enter your API Key directly in the settings panel (top-right corner of the app). No environment variables needed.
 
 ## Chat Commands
 
@@ -317,13 +370,18 @@ Browser will automatically open http://localhost:3000
 |---------|-------------|
 | `help` | Show usage guide |
 | `status` | Show system status |
-| `list` | List all documents |
-| `search <keyword>` | Search documents |
-| `obsolete <doc_id> <reason>` | Obsolete a document |
-| `audit` | Show audit trail |
-| `download audit word` | Export audit log as .docx |
-| `download audit excel` | Export audit log as .xlsx |
-| `connection test` | Test LLM connection |
+| `document list` | Current formal document versions |
+| `list` | All document records (incl. versions, obsolete) |
+| `search <keyword>` | Search document content |
+| `download <doc_id>` | Download original file (e.g., download QP-852) |
+| `obsolete <doc_id>` | Obsolete a document (e.g., obsolete OTHER-016) |
+| `audit trail` | View audit trail records |
+| `download audit word` | Export audit trail as .docx |
+| `download audit excel` | Export audit trail as .xlsx |
+| `regulatory list` | List all referenced regulatory standards |
+| `download regulatory word/excel` | Export regulatory list |
+| `download reference word/excel` | Export version reference list |
+| `delete database` | Delete all documents (confirmation required) |
 
 ## Tech Stack
 
@@ -350,7 +408,7 @@ Browser will automatically open http://localhost:3000
 
 ### メイン Agent (Main Agent)
 - QMS インテリジェントアシスタント（自然言語対話インターフェース）
-- 多言語対応（中国語 / 英語 / 日本語）
+- 20言語 UI 対応
 - 文書検索、照会、システム状態監視
 - 監査ログの照会とエクスポート（Word/Excel）
 - LLM 接続テストとプロバイダー切替
@@ -366,6 +424,11 @@ Browser will automatically open http://localhost:3000
 - **相互参照検出** — バージョン更新後に関連文書を自動検索
 - **Markdown ストレージ層** — 文書を Markdown 形式に変換し、Agent 間データ抽出に活用
 - **原本ファイルダウンロード** — AI チャットコマンドによる原本ファイルのダウンロード
+
+### v3.2.0 新機能
+- **20言語 UI 対応** — 繁体字中国語、簡体字中国語、英語、日本語、韓国語、フランス語、ドイツ語、スペイン語、ポルトガル語、イタリア語、ロシア語、アラビア語、ヒンディー語、タイ語、ベトナム語、インドネシア語、マレー語、トルコ語、オランダ語、ポーランド語に対応。設定でリアルタイム切替可能
+- **API Key セキュリティマスク** — API Key 入力後に自動マスク（末尾4文字のみ表示）。スイッチで表示/非表示を切替可能
+- **言語セレクター** — ChatSettings パネルに言語セレクターを追加、UI 言語の即時切替に対応
 
 ## システムアーキテクチャ
 
@@ -421,14 +484,39 @@ Browser will automatically open http://localhost:3000
 
 ## ダウンロードとインストール
 
-### 方法1：Git Clone（推奨）
+### 前提条件（初めての方はこちらから）
+
+**ステップ 1：Git のインストール**
+
+Git はソースコードのダウンロードと管理に使用するバージョン管理ツールです。
+
+1. https://git-scm.com/downloads にアクセス
+2. お使いの OS（Windows / Mac / Linux）に合ったインストーラーをダウンロード
+3. インストーラーを実行し、デフォルト設定のまま「Next」をクリックしてインストール完了
+
+**ステップ 2：Miniconda のインストール（推奨）**
+
+Miniconda は Python 環境マネージャーで、パッケージの競合を避けるために独立した Python 環境を作成できます。
+
+1. https://docs.anaconda.com/miniconda/install/ にアクセス
+2. お使いの OS に合ったインストーラーをダウンロード
+3. インストーラーを実行し、「Add to PATH」オプションにチェック
+4. インストール後、「Anaconda Prompt」を開く（スタートメニューから検索）
+
+> **Miniconda をインストールしない場合：** Python 3.11 を直接インストールできます。https://www.python.org/downloads/ から Python 3.11 をダウンロードし、インストール時に「Add Python to PATH」にチェックを入れてください。
+
+### プロジェクトのダウンロード
+
+**方法1：Git Clone（推奨）**
+
+コマンドプロンプトを開き（`Win + R` を押して `cmd` と入力し Enter）、以下を入力：
 
 ```bash
 git clone https://github.com/TMBIA-Tmti/AI-QMS.git
 cd AI-QMS
 ```
 
-### 方法2：ZIP ダウンロード
+**方法2：ZIP ダウンロード**
 
 1. このページ上部の緑色の **「Code」** ボタンをクリック
 2. **「Download ZIP」** を選択
@@ -436,12 +524,16 @@ cd AI-QMS
 
 ## クイックスタート
 
-### 1. Conda 環境の作成
+### 1. Python 環境の作成
+
+Anaconda Prompt（またはコマンドプロンプト）を開き、以下を入力：
 
 ```bash
 conda create --name QMS python=3.11 --yes
 conda activate QMS
 ```
+
+> Miniconda をインストールしていない場合は、Python 3.11 がインストールされていることを確認し、ステップ 2 に進んでください。
 
 ### 2. 依存パッケージのインストール
 
@@ -449,43 +541,39 @@ conda activate QMS
 pip install -r requirements.txt
 ```
 
-### 3. 環境変数の設定
-
-```powershell
-# Ollama（ローカル）を使用
-$env:LLM_PROVIDER = "ollama"
-$env:OLLAMA_BASE_URL = "http://localhost:11434"
-
-# または OpenAI を使用
-$env:LLM_PROVIDER = "openai"
-$env:OPENAI_API_KEY = "your-api-key"
-```
-
-### 4. システム起動
+### 3. システム起動
 
 ```bash
-# 方法1：ダブルクリックで起動（推奨）
 start.bat
+```
 
-# 方法2：Chainlit を直接起動
+または Chainlit を直接起動：
+
+```bash
 start_chainlit.bat
 ```
 
 ブラウザが自動的に http://localhost:3000 を開きます。
 
+> **API Key の設定：** 起動後、アプリケーション右上の設定パネルで API Key を直接入力できます。環境変数の設定は不要です。
+
 ## チャットコマンド
 
 | コマンド | 説明 |
 |----------|------|
-| `help` / `幫助` | 使用ガイドを表示 |
-| `status` / `狀態` | システム状態を表示 |
-| `list` / `列表` | 全文書を一覧表示 |
-| `search <キーワード>` | 文書を検索 |
-| `obsolete <文書ID> <理由>` | 文書を廃止 |
-| `audit` / `稽核紀錄` | 監査証跡を表示 |
-| `download audit word` | 監査ログを .docx でエクスポート |
-| `download audit excel` | 監査ログを .xlsx でエクスポート |
-| `connection test` | LLM 接続テスト |
+| `ヘルプ` / `help` | 使用ガイドを表示 |
+| `ステータス` / `status` | システム状態を表示 |
+| `文書一覧` | 現行正式版文書 |
+| `リスト` / `list` | 全記録（版更新・廃止含む） |
+| `検索 <キーワード>` | 文書内容を検索 |
+| `ダウンロード <文書ID>` | 原本ファイルをダウンロード（例：ダウンロード QP-852） |
+| `廃止 <文書ID>` | 文書を廃止（例：廃止 OTHER-016） |
+| `監査証跡` | 監査証跡を表示 |
+| `監査証跡ダウンロード word` | 監査ログを .docx でエクスポート |
+| `監査証跡ダウンロード excel` | 監査ログを .xlsx でエクスポート |
+| `規制リスト` | 引用規格一覧を表示 |
+| `規制リストダウンロード word/excel` | 規格リストをエクスポート |
+| `データベース削除` | 全文書を削除（確認必要） |
 
 ## 技術スタック
 
@@ -517,7 +605,8 @@ AI-QMS/
 │   └── doc_control.svg
 ├── src/                         # Source code
 │   ├── chainlit_app/            # Chainlit application
-│   │   ├── app.py               # Main app entry point
+│   │   ├── app.py               # Main app entry point (v3.2.0)
+│   │   ├── i18n.py              # 20-language translations
 │   │   └── handlers/
 │   ├── agents/                  # Agent modules
 │   │   └── tools/               # LangGraph tools
@@ -534,9 +623,6 @@ AI-QMS/
 │   │   └── audit_export.py      # Audit log Word/Excel export
 │   ├── config.py
 │   └── llm_providers.py         # 16 LLM provider manager
-├── docs/
-│   ├── CONDA_SETUP.md           # Conda environment setup
-│   └── diagrams/                # Architecture diagrams (SVG/PNG)
 ├── data/                        # Runtime data (auto-generated)
 ├── uploads/                     # File upload staging
 └── markdown_storage/            # Converted Markdown documents
