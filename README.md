@@ -8,34 +8,7 @@
   </strong>
 </p>
 
-<!-- 
-  VIDEO EMBED INSTRUCTIONS:
-  To enable inline video playback on GitHub:
-  1. Go to https://github.com/TMBIA-Tmti/AI-QMS/issues/new
-  2. Drag-and-drop "docs/demo/AI-QMS_Document_Control_Demo.mp4" into the issue body
-  3. Wait for upload → GitHub generates a URL like: https://github.com/user-attachments/assets/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-  4. Copy that URL and replace the VIDEO_URL below
-  5. Uncomment the video line and remove the GIF fallback
--->
-
-<!-- INLINE VIDEO (uncomment after uploading via GitHub Issue):
-<p align="center">
-
-https://github.com/user-attachments/assets/VIDEO_URL_HERE
-
-</p>
--->
-
-<!-- GIF FALLBACK (remove after enabling inline video above) -->
-<p align="center">
-  <a href="docs/demo/AI-QMS_Document_Control_Demo.mp4">
-    <img src="docs/demo/demo_preview.gif" alt="AI-QMS Demo Video" width="800">
-  </a>
-</p>
-
-<p align="center">
-  <em>▲ 點擊 GIF 觀看完整展示影片 | Click GIF to view full demo video | GIF をクリックしてデモ動画を見る</em>
-</p>
+<!-- VIDEO_PLACEHOLDER: Replace with user-attachments URL after uploading 4K MP4 via GitHub Issue drag-and-drop -->
 
 ---
 
