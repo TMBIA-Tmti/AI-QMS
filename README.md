@@ -8,7 +8,7 @@
   </strong>
 </p>
 
-<!-- VIDEO_PLACEHOLDER: Replace with user-attachments URL after uploading 4K MP4 via GitHub Issue drag-and-drop -->
+https://github.com/user-attachments/assets/c7d3f928-e45a-4346-b2a2-6bca883ac85f
 
 ---
 
