@@ -166,21 +166,44 @@ def get_provider_id_from_display(display_name: str) -> str:
 
 def setup_api_key(provider_id: str, api_key: str):
     """Set API key in environment for a provider"""
+    api_key = api_key.strip() if api_key else api_key
     if api_key and not DEFAULT_PROVIDERS.get(provider_id, {}).get("is_local"):
         env_key = DEFAULT_PROVIDERS.get(provider_id, {}).get("env_key_name", "")
         if env_key:
             os.environ[env_key] = api_key
 
 
-def test_llm_connection(provider_id: str, model_name: str, api_key: str = "") -> str:
-    """Test LLM connection and return status message"""
+def test_llm_connection(
+    provider_id: str, model_name: str, api_key: str = "", lang: str = "zh-TW"
+) -> str:
+    from src.chainlit_app.i18n import I18N
+
+    def _t(key, **kwargs):
+        """Local translation without cl.user_session."""
+        text = I18N.get(lang, I18N.get("zh-TW", {})).get(
+            key, I18N.get("zh-TW", {}).get(key, key)
+        )
+        if kwargs:
+            try:
+                text = text.format(**kwargs)
+            except (KeyError, IndexError):
+                pass
+        return text
+
     try:
         setup_api_key(provider_id, api_key)
         mgr = create_provider_manager(provider_id)
         res = mgr.test_connection(model=model_name if model_name else None)
         if res.get("success"):
-            return f"✅ 連線成功！ 提供商: {res['provider']} | 模型: {res['model']} | 延遲: {res['latency_ms']}ms"
+            return _t(
+                "test.success",
+                provider=res["provider"],
+                model=res["model"],
+                latency=res["latency_ms"],
+            )
         else:
-            return f"❌ 連線失敗 模型: {res.get('model', 'N/A')} | 錯誤: {res.get('error', '未知錯誤')}"
+            return _t(
+                "test.failed", model=res.get("model", "N/A"), error=res.get("error", "")
+            )
     except Exception as e:
-        return f"❌ 測試失敗: {str(e)}"
+        return _t("test.error", error=str(e))
