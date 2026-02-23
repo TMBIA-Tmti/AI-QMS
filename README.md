@@ -8,6 +8,16 @@
   </strong>
 </p>
 
+<p align="center">
+  <a href="docs/demo/AI-QMS_Document_Control_Demo.mp4">
+    <img src="docs/demo/demo_preview.gif" alt="AI-QMS Demo Video" width="800">
+  </a>
+</p>
+
+<p align="center">
+  <em>▲ 點擊 GIF 預覽下載完整展示影片 | Click GIF to download full demo video | GIF をクリックしてデモ動画をダウンロード</em>
+</p>
+
 ---
 
 # 中文說明
