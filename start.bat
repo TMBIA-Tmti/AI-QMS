@@ -1,46 +1,81 @@
 @echo off
 chcp 65001 >nul 2>&1
-title AI-QMS Phase 1 Document Control - Launcher v3.0.0
+title AI-QMS Phase 1 Document Control - Launcher v3.3.0
 
 echo ========================================================
 echo  AI-QMS Phase 1 Document Control System
-echo  Version: v3.0.0 (Chainlit)
-echo  Date: 2026-02-11
+echo  Version: v3.3.0 (Chainlit)
+echo  Date: 2026-02-24
 echo ========================================================
 echo.
-echo  Architecture (v3.0.0 - Chainlit):
+echo  Architecture (v3.3.0 - Chainlit):
 echo    Chainlit App:       Port 3000 (Single App, Chat Profiles)
 echo    Local LLM:          Ollama (Port 11434)
 echo.
-echo  v3.0.0 Features:
+echo  v3.3.0 Features:
 echo    - Chainlit UI (replaces Gradio dual-app)
 echo    - Chat Profiles: Main Agent + Doc Control
 echo    - Multilingual Signature/Stamp Detection (15+ languages)
 echo    - Document Obsolete Feature
 echo    - LLM Model List Auto-Update on Startup
 echo    - 16 LLM Providers (OpenAI, Anthropic, Google, Ollama...)
+echo    - /web Web Search with Source Credibility Ranking
+echo    - 20-Language i18n Support
 echo.
 echo ========================================================
 
 :: Set paths
-set "CONDA_PATH=C:\Users\MDR\miniconda3"
-set "QMS_ENV=%CONDA_PATH%\envs\QMS"
 set "PROJECT_DIR=%~dp0"
+set "QMS_PYTHON="
 
-:: Check if QMS environment exists
-if not exist "%QMS_ENV%\python.exe" (
-    echo [ERROR] QMS environment not found!
-    echo.
-    echo Please create it with:
-    echo   conda create -n QMS python=3.11 --yes
-    echo   conda activate QMS
-    echo   pip install -r requirements.txt
-    echo.
-    pause
-    exit /b 1
+:: Auto-detect Conda QMS environment
+for %%P in (
+    "%USERPROFILE%\miniconda3\envs\QMS\python.exe"
+    "%USERPROFILE%\anaconda3\envs\QMS\python.exe"
+    "%LOCALAPPDATA%\miniconda3\envs\QMS\python.exe"
+    "C:\miniconda3\envs\QMS\python.exe"
+    "C:\ProgramData\miniconda3\envs\QMS\python.exe"
+    "C:\ProgramData\anaconda3\envs\QMS\python.exe"
+) do (
+    if exist %%P (
+        set "QMS_PYTHON=%%~P"
+        goto :found_python
+    )
 )
 
-echo [OK] QMS Environment: %QMS_ENV%
+:: Try conda activate approach
+where conda >nul 2>&1
+if not errorlevel 1 (
+    for /f "tokens=*" %%i in ('conda run -n QMS where python 2^>nul') do (
+        if exist "%%i" (
+            set "QMS_PYTHON=%%i"
+            goto :found_python
+        )
+    )
+)
+
+:: Try system Python as fallback
+where python >nul 2>&1
+if not errorlevel 1 (
+    echo [WARN] QMS conda environment not found.
+    echo [WARN] Using system Python. Some features may not work.
+    echo.
+    set "QMS_PYTHON=python"
+    goto :found_python
+)
+
+echo [ERROR] Python not found!
+echo.
+echo Please install Python 3.11 and create the QMS environment:
+echo   conda create -n QMS python=3.11 --yes
+echo   conda activate QMS
+echo   pip install -r requirements.txt
+echo.
+pause
+exit /b 1
+
+:found_python
+echo [OK] Python: %QMS_PYTHON%
 echo.
 
 :: Show menu
@@ -76,7 +111,7 @@ echo [INFO] Press Ctrl+C to stop
 echo.
 
 :: Check chainlit
-"%QMS_ENV%\python.exe" -c "import chainlit; print(f'[OK] Chainlit {chainlit.__version__}')" 2>nul
+"%QMS_PYTHON%" -c "import chainlit; print(f'[OK] Chainlit {chainlit.__version__}')" 2>nul
 if errorlevel 1 (
     echo [ERROR] Chainlit not installed! Run: pip install chainlit
     pause
@@ -87,7 +122,7 @@ echo [INFO] Opening browser automatically...
 start "" "http://localhost:3000"
 
 cd /d "%PROJECT_DIR%"
-"%QMS_ENV%\python.exe" -m chainlit run src/chainlit_app/app.py --port 3000 --host 0.0.0.0
+"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port 3000 --host 0.0.0.0
 goto check_error
 
 :start_all
@@ -102,7 +137,12 @@ echo [1/2] Checking Ollama...
 tasklist /FI "IMAGENAME eq ollama.exe" 2>NUL | find /I "ollama.exe" >NUL
 if errorlevel 1 (
     echo      Starting Ollama...
-    start "" "C:\Users\MDR\AppData\Local\Programs\Ollama\ollama.exe" serve
+    where ollama >nul 2>&1
+    if not errorlevel 1 (
+        start "" ollama serve
+    ) else (
+        echo      [WARN] Ollama not found. Please install from https://ollama.com
+    )
     timeout /t 3 >nul
 ) else (
     echo      Ollama already running
@@ -127,7 +167,7 @@ echo.
 start "" "http://localhost:3000"
 
 cd /d "%PROJECT_DIR%"
-"%QMS_ENV%\python.exe" -m chainlit run src/chainlit_app/app.py --port 3000 --host 0.0.0.0
+"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port 3000 --host 0.0.0.0
 goto check_error
 
 :legacy_gradio
@@ -154,25 +194,25 @@ if "%gradio_choice%"=="1" (
     echo [INFO] Starting Main Agent (Gradio)...
     start "" "http://localhost:3000"
     cd /d "%PROJECT_DIR%"
-    "%QMS_ENV%\python.exe" -m src.gradio_apps.main_agent
+    "%QMS_PYTHON%" -m src.gradio_apps.main_agent
     goto check_error
 )
 if "%gradio_choice%"=="2" (
     echo [INFO] Starting Sub-Agent (Gradio)...
     start "" "http://localhost:7860"
     cd /d "%PROJECT_DIR%"
-    "%QMS_ENV%\python.exe" -m src.gradio_apps.doc_control
+    "%QMS_PYTHON%" -m src.gradio_apps.doc_control
     goto check_error
 )
 if "%gradio_choice%"=="3" (
     echo [INFO] Starting Both Agents (Gradio)...
-    start "AI-QMS Sub-Agent" cmd /c "cd /d "%PROJECT_DIR%" && "%QMS_ENV%\python.exe" -m src.gradio_apps.doc_control"
+    start "AI-QMS Sub-Agent" cmd /c "cd /d "%PROJECT_DIR%" && "%QMS_PYTHON%" -m src.gradio_apps.doc_control"
     timeout /t 3 >nul
     start "" "http://localhost:3000"
     timeout /t 1 >nul
     start "" "http://localhost:7860"
     cd /d "%PROJECT_DIR%"
-    "%QMS_ENV%\python.exe" -m src.gradio_apps.main_agent
+    "%QMS_PYTHON%" -m src.gradio_apps.main_agent
     goto check_error
 )
 goto end
@@ -254,7 +294,12 @@ goto end
 if errorlevel 1 (
     echo.
     echo [ERROR] Application terminated with error.
-    echo Check the messages above for details.
+    echo.
+    echo Troubleshooting:
+    echo   1. Port 3000 in use: netstat -ano ^| find ":3000"
+    echo   2. Missing deps: pip install -r requirements.txt
+    echo   3. Python version: python --version (need 3.11+)
+    echo.
 )
 pause
 goto end

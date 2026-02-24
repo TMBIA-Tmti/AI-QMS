@@ -2711,10 +2711,10 @@ async def chat_with_llm(message_text: str, profile: str):
 def _web_source_priority(url: str) -> int:
     """Return sort priority for a URL (lower = higher priority).
 
-    Tier 0 – International standards bodies & regulatory authorities
+    Tier 0 – International standards bodies & regulatory authorities (ALL countries)
     Tier 1 – Government domains (.gov, .go.*, .gouv.*, etc.)
     Tier 2 – Academic / educational (.edu, .ac.*)
-    Tier 3 – Recognized certification & industry bodies
+    Tier 3 – Certification bodies, standards orgs, academic publishers, industry bodies
     Tier 4 – Normal results (news, blogs, commercial)
     Tier 9 – Wikipedia / wiki sites (user-editable, not authoritative)
     """
@@ -2731,74 +2731,192 @@ def _web_source_priority(url: str) -> int:
     if "wikipedia.org" in host or "wikimedia.org" in host or "wikidata.org" in host:
         return 9
 
-    # --- Tier 0: International standards & regulatory bodies ---
+    # --- Tier 0: International standards & regulatory bodies (ALL countries) ---
     tier0_domains = (
-        "iso.org",
-        "who.int",
-        "fda.gov",
-        "ema.europa.eu",
-        "ec.europa.eu",
-        "mhra.gov.uk",
-        "tga.gov.au",
-        "pmda.go.jp",
-        "nmpa.gov.cn",
-        "health.canada.ca",
-        "swissmedic.ch",
-        "anvisa.gov.br",
-        "ich.org",
-        "imdrf.org",
+        # ── International / Supranational ──
+        "iso.org",              # International Organization for Standardization
+        "iec.ch",               # International Electrotechnical Commission
+        "who.int",              # World Health Organization
+        "ich.org",              # International Council for Harmonisation
+        "imdrf.org",            # International Medical Device Regulators Forum
+        # ── Americas ──
+        "fda.gov",              # US FDA
+        "health.canada.ca",     # Health Canada
+        "canada.ca",            # Government of Canada portal
+        "anvisa.gov.br",        # Brazil ANVISA
+        "invima.gov.co",        # Colombia INVIMA
+        "cecmed.cu",            # Cuba CECMED
+        # ── Europe ──
+        "ema.europa.eu",        # European Medicines Agency
+        "ec.europa.eu",         # European Commission (MDCG, NANDO)
+        "mhra.gov.uk",          # UK MHRA
+        "swissmedic.ch",        # Switzerland Swissmedic
+        "ansm.sante.fr",        # France ANSM
+        "bfarm.de",             # Germany BfArM
+        "pei.de",               # Germany PEI
+        "aifa.gov.it",          # Italy AIFA
+        "aemps.gob.es",         # Spain AEMPS
+        "basg.gv.at",           # Austria BASG
+        "famhp.be",             # Belgium FAMHP
+        "halmed.hr",            # Croatia HALMED
+        "sukl.cz",              # Czechia SUKL
+        "laegemiddelstyrelsen.dk",  # Denmark DKMA
+        "fimea.fi",             # Finland Fimea
+        "hpra.ie",              # Ireland HPRA
+        "cbg-meb.nl",           # Netherlands CBG-MEB
+        "igj.nl",               # Netherlands IGJ
+        "dmp.no",               # Norway NMPA
+        "infarmed.pt",          # Portugal INFARMED
+        "anm.ro",               # Romania ANMDMR
+        "jazmp.si",             # Slovenia JAZMP
+        "lakemedelsverket.se",  # Sweden MPA
+        "ravimiamet.ee",        # Estonia SAM
+        "eof.gr",               # Greece EOF
+        "sukl.sk",              # Slovakia SUKL
+        "bda.bg",               # Bulgaria BDA
+        "llv.li",               # Liechtenstein
+        # ── Asia-Pacific ──
+        "pmda.go.jp",           # Japan PMDA
+        "mhlw.go.jp",           # Japan MHLW
+        "nmpa.gov.cn",          # China NMPA
+        "mfds.go.kr",           # Korea MFDS
+        "fda.gov.tw",           # Taiwan TFDA
+        "mohw.gov.tw",          # Taiwan MOHW
+        "hsa.gov.sg",           # Singapore HSA
+        "cdsco.gov.in",         # India CDSCO
+        "fda.moph.go.th",       # Thailand Thai FDA
+        "pom.go.id",            # Indonesia BPOM
+        "mda.gov.my",           # Malaysia MDA
+        "fda.gov.ph",           # Philippines FDA
+        "moh.gov.vn",           # Vietnam MOH
+        "drap.gov.pk",          # Pakistan DRAP
+        "mdd.gov.hk",           # Hong Kong MDD
+        # ── Oceania ──
+        "tga.gov.au",           # Australia TGA
+        "medsafe.govt.nz",      # New Zealand Medsafe
+        # ── Middle East & Africa ──
+        "sfda.gov.sa",          # Saudi Arabia SFDA
+        "mohap.gov.ae",         # UAE MOHAP
+        "health.gov.il",        # Israel MOH
+        "sahpra.org.za",        # South Africa SAHPRA
+        "edaegypt.gov.eg",      # Egypt EDA
+        "nafdac.gov.ng",        # Nigeria NAFDAC
+        "fdaghana.gov.gh",      # Ghana FDA
+        "efda.gov.et",          # Ethiopia EFDA
+        "tmda.go.tz",           # Tanzania TMDA
+        "pharmacyboardkenya.org",  # Kenya PPB
+        "jfda.jo",              # Jordan JFDA
     )
     for d in tier0_domains:
         if host == d or host.endswith("." + d):
             return 0
 
-    # --- Tier 1: Government domains ---
+    # --- Tier 1: Government domains (catch-all pattern) ---
     gov_patterns = (
-        ".gov",
-        ".gov.",
-        ".go.",
-        ".gob.",
-        ".gouv.",
-        ".gc.ca",
-        ".govt.",
-        ".mil",
+        ".gov",    # US, many countries (.gov.xx)
+        ".gov.",   # .gov.tw, .gov.uk, etc.
+        ".go.",    # .go.jp, .go.kr, .go.th, .go.id
+        ".gob.",   # Spanish-speaking (.gob.mx, .gob.es)
+        ".gouv.",  # French-speaking (.gouv.fr)
+        ".gc.ca",  # Canada government
+        ".govt.",  # .govt.nz
+        ".mil",    # Military
+        ".gv.",    # Austria (.gv.at)
+        ".gub.",   # Uruguay (.gub.uy)
+        ".government.",  # Some African nations
     )
     for p in gov_patterns:
         if p in host:
             return 1
 
-    # --- Tier 2: Academic / educational ---
-    edu_patterns = (".edu", ".ac.", ".edu.")
+    # --- Tier 2: Academic / educational (pattern matching) ---
+    edu_patterns = (
+        ".edu",    # US universities
+        ".edu.",   # .edu.tw, .edu.au, etc.
+        ".ac.",    # .ac.uk, .ac.jp, .ac.kr
+        ".uni-",   # German universities (uni-muenchen.de)
+        ".univ-",  # French universities
+    )
     for p in edu_patterns:
         if p in host:
             return 2
 
-    # --- Tier 3: Recognized certification & industry bodies ---
+    # --- Tier 3: Certification bodies, standards orgs, publishers, industry ---
     tier3_domains = (
-        "tuev-nord.de",
-        "tuv.com",
-        "sgs.com",
-        "bsigroup.com",
-        "ul.com",
-        "dekra.com",
-        "dnv.com",
-        "intertek.com",
-        "nist.gov",
-        "astm.org",
-        "asme.org",
-        "ieee.org",
-        "iec.ch",
-        "ansi.org",
-        "din.de",
-        "afnor.org",
-        "pubmed.ncbi.nlm.nih.gov",
-        "scholar.google.com",
-        "springer.com",
-        "sciencedirect.com",
-        "nature.com",
-        "thelancet.com",
-        "bmj.com",
-        "wiley.com",
+        # ── Testing Labs & Notified Bodies ──
+        "tuvsud.com",           # TÜV SÜD
+        "tuv.com",              # TÜV Rheinland
+        "tuev-nord.de",         # TÜV NORD
+        "sgs.com",              # SGS
+        "bsigroup.com",         # BSI Group
+        "ul.com",               # UL (Underwriters Laboratories)
+        "intertek.com",         # Intertek
+        "dekra.com",            # DEKRA
+        "dnv.com",              # DNV
+        "bureauveritas.com",    # Bureau Veritas
+        "eurofins.com",         # Eurofins Scientific
+        "lrqa.com",             # LRQA
+        "csagroup.org",         # CSA Group
+        "nsf.org",              # NSF International
+        "nelsonlabs.com",       # Nelson Labs
+        "namsa.com",            # NAMSA
+        "wuxiapptec.com",       # WuXi AppTec
+        "toxikon.com",          # Toxikon
+        "pacificbiolabs.com",   # Pacific BioLabs
+        "battelle.org",         # Battelle
+        "applus.com",           # Applus+
+        "qima.com",             # QIMA
+        # ── Standards Bodies ──
+        "astm.org",             # ASTM International
+        "asme.org",             # ASME
+        "ieee.org",             # IEEE
+        "ieeexplore.ieee.org",  # IEEE Xplore
+        "ansi.org",             # ANSI
+        "din.de",               # DIN (Germany)
+        "afnor.org",            # AFNOR (France)
+        "jsa.or.jp",            # JSA (Japan)
+        "cen.eu",               # CEN (European)
+        "cenelec.eu",           # CENELEC (European)
+        "aami.org",             # AAMI (medical instrumentation)
+        "bsmi.gov.tw",          # BSMI (Taiwan CNS standards)
+        # ── Industry Associations ──
+        "advamed.org",          # AdvaMed
+        "medtecheurope.org",    # MedTech Europe
+        "gmdnagency.org",       # GMDN Agency
+        "team-nb.org",          # Team-NB (EU Notified Bodies)
+        # ── Academic Publishers & Databases ──
+        "pubmed.ncbi.nlm.nih.gov",  # PubMed (also matches Tier 1 via .gov — OK)
+        "scholar.google.com",   # Google Scholar
+        "cochranelibrary.com",  # Cochrane Library
+        "arxiv.org",            # arXiv
+        "biorxiv.org",          # bioRxiv
+        "medrxiv.org",          # medRxiv
+        "webofscience.com",     # Web of Science
+        "scopus.com",           # Scopus
+        "embase.com",           # EMBASE
+        "springer.com",         # Springer
+        "link.springer.com",    # Springer Link
+        "nature.com",           # Nature
+        "elsevier.com",         # Elsevier
+        "sciencedirect.com",    # ScienceDirect
+        "cell.com",             # Cell Press
+        "thelancet.com",        # The Lancet
+        "bmj.com",              # BMJ
+        "wiley.com",            # Wiley
+        "onlinelibrary.wiley.com",  # Wiley Online Library
+        "tandfonline.com",      # Taylor & Francis Online
+        "taylorandfrancis.com", # Taylor & Francis
+        "mdpi.com",             # MDPI
+        "frontiersin.org",      # Frontiers
+        "plos.org",             # PLOS
+        "academic.oup.com",     # Oxford Academic
+        "cambridge.org",        # Cambridge University Press
+        "sagepub.com",          # SAGE Publishing
+        "lww.com",              # Wolters Kluwer / Lippincott
+        "wolterskluwer.com",    # Wolters Kluwer
+        "jamanetwork.com",      # JAMA Network
+        "nejm.org",             # NEJM
+        "science.org",          # AAAS Science
     )
     for d in tier3_domains:
         if host == d or host.endswith("." + d):
@@ -2808,22 +2926,102 @@ def _web_source_priority(url: str) -> int:
     return 4
 
 
-def _web_search_sync(query: str, max_results: int = 5) -> list:
+def _web_tier_label(tier: int) -> str:
+    """Return a human-readable tier label with icon for display."""
+    labels = {
+        0: "🏛️ Official Standard/Regulatory",
+        1: "🏛️ Government",
+        2: "🎓 Academic",
+        3: "✅ Certification/Industry Body",
+        4: "🌐 General",
+        9: "⬇️ Wikipedia",
+    }
+    return labels.get(tier, "🌐 General")
+
+
+def _detect_regulatory_sites(query: str) -> list:
+    """Detect regulatory body mentions in query and return site: domains to search."""
+    q = query.lower()
+    # Ordered: more specific keywords first to avoid false matches
+    site_map = [
+        # ── Taiwan TFDA (before generic 'fda') ──
+        ("tfda", "fda.gov.tw"),
+        ("食藥署", "fda.gov.tw"),
+        ("衛福部", "mohw.gov.tw"),
+        ("台灣 fda", "fda.gov.tw"),
+        ("taiwan fda", "fda.gov.tw"),
+        # ── US FDA ──
+        ("fda", "fda.gov"),
+        # ── EU ──
+        ("ema", "ema.europa.eu"),
+        ("ce marking", "ec.europa.eu"),
+        ("eu mdr", "ec.europa.eu"),
+        ("eu ivdr", "ec.europa.eu"),
+        # ── Japan ──
+        ("pmda", "pmda.go.jp"),
+        ("厚生労働省", "mhlw.go.jp"),
+        ("厚労省", "pmda.go.jp"),
+        # ── China ──
+        ("nmpa", "nmpa.gov.cn"),
+        ("药监局", "nmpa.gov.cn"),
+        ("藥監局", "nmpa.gov.cn"),
+        ("cfda", "nmpa.gov.cn"),
+        # ── Korea ──
+        ("mfds", "mfds.go.kr"),
+        ("식약처", "mfds.go.kr"),
+        # ── UK ──
+        ("mhra", "mhra.gov.uk"),
+        # ── Australia ──
+        ("tga", "tga.gov.au"),
+        # ── Canada ──
+        ("health canada", "canada.ca"),
+        # ── Brazil ──
+        ("anvisa", "anvisa.gov.br"),
+        # ── India ──
+        ("cdsco", "cdsco.gov.in"),
+        # ── Thailand ──
+        ("thai fda", "fda.moph.go.th"),
+        # ── Indonesia ──
+        ("bpom", "pom.go.id"),
+        # ── Malaysia ──
+        ("mda malaysia", "mda.gov.my"),
+        # ── Singapore ──
+        ("hsa", "hsa.gov.sg"),
+        # ── Saudi Arabia ──
+        ("sfda", "sfda.gov.sa"),
+        # ── South Africa ──
+        ("sahpra", "sahpra.org.za"),
+        # ── Switzerland ──
+        ("swissmedic", "swissmedic.ch"),
+        # ── International standards ──
+        ("iso ", "iso.org"),
+        ("iso:", "iso.org"),
+        ("iec ", "iec.ch"),
+        ("iec:", "iec.ch"),
+        ("who", "who.int"),
+        ("ich ", "ich.org"),
+    ]
+    sites = []
+    for keyword, domain in site_map:
+        if keyword in q and domain not in sites:
+            sites.append(domain)
+    return sites
+
+def _web_search_sync(query: str, max_results: int = 8) -> list:
     """Synchronous web search using DuckDuckGo (runs in thread).
 
-    Strategy: prioritize official / government / academic sources.
-    1. Search with region="us-en" first to get authoritative English results.
-    2. If the query appears non-English, do a secondary search with "wt-wt"
-       (worldwide) to capture local official sources.
-    3. Merge and deduplicate.
-    4. Sort by source credibility: official > government > academic >
-       certification bodies > normal > Wikipedia (last).
+    Strategy: multi-angle search for authoritative sources.
+    1. Search with region="us-en" for authoritative English results.
+    2. If query is non-English, search with "wt-wt" (worldwide).
+    3. If regulatory bodies are mentioned, do targeted site: searches.
+    4. Merge, deduplicate, sort by source credibility.
     """
     try:
         seen_urls = set()
         merged = []
 
         with DDGS() as ddgs:
+            # --- Primary search: English ---
             en_results = list(ddgs.text(query, region="us-en", max_results=max_results))
             for r in en_results:
                 url = r.get("href", r.get("link", ""))
@@ -2831,8 +3029,9 @@ def _web_search_sync(query: str, max_results: int = 5) -> list:
                     seen_urls.add(url)
                     merged.append(r)
 
+            # --- Secondary search: worldwide (for non-ASCII queries) ---
             is_ascii_only = all(ord(c) < 128 for c in query if c.strip())
-            if not is_ascii_only and len(merged) < max_results:
+            if not is_ascii_only:
                 ww_results = list(
                     ddgs.text(query, region="wt-wt", max_results=max_results)
                 )
@@ -2841,6 +3040,22 @@ def _web_search_sync(query: str, max_results: int = 5) -> list:
                     if url and url not in seen_urls:
                         seen_urls.add(url)
                         merged.append(r)
+
+            # --- Targeted search: official regulatory sites ---
+            reg_sites = _detect_regulatory_sites(query)
+            for site_domain in reg_sites[:3]:  # max 3 site-specific searches
+                try:
+                    site_query = f"site:{site_domain} {query}"
+                    site_results = list(
+                        ddgs.text(site_query, region="wt-wt", max_results=3)
+                    )
+                    for r in site_results:
+                        url = r.get("href", r.get("link", ""))
+                        if url and url not in seen_urls:
+                            seen_urls.add(url)
+                            merged.append(r)
+                except Exception:
+                    pass  # site search is best-effort
 
         # Sort by source credibility (official first, Wikipedia last)
         merged.sort(
@@ -2894,16 +3109,25 @@ async def chat_with_llm_web(message_text: str, profile: str):
     try:
         web_results = await asyncio.to_thread(_web_search_sync, message_text)
         if web_results:
-            web_parts = []
+            web_parts = []  # for LLM context
+            display_parts = []  # for user-facing search result message
             for i, r in enumerate(web_results, 1):
                 title = r.get("title", "")
                 url = r.get("href", r.get("link", ""))
                 snippet = r.get("body", r.get("snippet", ""))
-                web_parts.append(f"{i}. **{title}**\n   URL: {url}\n   {snippet}")
-                web_sources.append(f"[{title}]({url})")
+                tier = _web_source_priority(url)
+                tier_label = _web_tier_label(tier)
+                web_parts.append(
+                    f"{i}. [{tier_label}] **{title}**\n   URL: {url}\n   {snippet}"
+                )
+                display_parts.append(
+                    f"{i}. {tier_label} [{title}]({url})"
+                )
+                web_sources.append(f"{tier_label} [{title}]({url})")
             web_context = t("web.results_header") + "\n\n".join(web_parts)
             search_msg.content = (
-                f"🌐 {t('web.source_label')}: {len(web_results)} results found"
+                f"🌐 {t('web.source_label')}: {len(web_results)} results\n\n"
+                + "\n".join(display_parts)
             )
             await search_msg.update()
         else:
@@ -2941,6 +3165,17 @@ async def chat_with_llm_web(message_text: str, profile: str):
     # --- Step 3: Build combined system prompt ---
     lang = cl.user_session.get("language", "zh-TW")
     system_prompt = get_system_prompt(profile, lang)
+
+    # When web search is active, remove the "never display URLs" restriction
+    # because we WANT the LLM to cite web sources
+    if web_context:
+        for no_url_phrase in [
+            "重要：回覆中絕對不要顯示任何 URL 或網址。",
+            "Important: Never display any URLs in your responses.",
+            "重要：回答に URL やウェブアドレスを表示しないでください。",
+            "重要：回复中绝对不要显示任何 URL 或网址。",
+        ]:
+            system_prompt = system_prompt.replace(no_url_phrase, "")
 
     if web_context:
         system_prompt += web_context

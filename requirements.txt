@@ -59,8 +59,8 @@ google-generativeai>=0.8.0
 # Local LLM
 ollama>=0.3.3
 
-# Web Search (for /web command)
-ddgs>=8.0.0
+# Web Search (for /web command — ddgs is the actively maintained package)
+ddgs>=9.0.0
 
 # Utilities
 python-multipart>=0.0.17

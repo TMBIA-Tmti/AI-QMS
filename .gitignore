@@ -32,7 +32,7 @@ chainlit_*.log
 main_agent_*.log
 
 # Data (user-generated)
-data/*.json
+data/
 !data/.gitkeep
 uploads/*
 !uploads/.gitkeep
@@ -54,7 +54,7 @@ nul
 # Temp
 *.tmp
 *.bak
-
+%TEMP%/
 # Documentation (keep only demo video/animation)
 docs/*.md
 docs/**/*.md
