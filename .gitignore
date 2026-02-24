@@ -51,6 +51,12 @@ markdown_storage/index/*
 .files/
 nul
 
+# Phoenix (Arize Phoenix LLM observability data)
+phoenix_data/
+.phoenix/
+Phoenix_Integration_Report.*
+generate_phoenix_report.py
+
 # Temp
 *.tmp
 *.bak

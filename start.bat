@@ -1,18 +1,19 @@
 @echo off
 chcp 65001 >nul 2>&1
-title AI-QMS Phase 1 Document Control - Launcher v3.3.0
+title AI-QMS Phase 1 Document Control - Launcher v3.4.0
 
 echo ========================================================
 echo  AI-QMS Phase 1 Document Control System
-echo  Version: v3.3.0 (Chainlit)
-echo  Date: 2026-02-24
+echo  Version: v3.4.0 (Chainlit + Phoenix)
+echo  Date: 2026-02-25
 echo ========================================================
 echo.
 echo  Architecture (v3.3.0 - Chainlit):
 echo    Chainlit App:       Port 3000 (Single App, Chat Profiles)
 echo    Local LLM:          Ollama (Port 11434)
+echo    Phoenix:            Port 6006 (LLM Observability)
 echo.
-echo  v3.3.0 Features:
+echo  v3.4.0 Features:
 echo    - Chainlit UI (replaces Gradio dual-app)
 echo    - Chat Profiles: Main Agent + Doc Control
 echo    - Multilingual Signature/Stamp Detection (15+ languages)
@@ -21,6 +22,7 @@ echo    - LLM Model List Auto-Update on Startup
 echo    - 16 LLM Providers (OpenAI, Anthropic, Google, Ollama...)
 echo    - /web Web Search with Source Credibility Ranking
 echo    - 20-Language i18n Support
+echo    - Arize Phoenix LLM Observability (Tracing, Prompts)
 echo.
 echo ========================================================
 
@@ -85,19 +87,21 @@ echo ========================================================
 echo.
 echo  [1] Start Chainlit App (Port 3000) - RECOMMENDED
 echo  [2] Start Chainlit + Ollama
-echo  [3] Check Services Status
-echo  [4] Stop All Services
-echo  [5] Legacy: Gradio Agents (Deprecated)
-echo  [6] Exit
+echo  [3] Start Chainlit + Phoenix (Observability)
+echo  [4] Check Services Status
+echo  [5] Stop All Services
+echo  [6] Legacy: Gradio Agents (Deprecated)
+echo  [7] Exit
 echo.
-set /p choice="Enter choice (1-6): "
+set /p choice="Enter choice (1-7): "
 
 if "%choice%"=="1" goto start_chainlit
 if "%choice%"=="2" goto start_all
-if "%choice%"=="3" goto status
-if "%choice%"=="4" goto stop_all
-if "%choice%"=="5" goto legacy_gradio
-if "%choice%"=="6" goto end
+if "%choice%"=="3" goto start_phoenix
+if "%choice%"=="4" goto status
+if "%choice%"=="5" goto stop_all
+if "%choice%"=="6" goto legacy_gradio
+if "%choice%"=="7" goto end
 goto end
 
 :start_chainlit
@@ -164,6 +168,49 @@ echo ========================================================
 echo.
 
 :: Auto-open browser
+start "" "http://localhost:3000"
+
+cd /d "%PROJECT_DIR%"
+"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port 3000 --host 0.0.0.0
+goto check_error
+
+:start_phoenix
+echo.
+echo ========================================================
+echo  Starting Chainlit + Phoenix (LLM Observability)...
+echo ========================================================
+echo.
+
+:: 1. Start Phoenix server in background
+echo [1/2] Starting Phoenix Observability Server...
+netstat -ano 2>nul | find ":6006" | find "LISTENING" >nul
+if not errorlevel 1 (
+    echo      Phoenix already running on port 6006
+) else (
+    echo      Starting Phoenix on port 6006...
+    start "AI-QMS Phoenix" cmd /c "cd /d "%PROJECT_DIR%" && "%QMS_PYTHON%" -m phoenix.server.main serve"
+    timeout /t 3 >nul
+)
+echo.
+
+:: 2. Start Chainlit
+echo [2/2] Starting Chainlit App...
+echo.
+echo ========================================================
+echo  All Services Started!
+echo ========================================================
+echo.
+echo  Chainlit App:           http://localhost:3000
+echo  Phoenix Dashboard:      http://localhost:6006
+echo.
+echo  Opening browser automatically...
+echo  Press Ctrl+C to stop Chainlit
+echo ========================================================
+echo.
+
+:: Auto-open browsers
+start "" "http://localhost:6006"
+timeout /t 1 >nul
 start "" "http://localhost:3000"
 
 cd /d "%PROJECT_DIR%"
@@ -246,6 +293,17 @@ if errorlevel 1 (
 )
 echo.
 
+:: Check Phoenix (port 6006)
+echo [Phoenix Observability]
+netstat -ano 2>nul | find ":6006" | find "LISTENING" >nul
+if errorlevel 1 (
+    echo   Status: STOPPED
+) else (
+    echo   Status: RUNNING
+    echo   URL: http://localhost:6006
+)
+echo.
+
 :: Check Legacy Gradio Sub-Agent (port 7860)
 echo [Legacy Sub-Agent - Gradio (Deprecated)]
 netstat -ano 2>nul | find ":7860" | find "LISTENING" >nul
@@ -267,21 +325,28 @@ echo ========================================================
 echo.
 
 :: Stop Chainlit (port 3000)
-echo [1/3] Stopping Chainlit App...
+echo [1/4] Stopping Chainlit App...
 for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| find ":3000" ^| find "LISTENING"') do (
     taskkill /PID %%a /F >nul 2>&1
 )
 echo      Done
 
+:: Stop Phoenix (port 6006)
+echo [2/4] Stopping Phoenix...
+for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| find ":6006" ^| find "LISTENING"') do (
+    taskkill /PID %%a /F >nul 2>&1
+)
+echo      Done
+
 :: Stop Legacy Sub-Agent (port 7860)
-echo [2/3] Stopping Legacy Sub-Agent...
+echo [3/4] Stopping Legacy Sub-Agent...
 for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| find ":7860" ^| find "LISTENING"') do (
     taskkill /PID %%a /F >nul 2>&1
 )
 echo      Done
 
 :: Note about Ollama
-echo [3/3] Ollama...
+echo [4/4] Ollama...
 echo      (Ollama runs as system service, not stopping)
 
 echo.

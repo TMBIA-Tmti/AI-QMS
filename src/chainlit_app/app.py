@@ -2,8 +2,8 @@
 AI-QMS Phase 1 - Chainlit Application
 ======================================
 
-Version: v3.3.0
-Updated: 2026-02-24
+Version: v3.4.0
+Updated: 2026-02-25
 
 Single Chainlit app with Chat Profiles:
   - Main Agent: System navigation, document listing, obsolete, audit, LLM chat
@@ -92,6 +92,35 @@ from src.ocr.vision_ocr import VisionOCRProcessor, process_document
 # needing to re-enter API keys.
 load_cached_models()
 
+
+# ============================================================
+# Arize Phoenix - LLM Observability (v3.4.0)
+# ============================================================
+# Auto-instruments all LiteLLM completion() calls with OpenTelemetry.
+# Traces are sent to a local Phoenix server (http://localhost:6006).
+# If Phoenix is not running, the app works normally without tracing.
+
+PHOENIX_ENABLED = False
+
+try:
+    from phoenix.otel import register as phoenix_register
+    from openinference.instrumentation.litellm import LiteLLMInstrumentor
+
+    _phoenix_endpoint = os.getenv("PHOENIX_COLLECTOR_ENDPOINT", "http://localhost:6006/v1/traces")
+    _phoenix_project = os.getenv("PHOENIX_PROJECT_NAME", "ai-qms-doc-control")
+
+    _phoenix_tracer_provider = phoenix_register(
+        project_name=_phoenix_project,
+        endpoint=_phoenix_endpoint,
+    )
+    LiteLLMInstrumentor().instrument(tracer_provider=_phoenix_tracer_provider)
+
+    PHOENIX_ENABLED = True
+    print(f"[OK] Phoenix tracing enabled → {_phoenix_endpoint} (project: {_phoenix_project})")
+except ImportError:
+    print("[INFO] Phoenix not installed. LLM tracing disabled. Run: pip install arize-phoenix arize-phoenix-otel openinference-instrumentation-litellm")
+except Exception as e:
+    print(f"[WARN] Phoenix tracing init failed: {e}. App will continue without tracing.")
 
 # ============================================================
 # Internationalization (i18n) - v3.2.0 (20 languages)
@@ -1446,13 +1475,17 @@ async def handle_status() -> str:
     provider_name = cl.user_session.get("provider_name", "N/A")
     model_name = cl.user_session.get("model_name", "N/A")
 
+    phoenix_status = "✅ Active" if PHOENIX_ENABLED else "❌ Disabled"
+    phoenix_url = os.getenv("PHOENIX_COLLECTOR_ENDPOINT", "http://localhost:6006").replace("/v1/traces", "")
+
     return f"""{t("status.title")}
 
 - **{t("status.doc_count")}**: {doc_count}/{doc_limit}
 - **{t("status.provider")}**: {provider_name}
 - **{t("status.model")}**: {model_name}
 - **{t("status.ocr")}**: {t("status.ocr_ready")}
-- **{t("status.ui")}**: Chainlit"""
+- **{t("status.ui")}**: Chainlit
+- **Phoenix Tracing**: {phoenix_status} ({phoenix_url})"""
 
 
 async def handle_list() -> str:

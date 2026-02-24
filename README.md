@@ -20,6 +20,8 @@ https://github.com/user-attachments/assets/3f601fce-2d26-4cf2-9ef3-51135287ccb5
 
 系統採用**主 Agent + 子 Agent** 架構設計，由主 Agent 統籌品質管理系統各模組，文件管制子 Agent 負責文件的上傳、OCR 辨識、版本偵測、簽章驗證及稽核紀錄等作業。
 
+> **📌 開發進度：Phase 1（文件管制子 Agent）已完成，即將開始製作 Phase 2（稽核子 Agent）。**
+
 ## 核心功能
 
 ### 主 Agent (Main Agent)
@@ -30,7 +32,7 @@ https://github.com/user-attachments/assets/3f601fce-2d26-4cf2-9ef3-51135287ccb5
 - LLM 連線測試與提供商切換
 - 子系統導航與調度
 
-### 文件管制子 Agent (Document Control Sub-Agent)
+### 文件管制子 Agent (Document Control Sub-Agent) ✅ Phase 1 完成
 - **文件上傳與 OCR 處理** — 支援 PDF、Word、Excel、PowerPoint、圖片等格式
 - **MarkItDown-First OCR 引擎** — 本地處理 ~1 秒/檔案，零 Token 消耗；掃描文件自動切換 LLM Vision 備援
 - **智慧版本偵測** — 自動識別新文件 vs 版本更新，OCR 掃描文件內版本號
@@ -40,6 +42,19 @@ https://github.com/user-attachments/assets/3f601fce-2d26-4cf2-9ef3-51135287ccb5
 - **交叉引用偵測** — 版本更新後自動搜尋引用該文件的關聯文件
 - **Markdown 儲存層** — 轉換文件為 Markdown 格式，供跨 Agent 資料提取
 - **原始檔案下載** — 透過 AI 對話指令下載原始文件
+
+### 稽核子 Agent (Audit Sub-Agent) 🔜 Phase 2 規劃中
+- CAPA（矯正與預防措施）管理
+- 內部稽核排程與追蹤
+- 不符合事項管理
+- 稽核報告自動生成
+
+### v3.4.0 新增功能
+- **Arize Phoenix LLM 可觀測性** — 整合 Phoenix 後台，即時追蹤所有 LLM 呼叫的 Token 用量、延遲、成本
+- **OpenTelemetry 自動追蹤** — 透過 `LiteLLMInstrumentor` 零程式碼變更自動擷取所有 LLM 請求
+- **Phoenix Dashboard** — 可在 http://localhost:6006 查看所有 LLM 互動追蹤記錄
+- **多 Agent 追蹤分離** — 支援 Phoenix Projects 區分不同子 Agent 的追蹤資料
+- **一鍵啟動 Chainlit + Phoenix** — `start.bat` 選單選項 [3] 同時啟動 Chainlit UI 與 Phoenix 可觀測性後台
 
 ### v3.3.0 新增功能
 - **`/web` 網路搜尋指令** — 使用 `/web 關鍵字` 搜尋網路取得最新資訊（如：`/web 最新 ISO 13485 版本`），搜尋結果結合本地文件資料庫作為 LLM 上下文
@@ -66,11 +81,18 @@ https://github.com/user-attachments/assets/3f601fce-2d26-4cf2-9ef3-51135287ccb5
 ┌──────────────────────┴──────────────────────────────┐
 │          LLM Provider 抽象層 (LiteLLM)               │
 │  [OpenAI] [Anthropic] [Google] [Ollama] + 12 more   │
-└──────────────────────┬──────────────────────────────┘
-                       │
-┌──────────────────────┴──────────────────────────────┐
+└──────────────┬───────────────────┬──────────────────┘
+               │                   │
+               │    ┌──────────────┴──────────────────┐
+               │    │   LLM 可觀測性 (Arize Phoenix)    │
+               │    │   OpenTelemetry Auto-Instrument  │
+               │    │   Dashboard: http://localhost:6006│
+               │    └─────────────────────────────────┘
+               │
+┌──────────────┴──────────────────────────────────────┐
 │           Agent 編排引擎 (LangGraph)                  │
 │  Main Agent ──→ Document Control Sub-Agent           │
+│                 (Phase 2: Audit Sub-Agent 規劃中)     │
 └──────────────────────┬──────────────────────────────┘
                        │
 ┌──────────────────────┴──────────────────────────────┐
@@ -187,6 +209,18 @@ start_chainlit.bat
 
 > **API Key 設定：** 啟動後在應用程式右上角的設定面板中直接輸入 API Key，無需設定環境變數。
 
+### 4. 啟動 Phoenix 可觀測性（選用）
+
+如需查看 LLM 呼叫追蹤與效能分析：
+
+```bash
+start_phoenix.bat
+```
+
+或在 `start.bat` 選單中選擇 **[3] Start Chainlit + Phoenix**，同時啟動 Chainlit 和 Phoenix。
+
+Phoenix Dashboard：http://localhost:6006
+
 ## 對話指令
 
 | 指令 | 說明 |
@@ -216,6 +250,8 @@ start_chainlit.bat
 | Agent 框架 | LangGraph |
 | LLM 抽象層 | LiteLLM |
 | OCR 引擎 | MarkItDown + LLM Vision |
+| LLM 可觀測性 | Arize Phoenix |
+| 追蹤框架 | OpenTelemetry + OpenInference |
 | 網路搜尋 | DuckDuckGo |
 | 本地 LLM | Ollama |
 
@@ -229,6 +265,8 @@ start_chainlit.bat
 
 The system adopts a **Main Agent + Sub-Agent** architecture, where the Main Agent orchestrates all QMS modules, and the Document Control Sub-Agent handles document upload, OCR processing, version detection, signature verification, and audit logging.
 
+> **📌 Development Status: Phase 1 (Document Control Sub-Agent) is complete. Phase 2 (Audit Sub-Agent) is coming next.**
+
 ## Core Features
 
 ### Main Agent
@@ -239,7 +277,7 @@ The system adopts a **Main Agent + Sub-Agent** architecture, where the Main Agen
 - LLM connection testing and provider switching
 - Sub-system navigation and orchestration
 
-### Document Control Sub-Agent
+### Document Control Sub-Agent ✅ Phase 1 Complete
 - **Document Upload & OCR** — Supports PDF, Word, Excel, PowerPoint, images
 - **MarkItDown-First OCR Engine** — Local processing ~1s/file, zero token cost; auto-fallback to LLM Vision for scanned documents
 - **Intelligent Version Detection** — Auto-detect new document vs. version update, OCR-based version number scanning
@@ -249,6 +287,19 @@ The system adopts a **Main Agent + Sub-Agent** architecture, where the Main Agen
 - **Cross-Reference Detection** — Auto-search for related documents after version updates
 - **Markdown Storage Layer** — Convert documents to Markdown for cross-agent data extraction
 - **Original File Download** — Download original files via AI chat commands
+
+### Audit Sub-Agent 🔜 Phase 2 Planned
+- CAPA (Corrective and Preventive Actions) management
+- Internal audit scheduling and tracking
+- Non-conformance management
+- Automated audit report generation
+
+### v3.4.0 New Features
+- **Arize Phoenix LLM Observability** — Integrated Phoenix backend for real-time tracking of all LLM call token usage, latency, and cost
+- **OpenTelemetry Auto-Instrumentation** — Zero code change auto-capture of all LLM requests via `LiteLLMInstrumentor`
+- **Phoenix Dashboard** — View all LLM interaction traces at http://localhost:6006
+- **Multi-Agent Trace Separation** — Phoenix Projects support for isolating traces from different sub-agents
+- **One-Click Chainlit + Phoenix Launch** — `start.bat` menu option [3] launches both Chainlit UI and Phoenix observability backend simultaneously
 
 ### v3.3.0 New Features
 - **`/web` Web Search Command** — Use `/web keyword` to search the web for the latest information (e.g., `/web latest ISO 13485 version`). Results are combined with local document database as LLM context
@@ -275,11 +326,18 @@ The system adopts a **Main Agent + Sub-Agent** architecture, where the Main Agen
 ┌──────────────────────┴──────────────────────────────┐
 │        LLM Provider Abstraction (LiteLLM)            │
 │  [OpenAI] [Anthropic] [Google] [Ollama] + 12 more   │
-└──────────────────────┬──────────────────────────────┘
-                       │
-┌──────────────────────┴──────────────────────────────┐
+└──────────────┬───────────────────┬──────────────────┘
+               │                   │
+               │    ┌──────────────┴──────────────────┐
+               │    │  LLM Observability (Arize Phoenix)│
+               │    │  OpenTelemetry Auto-Instrument    │
+               │    │  Dashboard: http://localhost:6006 │
+               │    └─────────────────────────────────┘
+               │
+┌──────────────┴──────────────────────────────────────┐
 │          Agent Orchestration (LangGraph)              │
 │  Main Agent ──→ Document Control Sub-Agent           │
+│                 (Phase 2: Audit Sub-Agent planned)    │
 └──────────────────────┬──────────────────────────────┘
                        │
 ┌──────────────────────┴──────────────────────────────┐
@@ -396,6 +454,18 @@ Browser will automatically open http://localhost:3000
 
 > **API Key Setup:** After launch, enter your API Key directly in the settings panel (top-right corner of the app). No environment variables needed.
 
+### 4. Launch Phoenix Observability (Optional)
+
+To view LLM call traces and performance analytics:
+
+```bash
+start_phoenix.bat
+```
+
+Or select **[3] Start Chainlit + Phoenix** from the `start.bat` menu to launch both Chainlit and Phoenix simultaneously.
+
+Phoenix Dashboard: http://localhost:6006
+
 ## Chat Commands
 
 | Command | Description |
@@ -425,6 +495,8 @@ Browser will automatically open http://localhost:3000
 | Agent Framework | LangGraph |
 | LLM Abstraction | LiteLLM |
 | OCR Engine | MarkItDown + LLM Vision |
+| LLM Observability | Arize Phoenix |
+| Tracing Framework | OpenTelemetry + OpenInference |
 | Web Search | DuckDuckGo |
 | Local LLM | Ollama |
 
@@ -438,6 +510,8 @@ Browser will automatically open http://localhost:3000
 
 本システムは**メイン Agent + サブ Agent** アーキテクチャを採用しており、メイン Agent が品質管理システム全体のモジュールを統括し、文書管理サブ Agent が文書のアップロード、OCR 処理、バージョン検出、署名検証、監査ログなどの業務を担当します。
 
+> **📌 開発状況：Phase 1（文書管理サブ Agent）完了。Phase 2（監査サブ Agent）の開発を開始予定。**
+
 ## コア機能
 
 ### メイン Agent (Main Agent)
@@ -448,7 +522,7 @@ Browser will automatically open http://localhost:3000
 - LLM 接続テストとプロバイダー切替
 - サブシステムナビゲーションとオーケストレーション
 
-### 文書管理サブ Agent (Document Control Sub-Agent)
+### 文書管理サブ Agent (Document Control Sub-Agent) ✅ Phase 1 完了
 - **文書アップロードと OCR 処理** — PDF、Word、Excel、PowerPoint、画像に対応
 - **MarkItDown-First OCR エンジン** — ローカル処理 約1秒/ファイル、トークン消費ゼロ；スキャン文書は自動的に LLM Vision にフォールバック
 - **インテリジェントバージョン検出** — 新規文書 vs バージョン更新を自動識別、OCR によるバージョン番号スキャン
@@ -458,6 +532,19 @@ Browser will automatically open http://localhost:3000
 - **相互参照検出** — バージョン更新後に関連文書を自動検索
 - **Markdown ストレージ層** — 文書を Markdown 形式に変換し、Agent 間データ抽出に活用
 - **原本ファイルダウンロード** — AI チャットコマンドによる原本ファイルのダウンロード
+
+### 監査サブ Agent (Audit Sub-Agent) 🔜 Phase 2 計画中
+- CAPA（是正・予防措置）管理
+- 内部監査スケジュールと追跡
+- 不適合管理
+- 監査報告書の自動生成
+
+### v3.4.0 新機能
+- **Arize Phoenix LLM 可観測性** — Phoenix バックエンドを統合し、全 LLM 呼び出しのトークン使用量、レイテンシ、コストをリアルタイム追跡
+- **OpenTelemetry 自動計装** — `LiteLLMInstrumentor` によるコード変更ゼロの全 LLM リクエスト自動キャプチャ
+- **Phoenix ダッシュボード** — http://localhost:6006 で全 LLM インタラクショントレースを確認可能
+- **マルチ Agent トレース分離** — Phoenix Projects により異なるサブ Agent のトレースデータを分離可能
+- **ワンクリック Chainlit + Phoenix 起動** — `start.bat` メニューオプション [3] で Chainlit UI と Phoenix 可観測性バックエンドを同時起動
 
 ### v3.3.0 新機能
 - **`/web` ウェブ検索コマンド** — `/web キーワード` でウェブを検索して最新情報を取得（例：`/web 最新 ISO 13485 バージョン`）。検索結果をローカル文書データベースと組み合わせて LLM コンテキストとして使用
@@ -484,11 +571,18 @@ Browser will automatically open http://localhost:3000
 ┌──────────────────────┴──────────────────────────────┐
 │        LLM プロバイダー抽象層 (LiteLLM)               │
 │  [OpenAI] [Anthropic] [Google] [Ollama] + 12 more   │
-└──────────────────────┬──────────────────────────────┘
-                       │
-┌──────────────────────┴──────────────────────────────┐
+└──────────────┬───────────────────┬──────────────────┘
+               │                   │
+               │    ┌──────────────┴──────────────────┐
+               │    │  LLM 可観測性 (Arize Phoenix)     │
+               │    │  OpenTelemetry 自動計装           │
+               │    │  ダッシュボード: localhost:6006    │
+               │    └─────────────────────────────────┘
+               │
+┌──────────────┴──────────────────────────────────────┐
 │         Agent オーケストレーション (LangGraph)         │
 │  Main Agent ──→ Document Control Sub-Agent           │
+│                 (Phase 2: 監査サブ Agent 計画中)       │
 └──────────────────────┬──────────────────────────────┘
                        │
 ┌──────────────────────┴──────────────────────────────┐
@@ -605,6 +699,18 @@ start_chainlit.bat
 
 > **API Key の設定：** 起動後、アプリケーション右上の設定パネルで API Key を直接入力できます。環境変数の設定は不要です。
 
+### 4. Phoenix 可観測性の起動（オプション）
+
+LLM 呼び出しトレースとパフォーマンス分析を表示するには：
+
+```bash
+start_phoenix.bat
+```
+
+または `start.bat` メニューで **[3] Start Chainlit + Phoenix** を選択し、Chainlit と Phoenix を同時に起動します。
+
+Phoenix ダッシュボード：http://localhost:6006
+
 ## チャットコマンド
 
 | コマンド | 説明 |
@@ -633,6 +739,8 @@ start_chainlit.bat
 | Agent フレームワーク | LangGraph |
 | LLM 抽象層 | LiteLLM |
 | OCR エンジン | MarkItDown + LLM Vision |
+| LLM 可観測性 | Arize Phoenix |
+| トレースフレームワーク | OpenTelemetry + OpenInference |
 | ウェブ検索 | DuckDuckGo |
 | ローカル LLM | Ollama |
 
@@ -645,7 +753,8 @@ AI-QMS/
 ├── README.md                    # This file (中文/English/日本語)
 ├── requirements.txt             # Python dependencies
 ├── start.bat                    # Main launcher / 主啟動腳本
-├── start_chainlit.bat           # Chainlit direct launcher
+├── start_chainlit.bat           # Chainlit direct launcher (+ Phoenix)
+├── start_phoenix.bat            # Phoenix standalone launcher
 ├── chainlit.md                  # Chainlit welcome message
 ├── .gitignore
 ├── .chainlit/                   # Chainlit configuration
@@ -655,7 +764,7 @@ AI-QMS/
 │   └── doc_control.svg
 ├── src/                         # Source code
 │   ├── chainlit_app/            # Chainlit application
-│   │   ├── app.py               # Main app entry point (v3.3.0)
+│   │   ├── app.py               # Main app entry point (v3.4.0)
 │   │   ├── i18n.py              # 20-language translations
 │   │   └── handlers/
 │   ├── agents/                  # Agent modules
