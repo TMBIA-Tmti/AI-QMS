@@ -118,7 +118,28 @@ try:
     PHOENIX_ENABLED = True
     print(f"[OK] Phoenix tracing enabled → {_phoenix_endpoint} (project: {_phoenix_project})")
 except ImportError:
-    print("[INFO] Phoenix not installed. LLM tracing disabled. Run: pip install arize-phoenix arize-phoenix-otel openinference-instrumentation-litellm")
+    # Auto-install Phoenix packages for users who upgraded via git pull
+    print("[INFO] Phoenix packages not found. Auto-installing...")
+    try:
+        import subprocess, sys
+        subprocess.check_call(
+            [sys.executable, "-m", "pip", "install", "--quiet", "--disable-pip-version-check",
+             "arize-phoenix>=9.0.0", "arize-phoenix-otel>=0.8.0",
+             "openinference-instrumentation-litellm>=0.1.18"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+        # Retry after install
+        from phoenix.otel import register as phoenix_register
+        from openinference.instrumentation.litellm import LiteLLMInstrumentor
+
+        _phoenix_endpoint = os.getenv("PHOENIX_COLLECTOR_ENDPOINT", "http://localhost:6006/v1/traces")
+        _phoenix_project = os.getenv("PHOENIX_PROJECT_NAME", "ai-qms-doc-control")
+        _phoenix_tracer_provider = phoenix_register(project_name=_phoenix_project, endpoint=_phoenix_endpoint)
+        LiteLLMInstrumentor().instrument(tracer_provider=_phoenix_tracer_provider)
+        PHOENIX_ENABLED = True
+        print(f"[OK] Phoenix auto-installed and enabled → {_phoenix_endpoint} (project: {_phoenix_project})")
+    except Exception as auto_err:
+        print(f"[INFO] Phoenix auto-install failed ({auto_err}). LLM tracing disabled.")
 except Exception as e:
     print(f"[WARN] Phoenix tracing init failed: {e}. App will continue without tracing.")
 
