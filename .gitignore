@@ -54,3 +54,22 @@ nul
 # Temp
 *.tmp
 *.bak
+
+# Documentation (keep only demo video/animation)
+docs/*.md
+docs/**/*.md
+
+# Images & diagrams (not needed in release repo)
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.tiff
+*.webp
+*.drawio
+*.ico
+
+# Exceptions: keep SVG icons required by Chainlit UI
+!public/*.svg
+!src/chainlit_app/public/*.svg
