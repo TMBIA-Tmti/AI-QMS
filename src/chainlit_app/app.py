@@ -2,8 +2,8 @@
 AI-QMS Phase 1 - Chainlit Application
 ======================================
 
-Version: v3.2.0
-Updated: 2026-02-23
+Version: v3.3.0
+Updated: 2026-02-24
 
 Single Chainlit app with Chat Profiles:
   - Main Agent: System navigation, document listing, obsolete, audit, LLM chat
@@ -22,6 +22,20 @@ import asyncio
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
+
+# Web Search (ddgs >= 8.0 or legacy duckduckgo-search)
+try:
+    from ddgs import DDGS
+
+    DDGS_AVAILABLE = True
+except ImportError:
+    try:
+        from duckduckgo_search import DDGS
+
+        DDGS_AVAILABLE = True
+    except ImportError:
+        DDGS_AVAILABLE = False
+        print("[WARN] ddgs not installed. Run: pip install ddgs")
 
 import chainlit as cl
 from chainlit.input_widget import Select, TextInput, Switch
@@ -170,7 +184,7 @@ def get_system_prompt(profile: str, lang: str = None) -> str:
 
     if lang == "zh-TW":
         if profile == "文件管制 (Doc Control)":
-            return """你是 AI-QMS 文件管制子系統的 AI 助理 (v3.2.0)。
+            return """你是 AI-QMS 文件管制子系統的 AI 助理 (v3.3.0)。
 
 你的職責是協助使用者進行文件管制操作：
 1. 文件上傳與 OCR 處理（自動存入 Markdown DB）
@@ -190,14 +204,15 @@ def get_system_prompt(profile: str, lang: str = None) -> str:
 - 「法規清單」- 列出所有文件引用的法規標準
 - 「下載法規清單 word/excel」- 匯出法規清單
 - 「下載引用清單 word/excel」- 匯出文件進版後的引用清單
+- 「/web 關鍵字」- 搜尋網路（如：/web 最新 ISO 13485 版本）
 - 「狀態」- 系統狀態
 - 「刪除資料庫」- 刪除所有文件（需確認）
 
 上傳文件：直接在對話框拖放或上傳文件即可開始 OCR 處理。
 
-請根據文件資料庫內容回答問題。如果資料庫中沒有相關資訊，請明確告知，不要編造答案。"""
+請根據文件資料庫內容回答問題。使用者可用 /web 指令搜尋網路取得最新資訊。如果資料庫中沒有相關資訊，請明確告知，不要編造答案。"""
         else:
-            return """你是 AI-QMS 品質管理系統的主要 AI 助理 (v3.2.0)。
+            return """你是 AI-QMS 品質管理系統的主要 AI 助理 (v3.3.0)。
 
 你的職責是協助使用者進行：
 1. **文件管制** - 文件上傳、MarkItDown 轉換、版本控制（支援所有 Office 格式）
@@ -215,14 +230,15 @@ def get_system_prompt(profile: str, lang: str = None) -> str:
 - 「下載文件更動紀錄 word/excel」- 匯出文件更動紀錄
 - 「法規清單」- 列出所有文件引用的法規標準
 - 「下載法規清單 word/excel」- 匯出法規清單
+- 「/web 關鍵字」- 搜尋網路取得最新資訊（如：/web 最新 ISO 13485）
 - 「狀態」或「status」- 系統狀態
 
 重要：回覆中絕對不要顯示任何 URL 或網址。
-請根據文件資料庫內容回答問題。如果資料庫中沒有相關資訊，請明確告知，不要編造答案。"""
+請根據文件資料庫內容回答問題。使用者可用 /web 指令搜尋網路取得最新資訊。如果資料庫中沒有相關資訊，請明確告知，不要編造答案。"""
 
     elif lang == "ja-JP":
         if profile == "文件管制 (Doc Control)":
-            return """あなたは AI-QMS 文書管理サブシステムの AI アシスタントです (v3.2.0)。
+            return """あなたは AI-QMS 文書管理サブシステムの AI アシスタントです (v3.3.0)。
 
 あなたの責務：
 1. 文書アップロードと OCR 処理（Markdown DB に自動保存）
@@ -241,14 +257,15 @@ def get_system_prompt(profile: str, lang: str = None) -> str:
 - 「監査証跡ダウンロード word/excel」- 監査記録をエクスポート
 - 「規制リスト」- 引用規格一覧
 - 「規制リストダウンロード word/excel」- 規格をエクスポート
+- 「/web キーワード」- ウェブ検索（例：/web 最新 ISO 13485 バージョン）
 - 「ステータス」- システム状態
 - 「データベース削除」- 全文書を削除（確認必要）
 
 ファイルアップロード：チャットにファイルをドラッグ＆ドロップまたはアップロードして OCR 処理を開始。
 
-文書データベースの内容に基づいて質問に回答してください。関連情報がない場合は明確にその旨を伝え、回答を捏造しないでください。"""
+文書データベースの内容に基づいて質問に回答してください。ユーザーは /web コマンドでウェブ検索ができます。関連情報がない場合は明確にその旨を伝え、回答を捏造しないでください。"""
         else:
-            return """あなたは AI-QMS 品質管理システムのメイン AI アシスタントです (v3.2.0)。
+            return """あなたは AI-QMS 品質管理システムのメイン AI アシスタントです (v3.3.0)。
 
 あなたの責務：
 1. **文書管理** - 文書アップロード、MarkItDown 変換、版管理（全 Office 形式対応）
@@ -266,14 +283,15 @@ def get_system_prompt(profile: str, lang: str = None) -> str:
 - 「監査証跡ダウンロード word/excel」- 監査記録をエクスポート
 - 「規制リスト」- 引用規格一覧
 - 「規制リストダウンロード word/excel」- 規格をエクスポート
+- 「/web キーワード」- ウェブ検索で最新情報を取得（例：/web 最新 ISO 13485）
 - 「ステータス」- システム状態
 
 重要：回答に URL やウェブアドレスを表示しないでください。
-文書データベースの内容に基づいて質問に回答してください。関連情報がない場合は明確にその旨を伝え、回答を捏造しないでください。"""
+文書データベースの内容に基づいて質問に回答してください。ユーザーは /web コマンドでウェブ検索ができます。関連情報がない場合は明確にその旨を伝え、回答を捏造しないでください。"""
 
     else:  # en-US (default for all other languages)
         if profile == "文件管制 (Doc Control)":
-            return """You are the AI assistant for the AI-QMS Document Control Sub-System (v3.2.0).
+            return """You are the AI assistant for the AI-QMS Document Control Sub-System (v3.3.0).
 
 Your responsibilities include:
 1. Document upload and OCR processing (auto-save to Markdown DB)
@@ -293,14 +311,15 @@ Available commands:
 - "regulatory list" - List referenced standards
 - "download regulatory word/excel" - Export standards
 - "download reference word/excel" - Export version reference list
+- "/web keyword" - Search the web (e.g., /web latest ISO 13485 version)
 - "status" - System status
 - "delete database" - Delete all documents (confirm required)
 
 Upload files: Drag & drop or upload files in the chat to start OCR processing.
 
-Answer questions based on document database content. If no relevant information is found, clearly state so. Do not fabricate answers."""
+Answer questions based on document database content. Users can use the /web command to search the web for the latest information. If no relevant information is found, clearly state so. Do not fabricate answers."""
         else:
-            return """You are the main AI assistant for the AI-QMS Quality Management System (v3.2.0).
+            return """You are the main AI assistant for the AI-QMS Quality Management System (v3.3.0).
 
 Your responsibilities include:
 1. **Document Control** - Document upload, MarkItDown conversion, version control (all Office formats)
@@ -318,10 +337,11 @@ Available commands:
 - "download audit word/excel" - Export audit records
 - "regulatory list" - List referenced standards
 - "download regulatory word/excel" - Export standards
+- "/web keyword" - Search the web for latest information (e.g., /web latest ISO 13485)
 - "status" - System status
 
 Important: Never display any URLs in your responses.
-Answer questions based on document database content. If no relevant information is found, clearly state so. Do not fabricate answers."""
+Answer questions based on document database content. Users can use the /web command to search the web for the latest information. If no relevant information is found, clearly state so. Do not fabricate answers."""
 
 
 # ============================================================
@@ -2684,6 +2704,336 @@ async def chat_with_llm(message_text: str, profile: str):
 
 
 # ============================================================
+# Web Search + LLM Chat
+# ============================================================
+
+
+def _web_source_priority(url: str) -> int:
+    """Return sort priority for a URL (lower = higher priority).
+
+    Tier 0 – International standards bodies & regulatory authorities
+    Tier 1 – Government domains (.gov, .go.*, .gouv.*, etc.)
+    Tier 2 – Academic / educational (.edu, .ac.*)
+    Tier 3 – Recognized certification & industry bodies
+    Tier 4 – Normal results (news, blogs, commercial)
+    Tier 9 – Wikipedia / wiki sites (user-editable, not authoritative)
+    """
+    from urllib.parse import urlparse
+
+    try:
+        host = urlparse(url).hostname or ""
+    except Exception:
+        return 4
+
+    host = host.lower()
+
+    # --- Tier 9: Wikipedia and similar user-editable wikis ---
+    if "wikipedia.org" in host or "wikimedia.org" in host or "wikidata.org" in host:
+        return 9
+
+    # --- Tier 0: International standards & regulatory bodies ---
+    tier0_domains = (
+        "iso.org",
+        "who.int",
+        "fda.gov",
+        "ema.europa.eu",
+        "ec.europa.eu",
+        "mhra.gov.uk",
+        "tga.gov.au",
+        "pmda.go.jp",
+        "nmpa.gov.cn",
+        "health.canada.ca",
+        "swissmedic.ch",
+        "anvisa.gov.br",
+        "ich.org",
+        "imdrf.org",
+    )
+    for d in tier0_domains:
+        if host == d or host.endswith("." + d):
+            return 0
+
+    # --- Tier 1: Government domains ---
+    gov_patterns = (
+        ".gov",
+        ".gov.",
+        ".go.",
+        ".gob.",
+        ".gouv.",
+        ".gc.ca",
+        ".govt.",
+        ".mil",
+    )
+    for p in gov_patterns:
+        if p in host:
+            return 1
+
+    # --- Tier 2: Academic / educational ---
+    edu_patterns = (".edu", ".ac.", ".edu.")
+    for p in edu_patterns:
+        if p in host:
+            return 2
+
+    # --- Tier 3: Recognized certification & industry bodies ---
+    tier3_domains = (
+        "tuev-nord.de",
+        "tuv.com",
+        "sgs.com",
+        "bsigroup.com",
+        "ul.com",
+        "dekra.com",
+        "dnv.com",
+        "intertek.com",
+        "nist.gov",
+        "astm.org",
+        "asme.org",
+        "ieee.org",
+        "iec.ch",
+        "ansi.org",
+        "din.de",
+        "afnor.org",
+        "pubmed.ncbi.nlm.nih.gov",
+        "scholar.google.com",
+        "springer.com",
+        "sciencedirect.com",
+        "nature.com",
+        "thelancet.com",
+        "bmj.com",
+        "wiley.com",
+    )
+    for d in tier3_domains:
+        if host == d or host.endswith("." + d):
+            return 3
+
+    # --- Tier 4: Everything else ---
+    return 4
+
+
+def _web_search_sync(query: str, max_results: int = 5) -> list:
+    """Synchronous web search using DuckDuckGo (runs in thread).
+
+    Strategy: prioritize official / government / academic sources.
+    1. Search with region="us-en" first to get authoritative English results.
+    2. If the query appears non-English, do a secondary search with "wt-wt"
+       (worldwide) to capture local official sources.
+    3. Merge and deduplicate.
+    4. Sort by source credibility: official > government > academic >
+       certification bodies > normal > Wikipedia (last).
+    """
+    try:
+        seen_urls = set()
+        merged = []
+
+        with DDGS() as ddgs:
+            en_results = list(ddgs.text(query, region="us-en", max_results=max_results))
+            for r in en_results:
+                url = r.get("href", r.get("link", ""))
+                if url and url not in seen_urls:
+                    seen_urls.add(url)
+                    merged.append(r)
+
+            is_ascii_only = all(ord(c) < 128 for c in query if c.strip())
+            if not is_ascii_only and len(merged) < max_results:
+                ww_results = list(
+                    ddgs.text(query, region="wt-wt", max_results=max_results)
+                )
+                for r in ww_results:
+                    url = r.get("href", r.get("link", ""))
+                    if url and url not in seen_urls:
+                        seen_urls.add(url)
+                        merged.append(r)
+
+        # Sort by source credibility (official first, Wikipedia last)
+        merged.sort(
+            key=lambda r: _web_source_priority(r.get("href", r.get("link", "")))
+        )
+
+        return merged[:max_results]
+    except Exception as e:
+        print(f"[WARN] DuckDuckGo search failed: {e}")
+        return []
+
+
+async def chat_with_llm_web(message_text: str, profile: str):
+    """Send message to LLM with web search results + Markdown DB context and stream response.
+
+    This function is triggered by the /web command prefix. It:
+    1. Searches the web using DuckDuckGo
+    2. Also searches the local Markdown DB
+    3. Combines both as context for the LLM
+    4. Streams the response
+    """
+    provider_id = cl.user_session.get("provider_id", "ollama")
+    model_name = cl.user_session.get("model_name", "default")
+    api_key = cl.user_session.get("api_key", "").strip()
+
+    setup_api_key(provider_id, api_key)
+
+    try:
+        manager = create_provider_manager(provider_id)
+        if provider_id != "ollama":
+            manager.disable_fallback = True
+    except Exception as e:
+        await cl.Message(content=t("error.llm_init", error=str(e))).send()
+        return
+
+    # --- Step 1: Web Search ---
+    web_context = ""
+    web_sources = []
+
+    if not DDGS_AVAILABLE:
+        await cl.Message(
+            content="⚠️ duckduckgo-search not installed. Run: `pip install duckduckgo-search`"
+        ).send()
+        # Fall back to regular chat
+        await chat_with_llm(message_text, profile)
+        return
+
+    search_msg = cl.Message(content=t("web.searching"))
+    await search_msg.send()
+
+    try:
+        web_results = await asyncio.to_thread(_web_search_sync, message_text)
+        if web_results:
+            web_parts = []
+            for i, r in enumerate(web_results, 1):
+                title = r.get("title", "")
+                url = r.get("href", r.get("link", ""))
+                snippet = r.get("body", r.get("snippet", ""))
+                web_parts.append(f"{i}. **{title}**\n   URL: {url}\n   {snippet}")
+                web_sources.append(f"[{title}]({url})")
+            web_context = t("web.results_header") + "\n\n".join(web_parts)
+            search_msg.content = (
+                f"🌐 {t('web.source_label')}: {len(web_results)} results found"
+            )
+            await search_msg.update()
+        else:
+            search_msg.content = t("web.no_results")
+            await search_msg.update()
+    except Exception as e:
+        search_msg.content = t("web.error", error=str(e))
+        await search_msg.update()
+
+    # --- Step 2: Search Markdown DB for context (same as chat_with_llm) ---
+    db_context = ""
+    ref_docs = []
+    try:
+        md_service = MarkdownStoreService()
+        search_results = md_service.search(message_text, limit=3)
+        if search_results:
+            context_parts = []
+            for r in search_results:
+                doc_data = md_service.get_document(r["doc_id"])
+                if doc_data.get("success"):
+                    content = doc_data["content"]
+                    if len(content) > 2000:
+                        content = content[:2000] + "..."
+                    context_parts.append(
+                        f"{t('llm.doc_label', doc_id=r['doc_id'], title=r['title'])}\n{content}"
+                    )
+                    ref_docs.append(r["doc_id"])
+            if context_parts:
+                db_context = t("llm.db_context_header") + "\n\n---\n\n".join(
+                    context_parts
+                )
+    except Exception:
+        pass
+
+    # --- Step 3: Build combined system prompt ---
+    lang = cl.user_session.get("language", "zh-TW")
+    system_prompt = get_system_prompt(profile, lang)
+
+    if web_context:
+        system_prompt += web_context
+    if db_context:
+        system_prompt += db_context
+    if web_context:
+        system_prompt += t("web.combined_context")
+    elif db_context:
+        system_prompt += t("llm.answer_from_docs")
+    else:
+        system_prompt += t("llm.no_docs_context")
+
+    # --- Step 4: Build messages and stream ---
+    messages = [{"role": "system", "content": system_prompt}]
+
+    history = cl.user_session.get("message_history", [])
+    for h in history[-10:]:
+        messages.append(h)
+
+    messages.append({"role": "user", "content": message_text})
+
+    msg = cl.Message(content="")
+    await msg.send()
+
+    try:
+        response = manager.completion(
+            messages=messages,
+            model=model_name,
+            temperature=0.7,
+            max_tokens=4000,
+            stream=True,
+            timeout=60,
+        )
+
+        full_response = ""
+        for chunk in response:
+            if hasattr(chunk, "choices") and chunk.choices:
+                delta = chunk.choices[0].delta
+                if hasattr(delta, "content") and delta.content:
+                    full_response += delta.content
+                    await msg.stream_token(delta.content)
+
+        if not full_response:
+            full_response = t("error.no_response")
+            msg.content = full_response
+            await msg.update()
+
+        # Add source citations
+        citations = []
+        if ref_docs:
+            citations.append(t("llm.ref_docs", docs=", ".join(ref_docs)))
+        if web_sources:
+            citations.append(
+                f"\n\n{t('web.source_label')}:\n"
+                + "\n".join(f"- {s}" for s in web_sources[:5])
+            )
+
+        if citations:
+            full_response += "\n\n" + "\n".join(citations)
+            msg.content = full_response
+            await msg.update()
+
+        # Update history
+        history.append({"role": "user", "content": f"/web {message_text}"})
+        history.append({"role": "assistant", "content": full_response})
+        cl.user_session.set("message_history", history)
+
+    except Exception as e:
+        error_detail = str(e) if str(e) else repr(e)
+        error_type = type(e).__name__
+
+        error_lower = error_detail.lower()
+        if "not found" in error_lower or "does not exist" in error_lower:
+            hint = t("error.model_not_found")
+        elif "connection" in error_lower or "connect" in error_lower:
+            hint = t("error.connection")
+        elif "api_key" in error_lower or "apikey" in error_lower:
+            hint = t("error.api_key")
+        elif "timeout" in error_lower:
+            hint = t("error.timeout")
+        else:
+            hint = t("error.generic")
+
+        msg.content = t(
+            "error.llm_problem",
+            error_type=error_type,
+            error_detail=error_detail,
+            hint=hint,
+        )
+        await msg.update()
+
+
+# ============================================================
 # Main Message Handler
 # ============================================================
 
@@ -2956,6 +3306,17 @@ async def on_message(message: cl.Message):
             result = test_llm_connection(provider_id, model_name, api_key, lang)
             await cl.Message(content=result).send()
             return
+
+    # ============================================================
+    # Web Search: /web prefix → LLM Chat with Web + DB context
+    # ============================================================
+    if _match_cmd_startswith(text, "cmd.web"):
+        query = _extract_after_cmd(text, "cmd.web")
+        if query:
+            await chat_with_llm_web(query, profile)
+        else:
+            await cl.Message(content=t("web.no_query")).send()
+        return
 
     # ============================================================
     # Default: LLM Chat with Markdown DB context
