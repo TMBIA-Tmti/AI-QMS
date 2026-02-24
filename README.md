@@ -8,7 +8,7 @@
   </strong>
 </p>
 
-https://github.com/user-attachments/assets/e3200d7f-8778-40a7-9f29-c18a9e4767c7
+https://github.com/user-attachments/assets/3f601fce-2d26-4cf2-9ef3-51135287ccb5
 
 ---
 
@@ -40,6 +40,11 @@ https://github.com/user-attachments/assets/e3200d7f-8778-40a7-9f29-c18a9e4767c7
 - **交叉引用偵測** — 版本更新後自動搜尋引用該文件的關聯文件
 - **Markdown 儲存層** — 轉換文件為 Markdown 格式，供跨 Agent 資料提取
 - **原始檔案下載** — 透過 AI 對話指令下載原始文件
+
+### v3.3.0 新增功能
+- **`/web` 網路搜尋指令** — 使用 `/web 關鍵字` 搜尋網路取得最新資訊（如：`/web 最新 ISO 13485 版本`），搜尋結果結合本地文件資料庫作為 LLM 上下文
+- **DuckDuckGo 搜尋引擎** — 免費、無需 API Key 的網路搜尋整合
+- **雙重上下文** — `/web` 指令同時搜尋網路與本地 Markdown DB，提供完整來源引用
 
 ### v3.2.0 新增功能
 - **20 國語言 UI 介面** — 支援繁體中文、簡體中文、英文、日文、韓文、法文、德文、西班牙文、葡萄牙文、義大利文、俄文、阿拉伯文、印地文、泰文、越南文、印尼文、馬來文、土耳其文、荷蘭文、波蘭文，可在設定中即時切換
@@ -119,6 +124,12 @@ Miniconda 是一個 Python 環境管理工具，可以幫您建立獨立的 Pyth
 3. 執行安裝檔，建議勾選「Add to PATH」選項
 4. 安裝完成後，開啟「Anaconda Prompt」（可在開始選單中找到）
 
+> **💡 想在 PowerShell 中使用 Conda？** 如果您偏好使用 PowerShell 而非 Anaconda Prompt，請執行以下步驟：
+> 1. 以**系統管理員**身分開啟 PowerShell
+> 2. 執行 `Set-ExecutionPolicy RemoteSigned -Scope CurrentUser`（輸入 `Y` 確認）
+> 3. 執行 `conda init powershell`
+> 4. **關閉並重新開啟 PowerShell** — 您會看到提示符前方出現 `(base)`，代表 Conda 已成功整合
+
 > **不想安裝 Miniconda？** 您也可以直接安裝 Python 3.11：前往 https://www.python.org/downloads/ 下載 Python 3.11 版本，安裝時務必勾選「Add Python to PATH」。
 
 ### 下載專案
@@ -144,7 +155,10 @@ cd AI-QMS
 
 開啟 Anaconda Prompt（或命令提示字元），輸入以下指令：
 
+> **⚠️ 重要：** 請務必先 `cd` 到本專案的資料夾路徑下，再建立 Conda 環境並執行 `pip install`，否則 `requirements.txt` 會找不到，導致安裝失敗。
+
 ```bash
+cd AI-QMS
 conda create --name QMS python=3.11 --yes
 conda activate QMS
 ```
@@ -190,6 +204,7 @@ start_chainlit.bat
 | `法規清單` | 列出所有引用的法規標準 |
 | `下載法規清單 word/excel` | 匯出法規清單 |
 | `下載引用清單 word/excel` | 匯出進版引用清單 |
+| `/web <關鍵字>` | 搜尋網路取得最新資訊（如：/web 最新 ISO 13485 版本） |
 | `刪除資料庫` | 刪除所有文件（需確認） |
 
 ## 技術堆疊
@@ -201,6 +216,7 @@ start_chainlit.bat
 | Agent 框架 | LangGraph |
 | LLM 抽象層 | LiteLLM |
 | OCR 引擎 | MarkItDown + LLM Vision |
+| 網路搜尋 | DuckDuckGo |
 | 本地 LLM | Ollama |
 
 ---
@@ -233,6 +249,11 @@ The system adopts a **Main Agent + Sub-Agent** architecture, where the Main Agen
 - **Cross-Reference Detection** — Auto-search for related documents after version updates
 - **Markdown Storage Layer** — Convert documents to Markdown for cross-agent data extraction
 - **Original File Download** — Download original files via AI chat commands
+
+### v3.3.0 New Features
+- **`/web` Web Search Command** — Use `/web keyword` to search the web for the latest information (e.g., `/web latest ISO 13485 version`). Results are combined with local document database as LLM context
+- **DuckDuckGo Search Engine** — Free, no API key required web search integration
+- **Dual Context** — `/web` command simultaneously searches the web and local Markdown DB, providing complete source citations
 
 ### v3.2.0 New Features
 - **20-Language UI** — Supports Traditional Chinese, Simplified Chinese, English, Japanese, Korean, French, German, Spanish, Portuguese, Italian, Russian, Arabic, Hindi, Thai, Vietnamese, Indonesian, Malay, Turkish, Dutch, Polish. Switch languages in real-time via settings
@@ -312,6 +333,12 @@ Miniconda is a Python environment manager that creates isolated Python environme
 3. Run the installer, check "Add to PATH" option if available
 4. After installation, open "Anaconda Prompt" (find it in Start Menu)
 
+> **💡 Want to use Conda in PowerShell?** If you prefer PowerShell over Anaconda Prompt, follow these steps:
+> 1. Open PowerShell as **Administrator**
+> 2. Run `Set-ExecutionPolicy RemoteSigned -Scope CurrentUser` (type `Y` to confirm)
+> 3. Run `conda init powershell`
+> 4. **Close and reopen PowerShell** — You should see `(base)` before your prompt, indicating Conda is successfully integrated
+
 > **Don't want to install Miniconda?** You can install Python 3.11 directly: go to https://www.python.org/downloads/ and download Python 3.11. Make sure to check "Add Python to PATH" during installation.
 
 ### Download the Project
@@ -337,7 +364,10 @@ cd AI-QMS
 
 Open Anaconda Prompt (or Command Prompt) and type:
 
+> **⚠️ Important:** You must `cd` into the project folder first before creating the Conda environment and running `pip install`. Otherwise, `requirements.txt` will not be found and the installation will fail.
+
 ```bash
+cd AI-QMS
 conda create --name QMS python=3.11 --yes
 conda activate QMS
 ```
@@ -383,6 +413,7 @@ Browser will automatically open http://localhost:3000
 | `regulatory list` | List all referenced regulatory standards |
 | `download regulatory word/excel` | Export regulatory list |
 | `download reference word/excel` | Export version reference list |
+| `/web <keyword>` | Search the web for latest information (e.g., /web latest ISO 13485 version) |
 | `delete database` | Delete all documents (confirmation required) |
 
 ## Tech Stack
@@ -394,6 +425,7 @@ Browser will automatically open http://localhost:3000
 | Agent Framework | LangGraph |
 | LLM Abstraction | LiteLLM |
 | OCR Engine | MarkItDown + LLM Vision |
+| Web Search | DuckDuckGo |
 | Local LLM | Ollama |
 
 ---
@@ -426,6 +458,11 @@ Browser will automatically open http://localhost:3000
 - **相互参照検出** — バージョン更新後に関連文書を自動検索
 - **Markdown ストレージ層** — 文書を Markdown 形式に変換し、Agent 間データ抽出に活用
 - **原本ファイルダウンロード** — AI チャットコマンドによる原本ファイルのダウンロード
+
+### v3.3.0 新機能
+- **`/web` ウェブ検索コマンド** — `/web キーワード` でウェブを検索して最新情報を取得（例：`/web 最新 ISO 13485 バージョン`）。検索結果をローカル文書データベースと組み合わせて LLM コンテキストとして使用
+- **DuckDuckGo 検索エンジン** — 無料、API Key 不要のウェブ検索統合
+- **デュアルコンテキスト** — `/web` コマンドでウェブとローカル Markdown DB を同時検索し、完全なソース引用を提供
 
 ### v3.2.0 新機能
 - **20言語 UI 対応** — 繁体字中国語、簡体字中国語、英語、日本語、韓国語、フランス語、ドイツ語、スペイン語、ポルトガル語、イタリア語、ロシア語、アラビア語、ヒンディー語、タイ語、ベトナム語、インドネシア語、マレー語、トルコ語、オランダ語、ポーランド語に対応。設定でリアルタイム切替可能
@@ -505,6 +542,12 @@ Miniconda は Python 環境マネージャーで、パッケージの競合を�
 3. インストーラーを実行し、「Add to PATH」オプションにチェック
 4. インストール後、「Anaconda Prompt」を開く（スタートメニューから検索）
 
+> **💡 PowerShell で Conda を使いたい場合：** Anaconda Prompt ではなく PowerShell をお好みの場合、以下の手順を実行してください：
+> 1. PowerShell を**管理者として**開く
+> 2. `Set-ExecutionPolicy RemoteSigned -Scope CurrentUser` を実行（`Y` で確認）
+> 3. `conda init powershell` を実行
+> 4. **PowerShell を閉じて再度開く** — プロンプトの前に `(base)` が表示されれば、Conda の統合が成功です
+
 > **Miniconda をインストールしない場合：** Python 3.11 を直接インストールできます。https://www.python.org/downloads/ から Python 3.11 をダウンロードし、インストール時に「Add Python to PATH」にチェックを入れてください。
 
 ### プロジェクトのダウンロード
@@ -530,7 +573,10 @@ cd AI-QMS
 
 Anaconda Prompt（またはコマンドプロンプト）を開き、以下を入力：
 
+> **⚠️ 重要：** 必ず先にプロジェクトフォルダに `cd` してから、Conda 環境の作成と `pip install` を実行してください。そうしないと `requirements.txt` が見つからず、インストールに失敗します。
+
 ```bash
+cd AI-QMS
 conda create --name QMS python=3.11 --yes
 conda activate QMS
 ```
@@ -575,6 +621,7 @@ start_chainlit.bat
 | `監査証跡ダウンロード excel` | 監査ログを .xlsx でエクスポート |
 | `規制リスト` | 引用規格一覧を表示 |
 | `規制リストダウンロード word/excel` | 規格リストをエクスポート |
+| `/web <キーワード>` | ウェブ検索で最新情報を取得（例：/web 最新 ISO 13485 バージョン） |
 | `データベース削除` | 全文書を削除（確認必要） |
 
 ## 技術スタック
@@ -586,6 +633,7 @@ start_chainlit.bat
 | Agent フレームワーク | LangGraph |
 | LLM 抽象層 | LiteLLM |
 | OCR エンジン | MarkItDown + LLM Vision |
+| ウェブ検索 | DuckDuckGo |
 | ローカル LLM | Ollama |
 
 ---
@@ -607,7 +655,7 @@ AI-QMS/
 │   └── doc_control.svg
 ├── src/                         # Source code
 │   ├── chainlit_app/            # Chainlit application
-│   │   ├── app.py               # Main app entry point (v3.2.0)
+│   │   ├── app.py               # Main app entry point (v3.3.0)
 │   │   ├── i18n.py              # 20-language translations
 │   │   └── handlers/
 │   ├── agents/                  # Agent modules
