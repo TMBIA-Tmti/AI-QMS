@@ -61,6 +61,13 @@ https://github.com/user-attachments/assets/68cf6037-aab2-41a1-9e01-768c763d8ae1
 - **`/web` 網路搜尋指令** — 使用 `/web 關鍵字` 搜尋網路取得最新資訊（如：`/web 最新 ISO 13485 版本`），搜尋結果結合本地文件資料庫作為 LLM 上下文
 - **DuckDuckGo 搜尋引擎** — 免費、無需 API Key 的網路搜尋整合
 - **雙重上下文** — `/web` 指令同時搜尋網路與本地 Markdown DB，提供完整來源引用
+- **來源可信度排序 (Source Credibility Ranking)** — 搜尋結果依來源權威性自動排序，醫療法規產業特別適用：
+  - 🏛️ Tier 0（最高）：ISO、FDA、EMA、WHO、PMDA、NMPA、TFDA 等國際標準與法規機構官方網站
+  - 🏛️ Tier 1：政府網域（.gov、.go.jp、.gov.tw 等）
+  - 🎓 Tier 2：學術機構（.edu、.ac.uk 等）
+  - ✅ Tier 3：驗證機構（TÜV、BSI、SGS 等）、學術出版商（PubMed、Nature、Lancet 等）
+  - 🌐 Tier 4：一般搜尋結果
+  - ⬇️ Tier 9（最低）：Wikipedia（降低優先權）
 
 ### v3.2.0 新增功能
 - **20 國語言 UI 介面** — 支援繁體中文、簡體中文、英文、日文、韓文、法文、德文、西班牙文、葡萄牙文、義大利文、俄文、阿拉伯文、印地文、泰文、越南文、印尼文、馬來文、土耳其文、荷蘭文、波蘭文，可在設定中即時切換
@@ -188,6 +195,14 @@ conda activate QMS
 
 > 如果您沒有安裝 Miniconda，請確認已安裝 Python 3.11，直接跳到步驟 2。
 
+> **📋 Conda 服務條款 (TOS)：** 自 Miniconda 25.1.1 版本起，首次使用 Conda 時需要接受服務條款。如果遇到 `CondaToSNonInteractiveError` 錯誤，請執行以下指令：
+> ```bash
+> conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
+> conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
+> conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/msys2
+> ```
+> **注意：** `start.bat` 啟動腳本已自動處理 TOS 接受，通常無需手動執行。
+
 ### 2. 安裝相依套件
 
 ```bash
@@ -309,6 +324,13 @@ The system adopts a **Main Agent + Sub-Agent** architecture, where the Main Agen
 - **`/web` Web Search Command** — Use `/web keyword` to search the web for the latest information (e.g., `/web latest ISO 13485 version`). Results are combined with local document database as LLM context
 - **DuckDuckGo Search Engine** — Free, no API key required web search integration
 - **Dual Context** — `/web` command simultaneously searches the web and local Markdown DB, providing complete source citations
+- **Source Credibility Ranking** — Search results are automatically ranked by source authority, a game-changer for regulated industries:
+  - 🏛️ Tier 0 (Highest): ISO, FDA, EMA, WHO, PMDA, NMPA, TFDA and other international standards/regulatory body official sites
+  - 🏛️ Tier 1: Government domains (.gov, .go.jp, .gov.tw, etc.)
+  - 🎓 Tier 2: Academic institutions (.edu, .ac.uk, etc.)
+  - ✅ Tier 3: Certification bodies (TÜV, BSI, SGS, etc.), academic publishers (PubMed, Nature, Lancet, etc.)
+  - 🌐 Tier 4: General results
+  - ⬇️ Tier 9 (Lowest): Wikipedia (deprioritized)
 
 ### v3.2.0 New Features
 - **20-Language UI** — Supports Traditional Chinese, Simplified Chinese, English, Japanese, Korean, French, German, Spanish, Portuguese, Italian, Russian, Arabic, Hindi, Thai, Vietnamese, Indonesian, Malay, Turkish, Dutch, Polish. Switch languages in real-time via settings
@@ -436,6 +458,14 @@ conda activate QMS
 
 > If you didn't install Miniconda, make sure Python 3.11 is installed and skip to step 2.
 
+> **📋 Conda Terms of Service (TOS):** Starting from Miniconda 25.1.1, Conda requires you to accept the Terms of Service on first use. If you encounter a `CondaToSNonInteractiveError`, run the following commands:
+> ```bash
+> conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
+> conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
+> conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/msys2
+> ```
+> **Note:** The `start.bat` launcher script handles TOS acceptance automatically, so you usually don't need to run these manually.
+
 ### 2. Install Dependencies
 
 ```bash
@@ -557,6 +587,13 @@ Phoenix Dashboard: http://localhost:6006
 - **`/web` ウェブ検索コマンド** — `/web キーワード` でウェブを検索して最新情報を取得（例：`/web 最新 ISO 13485 バージョン`）。検索結果をローカル文書データベースと組み合わせて LLM コンテキストとして使用
 - **DuckDuckGo 検索エンジン** — 無料、API Key 不要のウェブ検索統合
 - **デュアルコンテキスト** — `/web` コマンドでウェブとローカル Markdown DB を同時検索し、完全なソース引用を提供
+- **ソース信頼性ランキング (Source Credibility Ranking)** — 検索結果をソースの権威性で自動ランキング。規制産業に最適：
+  - 🏛️ Tier 0（最高）：ISO、FDA、EMA、WHO、PMDA、NMPA、TFDA など国際標準・規制当局の公式サイト
+  - 🏛️ Tier 1：政府ドメイン（.gov、.go.jp、.gov.tw など）
+  - 🎓 Tier 2：学術機関（.edu、.ac.uk など）
+  - ✅ Tier 3：認証機関（TÜV、BSI、SGS など）、学術出版社（PubMed、Nature、Lancet など）
+  - 🌐 Tier 4：一般的な検索結果
+  - ⬇️ Tier 9（最低）：Wikipedia（優先度低）
 
 ### v3.2.0 新機能
 - **20言語 UI 対応** — 繁体字中国語、簡体字中国語、英語、日本語、韓国語、フランス語、ドイツ語、スペイン語、ポルトガル語、イタリア語、ロシア語、アラビア語、ヒンディー語、タイ語、ベトナム語、インドネシア語、マレー語、トルコ語、オランダ語、ポーランド語に対応。設定でリアルタイム切替可能
@@ -683,6 +720,14 @@ conda activate QMS
 ```
 
 > Miniconda をインストールしていない場合は、Python 3.11 がインストールされていることを確認し、ステップ 2 に進んでください。
+
+> **📋 Conda 利用規約 (TOS)：** Miniconda 25.1.1 以降、初回使用時に利用規約への同意が必要です。`CondaToSNonInteractiveError` エラーが発生した場合は、以下のコマンドを実行してください：
+> ```bash
+> conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
+> conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
+> conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/msys2
+> ```
+> **注意：** `start.bat` ランチャースクリプトは TOS の承認を自動的に処理するため、通常は手動で実行する必要はありません。
 
 ### 2. 依存パッケージのインストール
 
