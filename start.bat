@@ -85,9 +85,9 @@ echo.
 where conda >nul 2>&1
 if not errorlevel 1 (
     echo [INFO] Accepting Conda Terms of Service...
-    conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main >nul 2>&1
-    conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r >nul 2>&1
-    conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/msys2 >nul 2>&1
+    call conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main >nul 2>&1
+    call conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r >nul 2>&1
+    call conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/msys2 >nul 2>&1
     echo [OK] Conda TOS accepted.
 )
 echo.
