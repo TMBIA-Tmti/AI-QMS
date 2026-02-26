@@ -133,12 +133,13 @@ if "%choice%"=="7" goto end
 goto end
 
 :start_chainlit
+call :find_free_port
 echo.
 echo ========================================================
-echo  Starting Chainlit App (Port 3000)
+echo  Starting Chainlit App (Port %CHAINLIT_PORT%)
 echo ========================================================
 echo.
-echo [INFO] Chainlit URL: http://localhost:3000
+echo [INFO] Chainlit URL: http://localhost:%CHAINLIT_PORT%
 echo [INFO] Auto-Reload: ON (code changes auto-restart)
 echo [INFO] Press Ctrl+C to stop
 echo.
@@ -154,10 +155,11 @@ if errorlevel 1 (
 :: Browser is auto-opened by Chainlit itself (no manual start needed)
 
 cd /d "%PROJECT_DIR%"
-"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port 3000 -w
+"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port %CHAINLIT_PORT% -w
 goto check_error
 
 :start_all
+call :find_free_port
 echo.
 echo ========================================================
 echo  Starting Chainlit + Ollama...
@@ -187,7 +189,7 @@ echo ========================================================
 echo  All Services Started!
 echo ========================================================
 echo.
-echo  Chainlit App:           http://localhost:3000
+echo  Chainlit App:           http://localhost:%CHAINLIT_PORT%
 echo  Ollama API:             http://localhost:11434
 echo.
 echo  Auto-Reload: ON (code changes auto-restart)
@@ -198,10 +200,12 @@ echo.
 :: Browser is auto-opened by Chainlit itself (no manual start needed)
 
 cd /d "%PROJECT_DIR%"
-"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port 3000 -w
+"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port %CHAINLIT_PORT% -w
 goto check_error
 
 :start_phoenix
+call :find_free_port
+call :find_free_phoenix_port
 echo.
 echo ========================================================
 echo  Starting Chainlit + Phoenix (LLM Observability)...
@@ -210,12 +214,12 @@ echo.
 
 :: 1. Start Phoenix server in background
 echo [1/2] Starting Phoenix Observability Server...
-netstat -ano 2>nul | find ":6006" | find "LISTENING" >nul
+netstat -ano 2>nul | find ":%PHOENIX_PORT%" | find "LISTENING" >nul
 if not errorlevel 1 (
-    echo      Phoenix already running on port 6006
+    echo      Phoenix already running on port %PHOENIX_PORT%
 ) else (
-    echo      Starting Phoenix on port 6006...
-    start "AI-QMS Phoenix" cmd /c "cd /d "%PROJECT_DIR%" && "%QMS_PYTHON%" -m phoenix.server.main serve"
+    echo      Starting Phoenix on port %PHOENIX_PORT%...
+    start "AI-QMS Phoenix" cmd /c "cd /d "%PROJECT_DIR%" && "%QMS_PYTHON%" -m phoenix.server.main serve --port %PHOENIX_PORT%"
     timeout /t 3 >nul
 )
 echo.
@@ -227,8 +231,8 @@ echo ========================================================
 echo  All Services Started!
 echo ========================================================
 echo.
-echo  Chainlit App:           http://localhost:3000
-echo  Phoenix Dashboard:      http://localhost:6006
+echo  Chainlit App:           http://localhost:%CHAINLIT_PORT%
+echo  Phoenix Dashboard:      http://localhost:%PHOENIX_PORT%
 echo.
 echo  Auto-Reload: ON (code changes auto-restart)
 echo  Press Ctrl+C to stop Chainlit
@@ -236,10 +240,10 @@ echo ========================================================
 echo.
 
 :: Open Phoenix dashboard only; Chainlit auto-opens its own browser
-start "" "http://localhost:6006"
+start "" "http://localhost:%PHOENIX_PORT%"
 
 cd /d "%PROJECT_DIR%"
-"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port 3000 -w
+"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port %CHAINLIT_PORT% -w
 goto check_error
 
 :legacy_gradio
@@ -307,25 +311,25 @@ if errorlevel 1 (
 )
 echo.
 
-:: Check Chainlit (port 3000)
+:: Check Chainlit (scan ports 3000-3010 for chainlit process)
 echo [Chainlit App]
-netstat -ano 2>nul | find ":3000" | find "LISTENING" >nul
-if errorlevel 1 (
+call :check_chainlit_status
+if "%CHAINLIT_FOUND_PORT%"=="" (
     echo   Status: STOPPED
 ) else (
     echo   Status: RUNNING
-    echo   URL: http://localhost:3000
+    echo   URL: http://localhost:%CHAINLIT_FOUND_PORT%
 )
 echo.
 
-:: Check Phoenix (port 6006)
+:: Check Phoenix (scan ports 6006-6016 for phoenix process)
 echo [Phoenix Observability]
-netstat -ano 2>nul | find ":6006" | find "LISTENING" >nul
-if errorlevel 1 (
+call :check_phoenix_status
+if "%PHOENIX_FOUND_PORT%"=="" (
     echo   Status: STOPPED
 ) else (
     echo   Status: RUNNING
-    echo   URL: http://localhost:6006
+    echo   URL: http://localhost:%PHOENIX_FOUND_PORT%
 )
 echo.
 
@@ -349,19 +353,13 @@ echo  Stopping All Services...
 echo ========================================================
 echo.
 
-:: Stop Chainlit (port 3000)
+:: Stop Chainlit (scan ports 3000-3010 for chainlit process)
 echo [1/4] Stopping Chainlit App...
-for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| find ":3000" ^| find "LISTENING"') do (
-    taskkill /PID %%a /F >nul 2>&1
-)
-echo      Done
+call :stop_chainlit_ports
 
-:: Stop Phoenix (port 6006)
+:: Stop Phoenix (scan ports 6006-6016 for phoenix process)
 echo [2/4] Stopping Phoenix...
-for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| find ":6006" ^| find "LISTENING"') do (
-    taskkill /PID %%a /F >nul 2>&1
-)
-echo      Done
+call :stop_phoenix_ports
 
 :: Stop Legacy Sub-Agent (port 7860)
 echo [3/4] Stopping Legacy Sub-Agent...
@@ -386,13 +384,148 @@ if errorlevel 1 (
     echo [ERROR] Application terminated with error.
     echo.
     echo Troubleshooting:
-    echo   1. Port 3000 in use: netstat -ano ^| find ":3000"
+    echo   1. Port in use: netstat -ano ^| find ":3000"
     echo   2. Missing deps: pip install -r requirements.txt
     echo   3. Python version: python --version (need 3.11+)
     echo.
 )
 pause
 goto end
+
+:: ============================================================
+:: Subroutine: Find a free port for Chainlit (3000-3010)
+:: Sets %CHAINLIT_PORT% to the first available port.
+:: If port 3000 is occupied by another process, warns user.
+:: ============================================================
+:find_free_port
+set "CHAINLIT_PORT=3000"
+for /L %%p in (3000,1,3010) do (
+    netstat -ano 2>nul | find ":%%p " | find "LISTENING" >nul
+    if errorlevel 1 (
+        set "CHAINLIT_PORT=%%p"
+        goto :port_found
+    )
+)
+:: All ports 3000-3010 occupied — use 3000 and let Chainlit report the error
+set "CHAINLIT_PORT=3000"
+echo [WARN] Ports 3000-3010 are all in use! Chainlit may fail to start.
+echo [WARN] Please free a port: netstat -ano ^| find "LISTENING" ^| find ":300"
+goto :port_display
+
+:port_found
+if "%CHAINLIT_PORT%"=="3000" goto :port_display
+
+:: Port 3000 was occupied — show warning with details
+echo.
+echo [WARN] Port 3000 is occupied by another process:
+for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| find ":3000 " ^| find "LISTENING"') do (
+    for /f "tokens=1,* delims=," %%n in ('wmic process where "ProcessId=%%a" get Name^,CommandLine /format:csv 2^>nul ^| find ","') do (
+        echo        PID %%a — %%n
+    )
+)
+echo [INFO] Auto-switching Chainlit to port %CHAINLIT_PORT%
+echo.
+
+:port_display
+exit /b 0
+
+:: ============================================================
+:: Subroutine: Check if Chainlit is running on ports 3000-3010
+:: Sets %CHAINLIT_FOUND_PORT% if found, empty if not.
+:: ============================================================
+:check_chainlit_status
+set "CHAINLIT_FOUND_PORT="
+for /L %%p in (3000,1,3010) do (
+    for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| find ":%%p" ^| find "LISTENING"') do (
+        wmic process where "ProcessId=%%a" get CommandLine 2>nul | find "chainlit" >nul
+        if not errorlevel 1 (
+            set "CHAINLIT_FOUND_PORT=%%p"
+            goto :check_chainlit_done
+        )
+    )
+)
+:check_chainlit_done
+exit /b 0
+
+:: ============================================================
+:: Subroutine: Stop Chainlit on ports 3000-3010
+:: ============================================================
+:stop_chainlit_ports
+for /L %%p in (3000,1,3010) do (
+    for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| find ":%%p" ^| find "LISTENING"') do (
+        wmic process where "ProcessId=%%a" get CommandLine 2>nul | find "chainlit" >nul
+        if not errorlevel 1 (
+            taskkill /PID %%a /F >nul 2>&1
+        )
+    )
+)
+echo      Done
+exit /b 0
+
+:: ============================================================
+:: Subroutine: Find a free port for Phoenix (6006-6016)
+:: Sets %PHOENIX_PORT% to the first available port.
+:: ============================================================
+:find_free_phoenix_port
+set "PHOENIX_PORT=6006"
+for /L %%p in (6006,1,6016) do (
+    netstat -ano 2>nul | find ":%%p " | find "LISTENING" >nul
+    if errorlevel 1 (
+        set "PHOENIX_PORT=%%p"
+        goto :phoenix_port_found
+    )
+)
+set "PHOENIX_PORT=6006"
+echo [WARN] Ports 6006-6016 are all in use! Phoenix may fail to start.
+goto :phoenix_port_display
+
+:phoenix_port_found
+if "%PHOENIX_PORT%"=="6006" goto :phoenix_port_display
+echo.
+echo [WARN] Port 6006 is occupied by another process:
+for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| find ":6006 " ^| find "LISTENING"') do (
+    for /f "tokens=1,* delims=," %%n in ('wmic process where "ProcessId=%%a" get Name^,CommandLine /format:csv 2^>nul ^| find ","') do (
+        echo        PID %%a — %%n
+    )
+)
+echo [INFO] Auto-switching Phoenix to port %PHOENIX_PORT%
+echo.
+
+:phoenix_port_display
+exit /b 0
+
+:: ============================================================
+:: Subroutine: Check if Phoenix is running on ports 6006-6016
+:: Sets %PHOENIX_FOUND_PORT% if found, empty if not.
+:: ============================================================
+:check_phoenix_status
+set "PHOENIX_FOUND_PORT="
+for /L %%p in (6006,1,6016) do (
+    for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| find ":%%p" ^| find "LISTENING"') do (
+        wmic process where "ProcessId=%%a" get CommandLine 2>nul | find "phoenix" >nul
+        if not errorlevel 1 (
+            set "PHOENIX_FOUND_PORT=%%p"
+            goto :check_phoenix_done
+        )
+    )
+)
+:check_phoenix_done
+exit /b 0
+
+:: ============================================================
+:: Subroutine: Stop Phoenix on ports 6006-6016
+:: ============================================================
+:stop_phoenix_ports
+for /L %%p in (6006,1,6016) do (
+    for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| find ":%%p" ^| find "LISTENING"') do (
+        wmic process where "ProcessId=%%a" get CommandLine 2>nul | find "phoenix" >nul
+        if not errorlevel 1 (
+            taskkill /PID %%a /F >nul 2>&1
+        )
+    )
+)
+echo      Done
+exit /b 0
 
 :end
 echo.

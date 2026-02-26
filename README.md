@@ -57,6 +57,7 @@ https://github.com/user-attachments/assets/68cf6037-aab2-41a1-9e01-768c763d8ae1
 - **多 Agent 追蹤分離** — 支援 Phoenix Projects 區分不同子 Agent 的追蹤資料
 - **一鍵啟動 Chainlit + Phoenix** — `start.bat` 選單選項 [3] 同時啟動 Chainlit UI 與 Phoenix 可觀測性後台
 - **自動套件更新** — 舊使用者 `git pull` 後啟動時自動偵測並安裝缺少的新套件，無需手動 `pip install`
+- **Port 自動切換** — 啟動時自動偵測 Chainlit (3000) 和 Phoenix (6006) 預設 port 是否被佔用，若被佔用自動切換至下一個可用 port 並顯示提示
 
 ### v3.3.0 新增功能
 - **`/web` 網路搜尋指令** — 使用 `/web 關鍵字` 搜尋網路取得最新資訊（如：`/web 最新 ISO 13485 版本`），搜尋結果結合本地文件資料庫作為 LLM 上下文
@@ -323,6 +324,7 @@ The system adopts a **Main Agent + Sub-Agent** architecture, where the Main Agen
 - **Multi-Agent Trace Separation** — Phoenix Projects support for isolating traces from different sub-agents
 - **One-Click Chainlit + Phoenix Launch** — `start.bat` menu option [3] launches both Chainlit UI and Phoenix observability backend simultaneously
 - **Auto Dependency Update** — Existing users who `git pull` will have missing packages auto-detected and installed on startup, no manual `pip install` needed
+- **Auto Port Switching** — On startup, automatically detects if default ports for Chainlit (3000) and Phoenix (6006) are occupied, and seamlessly switches to the next available port with a notification
 
 ### v3.3.0 New Features
 - **`/web` Web Search Command** — Use `/web keyword` to search the web for the latest information (e.g., `/web latest ISO 13485 version`). Results are combined with local document database as LLM context
@@ -589,6 +591,7 @@ Phoenix Dashboard: http://localhost:6006
 - **マルチ Agent トレース分離** — Phoenix Projects により異なるサブ Agent のトレースデータを分離可能
 - **ワンクリック Chainlit + Phoenix 起動** — `start.bat` メニューオプション [3] で Chainlit UI と Phoenix 可観測性バックエンドを同時起動
 - **自動依存パッケージ更新** — `git pull` 後の起動時に不足パッケージを自動検出・インストール、手動 `pip install` 不要
+- **Port 自動切替** — 起動時に Chainlit (3000) と Phoenix (6006) のデフォルトポートの使用状況を自動検出し、使用中の場合は次の空きポートへ自動切替（通知付き）
 
 ### v3.3.0 新機能
 - **`/web` ウェブ検索コマンド** — `/web キーワード` でウェブを検索して最新情報を取得（例：`/web 最新 ISO 13485 バージョン`）。検索結果をローカル文書データベースと組み合わせて LLM コンテキストとして使用

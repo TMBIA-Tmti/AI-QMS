@@ -151,17 +151,21 @@ if errorlevel 1 (
     echo [WARN] Install with: pip install arize-phoenix arize-phoenix-otel openinference-instrumentation-litellm
     echo.
 ) else (
-    :: Check if Phoenix is already running on port 6006
-    netstat -an 2>nul | find ":6006" | find "LISTENING" >nul 2>&1
+    call :find_free_phoenix_port
+    :: Check if Phoenix is already running on detected port
+    netstat -an 2>nul | find ":%PHOENIX_PORT%" | find "LISTENING" >nul 2>&1
     if errorlevel 1 (
-        echo [INFO] Starting Phoenix server on port 6006...
-        start "Phoenix Server" /min "%QMS_PYTHON%" -m phoenix.server.main serve --port 6006
+        echo [INFO] Starting Phoenix server on port %PHOENIX_PORT%...
+        start "Phoenix Server" /min "%QMS_PYTHON%" -m phoenix.server.main serve --port %PHOENIX_PORT%
         timeout /t 3 >nul
-        echo [OK] Phoenix started at http://localhost:6006
+        echo [OK] Phoenix started at http://localhost:%PHOENIX_PORT%
     ) else (
-        echo [OK] Phoenix already running on port 6006
+        echo [OK] Phoenix already running on port %PHOENIX_PORT%
     )
 )
+
+:: Auto-detect free port for Chainlit
+call :find_free_port
 
 :: Start Chainlit
 echo.
@@ -169,8 +173,8 @@ echo ========================================================
 echo  Starting Chainlit App...
 echo ========================================================
 echo.
-echo  Chainlit URL: http://localhost:3000
-echo  Phoenix URL:  http://localhost:6006 (if available)
+echo  Chainlit URL: http://localhost:%CHAINLIT_PORT%
+echo  Phoenix URL:  http://localhost:%PHOENIX_PORT% (if available)
 echo.
 echo  Auto-Reload: ON (code changes auto-restart)
 echo  Press Ctrl+C to stop
@@ -181,7 +185,7 @@ echo.
 
 :: Run Chainlit from project directory
 cd /d "%PROJECT_DIR%"
-"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port 3000 -w
+"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port %CHAINLIT_PORT% -w
 
 if errorlevel 1 (
     echo.
@@ -189,9 +193,79 @@ if errorlevel 1 (
     echo Check the messages above for details.
     echo.
     echo Common issues:
-    echo   1. Port 3000 already in use
+    echo   1. Port %CHAINLIT_PORT% already in use
     echo   2. Missing dependencies (run: pip install -r requirements.txt)
     echo   3. Chainlit version issue (need 2.9.4+)
     echo.
 )
 pause
+goto :eof
+
+:: ============================================================
+:: Subroutine: Find a free port for Chainlit (3000-3010)
+:: Sets %CHAINLIT_PORT% to the first available port.
+:: If port 3000 is occupied by another process, warns user.
+:: ============================================================
+:find_free_port
+set "CHAINLIT_PORT=3000"
+for /L %%p in (3000,1,3010) do (
+    netstat -ano 2>nul | find ":%%p " | find "LISTENING" >nul
+    if errorlevel 1 (
+        set "CHAINLIT_PORT=%%p"
+        goto :port_found
+    )
+)
+:: All ports 3000-3010 occupied — use 3000 and let Chainlit report the error
+set "CHAINLIT_PORT=3000"
+echo [WARN] Ports 3000-3010 are all in use! Chainlit may fail to start.
+echo [WARN] Please free a port: netstat -ano ^| find "LISTENING" ^| find ":300"
+goto :port_display
+
+:port_found
+if "%CHAINLIT_PORT%"=="3000" goto :port_display
+
+:: Port 3000 was occupied — show warning with details
+echo.
+echo [WARN] Port 3000 is occupied by another process:
+for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| find ":3000 " ^| find "LISTENING"') do (
+    for /f "tokens=1,* delims=," %%n in ('wmic process where "ProcessId=%%a" get Name^,CommandLine /format:csv 2^>nul ^| find ","') do (
+        echo        PID %%a — %%n
+    )
+)
+echo [INFO] Auto-switching Chainlit to port %CHAINLIT_PORT%
+echo.
+
+:port_display
+exit /b 0
+
+:: ============================================================
+:: Subroutine: Find a free port for Phoenix (6006-6016)
+:: Sets %PHOENIX_PORT% to the first available port.
+:: ============================================================
+:find_free_phoenix_port
+set "PHOENIX_PORT=6006"
+for /L %%p in (6006,1,6016) do (
+    netstat -ano 2>nul | find ":%%p " | find "LISTENING" >nul
+    if errorlevel 1 (
+        set "PHOENIX_PORT=%%p"
+        goto :phoenix_port_found
+    )
+)
+set "PHOENIX_PORT=6006"
+echo [WARN] Ports 6006-6016 are all in use! Phoenix may fail to start.
+goto :phoenix_port_display
+
+:phoenix_port_found
+if "%PHOENIX_PORT%"=="6006" goto :phoenix_port_display
+echo.
+echo [WARN] Port 6006 is occupied by another process:
+for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| find ":6006 " ^| find "LISTENING"') do (
+    for /f "tokens=1,* delims=," %%n in ('wmic process where "ProcessId=%%a" get Name^,CommandLine /format:csv 2^>nul ^| find ","') do (
+        echo        PID %%a — %%n
+    )
+)
+echo [INFO] Auto-switching Phoenix to port %PHOENIX_PORT%
+echo.
+
+:phoenix_port_display
+exit /b 0
