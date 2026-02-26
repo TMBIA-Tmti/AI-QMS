@@ -71,7 +71,6 @@ def format_regulatory_table_markdown(scan_result: dict) -> str:
             f"| {doc['doc_id']} | {doc['title'][:30]} | v{doc['current_version']} | {stds} |"
         )
 
-    lines.append(f"\n💡 輸入「下載法規清單 word」或「下載法規清單 excel」可匯出檔案")
     return "\n".join(lines)
 
 
@@ -345,7 +344,6 @@ def format_reference_table_markdown(doc_id: str, ref_docs: List[dict]) -> str:
             f"| {r['doc_id']} | {r['title'][:30]} | {r['doc_type']} | v{r['current_version']} | {ref_type} |"
         )
 
-    lines.append(f"\n💡 輸入「下載引用清單 word」或「下載引用清單 excel」可匯出檔案")
     return "\n".join(lines)
 
 

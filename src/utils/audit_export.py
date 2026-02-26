@@ -78,9 +78,6 @@ def format_audit_table_markdown(records: list) -> str:
         lines.append(f"| {i} | {ts_short} | {action} | {doc_id} | {user} | {details} |")
 
     lines.append(f"\n✅ 紀錄鏈完整性: SHA-256 雜湊鏈保護")
-    lines.append(
-        f"\n💡 輸入「下載文件更動紀錄 word」或「下載文件更動紀錄 excel」可匯出檔案"
-    )
     return "\n".join(lines)
 
 
