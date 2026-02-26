@@ -135,7 +135,7 @@ https://github.com/user-attachments/assets/68cf6037-aab2-41a1-9e01-768c763d8ae1
 | **PowerPoint** | `.pptx`, `.ppt` | python-pptx / pywin32 |
 | **文字** | `.txt`, `.md`, `.csv`, `.rtf` | 直接讀取 |
 
-> **📝 備註：** 所有支援格式的文件皆可上傳，系統會自動偵測簽章狀態。Word、Excel、PowerPoint 及文字類檔案（`.txt`, `.md`, `.csv`, `.rtf`）若為手動建立則需簽章，若為系統自動生成則不需簽章。
+> **📝 備註：** 所有支援格式的文件皆可上傳，系統會自動偵測簽章狀態。手動建立的文件需要簽章，系統自動生成的文件則不需簽章。
 
 ## 下載與安裝
 
@@ -404,7 +404,7 @@ The system adopts a **Main Agent + Sub-Agent** architecture, where the Main Agen
 | **PowerPoint** | `.pptx`, `.ppt` | python-pptx / pywin32 |
 | **Text** | `.txt`, `.md`, `.csv`, `.rtf` | Direct read |
 
-> **📝 Note:** All supported file formats can be uploaded, and the system will automatically detect signature status. Word, Excel, PowerPoint, and text files (`.txt`, `.md`, `.csv`, `.rtf`) require signatures only if manually created; system-generated files do not require signatures.
+> **📝 Note:** All supported file formats can be uploaded, and the system will automatically detect signature status. Manually created documents require signatures; system-generated documents do not.
 
 ## Download & Install
 
@@ -673,7 +673,7 @@ Phoenix Dashboard: http://localhost:6006
 | **PowerPoint** | `.pptx`, `.ppt` | python-pptx / pywin32 |
 | **テキスト** | `.txt`, `.md`, `.csv`, `.rtf` | 直接読取 |
 
-> **📝 備考：** すべての対応形式のファイルがアップロード可能で、システムが署名状態を自動検出します。Word、Excel、PowerPoint およびテキストファイル（`.txt`, `.md`, `.csv`, `.rtf`）は手動作成の場合のみ署名が必要で、システム自動生成の場合は署名不要です。
+> **📝 備考：** すべての対応形式のファイルがアップロード可能で、システムが署名状態を自動検出します。手動作成の文書は署名が必要ですが、システム自動生成の文書は署名不要です。
 
 ## ダウンロードとインストール
 
