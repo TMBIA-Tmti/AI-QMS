@@ -25,12 +25,10 @@ https://github.com/user-attachments/assets/68cf6037-aab2-41a1-9e01-768c763d8ae1
 ## 核心功能
 
 ### 主 Agent (Main Agent)
-- QMS 品質管理系統智慧助手
-- 自然語言對話介面，支援 20 國語言 UI
-- 文件搜尋、查詢、狀態監控
-- 稽核紀錄查詢與匯出 (Word/Excel)
-- LLM 連線測試與提供商切換
-- 子系統導航與調度
+- QMS 品質管理系統智慧助手，自然語言對話介面，支援 20 國語言 UI
+- 子系統統一調度與導航入口
+- **文件管制子系統** — 文件上傳、OCR、版本管理、簽章偵測、稽核紀錄、匯出
+- **稽核子系統** — CAPA、內部稽核、不符合事項管理（Phase 2 規劃中）
 
 ### 文件管制子 Agent (Document Control Sub-Agent) ✅ Phase 1 完成
 - **文件上傳與 OCR 處理** — 支援 PDF、Word、Excel、PowerPoint、圖片等格式
@@ -293,12 +291,10 @@ The system adopts a **Main Agent + Sub-Agent** architecture, where the Main Agen
 ## Core Features
 
 ### Main Agent
-- Intelligent QMS assistant with natural language interface
-- 20-language UI support
-- Document search, query, and system status monitoring
-- Audit log query and export (Word/Excel)
-- LLM connection testing and provider switching
-- Sub-system navigation and orchestration
+- Intelligent QMS assistant with natural language interface, 20-language UI support
+- Unified sub-system orchestration and navigation hub
+- **Document Control Sub-System** — Document upload, OCR, version management, signature detection, audit trail, export
+- **Audit Sub-System** — CAPA, internal audit, non-conformance management (Phase 2 Planned)
 
 ### Document Control Sub-Agent ✅ Phase 1 Complete
 - **Document Upload & OCR** — Supports PDF, Word, Excel, PowerPoint, images
@@ -561,12 +557,10 @@ Phoenix Dashboard: http://localhost:6006
 ## コア機能
 
 ### メイン Agent (Main Agent)
-- QMS インテリジェントアシスタント（自然言語対話インターフェース）
-- 20言語 UI 対応
-- 文書検索、照会、システム状態監視
-- 監査ログの照会とエクスポート（Word/Excel）
-- LLM 接続テストとプロバイダー切替
-- サブシステムナビゲーションとオーケストレーション
+- QMS インテリジェントアシスタント（自然言語対話インターフェース）、20言語 UI 対応
+- サブシステム統合オーケストレーションとナビゲーションハブ
+- **文書管理サブシステム** — 文書アップロード、OCR、バージョン管理、署名検出、監査証跡、エクスポート
+- **監査サブシステム** — CAPA、内部監査、不適合管理（Phase 2 計画中）
 
 ### 文書管理サブ Agent (Document Control Sub-Agent) ✅ Phase 1 完了
 - **文書アップロードと OCR 処理** — PDF、Word、Excel、PowerPoint、画像に対応
