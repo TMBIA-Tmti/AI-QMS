@@ -4031,13 +4031,37 @@ async def on_message(message: cl.Message):
     # Document list — current formal versions only (must check before generic list)
     if _match_cmd(text, "cmd.document_list"):
         response = await handle_document_list()
-        await cl.Message(content=response).send()
+        actions = [
+            cl.Action(
+                name="download_doclist_word",
+                payload={"format": "word"},
+                label="📥 Word (.docx)",
+            ),
+            cl.Action(
+                name="download_doclist_excel",
+                payload={"format": "excel"},
+                label="📥 Excel (.xlsx)",
+            ),
+        ]
+        await cl.Message(content=response, actions=actions).send()
         return
 
     # List — all records (active + obsolete + version history)
     if _match_cmd(text, "cmd.list") or _match_cmd_exact(text, "cmd.list"):
         response = await handle_list()
-        await cl.Message(content=response).send()
+        actions = [
+            cl.Action(
+                name="download_allrecords_word",
+                payload={"format": "word"},
+                label="📥 Word (.docx)",
+            ),
+            cl.Action(
+                name="download_allrecords_excel",
+                payload={"format": "excel"},
+                label="📥 Excel (.xlsx)",
+            ),
+        ]
+        await cl.Message(content=response, actions=actions).send()
         return
 
     # Web Search: /web prefix → LLM Chat with Web + DB context
@@ -4133,7 +4157,19 @@ async def on_message(message: cl.Message):
     # Regulatory standards list (display only)
     if _match_cmd(text, "cmd.regulatory"):
         response = await handle_regulatory_list()
-        await cl.Message(content=response).send()
+        actions = [
+            cl.Action(
+                name="download_regulatory_word",
+                payload={"format": "word"},
+                label="📥 Word (.docx)",
+            ),
+            cl.Action(
+                name="download_regulatory_excel",
+                payload={"format": "excel"},
+                label="📥 Excel (.xlsx)",
+            ),
+        ]
+        await cl.Message(content=response, actions=actions).send()
         return
 
     # --- Reference export ---
@@ -4172,7 +4208,19 @@ async def on_message(message: cl.Message):
     # Audit records (display only)
     if _match_cmd(text, "cmd.audit"):
         response = await handle_audit()
-        await cl.Message(content=response).send()
+        actions = [
+            cl.Action(
+                name="download_audit_word",
+                payload={"format": "word"},
+                label="📥 Word (.docx)",
+            ),
+            cl.Action(
+                name="download_audit_excel",
+                payload={"format": "excel"},
+                label="📥 Excel (.xlsx)",
+            ),
+        ]
+        await cl.Message(content=response, actions=actions).send()
         return
 
     # Obsolete (prefix command: "obsolete doc_id")
