@@ -256,6 +256,8 @@ Phoenix Dashboard：http://localhost:6006
 | `法規清單` | 列出所有引用的法規標準 |
 | `下載法規清單 word/excel` | 匯出法規清單 |
 | `下載引用清單 word/excel` | 匯出進版引用清單 |
+| `下載文件清單 word/excel` | 匯出文件清單（現行正式版本） |
+| `下載列表 word/excel` | 匯出所有文件紀錄（含進版、作廢） |
 | `/web <關鍵字>` | 搜尋網路取得最新資訊（如：/web 最新 ISO 13485 版本） |
 | `刪除資料庫` | 刪除所有文件（需確認） |
 
@@ -519,6 +521,8 @@ Phoenix Dashboard: http://localhost:6006
 | `regulatory list` | List all referenced regulatory standards |
 | `download regulatory word/excel` | Export regulatory list |
 | `download reference word/excel` | Export version reference list |
+| `download doclist word/excel` | Export document list (current formal versions) |
+| `download all records word/excel` | Export all document records (incl. versions, obsolete) |
 | `/web <keyword>` | Search the web for latest information (e.g., /web latest ISO 13485 version) |
 | `delete database` | Delete all documents (confirmation required) |
 
@@ -781,6 +785,9 @@ Phoenix ダッシュボード：http://localhost:6006
 | `監査証跡ダウンロード excel` | 監査ログを .xlsx でエクスポート |
 | `規制リスト` | 引用規格一覧を表示 |
 | `規制リストダウンロード word/excel` | 規格リストをエクスポート |
+| `引用ダウンロード word/excel` | バージョン引用リストをエクスポート |
+| `文書一覧ダウンロード word/excel` | 文書一覧をエクスポート（現行正式版） |
+| `全記録ダウンロード word/excel` | 全文書記録をエクスポート（版更新・廃止含む） |
 | `/web <キーワード>` | ウェブ検索で最新情報を取得（例：/web 最新 ISO 13485 バージョン） |
 | `データベース削除` | 全文書を削除（確認必要） |
 
@@ -833,7 +840,9 @@ AI-QMS/
 │   │   └── markdown_storage.py
 │   ├── services/
 │   ├── utils/
-│   │   └── audit_export.py      # Audit log Word/Excel export
+│   │   ├── audit_export.py      # Audit log Word/Excel export
+│   │   ├── regulatory_export.py # Regulatory/Reference list export
+│   │   └── doclist_export.py    # Document list Word/Excel export
 │   ├── config.py
 │   └── llm_providers.py         # 16 LLM provider manager
 ├── data/                        # Runtime data (auto-generated)

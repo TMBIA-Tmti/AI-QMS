@@ -1,0 +1,461 @@
+"""
+AI-QMS Phase 1 - 文件清單與全部紀錄匯出模組
+Export document list (current formal versions) and all records to Word/Excel formats.
+"""
+
+from datetime import datetime
+from pathlib import Path
+
+from docx import Document
+from docx.shared import Pt, Cm, RGBColor
+from docx.enum.table import WD_TABLE_ALIGNMENT
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+
+
+# Output directory for generated files
+EXPORT_DIR = Path("data/exports")
+EXPORT_DIR.mkdir(parents=True, exist_ok=True)
+
+# Shared Excel styles
+THIN_BORDER = Border(
+    left=Side(style="thin"),
+    right=Side(style="thin"),
+    top=Side(style="thin"),
+    bottom=Side(style="thin"),
+)
+
+
+# ============================================================
+# 文件清單 (Document List — Current Formal Versions)
+# ============================================================
+
+
+def export_doclist_to_word(docs: list) -> str:
+    """
+    Export current formal document list to a Word (.docx) file.
+
+    Args:
+        docs: List of active document dicts with doc_id, title, doc_type, current_version.
+
+    Returns:
+        Path to the generated .docx file.
+    """
+    doc = Document()
+
+    # Title
+    title = doc.add_heading("AI-QMS 文件清單報告 (現行正式版本)", level=1)
+    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    # Metadata
+    meta = doc.add_paragraph()
+    meta.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    run = meta.add_run(f"匯出時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    run.font.size = Pt(9)
+    run.font.color.rgb = RGBColor(128, 128, 128)
+
+    meta2 = doc.add_paragraph()
+    meta2.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    run2 = meta2.add_run(f"文件總數: {len(docs)} 份")
+    run2.font.size = Pt(9)
+    run2.font.color.rgb = RGBColor(128, 128, 128)
+
+    doc.add_paragraph()  # spacer
+
+    if not docs:
+        doc.add_paragraph("目前沒有現行有效的正式文件。")
+    else:
+        # Create table
+        table = doc.add_table(rows=1, cols=5)
+        table.style = "Table Grid"
+        table.alignment = WD_TABLE_ALIGNMENT.CENTER
+
+        # Header row
+        headers = ["#", "文件編號", "標題", "類型", "現行版本"]
+        for i, header in enumerate(headers):
+            cell = table.rows[0].cells[i]
+            cell.text = header
+            for paragraph in cell.paragraphs:
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                for run in paragraph.runs:
+                    run.font.bold = True
+                    run.font.size = Pt(9)
+
+        # Data rows
+        for idx, d in enumerate(docs, 1):
+            row = table.add_row()
+            values = [
+                str(idx),
+                d.get("doc_id", ""),
+                d.get("title", "N/A"),
+                d.get("doc_type", "OTHER"),
+                f"v{d.get('current_version', '?')}",
+            ]
+            for i, val in enumerate(values):
+                cell = row.cells[i]
+                cell.text = val
+                for paragraph in cell.paragraphs:
+                    for run in paragraph.runs:
+                        run.font.size = Pt(8)
+
+        # Set column widths
+        widths = [Cm(1), Cm(3), Cm(6), Cm(2.5), Cm(2.5)]
+        for row in table.rows:
+            for i, width in enumerate(widths):
+                row.cells[i].width = width
+
+    # Footer
+    doc.add_paragraph()
+    footer = doc.add_paragraph()
+    run = footer.add_run("本報告由 AI-QMS 品質管理系統自動產生。")
+    run.font.size = Pt(8)
+    run.font.italic = True
+    run.font.color.rgb = RGBColor(128, 128, 128)
+
+    # Save
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"doclist_{timestamp}.docx"
+    filepath = EXPORT_DIR / filename
+    doc.save(str(filepath))
+    return str(filepath)
+
+
+def export_doclist_to_excel(docs: list) -> str:
+    """
+    Export current formal document list to an Excel (.xlsx) file.
+
+    Args:
+        docs: List of active document dicts with doc_id, title, doc_type, current_version.
+
+    Returns:
+        Path to the generated .xlsx file.
+    """
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "文件清單"
+
+    # Styles
+    header_font = Font(name="Microsoft JhengHei", bold=True, size=10, color="FFFFFF")
+    header_fill = PatternFill(
+        start_color="1F6F3D", end_color="1F6F3D", fill_type="solid"
+    )
+    header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    cell_font = Font(name="Microsoft JhengHei", size=9)
+    cell_alignment = Alignment(vertical="center", wrap_text=True)
+
+    # Title row
+    ws.merge_cells("A1:E1")
+    title_cell = ws["A1"]
+    title_cell.value = "AI-QMS 文件清單報告 (現行正式版本)"
+    title_cell.font = Font(name="Microsoft JhengHei", bold=True, size=14)
+    title_cell.alignment = Alignment(horizontal="center")
+
+    # Metadata row
+    ws.merge_cells("A2:E2")
+    meta_cell = ws["A2"]
+    meta_cell.value = (
+        f"匯出時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | "
+        f"文件總數: {len(docs)} 份"
+    )
+    meta_cell.font = Font(name="Microsoft JhengHei", size=9, color="808080")
+    meta_cell.alignment = Alignment(horizontal="right")
+
+    # Headers (row 4)
+    headers = ["#", "文件編號", "標題", "類型", "現行版本"]
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=4, column=col, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_alignment
+        cell.border = THIN_BORDER
+
+    # Data rows
+    for idx, d in enumerate(docs, 1):
+        row_num = idx + 4
+        values = [
+            idx,
+            d.get("doc_id", ""),
+            d.get("title", "N/A"),
+            d.get("doc_type", "OTHER"),
+            f"v{d.get('current_version', '?')}",
+        ]
+        for col, val in enumerate(values, 1):
+            cell = ws.cell(row=row_num, column=col, value=val)
+            cell.font = cell_font
+            cell.alignment = cell_alignment
+            cell.border = THIN_BORDER
+
+    # Column widths
+    col_widths = [5, 15, 40, 12, 12]
+    for i, width in enumerate(col_widths, 1):
+        ws.column_dimensions[chr(64 + i)].width = width
+
+    # Freeze header row
+    ws.freeze_panes = "A5"
+
+    # Footer note
+    note_row = len(docs) + 6
+    ws.merge_cells(f"A{note_row}:E{note_row}")
+    note_cell = ws.cell(row=note_row, column=1)
+    note_cell.value = "本報告由 AI-QMS 品質管理系統自動產生。"
+    note_cell.font = Font(
+        name="Microsoft JhengHei", size=8, italic=True, color="808080"
+    )
+
+    # Save
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"doclist_{timestamp}.xlsx"
+    filepath = EXPORT_DIR / filename
+    wb.save(str(filepath))
+    return str(filepath)
+
+
+# ============================================================
+# 全部文件紀錄 (All Records — incl. version history & obsolete)
+# ============================================================
+
+
+def _compute_status(doc: dict, ver_entry: dict) -> str:
+    """Compute display status for a version entry."""
+    status_str = doc.get("status", "active")
+    current_ver = doc.get("current_version", "?")
+    ver = ver_entry.get("version", "?")
+    files_removed = ver_entry.get("files_removed", False)
+
+    if status_str == "obsolete":
+        return "已作廢"
+    elif files_removed:
+        return "已進版"
+    elif ver == current_ver:
+        return "現行版"
+    else:
+        return "已進版"
+
+
+def export_allrecords_to_word(all_docs: list) -> str:
+    """
+    Export all document records (incl. version history, obsolete) to Word (.docx).
+
+    Args:
+        all_docs: Full documents list from registry["documents"].
+
+    Returns:
+        Path to the generated .docx file.
+    """
+    doc = Document()
+
+    # Title
+    title = doc.add_heading("AI-QMS 全部文件紀錄報告", level=1)
+    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    # Metadata
+    total_versions = sum(len(d.get("versions", [])) for d in all_docs)
+    active_count = sum(1 for d in all_docs if d.get("status", "active") == "active")
+    obsolete_count = sum(1 for d in all_docs if d.get("status") == "obsolete")
+
+    meta = doc.add_paragraph()
+    meta.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    run = meta.add_run(f"匯出時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    run.font.size = Pt(9)
+    run.font.color.rgb = RGBColor(128, 128, 128)
+
+    meta2 = doc.add_paragraph()
+    meta2.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    run2 = meta2.add_run(
+        f"文件數: {len(all_docs)} 份 | 版本紀錄: {total_versions} 筆 | "
+        f"有效: {active_count} | 已作廢: {obsolete_count}"
+    )
+    run2.font.size = Pt(9)
+    run2.font.color.rgb = RGBColor(128, 128, 128)
+
+    doc.add_paragraph()  # spacer
+
+    if not all_docs:
+        doc.add_paragraph("目前沒有任何文件紀錄。")
+    else:
+        # Create table
+        table = doc.add_table(rows=1, cols=8)
+        table.style = "Table Grid"
+        table.alignment = WD_TABLE_ALIGNMENT.CENTER
+
+        # Header row
+        headers = ["#", "文件編號", "標題", "類型", "版本", "日期", "操作者", "狀態"]
+        for i, header in enumerate(headers):
+            cell = table.rows[0].cells[i]
+            cell.text = header
+            for paragraph in cell.paragraphs:
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                for run in paragraph.runs:
+                    run.font.bold = True
+                    run.font.size = Pt(9)
+
+        # Data rows
+        row_idx = 0
+        for d in all_docs:
+            doc_id = d.get("doc_id", "")
+            title_text = d.get("title", "N/A")
+            doc_type = d.get("doc_type", "OTHER")
+
+            for ver_entry in d.get("versions", []):
+                row_idx += 1
+                row = table.add_row()
+                ver = ver_entry.get("version", "?")
+                created_at = ver_entry.get("created_at", "")[:10]
+                created_by = ver_entry.get("created_by", "system")
+                status = _compute_status(d, ver_entry)
+
+                values = [
+                    str(row_idx),
+                    doc_id,
+                    title_text,
+                    doc_type,
+                    f"v{ver}",
+                    created_at,
+                    created_by,
+                    status,
+                ]
+                for i, val in enumerate(values):
+                    cell = row.cells[i]
+                    cell.text = val
+                    for paragraph in cell.paragraphs:
+                        for run in paragraph.runs:
+                            run.font.size = Pt(8)
+
+        # Set column widths
+        widths = [Cm(0.8), Cm(2.5), Cm(4.5), Cm(1.8), Cm(1.2), Cm(2.5), Cm(1.8), Cm(2)]
+        for row in table.rows:
+            for i, width in enumerate(widths):
+                row.cells[i].width = width
+
+    # Footer
+    doc.add_paragraph()
+    footer = doc.add_paragraph()
+    run = footer.add_run(
+        "本報告由 AI-QMS 品質管理系統自動產生。"
+        "文件更動紀錄受 SHA-256 雜湊鏈保護，確保資料完整性與不可竄改。"
+    )
+    run.font.size = Pt(8)
+    run.font.italic = True
+    run.font.color.rgb = RGBColor(128, 128, 128)
+
+    # Save
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"allrecords_{timestamp}.docx"
+    filepath = EXPORT_DIR / filename
+    doc.save(str(filepath))
+    return str(filepath)
+
+
+def export_allrecords_to_excel(all_docs: list) -> str:
+    """
+    Export all document records to an Excel (.xlsx) file.
+
+    Args:
+        all_docs: Full documents list from registry["documents"].
+
+    Returns:
+        Path to the generated .xlsx file.
+    """
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "全部文件紀錄"
+
+    # Styles
+    header_font = Font(name="Microsoft JhengHei", bold=True, size=10, color="FFFFFF")
+    header_fill = PatternFill(
+        start_color="7B2D8E", end_color="7B2D8E", fill_type="solid"
+    )
+    header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    cell_font = Font(name="Microsoft JhengHei", size=9)
+    cell_alignment = Alignment(vertical="center", wrap_text=True)
+
+    # Count stats
+    total_versions = sum(len(d.get("versions", [])) for d in all_docs)
+    active_count = sum(1 for d in all_docs if d.get("status", "active") == "active")
+    obsolete_count = sum(1 for d in all_docs if d.get("status") == "obsolete")
+
+    # Title row
+    ws.merge_cells("A1:H1")
+    title_cell = ws["A1"]
+    title_cell.value = "AI-QMS 全部文件紀錄報告"
+    title_cell.font = Font(name="Microsoft JhengHei", bold=True, size=14)
+    title_cell.alignment = Alignment(horizontal="center")
+
+    # Metadata row
+    ws.merge_cells("A2:H2")
+    meta_cell = ws["A2"]
+    meta_cell.value = (
+        f"匯出時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | "
+        f"文件數: {len(all_docs)} 份 | 版本紀錄: {total_versions} 筆 | "
+        f"有效: {active_count} | 已作廢: {obsolete_count}"
+    )
+    meta_cell.font = Font(name="Microsoft JhengHei", size=9, color="808080")
+    meta_cell.alignment = Alignment(horizontal="right")
+
+    # Headers (row 4)
+    headers = ["#", "文件編號", "標題", "類型", "版本", "日期", "操作者", "狀態"]
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=4, column=col, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_alignment
+        cell.border = THIN_BORDER
+
+    # Data rows
+    row_idx = 0
+    for d in all_docs:
+        doc_id = d.get("doc_id", "")
+        title_text = d.get("title", "N/A")
+        doc_type = d.get("doc_type", "OTHER")
+
+        for ver_entry in d.get("versions", []):
+            row_idx += 1
+            row_num = row_idx + 4
+            ver = ver_entry.get("version", "?")
+            created_at = ver_entry.get("created_at", "")[:10]
+            created_by = ver_entry.get("created_by", "system")
+            status = _compute_status(d, ver_entry)
+
+            values = [
+                row_idx,
+                doc_id,
+                title_text,
+                doc_type,
+                f"v{ver}",
+                created_at,
+                created_by,
+                status,
+            ]
+            for col, val in enumerate(values, 1):
+                cell = ws.cell(row=row_num, column=col, value=val)
+                cell.font = cell_font
+                cell.alignment = cell_alignment
+                cell.border = THIN_BORDER
+
+    # Column widths
+    col_widths = [5, 15, 35, 12, 10, 15, 12, 12]
+    for i, width in enumerate(col_widths, 1):
+        ws.column_dimensions[chr(64 + i)].width = width
+
+    # Freeze header row
+    ws.freeze_panes = "A5"
+
+    # Footer note
+    note_row = row_idx + 6
+    ws.merge_cells(f"A{note_row}:H{note_row}")
+    note_cell = ws.cell(row=note_row, column=1)
+    note_cell.value = (
+        "本報告由 AI-QMS 品質管理系統自動產生。"
+        "文件更動紀錄受 SHA-256 雜湊鏈保護，確保資料完整性與不可竄改。"
+    )
+    note_cell.font = Font(
+        name="Microsoft JhengHei", size=8, italic=True, color="808080"
+    )
+
+    # Save
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"allrecords_{timestamp}.xlsx"
+    filepath = EXPORT_DIR / filename
+    wb.save(str(filepath))
+    return str(filepath)
