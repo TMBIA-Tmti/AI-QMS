@@ -129,11 +129,13 @@ https://github.com/user-attachments/assets/68cf6037-aab2-41a1-9e01-768c763d8ae1
 | 類別 | 格式 | 處理方式 |
 |------|------|----------|
 | **PDF** | `.pdf` | MarkItDown (主) + LLM Vision (備援) |
-| **圖片** | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.tiff`, `.bmp` | MarkItDown (主) + LLM Vision (備援) |
+| **圖片** | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.tiff`, `.tif`, `.bmp` | MarkItDown (主) + LLM Vision (備援) |
 | **Word** | `.docx`, `.doc` | python-docx / pywin32 |
 | **Excel** | `.xlsx`, `.xls` | openpyxl / pywin32 |
 | **PowerPoint** | `.pptx`, `.ppt` | python-pptx / pywin32 |
 | **文字** | `.txt`, `.md`, `.csv`, `.rtf` | 直接讀取 |
+
+> **📝 備註：** 所有支援格式的文件皆可上傳，系統會自動偵測簽章狀態。文字類檔案（`.txt`, `.md`, `.csv`, `.rtf`）若為手動建立則需簽章，若為系統自動生成則不需簽章。
 
 ## 下載與安裝
 
@@ -225,7 +227,7 @@ start_chainlit.bat
 
 瀏覽器將自動開啟 http://localhost:3000
 
-> **API Key 設定：** 啟動後在應用程式右上角的設定面板中直接輸入 API Key，無需設定環境變數。
+> **API Key 設定：** 啟動後在對話框左側的齒輪圖示（⚙️）中開啟設定面板，直接輸入 API Key，無需設定環境變數。語言切換選項也在同一個設定面板中。
 
 ### 4. 啟動 Phoenix 可觀測性（選用）
 
@@ -396,11 +398,13 @@ The system adopts a **Main Agent + Sub-Agent** architecture, where the Main Agen
 | Category | Formats | Processing |
 |----------|---------|------------|
 | **PDF** | `.pdf` | MarkItDown (Primary) + LLM Vision (Fallback) |
-| **Images** | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.tiff`, `.bmp` | MarkItDown + LLM Vision |
+| **Images** | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.tiff`, `.tif`, `.bmp` | MarkItDown + LLM Vision |
 | **Word** | `.docx`, `.doc` | python-docx / pywin32 |
 | **Excel** | `.xlsx`, `.xls` | openpyxl / pywin32 |
 | **PowerPoint** | `.pptx`, `.ppt` | python-pptx / pywin32 |
 | **Text** | `.txt`, `.md`, `.csv`, `.rtf` | Direct read |
+
+> **📝 Note:** All supported file formats can be uploaded, and the system will automatically detect signature status. Text files (`.txt`, `.md`, `.csv`, `.rtf`) require signatures only if manually created; system-generated files do not require signatures.
 
 ## Download & Install
 
@@ -492,7 +496,7 @@ start_chainlit.bat
 
 Browser will automatically open http://localhost:3000
 
-> **API Key Setup:** After launch, enter your API Key directly in the settings panel (top-right corner of the app). No environment variables needed.
+> **API Key Setup:** After launch, click the gear icon (⚙️) on the left side of the chat input to open the settings panel, then enter your API Key directly. No environment variables needed. The language selector is also available in the same settings panel.
 
 ### 4. Launch Phoenix Observability (Optional)
 
@@ -663,11 +667,13 @@ Phoenix Dashboard: http://localhost:6006
 | カテゴリ | 形式 | 処理方法 |
 |----------|------|----------|
 | **PDF** | `.pdf` | MarkItDown (主) + LLM Vision (フォールバック) |
-| **画像** | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.tiff`, `.bmp` | MarkItDown + LLM Vision |
+| **画像** | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.tiff`, `.tif`, `.bmp` | MarkItDown + LLM Vision |
 | **Word** | `.docx`, `.doc` | python-docx / pywin32 |
 | **Excel** | `.xlsx`, `.xls` | openpyxl / pywin32 |
 | **PowerPoint** | `.pptx`, `.ppt` | python-pptx / pywin32 |
 | **テキスト** | `.txt`, `.md`, `.csv`, `.rtf` | 直接読取 |
+
+> **📝 備考：** すべての対応形式のファイルがアップロード可能で、システムが署名状態を自動検出します。テキストファイル（`.txt`, `.md`, `.csv`, `.rtf`）は手動作成の場合のみ署名が必要で、システム自動生成の場合は署名不要です。
 
 ## ダウンロードとインストール
 
@@ -759,7 +765,7 @@ start_chainlit.bat
 
 ブラウザが自動的に http://localhost:3000 を開きます。
 
-> **API Key の設定：** 起動後、アプリケーション右上の設定パネルで API Key を直接入力できます。環境変数の設定は不要です。
+> **API Key の設定：** 起動後、チャット入力欄の左側にある歯車アイコン（⚙️）をクリックして設定パネルを開き、API Key を直接入力できます。環境変数の設定は不要です。言語切替もこの設定パネルから行えます。
 
 ### 4. Phoenix 可観測性の起動（オプション）
 
