@@ -245,23 +245,20 @@ Phoenix Dashboard：http://localhost:6006
 
 ## 對話指令
 
+> 以下為**文件管制子 Agent (Doc Control Sub-Agent)** 的對話指令。輸入資料顯示類指令後，下方會自動出現 Word / Excel 匯出按鈕，無需另外輸入匯出指令。
+
 | 指令 | 說明 |
 |------|------|
 | `幫助` / `help` | 顯示使用指南 |
 | `狀態` / `status` | 顯示系統狀態 |
-| `文件清單` | 現行正式版本文件 |
-| `列表` / `list` | 所有文件紀錄（含進版、作廢） |
+| `文件清單` | 現行正式版本文件（附 Word/Excel 匯出按鈕） |
+| `列表` / `list` | 所有文件紀錄（含進版、作廢）（附 Word/Excel 匯出按鈕） |
 | `搜尋 <關鍵字>` | 搜尋文件內容 |
 | `下載 <文件編號>` | 下載原始文件（如：下載 QP-852） |
 | `作廢 <文件編號>` | 作廢文件（如：作廢 OTHER-016） |
-| `文件更動紀錄` | 查看文件更動紀錄 |
-| `下載文件更動紀錄 word` | 匯出文件更動紀錄為 .docx |
-| `下載文件更動紀錄 excel` | 匯出文件更動紀錄為 .xlsx |
-| `法規清單` | 列出所有引用的法規標準 |
-| `下載法規清單 word/excel` | 匯出法規清單 |
+| `文件更動紀錄` | 查看文件更動紀錄（附 Word/Excel 匯出按鈕） |
+| `法規清單` | 列出所有引用的法規標準（附 Word/Excel 匯出按鈕） |
 | `下載引用清單 word/excel` | 匯出進版引用清單 |
-| `下載文件清單 word/excel` | 匯出文件清單（現行正式版本） |
-| `下載列表 word/excel` | 匯出所有文件紀錄（含進版、作廢） |
 | `/web <關鍵字>` | 搜尋網路取得最新資訊（如：/web 最新 ISO 13485 版本） |
 | `刪除資料庫` | 刪除所有文件（需確認） |
 
@@ -514,23 +511,20 @@ Phoenix Dashboard: http://localhost:6006
 
 ## Chat Commands
 
+> The following are **Document Control Sub-Agent** commands. After entering a data display command, Word / Excel export buttons appear automatically below — no separate export command needed.
+
 | Command | Description |
 |---------|-------------|
 | `help` | Show usage guide |
 | `status` | Show system status |
-| `document list` | Current formal document versions |
-| `list` | All document records (incl. versions, obsolete) |
+| `document list` | Current formal document versions (with Word/Excel export buttons) |
+| `list` | All document records (incl. versions, obsolete) (with Word/Excel export buttons) |
 | `search <keyword>` | Search document content |
 | `download <doc_id>` | Download original file (e.g., download QP-852) |
 | `obsolete <doc_id>` | Obsolete a document (e.g., obsolete OTHER-016) |
-| `audit trail` | View audit trail records |
-| `download audit word` | Export audit trail as .docx |
-| `download audit excel` | Export audit trail as .xlsx |
-| `regulatory list` | List all referenced regulatory standards |
-| `download regulatory word/excel` | Export regulatory list |
+| `audit trail` | View audit trail records (with Word/Excel export buttons) |
+| `regulatory list` | List all referenced regulatory standards (with Word/Excel export buttons) |
 | `download reference word/excel` | Export version reference list |
-| `download doclist word/excel` | Export document list (current formal versions) |
-| `download all records word/excel` | Export all document records (incl. versions, obsolete) |
 | `/web <keyword>` | Search the web for latest information (e.g., /web latest ISO 13485 version) |
 | `delete database` | Delete all documents (confirmation required) |
 
@@ -783,23 +777,20 @@ Phoenix ダッシュボード：http://localhost:6006
 
 ## チャットコマンド
 
+> 以下は**文書管理サブ Agent (Document Control Sub-Agent)** のコマンドです。データ表示コマンドを入力すると、下に Word / Excel エクスポートボタンが自動的に表示されます。別途エクスポートコマンドを入力する必要はありません。
+
 | コマンド | 説明 |
 |----------|------|
 | `ヘルプ` / `help` | 使用ガイドを表示 |
 | `ステータス` / `status` | システム状態を表示 |
-| `文書一覧` | 現行正式版文書 |
-| `リスト` / `list` | 全記録（版更新・廃止含む） |
+| `文書一覧` | 現行正式版文書（Word/Excel エクスポートボタン付き） |
+| `リスト` / `list` | 全記録（版更新・廃止含む）（Word/Excel エクスポートボタン付き） |
 | `検索 <キーワード>` | 文書内容を検索 |
 | `ダウンロード <文書ID>` | 原本ファイルをダウンロード（例：ダウンロード QP-852） |
 | `廃止 <文書ID>` | 文書を廃止（例：廃止 OTHER-016） |
-| `監査証跡` | 監査証跡を表示 |
-| `監査証跡ダウンロード word` | 監査ログを .docx でエクスポート |
-| `監査証跡ダウンロード excel` | 監査ログを .xlsx でエクスポート |
-| `規制リスト` | 引用規格一覧を表示 |
-| `規制リストダウンロード word/excel` | 規格リストをエクスポート |
+| `監査証跡` | 監査証跡を表示（Word/Excel エクスポートボタン付き） |
+| `規制リスト` | 引用規格一覧を表示（Word/Excel エクスポートボタン付き） |
 | `引用ダウンロード word/excel` | バージョン引用リストをエクスポート |
-| `文書一覧ダウンロード word/excel` | 文書一覧をエクスポート（現行正式版） |
-| `全記録ダウンロード word/excel` | 全文書記録をエクスポート（版更新・廃止含む） |
 | `/web <キーワード>` | ウェブ検索で最新情報を取得（例：/web 最新 ISO 13485 バージョン） |
 | `データベース削除` | 全文書を削除（確認必要） |
 
