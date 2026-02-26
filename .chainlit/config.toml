@@ -37,7 +37,7 @@ edit_message = false
 [features.spontaneous_file_upload]
     enabled = true
     accept = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/vnd.ms-powerpoint", "application/vnd.openxmlformats-officedocument.presentationml.presentation", "image/*", "text/*"]
-    max_files = 20
+    max_files = 100
     max_size_mb = 500
 
 [UI]
@@ -50,8 +50,10 @@ default_theme = "light"
 # Chain of Thought display mode
 cot = "hidden"
 
-# Layout
-# layout = "wide"
+# Chat input placeholder
+chat_input_placeholder = "在此輸入訊息或拖放文件（最多 100 份，每份 500MB）..."
+
+layout = "wide"
 
 [meta]
 generated_by = "1.3.0"

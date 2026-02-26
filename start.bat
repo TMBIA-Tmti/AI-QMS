@@ -139,6 +139,7 @@ echo  Starting Chainlit App (Port 3000)
 echo ========================================================
 echo.
 echo [INFO] Chainlit URL: http://localhost:3000
+echo [INFO] Auto-Reload: ON (code changes auto-restart)
 echo [INFO] Press Ctrl+C to stop
 echo.
 
@@ -150,11 +151,10 @@ if errorlevel 1 (
     goto end
 )
 
-echo [INFO] Opening browser automatically...
-start "" "http://localhost:3000"
+:: Browser is auto-opened by Chainlit itself (no manual start needed)
 
 cd /d "%PROJECT_DIR%"
-"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port 3000 --host 0.0.0.0
+"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port 3000 -w
 goto check_error
 
 :start_all
@@ -190,16 +190,15 @@ echo.
 echo  Chainlit App:           http://localhost:3000
 echo  Ollama API:             http://localhost:11434
 echo.
-echo  Opening browser automatically...
+echo  Auto-Reload: ON (code changes auto-restart)
 echo  Press Ctrl+C to stop Chainlit
 echo ========================================================
 echo.
 
-:: Auto-open browser
-start "" "http://localhost:3000"
+:: Browser is auto-opened by Chainlit itself (no manual start needed)
 
 cd /d "%PROJECT_DIR%"
-"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port 3000 --host 0.0.0.0
+"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port 3000 -w
 goto check_error
 
 :start_phoenix
@@ -231,18 +230,16 @@ echo.
 echo  Chainlit App:           http://localhost:3000
 echo  Phoenix Dashboard:      http://localhost:6006
 echo.
-echo  Opening browser automatically...
+echo  Auto-Reload: ON (code changes auto-restart)
 echo  Press Ctrl+C to stop Chainlit
 echo ========================================================
 echo.
 
-:: Auto-open browsers
+:: Open Phoenix dashboard only; Chainlit auto-opens its own browser
 start "" "http://localhost:6006"
-timeout /t 1 >nul
-start "" "http://localhost:3000"
 
 cd /d "%PROJECT_DIR%"
-"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port 3000 --host 0.0.0.0
+"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port 3000 -w
 goto check_error
 
 :legacy_gradio

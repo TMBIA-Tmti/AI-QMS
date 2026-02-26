@@ -106,7 +106,9 @@ try:
     from phoenix.otel import register as phoenix_register
     from openinference.instrumentation.litellm import LiteLLMInstrumentor
 
-    _phoenix_endpoint = os.getenv("PHOENIX_COLLECTOR_ENDPOINT", "http://localhost:6006/v1/traces")
+    _phoenix_endpoint = os.getenv(
+        "PHOENIX_COLLECTOR_ENDPOINT", "http://localhost:6006/v1/traces"
+    )
     _phoenix_project = os.getenv("PHOENIX_PROJECT_NAME", "ai-qms-doc-control")
 
     _phoenix_tracer_provider = phoenix_register(
@@ -116,32 +118,52 @@ try:
     LiteLLMInstrumentor().instrument(tracer_provider=_phoenix_tracer_provider)
 
     PHOENIX_ENABLED = True
-    print(f"[OK] Phoenix tracing enabled → {_phoenix_endpoint} (project: {_phoenix_project})")
+    print(
+        f"[OK] Phoenix tracing enabled → {_phoenix_endpoint} (project: {_phoenix_project})"
+    )
 except ImportError:
     # Auto-install Phoenix packages for users who upgraded via git pull
     print("[INFO] Phoenix packages not found. Auto-installing...")
     try:
         import subprocess, sys
+
         subprocess.check_call(
-            [sys.executable, "-m", "pip", "install", "--quiet", "--disable-pip-version-check",
-             "arize-phoenix>=9.0.0", "arize-phoenix-otel>=0.8.0",
-             "openinference-instrumentation-litellm>=0.1.18"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            [
+                sys.executable,
+                "-m",
+                "pip",
+                "install",
+                "--quiet",
+                "--disable-pip-version-check",
+                "arize-phoenix>=9.0.0",
+                "arize-phoenix-otel>=0.8.0",
+                "openinference-instrumentation-litellm>=0.1.18",
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
         )
         # Retry after install
         from phoenix.otel import register as phoenix_register
         from openinference.instrumentation.litellm import LiteLLMInstrumentor
 
-        _phoenix_endpoint = os.getenv("PHOENIX_COLLECTOR_ENDPOINT", "http://localhost:6006/v1/traces")
+        _phoenix_endpoint = os.getenv(
+            "PHOENIX_COLLECTOR_ENDPOINT", "http://localhost:6006/v1/traces"
+        )
         _phoenix_project = os.getenv("PHOENIX_PROJECT_NAME", "ai-qms-doc-control")
-        _phoenix_tracer_provider = phoenix_register(project_name=_phoenix_project, endpoint=_phoenix_endpoint)
+        _phoenix_tracer_provider = phoenix_register(
+            project_name=_phoenix_project, endpoint=_phoenix_endpoint
+        )
         LiteLLMInstrumentor().instrument(tracer_provider=_phoenix_tracer_provider)
         PHOENIX_ENABLED = True
-        print(f"[OK] Phoenix auto-installed and enabled → {_phoenix_endpoint} (project: {_phoenix_project})")
+        print(
+            f"[OK] Phoenix auto-installed and enabled → {_phoenix_endpoint} (project: {_phoenix_project})"
+        )
     except Exception as auto_err:
         print(f"[INFO] Phoenix auto-install failed ({auto_err}). LLM tracing disabled.")
 except Exception as e:
-    print(f"[WARN] Phoenix tracing init failed: {e}. App will continue without tracing.")
+    print(
+        f"[WARN] Phoenix tracing init failed: {e}. App will continue without tracing."
+    )
 
 # ============================================================
 # Internationalization (i18n) - v3.2.0 (20 languages)
@@ -713,9 +735,13 @@ def detect_document_type(filename: str, ocr_text: str = "") -> dict:
     title_from_filename = re.sub(
         r"^\d{14}_", "", stem
     )  # strip "20260212111639_" timestamp
-    title_from_filename = re.sub(
-        r"^[A-Za-z]{2,4}[-_]?\d{2,4}(?:[-_]\d{1,2})?\s*", "", title_from_filename
-    ).strip()
+    title_from_filename = (
+        re.sub(
+            r"^[A-Za-z]{2,4}[-_]?\d{2,4}(?:[-_]\d{1,2})?\s*", "", title_from_filename
+        )
+        .strip()
+        .lstrip("_")
+    )
     if not title_from_filename:
         title_from_filename = stem
 
@@ -811,14 +837,15 @@ def detect_document_type(filename: str, ocr_text: str = "") -> dict:
 
 
 def _pdf_has_stamp_images(file_path: str) -> Optional[bool]:
-    """Check if PDF contains embedded images (stamps/signatures) on the first page.
+    """Check if PDF contains embedded images (stamps/signatures) on ANY page.
 
-    Stamps and signatures are embedded as images in PDFs.
-    Unsigned documents have 0 images; stamped/signed documents have 1+ images.
+    Stamps and signatures may appear on any page (not just the first few).
+    They can be embedded as XObject images, annotations, form fields, or
+    digital signature dictionaries.
 
     Returns:
-        True if images found (likely stamped/signed)
-        False if no images found (likely unsigned)
+        True if images/stamps/signatures found (likely stamped/signed)
+        False if nothing found (likely unsigned)
         None if check failed (can't determine)
     """
     try:
@@ -826,14 +853,135 @@ def _pdf_has_stamp_images(file_path: str) -> Optional[bool]:
 
         with open(file_path, "rb") as f:
             reader = pypdf.PdfReader(f)
-            # Check first 3 pages for images
-            for i, page in enumerate(reader.pages[:3]):
+
+            # --- Check 1: Scan ALL pages for stamp/signature-sized images ---
+            # Content images (charts, figures, logos) are typically large
+            # (e.g. 900x350, 600x475). Stamps/signatures are typically
+            # small-to-medium (e.g. company stamps ~200x200, signature
+            # images ~400x200). However, some stamps can be large
+            # (e.g. 1477x1108 full-page stamp overlay).
+            #
+            # Strategy: Check if image could be a stamp by looking at
+            # its XObject name (FormXob = form/signature overlay) and
+            # aspect ratio / size heuristics.
+            for page_idx, page in enumerate(reader.pages):
                 try:
-                    images = page.images
-                    if len(list(images)) > 0:
-                        return True
+                    resources = page.get("/Resources")
+                    if not resources:
+                        continue
+                    res_obj = (
+                        resources.get_object()
+                        if hasattr(resources, "get_object")
+                        else resources
+                    )
+                    xobjects = res_obj.get("/XObject")
+                    if not xobjects:
+                        continue
+                    xobj_dict = (
+                        xobjects.get_object()
+                        if hasattr(xobjects, "get_object")
+                        else xobjects
+                    )
+                    for name, ref in xobj_dict.items():
+                        try:
+                            obj = (
+                                ref.get_object() if hasattr(ref, "get_object") else ref
+                            )
+                            subtype = str(obj.get("/Subtype", ""))
+                            if subtype != "/Image":
+                                continue
+                            width = int(obj.get("/Width", 0))
+                            height = int(obj.get("/Height", 0))
+                            name_str = str(name)
+
+                            # Form XObject overlays (stamp/signature overlays)
+                            if "formxob" in name_str.lower():
+                                return True
+
+                            if width > 0 and height > 0:
+                                area = width * height
+                                aspect = max(width, height) / max(min(width, height), 1)
+                                # Small square-ish images (< 350x350 area,
+                                # aspect < 2.0) are likely stamps/seals.
+                                # Content images (charts/figures) are usually
+                                # 400+ px wide and more rectangular.
+                                if area < 120000 and aspect < 2.0:
+                                    return True
+                                # Last-page images are likely approval
+                                # stamps/signatures (approval section at end)
+                                if page_idx == len(reader.pages) - 1:
+                                    return True
+                                # Last-page images are more likely stamps
+                                # (approval section is usually at the end)
+                                if page_idx == len(reader.pages) - 1:
+                                    return True
+                        except Exception:
+                            continue
                 except Exception:
                     continue
+
+            # --- Check 2: Scan ALL pages for annotations ---
+            # Stamps/signatures can be PDF annotations (Stamp, Widget, Ink, etc.)
+            for page in reader.pages:
+                annots = page.get("/Annots")
+                if annots:
+                    annot_list = annots if isinstance(annots, list) else [annots]
+                    for annot_ref in annot_list:
+                        try:
+                            annot = (
+                                annot_ref.get_object()
+                                if hasattr(annot_ref, "get_object")
+                                else annot_ref
+                            )
+                            subtype = str(annot.get("/Subtype", ""))
+                            # Signature-related annotation subtypes
+                            if subtype in ("/Widget", "/Stamp", "/Ink", "/FreeText"):
+                                ft = str(annot.get("/FT", ""))
+                                if ft == "/Sig" or subtype in ("/Stamp", "/Ink"):
+                                    return True
+                                # Widget with appearance stream = filled form field
+                                ap = annot.get("/AP")
+                                if ap:
+                                    return True
+                        except Exception:
+                            continue
+
+            # --- Check 3: Document-level AcroForm / digital signatures ---
+            try:
+                catalog = reader.trailer["/Root"].get_object()
+                acroform = catalog.get("/AcroForm")
+                if acroform:
+                    acroform_obj = (
+                        acroform.get_object()
+                        if hasattr(acroform, "get_object")
+                        else acroform
+                    )
+                    # SigFlags indicates document has signature fields
+                    sig_flags = acroform_obj.get("/SigFlags")
+                    if sig_flags:
+                        return True
+                    # Check individual form fields for /Sig type
+                    fields = acroform_obj.get("/Fields", [])
+                    for field_ref in fields:
+                        try:
+                            field = (
+                                field_ref.get_object()
+                                if hasattr(field_ref, "get_object")
+                                else field_ref
+                            )
+                            if str(field.get("/FT", "")) == "/Sig":
+                                return True
+                        except Exception:
+                            continue
+                # Check for Perms (permission/signature dictionary)
+                if catalog.get("/Perms"):
+                    return True
+                # Check for DSS (Document Security Store)
+                if catalog.get("/DSS"):
+                    return True
+            except Exception:
+                pass
+
             return False
     except Exception:
         return None
@@ -858,6 +1006,29 @@ def _docx_has_stamp_images(file_path: str) -> Optional[bool]:
         # Check for image relationships in the document
         for rel in doc.part.rels.values():
             if "image" in rel.reltype:
+                return True
+        return False
+    except Exception:
+        return None
+
+
+def _xlsx_has_stamp_images(file_path: str) -> Optional[bool]:
+    """Check if an Excel (.xlsx) file contains embedded images (stamps/signatures).
+
+    Stamps and signatures in Excel files are embedded as images in the worksheet.
+    Unsigned Excel forms have 0 images; stamped/signed versions have 1+ images.
+
+    Returns:
+        True if images found (likely stamped/signed)
+        False if no images found (likely unsigned)
+        None if check failed (can't determine)
+    """
+    try:
+        from openpyxl import load_workbook
+
+        wb = load_workbook(file_path, data_only=True)
+        for ws in wb.worksheets:
+            if ws._images:
                 return True
         return False
     except Exception:
@@ -967,48 +1138,73 @@ def detect_signature(ocr_result, file_path: str = "", lang: str = "zh-TW") -> di
         "親筆簽名",
         "handwritten",
         "digitally signed",
-        "電子簽章",
-        "數位簽章",
     ]
 
+    import re
+
+    def _keyword_in_text(keyword: str, text: str) -> bool:
+        """Check if keyword appears in text with word boundary awareness.
+
+        For English keywords (ASCII-only, no brackets/colons), use word
+        boundary matching to prevent partial matches like 'cap' in
+        'capability' or 'visa' in 'Trevisan'.
+
+        For CJK keywords and structured patterns (e.g. '[印章', 'stamp:'),
+        use simple substring matching (CJK has no word boundaries).
+        """
+        # Structured patterns with brackets/colons → substring match
+        if keyword.startswith("[") or keyword.endswith(":"):
+            return keyword in text
+        # Check if keyword is purely ASCII (English)
+        is_ascii = all(ord(c) < 128 for c in keyword)
+        if is_ascii and len(keyword) >= 2:
+            # Use word boundary regex for English keywords
+            pattern = r"\b" + re.escape(keyword) + r"\b"
+            return bool(re.search(pattern, text))
+        # CJK / mixed → substring match
+        return keyword in text
+
     for kw in presence_keywords:
-        if kw in ocr_text:
+        if _keyword_in_text(kw, ocr_text):
             result["keyword_hits"].append(kw)
 
     general_keywords_found = []
     for kw in SIGNATURE_KEYWORDS:
-        if kw in ocr_text:
+        if _keyword_in_text(kw, ocr_text):
             general_keywords_found.append(kw)
 
     # --- Phase 1 decision (from OCR) ---
     has_real_stamps = len(result["stamps"]) > 0
     has_real_sigs = len(result["signatures"]) > 0
     has_presence_keywords = len(result["keyword_hits"]) > 0
-    ocr_says_signed = has_real_stamps or has_real_sigs or has_presence_keywords
 
-    # --- Phase 2: Cross-verify with embedded image analysis ---
-    # LLMs can hallucinate stamps/signatures. Verify by checking if the file
-    # actually contains embedded images (stamps/signatures are images).
-    # Also covers general_keywords (e.g. "approved by", "signature") which may
-    # appear as table headers in unsigned documents.
-    any_keywords_found = ocr_says_signed or len(general_keywords_found) > 0
+    # --- Phase 2: Cross-verify with embedded image/signature analysis ---
+    # Purpose: Catch LLM hallucinations in OCR metadata (stamps/signatures
+    # detected_elements). Keywords from OCR text are TRUSTED because they
+    # come from actual document text extraction, not LLM vision.
+    #
+    # Only gate LLM vision metadata; keyword hits are NOT gated by image check.
     file_lower = file_path.lower() if file_path else ""
-    if file_path and any_keywords_found:
-        has_images = None
-        file_type_label = ""
+    has_images = None  # None = can't determine or not applicable
+    if file_path:
         if file_lower.endswith(".pdf"):
             has_images = _pdf_has_stamp_images(file_path)
-            file_type_label = "PDF"
         elif file_lower.endswith(".docx"):
             has_images = _docx_has_stamp_images(file_path)
-            file_type_label = "Word"
-        if has_images is False:
-            result["detected"] = False
-            result["reason"] = _t("sig.keyword_no_image", type=file_type_label)
-            return result
+        elif file_lower.endswith((".xlsx", ".xls")):
+            has_images = _xlsx_has_stamp_images(file_path)
+
+    # If LLM vision claimed stamps/sigs but file has NO embedded images,
+    # discard those claims (likely hallucination).
+    if (has_real_stamps or has_real_sigs) and has_images is False:
+        result["stamps"] = []
+        result["signatures"] = []
+        has_real_stamps = False
+        has_real_sigs = False
 
     # --- Final decision ---
     if has_real_stamps or has_real_sigs:
+        # Trusted: LLM vision detected AND file has embedded images
         result["detected"] = True
         parts = []
         if result["stamps"]:
@@ -1019,11 +1215,17 @@ def detect_signature(ocr_result, file_path: str = "", lang: str = "zh-TW") -> di
             )
         result["reason"] = _t("sig.detected_prefix") + " " + "; ".join(parts)
     elif has_presence_keywords:
+        # Trusted: strong presence keywords (e.g. [印章], 手寫簽名, digitally signed)
         result["detected"] = True
         result["reason"] = _t(
             "sig.presence_keywords", keywords=", ".join(result["keyword_hits"][:3])
         )
     elif general_keywords_found:
+        # General keywords (e.g. "approved by", "signature", "簽章") found in text.
+        # These could be table headers in unsigned docs. Use image check to decide:
+        # - If file HAS embedded images → trust keywords (real signatures likely)
+        # - If file has NO images → keywords are just form labels, not real sigs
+        # - If can't determine (non-PDF/DOCX/XLSX or check failed) → trust keywords
         has_placeholders = any(
             p in ocr_text
             for p in ["[無法辨識]", "[空白]", "[empty]", "[blank]", "[n/a]"]
@@ -1031,11 +1233,33 @@ def detect_signature(ocr_result, file_path: str = "", lang: str = "zh-TW") -> di
         if has_placeholders and not has_real_stamps and not has_real_sigs:
             result["detected"] = False
             result["reason"] = _t("sig.empty_fields")
+        elif has_images is False:
+            # Keywords found but NO embedded images → just form/table headers
+            result["detected"] = False
+            file_type = "PDF"
+            if file_lower.endswith(".docx"):
+                file_type = "Word"
+            elif file_lower.endswith((".xlsx", ".xls")):
+                file_type = "Excel"
+            result["reason"] = _t(
+                "sig.keyword_no_image",
+                type=file_type,
+            )
         else:
+            # has_images is True or None → trust the keywords
             result["detected"] = True
             result["reason"] = _t(
                 "sig.keyword_detected", keywords=", ".join(general_keywords_found[:3])
             )
+    elif has_images is True:
+        # No keywords found, but stamp/signature-sized images detected in file.
+        # This covers external documents where stamps are image-only without
+        # any signature-related text (e.g. academic papers with a stamp overlay).
+        # The _pdf_has_stamp_images() function already filters for stamp-like
+        # images (FormXob overlays, small/square images, last-page images),
+        # so has_images=True is a strong standalone signal.
+        result["detected"] = True
+        result["reason"] = _t("sig.image_detected")
     else:
         result["detected"] = False
         result["reason"] = _t("sig.none_detected")
@@ -1497,7 +1721,9 @@ async def handle_status() -> str:
     model_name = cl.user_session.get("model_name", "N/A")
 
     phoenix_status = "✅ Active" if PHOENIX_ENABLED else "❌ Disabled"
-    phoenix_url = os.getenv("PHOENIX_COLLECTOR_ENDPOINT", "http://localhost:6006").replace("/v1/traces", "")
+    phoenix_url = os.getenv(
+        "PHOENIX_COLLECTOR_ENDPOINT", "http://localhost:6006"
+    ).replace("/v1/traces", "")
 
     return f"""{t("status.title")}
 
@@ -1806,7 +2032,7 @@ async def handle_download(text: str):
         storage = get_markdown_store()
         file_path = storage.get_original_file_path(req_doc_id)
         if file_path:
-            fname = Path(file_path).name
+            fname = re.sub(r"^\d{14}_", "", Path(file_path).name)
             return file_path, t("download.found", doc_id=req_doc_id, filename=fname)
         else:
             return None, t("download.not_found", doc_id=req_doc_id)
@@ -1931,7 +2157,8 @@ async def on_cancel_delete(action):
 
 async def _send_file_download(filepath: str, msg_text: str):
     """Helper: send a file as a download with cl.File element."""
-    elements = [cl.File(name=Path(filepath).name, path=filepath, display="inline")]
+    display_name = re.sub(r"^\d{14}_", "", Path(filepath).name)
+    elements = [cl.File(name=display_name, path=filepath, display="inline")]
     await cl.Message(content=msg_text, elements=elements).send()
 
 
@@ -2723,9 +2950,12 @@ async def chat_with_llm(message_text: str, profile: str):
             await msg.update()
 
         if ref_docs:
-            full_response += "\n\n" + t("llm.ref_docs", docs=", ".join(ref_docs))
-            msg.content = full_response
-            await msg.update()
+            ref_str = ", ".join(ref_docs)
+            # Only append if LLM didn't already cite these docs
+            if ref_str not in full_response:
+                full_response += "\n\n" + t("llm.ref_docs", docs=ref_str)
+                msg.content = full_response
+                await msg.update()
 
         # Update history
         history.append({"role": "user", "content": message_text})
@@ -2788,78 +3018,119 @@ def _web_source_priority(url: str) -> int:
     # --- Tier 0: International standards & regulatory bodies (ALL countries) ---
     tier0_domains = (
         # ── International / Supranational ──
-        "iso.org",              # International Organization for Standardization
-        "iec.ch",               # International Electrotechnical Commission
-        "who.int",              # World Health Organization
-        "ich.org",              # International Council for Harmonisation
-        "imdrf.org",            # International Medical Device Regulators Forum
+        "iso.org",  # International Organization for Standardization
+        "iec.ch",  # International Electrotechnical Commission
+        "who.int",  # World Health Organization
+        "trialsearch.who.int",  # WHO ICTRP (International Clinical Trials Registry)
+        "ich.org",  # International Council for Harmonisation
+        "imdrf.org",  # International Medical Device Regulators Forum
+        "clinicaltrials.gov",  # US NIH Clinical Trials Registry
+        # ── Pharmacopeias ──
+        "usp.org",  # United States Pharmacopeia (USP)
+        "edqm.eu",  # European Pharmacopoeia (EDQM)
+        "jpdb.nihs.go.jp",  # Japanese Pharmacopoeia Database
+        "pharmacopoeia.ru",  # Russian Pharmacopoeia
         # ── Americas ──
-        "fda.gov",              # US FDA
-        "health.canada.ca",     # Health Canada
-        "canada.ca",            # Government of Canada portal
-        "anvisa.gov.br",        # Brazil ANVISA
-        "invima.gov.co",        # Colombia INVIMA
-        "cecmed.cu",            # Cuba CECMED
+        "fda.gov",  # US FDA (matches *.fda.gov including accessdata.fda.gov)
+        "accessdata.fda.gov",  # US FDA databases (MAUDE, 510k, PMA, standards)
+        "ecfr.gov",  # US Electronic Code of Federal Regulations (21 CFR)
+        "federalregister.gov",  # US Federal Register
+        "health.canada.ca",  # Health Canada
+        "canada.ca",  # Government of Canada portal
+        "medical-devices.canada.ca",  # Health Canada Medical Devices DB
+        "anvisa.gov.br",  # Brazil ANVISA
+        "consultas.anvisa.gov.br",  # Brazil ANVISA product databases
+        "invima.gov.co",  # Colombia INVIMA
+        "cecmed.cu",  # Cuba CECMED
         # ── Europe ──
-        "ema.europa.eu",        # European Medicines Agency
-        "ec.europa.eu",         # European Commission (MDCG, NANDO)
-        "mhra.gov.uk",          # UK MHRA
-        "swissmedic.ch",        # Switzerland Swissmedic
-        "ansm.sante.fr",        # France ANSM
-        "bfarm.de",             # Germany BfArM
-        "pei.de",               # Germany PEI
-        "aifa.gov.it",          # Italy AIFA
-        "aemps.gob.es",         # Spain AEMPS
-        "basg.gv.at",           # Austria BASG
-        "famhp.be",             # Belgium FAMHP
-        "halmed.hr",            # Croatia HALMED
-        "sukl.cz",              # Czechia SUKL
+        "ema.europa.eu",  # European Medicines Agency
+        "ec.europa.eu",  # European Commission (MDCG, NANDO)
+        "eur-lex.europa.eu",  # EUR-Lex (EU regulations, directives: MDR, IVDR)
+        "eudamed.eu",  # EUDAMED (EU medical device database)
+        "mhra.gov.uk",  # UK MHRA
+        "legislation.gov.uk",  # UK legislation database
+        "info.mhra.gov.uk",  # UK MHRA device/drug databases
+        "swissmedic.ch",  # Switzerland Swissmedic
+        "ansm.sante.fr",  # France ANSM
+        "base-donnees-publique.medicaments.gouv.fr",  # France public drug DB
+        "bfarm.de",  # Germany BfArM
+        "pei.de",  # Germany PEI
+        "dimdi.de",  # Germany DIMDI (medical devices info)
+        "aifa.gov.it",  # Italy AIFA
+        "aemps.gob.es",  # Spain AEMPS
+        "cima.aemps.es",  # Spain CIMA drug/device DB
+        "basg.gv.at",  # Austria BASG
+        "famhp.be",  # Belgium FAMHP
+        "halmed.hr",  # Croatia HALMED
+        "sukl.cz",  # Czechia SUKL
         "laegemiddelstyrelsen.dk",  # Denmark DKMA
-        "fimea.fi",             # Finland Fimea
-        "hpra.ie",              # Ireland HPRA
-        "cbg-meb.nl",           # Netherlands CBG-MEB
-        "igj.nl",               # Netherlands IGJ
-        "dmp.no",               # Norway NMPA
-        "infarmed.pt",          # Portugal INFARMED
-        "anm.ro",               # Romania ANMDMR
-        "jazmp.si",             # Slovenia JAZMP
+        "fimea.fi",  # Finland Fimea
+        "hpra.ie",  # Ireland HPRA
+        "cbg-meb.nl",  # Netherlands CBG-MEB
+        "igj.nl",  # Netherlands IGJ
+        "dmp.no",  # Norway NMPA
+        "infarmed.pt",  # Portugal INFARMED
+        "anm.ro",  # Romania ANMDMR
+        "jazmp.si",  # Slovenia JAZMP
         "lakemedelsverket.se",  # Sweden MPA
-        "ravimiamet.ee",        # Estonia SAM
-        "eof.gr",               # Greece EOF
-        "sukl.sk",              # Slovakia SUKL
-        "bda.bg",               # Bulgaria BDA
-        "llv.li",               # Liechtenstein
+        "ravimiamet.ee",  # Estonia SAM
+        "eof.gr",  # Greece EOF
+        "sukl.sk",  # Slovakia SUKL
+        "bda.bg",  # Bulgaria BDA
+        "llv.li",  # Liechtenstein
         # ── Asia-Pacific ──
-        "pmda.go.jp",           # Japan PMDA
-        "mhlw.go.jp",           # Japan MHLW
-        "nmpa.gov.cn",          # China NMPA
-        "mfds.go.kr",           # Korea MFDS
-        "fda.gov.tw",           # Taiwan TFDA
-        "mohw.gov.tw",          # Taiwan MOHW
-        "hsa.gov.sg",           # Singapore HSA
-        "cdsco.gov.in",         # India CDSCO
-        "fda.moph.go.th",       # Thailand Thai FDA
-        "pom.go.id",            # Indonesia BPOM
-        "mda.gov.my",           # Malaysia MDA
-        "fda.gov.ph",           # Philippines FDA
-        "moh.gov.vn",           # Vietnam MOH
-        "drap.gov.pk",          # Pakistan DRAP
-        "mdd.gov.hk",           # Hong Kong MDD
+        "pmda.go.jp",  # Japan PMDA
+        "mhlw.go.jp",  # Japan MHLW
+        "std.pmda.go.jp",  # Japan PMDA standards/criteria database
+        "elaws.e-gov.go.jp",  # Japan e-Gov legislation database
+        "nmpa.gov.cn",  # China NMPA
+        "samr.gov.cn",  # China SAMR (standards administration)
+        "openstd.samr.gov.cn",  # China national standards (GB/T) database
+        "mfds.go.kr",  # Korea MFDS
+        "law.go.kr",  # Korea legislation database
+        "nedrug.mfds.go.kr",  # Korea MFDS drug/device information DB
+        "fda.gov.tw",  # Taiwan TFDA
+        "mohw.gov.tw",  # Taiwan MOHW
+        "law.moj.gov.tw",  # Taiwan laws & regulations database
+        "bsmi.gov.tw",  # Taiwan BSMI (CNS standards)
+        "cnsonline.com.tw",  # Taiwan CNS Online standards database
+        "mdlicense.itri.org.tw",  # Taiwan TFDA medical device DB (ITRI)
+        "hsa.gov.sg",  # Singapore HSA
+        "sso.agc.gov.sg",  # Singapore Statutes Online
+        "eservice.hsa.gov.sg",  # Singapore HSA device/drug database
+        "cdsco.gov.in",  # India CDSCO
+        "cdscoonline.gov.in",  # India CDSCO online portal/databases
+        "fda.moph.go.th",  # Thailand Thai FDA
+        "privus.fda.moph.go.th",  # Thailand FDA product databases
+        "pom.go.id",  # Indonesia BPOM
+        "cekbpom.pom.go.id",  # Indonesia BPOM product check database
+        "mda.gov.my",  # Malaysia MDA
+        "quest3plus.mda.gov.my",  # Malaysia MDA device registration DB
+        "fda.gov.ph",  # Philippines FDA
+        "verification.fda.gov.ph",  # Philippines FDA verification portal
+        "moh.gov.vn",  # Vietnam MOH
+        "drap.gov.pk",  # Pakistan DRAP
+        "mdd.gov.hk",  # Hong Kong MDD
+        "eservice.mdd.gov.hk",  # Hong Kong MDD device listing
         # ── Oceania ──
-        "tga.gov.au",           # Australia TGA
-        "medsafe.govt.nz",      # New Zealand Medsafe
+        "tga.gov.au",  # Australia TGA
+        "legislation.gov.au",  # Australia legislation database
+        "artg.tga.gov.au",  # Australia ARTG (device/drug register)
+        "medsafe.govt.nz",  # New Zealand Medsafe
+        "wand.medsafe.govt.nz",  # NZ WAND database (medical devices)
         # ── Middle East & Africa ──
-        "sfda.gov.sa",          # Saudi Arabia SFDA
-        "mohap.gov.ae",         # UAE MOHAP
-        "health.gov.il",        # Israel MOH
-        "sahpra.org.za",        # South Africa SAHPRA
-        "edaegypt.gov.eg",      # Egypt EDA
-        "nafdac.gov.ng",        # Nigeria NAFDAC
-        "fdaghana.gov.gh",      # Ghana FDA
-        "efda.gov.et",          # Ethiopia EFDA
-        "tmda.go.tz",           # Tanzania TMDA
+        "sfda.gov.sa",  # Saudi Arabia SFDA
+        "mdma.sfda.gov.sa",  # Saudi SFDA medical device database
+        "mohap.gov.ae",  # UAE MOHAP
+        "health.gov.il",  # Israel MOH
+        "sahpra.org.za",  # South Africa SAHPRA
+        "edaegypt.gov.eg",  # Egypt EDA
+        "nafdac.gov.ng",  # Nigeria NAFDAC
+        "fdaghana.gov.gh",  # Ghana FDA
+        "efda.gov.et",  # Ethiopia EFDA
+        "tmda.go.tz",  # Tanzania TMDA
         "pharmacyboardkenya.org",  # Kenya PPB
-        "jfda.jo",              # Jordan JFDA
+        "jfda.jo",  # Jordan JFDA
     )
     for d in tier0_domains:
         if host == d or host.endswith("." + d):
@@ -2867,16 +3138,16 @@ def _web_source_priority(url: str) -> int:
 
     # --- Tier 1: Government domains (catch-all pattern) ---
     gov_patterns = (
-        ".gov",    # US, many countries (.gov.xx)
-        ".gov.",   # .gov.tw, .gov.uk, etc.
-        ".go.",    # .go.jp, .go.kr, .go.th, .go.id
-        ".gob.",   # Spanish-speaking (.gob.mx, .gob.es)
+        ".gov",  # US, many countries (.gov.xx)
+        ".gov.",  # .gov.tw, .gov.uk, etc.
+        ".go.",  # .go.jp, .go.kr, .go.th, .go.id
+        ".gob.",  # Spanish-speaking (.gob.mx, .gob.es)
         ".gouv.",  # French-speaking (.gouv.fr)
         ".gc.ca",  # Canada government
         ".govt.",  # .govt.nz
-        ".mil",    # Military
-        ".gv.",    # Austria (.gv.at)
-        ".gub.",   # Uruguay (.gub.uy)
+        ".mil",  # Military
+        ".gv.",  # Austria (.gv.at)
+        ".gub.",  # Uruguay (.gub.uy)
         ".government.",  # Some African nations
     )
     for p in gov_patterns:
@@ -2885,10 +3156,10 @@ def _web_source_priority(url: str) -> int:
 
     # --- Tier 2: Academic / educational (pattern matching) ---
     edu_patterns = (
-        ".edu",    # US universities
-        ".edu.",   # .edu.tw, .edu.au, etc.
-        ".ac.",    # .ac.uk, .ac.jp, .ac.kr
-        ".uni-",   # German universities (uni-muenchen.de)
+        ".edu",  # US universities
+        ".edu.",  # .edu.tw, .edu.au, etc.
+        ".ac.",  # .ac.uk, .ac.jp, .ac.kr
+        ".uni-",  # German universities (uni-muenchen.de)
         ".univ-",  # French universities
     )
     for p in edu_patterns:
@@ -2898,79 +3169,79 @@ def _web_source_priority(url: str) -> int:
     # --- Tier 3: Certification bodies, standards orgs, publishers, industry ---
     tier3_domains = (
         # ── Testing Labs & Notified Bodies ──
-        "tuvsud.com",           # TÜV SÜD
-        "tuv.com",              # TÜV Rheinland
-        "tuev-nord.de",         # TÜV NORD
-        "sgs.com",              # SGS
-        "bsigroup.com",         # BSI Group
-        "ul.com",               # UL (Underwriters Laboratories)
-        "intertek.com",         # Intertek
-        "dekra.com",            # DEKRA
-        "dnv.com",              # DNV
-        "bureauveritas.com",    # Bureau Veritas
-        "eurofins.com",         # Eurofins Scientific
-        "lrqa.com",             # LRQA
-        "csagroup.org",         # CSA Group
-        "nsf.org",              # NSF International
-        "nelsonlabs.com",       # Nelson Labs
-        "namsa.com",            # NAMSA
-        "wuxiapptec.com",       # WuXi AppTec
-        "toxikon.com",          # Toxikon
-        "pacificbiolabs.com",   # Pacific BioLabs
-        "battelle.org",         # Battelle
-        "applus.com",           # Applus+
-        "qima.com",             # QIMA
+        "tuvsud.com",  # TÜV SÜD
+        "tuv.com",  # TÜV Rheinland
+        "tuev-nord.de",  # TÜV NORD
+        "sgs.com",  # SGS
+        "bsigroup.com",  # BSI Group
+        "ul.com",  # UL (Underwriters Laboratories)
+        "intertek.com",  # Intertek
+        "dekra.com",  # DEKRA
+        "dnv.com",  # DNV
+        "bureauveritas.com",  # Bureau Veritas
+        "eurofins.com",  # Eurofins Scientific
+        "lrqa.com",  # LRQA
+        "csagroup.org",  # CSA Group
+        "nsf.org",  # NSF International
+        "nelsonlabs.com",  # Nelson Labs
+        "namsa.com",  # NAMSA
+        "wuxiapptec.com",  # WuXi AppTec
+        "toxikon.com",  # Toxikon
+        "pacificbiolabs.com",  # Pacific BioLabs
+        "battelle.org",  # Battelle
+        "applus.com",  # Applus+
+        "qima.com",  # QIMA
         # ── Standards Bodies ──
-        "astm.org",             # ASTM International
-        "asme.org",             # ASME
-        "ieee.org",             # IEEE
+        "astm.org",  # ASTM International
+        "asme.org",  # ASME
+        "ieee.org",  # IEEE
         "ieeexplore.ieee.org",  # IEEE Xplore
-        "ansi.org",             # ANSI
-        "din.de",               # DIN (Germany)
-        "afnor.org",            # AFNOR (France)
-        "jsa.or.jp",            # JSA (Japan)
-        "cen.eu",               # CEN (European)
-        "cenelec.eu",           # CENELEC (European)
-        "aami.org",             # AAMI (medical instrumentation)
-        "bsmi.gov.tw",          # BSMI (Taiwan CNS standards)
+        "ansi.org",  # ANSI
+        "din.de",  # DIN (Germany)
+        "afnor.org",  # AFNOR (France)
+        "jsa.or.jp",  # JSA (Japan)
+        "cen.eu",  # CEN (European)
+        "cenelec.eu",  # CENELEC (European)
+        "aami.org",  # AAMI (medical instrumentation)
+        "bsmi.gov.tw",  # BSMI (Taiwan CNS standards)
         # ── Industry Associations ──
-        "advamed.org",          # AdvaMed
-        "medtecheurope.org",    # MedTech Europe
-        "gmdnagency.org",       # GMDN Agency
-        "team-nb.org",          # Team-NB (EU Notified Bodies)
+        "advamed.org",  # AdvaMed
+        "medtecheurope.org",  # MedTech Europe
+        "gmdnagency.org",  # GMDN Agency
+        "team-nb.org",  # Team-NB (EU Notified Bodies)
         # ── Academic Publishers & Databases ──
         "pubmed.ncbi.nlm.nih.gov",  # PubMed (also matches Tier 1 via .gov — OK)
-        "scholar.google.com",   # Google Scholar
+        "scholar.google.com",  # Google Scholar
         "cochranelibrary.com",  # Cochrane Library
-        "arxiv.org",            # arXiv
-        "biorxiv.org",          # bioRxiv
-        "medrxiv.org",          # medRxiv
-        "webofscience.com",     # Web of Science
-        "scopus.com",           # Scopus
-        "embase.com",           # EMBASE
-        "springer.com",         # Springer
-        "link.springer.com",    # Springer Link
-        "nature.com",           # Nature
-        "elsevier.com",         # Elsevier
-        "sciencedirect.com",    # ScienceDirect
-        "cell.com",             # Cell Press
-        "thelancet.com",        # The Lancet
-        "bmj.com",              # BMJ
-        "wiley.com",            # Wiley
+        "arxiv.org",  # arXiv
+        "biorxiv.org",  # bioRxiv
+        "medrxiv.org",  # medRxiv
+        "webofscience.com",  # Web of Science
+        "scopus.com",  # Scopus
+        "embase.com",  # EMBASE
+        "springer.com",  # Springer
+        "link.springer.com",  # Springer Link
+        "nature.com",  # Nature
+        "elsevier.com",  # Elsevier
+        "sciencedirect.com",  # ScienceDirect
+        "cell.com",  # Cell Press
+        "thelancet.com",  # The Lancet
+        "bmj.com",  # BMJ
+        "wiley.com",  # Wiley
         "onlinelibrary.wiley.com",  # Wiley Online Library
-        "tandfonline.com",      # Taylor & Francis Online
-        "taylorandfrancis.com", # Taylor & Francis
-        "mdpi.com",             # MDPI
-        "frontiersin.org",      # Frontiers
-        "plos.org",             # PLOS
-        "academic.oup.com",     # Oxford Academic
-        "cambridge.org",        # Cambridge University Press
-        "sagepub.com",          # SAGE Publishing
-        "lww.com",              # Wolters Kluwer / Lippincott
-        "wolterskluwer.com",    # Wolters Kluwer
-        "jamanetwork.com",      # JAMA Network
-        "nejm.org",             # NEJM
-        "science.org",          # AAAS Science
+        "tandfonline.com",  # Taylor & Francis Online
+        "taylorandfrancis.com",  # Taylor & Francis
+        "mdpi.com",  # MDPI
+        "frontiersin.org",  # Frontiers
+        "plos.org",  # PLOS
+        "academic.oup.com",  # Oxford Academic
+        "cambridge.org",  # Cambridge University Press
+        "sagepub.com",  # SAGE Publishing
+        "lww.com",  # Wolters Kluwer / Lippincott
+        "wolterskluwer.com",  # Wolters Kluwer
+        "jamanetwork.com",  # JAMA Network
+        "nejm.org",  # NEJM
+        "science.org",  # AAAS Science
     )
     for d in tier3_domains:
         if host == d or host.endswith("." + d):
@@ -3006,6 +3277,7 @@ def _detect_regulatory_sites(query: str) -> list:
         ("taiwan fda", "fda.gov.tw"),
         # ── US FDA ──
         ("fda", "fda.gov"),
+        ("fda", "accessdata.fda.gov"),  # FDA recognized consensus standards DB
         # ── EU ──
         ("ema", "ema.europa.eu"),
         ("ce marking", "ec.europa.eu"),
@@ -3050,10 +3322,35 @@ def _detect_regulatory_sites(query: str) -> list:
         # ── International standards ──
         ("iso ", "iso.org"),
         ("iso:", "iso.org"),
+        ("iso ", "accessdata.fda.gov"),  # FDA recognized consensus standards
         ("iec ", "iec.ch"),
         ("iec:", "iec.ch"),
+        ("iec ", "accessdata.fda.gov"),  # FDA recognized consensus standards
         ("who", "who.int"),
         ("ich ", "ich.org"),
+        # ── EU regulatory databases ──
+        ("eu mdr", "eur-lex.europa.eu"),
+        ("eu ivdr", "eur-lex.europa.eu"),
+        # ── Taiwan ──
+        ("cns ", "bsmi.gov.tw"),
+        ("cns:", "bsmi.gov.tw"),
+        ("台灣", "mdlicense.itri.org.tw"),
+        ("tfda", "mdlicense.itri.org.tw"),
+        ("醫療器材", "mdlicense.itri.org.tw"),
+        # ── Japan PMDA databases ──
+        ("pmda", "std.pmda.go.jp"),  # PMDA standards/criteria DB
+        ("日本", "std.pmda.go.jp"),
+        ("jis ", "std.pmda.go.jp"),
+        # ── China ──
+        ("gb/t", "openstd.samr.gov.cn"),
+        ("gb ", "openstd.samr.gov.cn"),
+        ("国标", "openstd.samr.gov.cn"),
+        # ── Korea ──
+        ("ks ", "nedrug.mfds.go.kr"),
+        ("한국", "nedrug.mfds.go.kr"),
+        # ── Australia ──
+        ("artg", "artg.tga.gov.au"),
+        ("tga", "artg.tga.gov.au"),
     ]
     sites = []
     for keyword, domain in site_map:
@@ -3061,62 +3358,167 @@ def _detect_regulatory_sites(query: str) -> list:
             sites.append(domain)
     return sites
 
-def _web_search_sync(query: str, max_results: int = 8) -> list:
+
+def _web_search_sync(query: str, max_results: int = 10) -> list:
     """Synchronous web search using DuckDuckGo (runs in thread).
 
-    Strategy: multi-angle search for authoritative sources.
-    1. Search with region="us-en" for authoritative English results.
-    2. If query is non-English, search with "wt-wt" (worldwide).
-    3. If regulatory bodies are mentioned, do targeted site: searches.
-    4. Merge, deduplicate, sort by source credibility.
+    Strategy: English-first search with supplementary queries for standards.
+    Deduplicates by both URL (normalised) and title similarity.
+    Returns at most ~30 high-quality results sorted by credibility tier.
     """
+    import re as _re
+    from urllib.parse import urlparse
+
+    # --- Tier quotas (max results to keep per tier) ---
+    _TIER_QUOTA = {0: 15, 1: 10, 2: 8, 3: 8, 4: 5, 9: 2}
+    _DEFAULT_QUOTA = 3
+
+    def _norm_url(url: str) -> str:
+        """Normalise URL for dedup: strip scheme, trailing slash, www., query."""
+        try:
+            p = urlparse(url)
+            host = p.netloc.lower().lstrip("www.")
+            path = p.path.rstrip("/")
+            return f"{host}{path}"
+        except Exception:
+            return url.lower().rstrip("/")
+
+    def _norm_title(title: str) -> str:
+        """Normalise title for dedup: lowercase, strip non-alnum."""
+        return _re.sub(r"[^a-z0-9]", "", title.lower())
+
+    seen_urls: set = set()
+    seen_titles: set = set()
+
+    def _add(results, seen, seen_t, merged):
+        for r in results:
+            url = r.get("href", r.get("link", ""))
+            title = r.get("title", "")
+            if not url:
+                continue
+            nurl = _norm_url(url)
+            ntitle = _norm_title(title)
+            # Skip if URL or title already seen (avoids near-duplicate pages)
+            if nurl in seen:
+                continue
+            if ntitle and ntitle in seen_t:
+                continue
+            seen.add(nurl)
+            if ntitle:
+                seen_t.add(ntitle)
+            merged.append(r)
+
     try:
-        seen_urls = set()
-        merged = []
+        merged: list = []
 
         with DDGS() as ddgs:
-            # --- Primary search: English ---
-            en_results = list(ddgs.text(query, region="us-en", max_results=max_results))
-            for r in en_results:
-                url = r.get("href", r.get("link", ""))
-                if url and url not in seen_urls:
-                    seen_urls.add(url)
-                    merged.append(r)
+            # --- 1. Primary search: English (priority, 15 results) ---
+            try:
+                _add(
+                    list(ddgs.text(query, region="us-en", max_results=15)),
+                    seen_urls,
+                    seen_titles,
+                    merged,
+                )
+            except Exception:
+                pass
 
-            # --- Secondary search: worldwide (for non-ASCII queries) ---
+            # --- 2. Secondary search: worldwide (only for non-ASCII, 10 results) ---
             is_ascii_only = all(ord(c) < 128 for c in query if c.strip())
             if not is_ascii_only:
-                ww_results = list(
-                    ddgs.text(query, region="wt-wt", max_results=max_results)
-                )
-                for r in ww_results:
-                    url = r.get("href", r.get("link", ""))
-                    if url and url not in seen_urls:
-                        seen_urls.add(url)
-                        merged.append(r)
-
-            # --- Targeted search: official regulatory sites ---
-            reg_sites = _detect_regulatory_sites(query)
-            for site_domain in reg_sites[:3]:  # max 3 site-specific searches
                 try:
-                    site_query = f"site:{site_domain} {query}"
-                    site_results = list(
-                        ddgs.text(site_query, region="wt-wt", max_results=3)
+                    _add(
+                        list(ddgs.text(query, region="wt-wt", max_results=10)),
+                        seen_urls,
+                        seen_titles,
+                        merged,
                     )
-                    for r in site_results:
-                        url = r.get("href", r.get("link", ""))
-                        if url and url not in seen_urls:
-                            seen_urls.add(url)
-                            merged.append(r)
                 except Exception:
-                    pass  # site search is best-effort
+                    pass
 
-        # Sort by source credibility (official first, Wikipedia last)
-        merged.sort(
-            key=lambda r: _web_source_priority(r.get("href", r.get("link", "")))
-        )
+            # --- 3. English supplementary search (for CJK queries with standards) ---
+            _std_match = _re.search(
+                r"(?:iso|iec|astm|en|cns|gb[/ ]?t?)\s*(\d{4,6}(?:[- :/.]\d+)?)",
+                query.lower(),
+            )
+            if _std_match:
+                std_num = _std_match.group(0).strip().upper()
+                extra_queries = [
+                    f"{std_num} latest version current edition",
+                    f"FDA recognized consensus standard {std_num}",
+                ]
+                if not is_ascii_only:
+                    extra_queries.insert(1, f"{std_num} medical device standard")
+                for extra_q in extra_queries:
+                    try:
+                        _add(
+                            list(ddgs.text(extra_q, region="us-en", max_results=8)),
+                            seen_urls,
+                            seen_titles,
+                            merged,
+                        )
+                    except Exception:
+                        pass
 
-        return merged[:max_results]
+            # --- 4. Targeted site: searches for regulatory domains ---
+            reg_sites = _detect_regulatory_sites(query)
+            for site_domain in reg_sites[:5]:
+                try:
+                    _add(
+                        list(
+                            ddgs.text(
+                                f"site:{site_domain} {query}",
+                                region="wt-wt",
+                                max_results=3,
+                            )
+                        ),
+                        seen_urls,
+                        seen_titles,
+                        merged,
+                    )
+                except Exception:
+                    pass
+
+            # --- 5. Keyword variation (limited, English-first) ---
+            q_lower = query.lower()
+            _variants = []
+            if any(k in q_lower for k in ["版本", "version", "バージョン", "버전"]):
+                _variants.append(f"{query} revision history changelog")
+            if any(k in q_lower for k in ["fda", "美國", "us "]):
+                _variants.append(f"{query} 21 CFR regulatory guidance")
+            if any(k in q_lower for k in ["台灣", "taiwan", "tfda"]):
+                _variants.append(f"{query} CNS 標準 台灣法規")
+            if any(k in q_lower for k in ["醫療器材", "medical device", "医疗器械"]):
+                _variants.append(f"{query} medical device regulation")
+            for vq in _variants[:2]:
+                try:
+                    _add(
+                        list(ddgs.text(vq, region="us-en", max_results=5)),
+                        seen_urls,
+                        seen_titles,
+                        merged,
+                    )
+                except Exception:
+                    pass
+
+        # --- Apply tier-based quotas ---
+        tier_buckets: dict = {}
+        for r in merged:
+            url = r.get("href", r.get("link", ""))
+            tier = _web_source_priority(url)
+            r["_tier"] = tier
+            tier_buckets.setdefault(tier, []).append(r)
+
+        filtered: list = []
+        for tier in sorted(tier_buckets.keys()):
+            quota = _TIER_QUOTA.get(tier, _DEFAULT_QUOTA)
+            filtered.extend(tier_buckets[tier][:quota])
+
+        # Sort by credibility (lower tier = higher priority)
+        filtered.sort(key=lambda r: r.get("_tier", 4))
+
+        return filtered
+
     except Exception as e:
         print(f"[WARN] DuckDuckGo search failed: {e}")
         return []
@@ -3163,25 +3565,45 @@ async def chat_with_llm_web(message_text: str, profile: str):
     try:
         web_results = await asyncio.to_thread(_web_search_sync, message_text)
         if web_results:
-            web_parts = []  # for LLM context
-            display_parts = []  # for user-facing search result message
-            for i, r in enumerate(web_results, 1):
+            # --- Build LLM context from top 20 results (quality over quantity) ---
+            _llm_max = min(20, len(web_results))
+            web_parts = []
+            for i, r in enumerate(web_results[:_llm_max], 1):
                 title = r.get("title", "")
                 url = r.get("href", r.get("link", ""))
                 snippet = r.get("body", r.get("snippet", ""))
-                tier = _web_source_priority(url)
+                tier = r.get("_tier", _web_source_priority(url))
                 tier_label = _web_tier_label(tier)
                 web_parts.append(
                     f"{i}. [{tier_label}] **{title}**\n   URL: {url}\n   {snippet}"
                 )
-                display_parts.append(
-                    f"{i}. {tier_label} [{title}]({url})"
-                )
-                web_sources.append(f"{tier_label} [{title}]({url})")
+
             web_context = t("web.results_header") + "\n\n".join(web_parts)
+
+            # --- Build UI display list (top 10, deduplicated) ---
+            _display_max = 10
+            _seen_display: set = set()
+            for r in web_results:
+                if len(web_sources) >= _display_max:
+                    break
+                title = r.get("title", "")
+                url = r.get("href", r.get("link", ""))
+                # Skip entries with empty or duplicate titles
+                short_title = title[:80].strip()
+                if not short_title:
+                    continue
+                if short_title in _seen_display:
+                    continue
+                _seen_display.add(short_title)
+                tier = r.get("_tier", _web_source_priority(url))
+                tier_label = _web_tier_label(tier)
+                # Sanitise title for Markdown link (escape brackets)
+                safe_title = short_title.replace("[", "\\[").replace("]", "\\]")
+                web_sources.append(f"{tier_label} [{safe_title}]({url})")
+
             search_msg.content = (
-                f"🌐 {t('web.source_label')}: {len(web_results)} results\n\n"
-                + "\n".join(display_parts)
+                f"🌐 {t('web.source_label')}: {len(web_sources)} results\n"
+                + "\n".join(web_sources)
             )
             await search_msg.update()
         else:
@@ -3249,7 +3671,13 @@ async def chat_with_llm_web(message_text: str, profile: str):
     for h in history[-10:]:
         messages.append(h)
 
-    messages.append({"role": "user", "content": message_text})
+    # Append version comparison reminder directly in user message
+    # so lightweight LLMs don't miss it buried in system prompt
+    user_content = message_text
+    if web_context and db_context:
+        user_content += "\n\n（請同時比對本地文件資料庫的版本與網路查到的最新版本，明確說明是否一致）"
+
+    messages.append({"role": "user", "content": user_content})
 
     msg = cl.Message(content="")
     await msg.send()
@@ -3277,15 +3705,15 @@ async def chat_with_llm_web(message_text: str, profile: str):
             msg.content = full_response
             await msg.update()
 
-        # Add source citations
+        # Add source citations (web sources already shown in search_msg)
+        # Skip if LLM already cited these docs in its response
         citations = []
         if ref_docs:
-            citations.append(t("llm.ref_docs", docs=", ".join(ref_docs)))
-        if web_sources:
-            citations.append(
-                f"\n\n{t('web.source_label')}:\n"
-                + "\n".join(f"- {s}" for s in web_sources[:5])
-            )
+            ref_str = ", ".join(ref_docs)
+            citation_text = t("llm.ref_docs", docs=ref_str)
+            # Only append if LLM didn't already include the doc IDs
+            if ref_str not in full_response:
+                citations.append(citation_text)
 
         if citations:
             full_response += "\n\n" + "\n".join(citations)
@@ -3384,6 +3812,16 @@ async def on_message(message: cl.Message):
     if _match_cmd(text, "cmd.list") or _match_cmd_exact(text, "cmd.list"):
         response = await handle_list()
         await cl.Message(content=response).send()
+        return
+
+    # Web Search: /web prefix → LLM Chat with Web + DB context
+    # (must be checked BEFORE cmd.search to avoid "/web 搜尋..." matching "搜尋")
+    if _match_cmd_startswith(text, "cmd.web"):
+        query = _extract_after_cmd(text, "cmd.web")
+        if query:
+            await chat_with_llm_web(query, profile)
+        else:
+            await cl.Message(content=t("web.no_query")).send()
         return
 
     # Search (prefix command: "search keyword")
@@ -3595,17 +4033,6 @@ async def on_message(message: cl.Message):
             result = test_llm_connection(provider_id, model_name, api_key, lang)
             await cl.Message(content=result).send()
             return
-
-    # ============================================================
-    # Web Search: /web prefix → LLM Chat with Web + DB context
-    # ============================================================
-    if _match_cmd_startswith(text, "cmd.web"):
-        query = _extract_after_cmd(text, "cmd.web")
-        if query:
-            await chat_with_llm_web(query, profile)
-        else:
-            await cl.Message(content=t("web.no_query")).send()
-        return
 
     # ============================================================
     # Default: LLM Chat with Markdown DB context

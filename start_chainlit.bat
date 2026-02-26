@@ -172,17 +172,16 @@ echo.
 echo  Chainlit URL: http://localhost:3000
 echo  Phoenix URL:  http://localhost:6006 (if available)
 echo.
-echo  Opening browser automatically...
+echo  Auto-Reload: ON (code changes auto-restart)
 echo  Press Ctrl+C to stop
 echo ========================================================
 echo.
 
-:: Auto-open browser after short delay
-start "" "http://localhost:3000"
+:: Browser is auto-opened by Chainlit itself (no manual start needed)
 
 :: Run Chainlit from project directory
 cd /d "%PROJECT_DIR%"
-"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port 3000 --host 0.0.0.0
+"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port 3000 -w
 
 if errorlevel 1 (
     echo.
