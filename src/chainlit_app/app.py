@@ -85,6 +85,12 @@ from src.utils.regulatory_export import (
     export_reference_to_word,
     export_reference_to_excel,
 )
+from src.utils.doclist_export import (
+    export_doclist_to_word,
+    export_doclist_to_excel,
+    export_allrecords_to_word,
+    export_allrecords_to_excel,
+)
 from src.ocr.vision_ocr import VisionOCRProcessor, process_document
 
 # v3.1.0: Load cached model lists from previous sessions on startup.
@@ -1796,7 +1802,8 @@ async def handle_list() -> str:
 {doc_list}
 
 {t("allrecords.hint_doclist")}
-{t("allrecords.hint_audit")}"""
+{t("allrecords.hint_audit")}
+{t("allrecords.hint_export")}"""
     except Exception as e:
         return t("allrecords.error", error=str(e))
 
@@ -1828,7 +1835,8 @@ async def handle_document_list() -> str:
 {doc_list}
 
 {t("doclist.hint_list")}
-{t("doclist.hint_search")}"""
+{t("doclist.hint_search")}
+{t("doclist.hint_export")}"""
     except Exception as e:
         return t("doclist.error", error=str(e))
 
@@ -2016,6 +2024,46 @@ async def handle_reference_export(format_type: str):
         msg = t("reference.export_excel", doc_id=doc_id, count=len(ref_docs))
     else:
         return None, t("reference.export_hint")
+
+    return filepath, msg
+
+
+async def handle_doclist_export(format_type: str):
+    """Handle document list (current formal versions) export to Word/Excel."""
+    md_service = MarkdownStoreService()
+    docs = md_service.list_documents()
+    active_docs = [d for d in docs if d.get("status", "active") == "active"]
+    if not active_docs:
+        return None, t("doclist.no_export_data")
+
+    if format_type == "word":
+        filepath = export_doclist_to_word(active_docs)
+        msg = t("doclist.export_word", count=len(active_docs))
+    elif format_type == "excel":
+        filepath = export_doclist_to_excel(active_docs)
+        msg = t("doclist.export_excel", count=len(active_docs))
+    else:
+        return None, t("doclist.export_hint")
+
+    return filepath, msg
+
+
+async def handle_allrecords_export(format_type: str):
+    """Handle all records export to Word/Excel."""
+    storage = get_markdown_store()
+    registry = storage.registry
+    all_docs = registry.get("documents", [])
+    if not all_docs:
+        return None, t("allrecords.no_export_data")
+
+    if format_type == "word":
+        filepath = export_allrecords_to_word(all_docs)
+        msg = t("allrecords.export_word", count=len(all_docs))
+    elif format_type == "excel":
+        filepath = export_allrecords_to_excel(all_docs)
+        msg = t("allrecords.export_excel", count=len(all_docs))
+    else:
+        return None, t("allrecords.export_hint")
 
     return filepath, msg
 
@@ -2228,6 +2276,50 @@ async def on_download_reference_excel(action):
     await action.remove()
 
 
+@cl.action_callback("download_doclist_word")
+async def on_download_doclist_word(action):
+    """Download document list as Word."""
+    filepath, msg_text = await handle_doclist_export("word")
+    if filepath:
+        await _send_file_download(filepath, msg_text)
+    else:
+        await cl.Message(content=msg_text).send()
+    await action.remove()
+
+
+@cl.action_callback("download_doclist_excel")
+async def on_download_doclist_excel(action):
+    """Download document list as Excel."""
+    filepath, msg_text = await handle_doclist_export("excel")
+    if filepath:
+        await _send_file_download(filepath, msg_text)
+    else:
+        await cl.Message(content=msg_text).send()
+    await action.remove()
+
+
+@cl.action_callback("download_allrecords_word")
+async def on_download_allrecords_word(action):
+    """Download all records as Word."""
+    filepath, msg_text = await handle_allrecords_export("word")
+    if filepath:
+        await _send_file_download(filepath, msg_text)
+    else:
+        await cl.Message(content=msg_text).send()
+    await action.remove()
+
+
+@cl.action_callback("download_allrecords_excel")
+async def on_download_allrecords_excel(action):
+    """Download all records as Excel."""
+    filepath, msg_text = await handle_allrecords_export("excel")
+    if filepath:
+        await _send_file_download(filepath, msg_text)
+    else:
+        await cl.Message(content=msg_text).send()
+    await action.remove()
+
+
 @cl.action_callback("download_original_file")
 async def on_download_original_file(action):
     """Download original uploaded file by doc_id."""
@@ -2428,62 +2520,38 @@ async def handle_file_upload(files):
         )
         await progress_msg.update()
 
-    # ---- Build final summary ----
-    is_bulk = total > 1  # Bulk upload: simplified summary without details
+    # ---- Build final summary (compact one-line-per-file for all uploads) ----
     lines = [t("file.summary", total=total)]
 
-    if is_bulk:
-        # Bulk upload: compact one-line-per-file summary (no detailed breakdown)
-        for r in succeeded + failed:
-            status_icon = "✅" if r.get("success") else "❌"
-            doc_id = r.get("saved_doc_id") or r.get("duplicate_doc", {}).get(
-                "doc_id", ""
-            )
-            id_str = f" → **{doc_id}**" if doc_id else ""
-            if r.get("is_version_update"):
-                dup_tag = " " + t("upload.tag_version")
-            elif r.get("is_duplicate"):
-                dup_tag = " " + t("upload.tag_duplicate")
+    for r in succeeded + failed:
+        status_icon = "✅" if r.get("success") else "❌"
+        doc_id = r.get("saved_doc_id") or r.get("duplicate_doc", {}).get("doc_id", "")
+        id_str = f" → **{doc_id}**" if doc_id else ""
+        if r.get("is_version_update"):
+            dup_tag = " " + t("upload.tag_version")
+        elif r.get("is_duplicate"):
+            dup_tag = " " + t("upload.tag_duplicate")
+        else:
+            dup_tag = ""
+        # Signature status
+        sig = r.get("sig_result", {})
+        sig_str = ""
+        if sig:
+            if sig.get("detected"):
+                sig_str = f" | {t('upload.sig_label')}: ✅"
             else:
-                dup_tag = ""
-            err_str = ""
-            if not r.get("success"):
-                err_str = f" — {r.get('error', '')}"
-            lines.append(f"- {status_icon} `{r['filename']}`{id_str}{dup_tag}{err_str}")
-    else:
-        # Single file upload: show full detailed results
-        for r in succeeded + failed:
-            status_icon = "✅" if r.get("success") else "❌"
-            doc_id = r.get("saved_doc_id") or r.get("duplicate_doc", {}).get(
-                "doc_id", ""
-            )
-            id_str = f" → **{doc_id}**" if doc_id else ""
-            if r.get("is_version_update"):
-                dup_tag = " " + t("upload.tag_version")
-            elif r.get("is_duplicate"):
-                dup_tag = " " + t("upload.tag_duplicate")
-            else:
-                dup_tag = ""
-            lines.append(f"### {status_icon} {r['filename']}{id_str}{dup_tag}\n")
-            lines.append(_format_process_detail(r))
-            lines.append("")
+                sig_str = f" | {t('upload.sig_label')}: ❌"
+        err_str = ""
+        if not r.get("success"):
+            err_str = f" — {r.get('error', '')}"
+        lines.append(
+            f"- {status_icon} `{r['filename']}`{id_str}{dup_tag}{sig_str}{err_str}"
+        )
 
     # Summary counts
     lines.append(
         f"\n---\n{t('file.stats', success=len(succeeded), failed=len(failed))}"
     )
-
-    # Show OCR preview only for single file upload
-    if not is_bulk and succeeded:
-        last = succeeded[-1]
-        ocr_content = last.get("ocr_result", {}).get("markdown_content", "")
-        if ocr_content:
-            preview = ocr_content[:2000]
-            if len(ocr_content) > 2000:
-                preview += "\n\n" + t("file.content_truncated")
-            lines.append(
-                f"\n---\n{t('file.ocr_preview', filename=last['filename'])}\n\n{preview}"
-            )
 
     # Handle duplicate detection (works for both single and bulk)
     if succeeded:
@@ -2824,6 +2892,90 @@ async def _execute_version_update(confirmer_name: str):
                 pass
 
             await cl.Message(content=msg).send()
+
+            # --- LLM Version Diff Analysis ---
+            try:
+                previous_version = result["previous_version"]
+                new_version = result["version"]
+                doc_id = doc_info.get("doc_id", "")
+                new_content = ocr_result.get("markdown_content", "")
+
+                # Fetch old version content
+                old_doc = storage_manager.get_document(doc_id, version=previous_version)
+                old_content = (
+                    old_doc.get("content", "") if old_doc.get("success") else ""
+                )
+
+                if old_content and new_content:
+                    # Truncate to avoid token overflow
+                    max_chars = 6000
+                    old_truncated = old_content[:max_chars] + (
+                        "..." if len(old_content) > max_chars else ""
+                    )
+                    new_truncated = new_content[:max_chars] + (
+                        "..." if len(new_content) > max_chars else ""
+                    )
+
+                    diff_msg = cl.Message(content=t("version.diff_analyzing"))
+                    await diff_msg.send()
+
+                    provider_id = cl.user_session.get("provider_id", "ollama")
+                    api_key_val = cl.user_session.get("api_key", "").strip()
+                    model_name = cl.user_session.get("model_name", "")
+
+                    setup_api_key(provider_id, api_key_val)
+                    manager = create_provider_manager(provider_id)
+
+                    diff_prompt = t(
+                        "version.diff_prompt",
+                        old_ver=previous_version,
+                        new_ver=new_version,
+                        old_content=old_truncated,
+                        new_content=new_truncated,
+                    )
+
+                    diff_response = await asyncio.to_thread(
+                        lambda: manager.completion(
+                            messages=[{"role": "user", "content": diff_prompt}],
+                            model=model_name,
+                            temperature=0.3,
+                            max_tokens=2000,
+                            stream=False,
+                            timeout=60,
+                        )
+                    )
+
+                    diff_text = ""
+                    if hasattr(diff_response, "choices") and diff_response.choices:
+                        diff_text = diff_response.choices[0].message.content or ""
+
+                    if diff_text:
+                        diff_msg.content = (
+                            t(
+                                "version.diff_header",
+                                old_ver=previous_version,
+                                new_ver=new_version,
+                            )
+                            + diff_text
+                        )
+                    else:
+                        diff_msg.content = (
+                            t(
+                                "version.diff_header",
+                                old_ver=previous_version,
+                                new_ver=new_version,
+                            )
+                            + "N/A"
+                        )
+                    await diff_msg.update()
+            except Exception as diff_err:
+                try:
+                    await cl.Message(
+                        content=t("version.diff_error", error=str(diff_err))
+                    ).send()
+                except Exception:
+                    pass
+
         else:
             await cl.Message(
                 content=t("version.save_failed", error=result.get("error"))
@@ -3802,6 +3954,80 @@ async def on_message(message: cl.Message):
         await cl.Message(content=response).send()
         return
 
+    # ============================================================
+    # Suffix detection (used by all export commands below)
+    # ============================================================
+    text_lower_stripped = text.lower().strip()
+    has_word_suffix = any(text_lower_stripped.endswith(s) for s in [" word", " docx"])
+    has_excel_suffix = any(text_lower_stripped.endswith(s) for s in [" excel", " xlsx"])
+    has_pdf_suffix = text_lower_stripped.endswith(" pdf")
+
+    # --- Document list export (must check before document_list display) ---
+    if _match_cmd(text, "cmd.download_doclist"):
+        if has_word_suffix:
+            filepath, msg_text = await handle_doclist_export("word")
+            if filepath:
+                await _send_file_download(filepath, msg_text)
+            else:
+                await cl.Message(content=msg_text).send()
+        elif has_excel_suffix:
+            filepath, msg_text = await handle_doclist_export("excel")
+            if filepath:
+                await _send_file_download(filepath, msg_text)
+            else:
+                await cl.Message(content=msg_text).send()
+        else:
+            actions = [
+                cl.Action(
+                    name="download_doclist_word",
+                    payload={"format": "word"},
+                    label="📥 Word (.docx)",
+                ),
+                cl.Action(
+                    name="download_doclist_excel",
+                    payload={"format": "excel"},
+                    label="📥 Excel (.xlsx)",
+                ),
+            ]
+            await cl.Message(
+                content=t("export.doclist_prompt"),
+                actions=actions,
+            ).send()
+        return
+
+    # --- All records export (must check before list display) ---
+    if _match_cmd(text, "cmd.download_allrecords"):
+        if has_word_suffix:
+            filepath, msg_text = await handle_allrecords_export("word")
+            if filepath:
+                await _send_file_download(filepath, msg_text)
+            else:
+                await cl.Message(content=msg_text).send()
+        elif has_excel_suffix:
+            filepath, msg_text = await handle_allrecords_export("excel")
+            if filepath:
+                await _send_file_download(filepath, msg_text)
+            else:
+                await cl.Message(content=msg_text).send()
+        else:
+            actions = [
+                cl.Action(
+                    name="download_allrecords_word",
+                    payload={"format": "word"},
+                    label="📥 Word (.docx)",
+                ),
+                cl.Action(
+                    name="download_allrecords_excel",
+                    payload={"format": "excel"},
+                    label="📥 Excel (.xlsx)",
+                ),
+            ]
+            await cl.Message(
+                content=t("export.allrecords_prompt"),
+                actions=actions,
+            ).send()
+        return
+
     # Document list — current formal versions only (must check before generic list)
     if _match_cmd(text, "cmd.document_list"):
         response = await handle_document_list()
@@ -3834,10 +4060,6 @@ async def on_message(message: cl.Message):
     # ============================================================
     # Export / Download with Action Buttons
     # ============================================================
-    text_lower_stripped = text.lower().strip()
-    has_word_suffix = any(text_lower_stripped.endswith(s) for s in [" word", " docx"])
-    has_excel_suffix = any(text_lower_stripped.endswith(s) for s in [" excel", " xlsx"])
-    has_pdf_suffix = text_lower_stripped.endswith(" pdf")
 
     # --- Audit export (must check before audit display) ---
     if _match_cmd(text, "cmd.download_audit"):
@@ -3970,6 +4192,8 @@ async def on_message(message: cl.Message):
             and not _match_cmd(text, "cmd.download_audit")
             and not _match_cmd(text, "cmd.download_regulatory")
             and not _match_cmd(text, "cmd.download_reference")
+            and not _match_cmd(text, "cmd.download_doclist")
+            and not _match_cmd(text, "cmd.download_allrecords")
             and not _match_cmd(text, "cmd.audit")
             and not _match_cmd(text, "cmd.regulatory")
         ):

@@ -42,6 +42,9 @@ https://github.com/user-attachments/assets/68cf6037-aab2-41a1-9e01-768c763d8ae1
 - **交叉引用偵測** — 版本更新後自動搜尋引用該文件的關聯文件
 - **Markdown 儲存層** — 轉換文件為 Markdown 格式，供跨 Agent 資料提取
 - **原始檔案下載** — 透過 AI 對話指令下載原始文件
+- **文件清單匯出** — 現行正式版本文件清單匯出為 Word/Excel
+- **全部文件紀錄匯出** — 所有文件紀錄（含進版、作廢）匯出為 Word/Excel
+- **進版差異比對** — 版本更新後 LLM 自動比對新舊版本內容差異
 
 ### 稽核子 Agent (Audit Sub-Agent) 🔜 Phase 2 規劃中
 - CAPA（矯正與預防措施）管理
@@ -256,6 +259,8 @@ Phoenix Dashboard：http://localhost:6006
 | `法規清單` | 列出所有引用的法規標準 |
 | `下載法規清單 word/excel` | 匯出法規清單 |
 | `下載引用清單 word/excel` | 匯出進版引用清單 |
+| `下載文件清單 word/excel` | 匯出文件清單（現行正式版本） |
+| `下載列表 word/excel` | 匯出所有文件紀錄（含進版、作廢） |
 | `/web <關鍵字>` | 搜尋網路取得最新資訊（如：/web 最新 ISO 13485 版本） |
 | `刪除資料庫` | 刪除所有文件（需確認） |
 
@@ -305,6 +310,9 @@ The system adopts a **Main Agent + Sub-Agent** architecture, where the Main Agen
 - **Cross-Reference Detection** — Auto-search for related documents after version updates
 - **Markdown Storage Layer** — Convert documents to Markdown for cross-agent data extraction
 - **Original File Download** — Download original files via AI chat commands
+- **Document List Export** — Export current formal document list as Word/Excel
+- **All Records Export** — Export all document records (incl. versions, obsolete) as Word/Excel
+- **Version Diff Analysis** — LLM auto-compares old and new version content after version updates
 
 ### Audit Sub-Agent 🔜 Phase 2 Planned
 - CAPA (Corrective and Preventive Actions) management
@@ -519,6 +527,8 @@ Phoenix Dashboard: http://localhost:6006
 | `regulatory list` | List all referenced regulatory standards |
 | `download regulatory word/excel` | Export regulatory list |
 | `download reference word/excel` | Export version reference list |
+| `download doclist word/excel` | Export document list (current formal versions) |
+| `download all records word/excel` | Export all document records (incl. versions, obsolete) |
 | `/web <keyword>` | Search the web for latest information (e.g., /web latest ISO 13485 version) |
 | `delete database` | Delete all documents (confirmation required) |
 
@@ -568,6 +578,9 @@ Phoenix Dashboard: http://localhost:6006
 - **相互参照検出** — バージョン更新後に関連文書を自動検索
 - **Markdown ストレージ層** — 文書を Markdown 形式に変換し、Agent 間データ抽出に活用
 - **原本ファイルダウンロード** — AI チャットコマンドによる原本ファイルのダウンロード
+- **文書一覧エクスポート** — 現行正式版文書一覧を Word/Excel でエクスポート
+- **全記録エクスポート** — 全文書記録（版更新・廃止含む）を Word/Excel でエクスポート
+- **バージョン差分分析** — バージョン更新後に LLM が新旧バージョンの内容差異を自動比較
 
 ### 監査サブ Agent (Audit Sub-Agent) 🔜 Phase 2 計画中
 - CAPA（是正・予防措置）管理
@@ -781,6 +794,9 @@ Phoenix ダッシュボード：http://localhost:6006
 | `監査証跡ダウンロード excel` | 監査ログを .xlsx でエクスポート |
 | `規制リスト` | 引用規格一覧を表示 |
 | `規制リストダウンロード word/excel` | 規格リストをエクスポート |
+| `引用ダウンロード word/excel` | バージョン引用リストをエクスポート |
+| `文書一覧ダウンロード word/excel` | 文書一覧をエクスポート（現行正式版） |
+| `全記録ダウンロード word/excel` | 全文書記録をエクスポート（版更新・廃止含む） |
 | `/web <キーワード>` | ウェブ検索で最新情報を取得（例：/web 最新 ISO 13485 バージョン） |
 | `データベース削除` | 全文書を削除（確認必要） |
 
@@ -833,7 +849,9 @@ AI-QMS/
 │   │   └── markdown_storage.py
 │   ├── services/
 │   ├── utils/
-│   │   └── audit_export.py      # Audit log Word/Excel export
+│   │   ├── audit_export.py      # Audit log Word/Excel export
+│   │   ├── regulatory_export.py # Regulatory/Reference list export
+│   │   └── doclist_export.py    # Document list Word/Excel export
 │   ├── config.py
 │   └── llm_providers.py         # 16 LLM provider manager
 ├── data/                        # Runtime data (auto-generated)
