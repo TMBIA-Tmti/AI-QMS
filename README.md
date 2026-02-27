@@ -35,7 +35,7 @@ https://github.com/user-attachments/assets/68cf6037-aab2-41a1-9e01-768c763d8ae1
 - **MarkItDown-First OCR 引擎** — 本地處理 ~1 秒/檔案，零 Token 消耗；掃描文件自動切換 LLM Vision 備援
 - **智慧版本偵測** — 自動識別新文件 vs 版本更新，OCR 掃描文件內版本號
 - **多語言簽章/印章偵測** — 支援 15+ 語言、200+ 關鍵字自動偵測簽章狀態
-- **防竄改稽核紀錄** — SHA-256 雜湊鏈，完整記錄所有文件操作
+- **防竄改偵測稽核紀錄** — SHA-256 雜湊鏈，完整記錄所有文件操作，可偵測未經授權的變更
 - **文件作廢管理** — 透過 AI 對話作廢文件，保留稽核追蹤
 - **交叉引用偵測** — 版本更新後自動搜尋引用該文件的關聯文件
 - **Markdown 儲存層** — 轉換文件為 Markdown 格式，供跨 Agent 資料提取
@@ -50,31 +50,27 @@ https://github.com/user-attachments/assets/68cf6037-aab2-41a1-9e01-768c763d8ae1
 - 不符合事項管理
 - 稽核報告自動生成
 
+### v3.5.0 新增功能（強烈建議更新）
+- **法規地區自動清理** — 選擇追蹤地區後自動清除非選取地區資料，舊版自動替換為新版
+- **Token 耗盡自動匯出** — 報告未完成時自動產生截斷版 Word/Excel 並存檔至 Markdown DB
+- **分段報告（Part A/B）** — 區分選取地區分析（有參考資料）與範圍外常識分析（附免責聲明）
+- **反幻覺強化** — 嚴禁編造未提供的標準條文
+
 ### v3.4.0 新增功能
-- **Arize Phoenix LLM 可觀測性** — 整合 Phoenix 後台，即時追蹤所有 LLM 呼叫的 Token 用量、延遲、成本
-- **OpenTelemetry 自動追蹤** — 透過 `LiteLLMInstrumentor` 零程式碼變更自動擷取所有 LLM 請求
-- **Phoenix Dashboard** — 可在 http://localhost:6006 查看所有 LLM 互動追蹤記錄
-- **多 Agent 追蹤分離** — 支援 Phoenix Projects 區分不同子 Agent 的追蹤資料
-- **一鍵啟動 Chainlit + Phoenix** — `start.bat` 選單選項 [3] 同時啟動 Chainlit UI 與 Phoenix 可觀測性後台
-- **自動套件更新** — 舊使用者 `git pull` 後啟動時自動偵測並安裝缺少的新套件，無需手動 `pip install`
-- **Port 自動切換** — 啟動時自動偵測 Chainlit (3000) 和 Phoenix (6006) 預設 port 是否被佔用，若被佔用自動切換至下一個可用 port 並顯示提示
+- **Arize Phoenix 可觀測性** — 即時追蹤 LLM Token 用量、延遲、成本
+- **一鍵啟動 + 自動更新** — `start.bat` 同時啟動 Chainlit + Phoenix，自動安裝新套件
 
 ### v3.3.0 新增功能
-- **`/web` 網路搜尋指令** — 使用 `/web 關鍵字` 搜尋網路取得最新資訊（如：`/web 最新 ISO 13485 版本`），搜尋結果結合本地文件資料庫作為 LLM 上下文
-- **DuckDuckGo 搜尋引擎** — 免費、無需 API Key 的網路搜尋整合
-- **雙重上下文** — `/web` 指令同時搜尋網路與本地 Markdown DB，提供完整來源引用
-- **來源可信度排序 (Source Credibility Ranking)** — 搜尋結果依來源權威性自動排序，醫療法規產業特別適用：
-  - 🏛️ Tier 0（最高）：ISO、FDA、EMA、WHO、PMDA、NMPA、TFDA 等國際標準與法規機構官方網站
-  - 🏛️ Tier 1：政府網域（.gov、.go.jp、.gov.tw 等）
+- **`/web` 網路搜尋** — `/web 關鍵字` 搜尋網路最新資訊，結合本地文件作為 LLM 上下文
+- **來源可信度排序** — 搜尋結果依來源權威性自動排序，醫療法規產業特別適用：
+  - 🏛️ Tier 0（最高）：ISO、FDA、EMA、WHO 等國際標準與法規機構
+  - 🏛️ Tier 1：政府網域（.gov、.go.jp 等）
   - 🎓 Tier 2：學術機構（.edu、.ac.uk 等）
-  - ✅ Tier 3：驗證機構（TÜV、BSI、SGS 等）、學術出版商（PubMed、Nature、Lancet 等）
-  - 🌐 Tier 4：一般搜尋結果
-  - ⬇️ Tier 9（最低）：Wikipedia（降低優先權）
+  - ✅ Tier 3：驗證機構與學術出版商
+  - 🌐 Tier 4：一般搜尋結果、⬇️ Tier 9：Wikipedia
 
 ### v3.2.0 新增功能
-- **20 國語言 UI 介面** — 支援繁體中文、簡體中文、英文、日文、韓文、法文、德文、西班牙文、葡萄牙文、義大利文、俄文、阿拉伯文、印地文、泰文、越南文、印尼文、馬來文、土耳其文、荷蘭文、波蘭文，可在設定中即時切換
-- **API Key 安全遮罩** — API Key 輸入後自動隱藏（僅顯示末 4 碼），可透過開關切換顯示/隱藏
-- **語言選擇器** — ChatSettings 設定面板新增語言選擇，所有 UI 文字即時切換
+- **20 國語言 UI** — 支援 20 種語言即時切換
 
 ## 系統架構
 
@@ -258,6 +254,8 @@ Phoenix Dashboard：http://localhost:6006
 | `作廢 <文件編號>` | 作廢文件（如：作廢 OTHER-016） |
 | `文件更動紀錄` | 查看文件更動紀錄（附 Word/Excel 匯出按鈕） |
 | `法規清單` | 列出所有引用的法規標準（附 Word/Excel 匯出按鈕） |
+| `法規清單更新` | 法規清單最新資訊評估分析（附 Word/Excel 匯出按鈕） |
+| `下載法規更新報告 word/excel` | 匯出法規更新報告 |
 | `下載引用清單 word/excel` | 匯出進版引用清單 |
 | `/web <關鍵字>` | 搜尋網路取得最新資訊（如：/web 最新 ISO 13485 版本） |
 | `刪除資料庫` | 刪除所有文件（需確認） |
@@ -301,7 +299,7 @@ The system adopts a **Main Agent + Sub-Agent** architecture, where the Main Agen
 - **MarkItDown-First OCR Engine** — Local processing ~1s/file, zero token cost; auto-fallback to LLM Vision for scanned documents
 - **Intelligent Version Detection** — Auto-detect new document vs. version update, OCR-based version number scanning
 - **Multilingual Signature/Stamp Detection** — 15+ languages, 200+ keywords for automatic signature status detection
-- **Tamper-Proof Audit Trail** — SHA-256 hash chain recording all document operations
+- **Tamper-Evident Audit Trail** — SHA-256 hash chain recording all document operations, enabling detection of unauthorized changes
 - **Document Obsolescence** — Obsolete documents via AI chat with full audit trail preservation
 - **Cross-Reference Detection** — Auto-search for related documents after version updates
 - **Markdown Storage Layer** — Convert documents to Markdown for cross-agent data extraction
@@ -316,31 +314,27 @@ The system adopts a **Main Agent + Sub-Agent** architecture, where the Main Agen
 - Non-conformance management
 - Automated audit report generation
 
+### v3.5.0 New Features (Strongly Recommended Update)
+- **Regulatory Region Auto-Cleanup** — Auto-cleans non-selected region data, auto-replaces old versions with new
+- **Token Exhaustion Auto-Export** — Auto-generates truncated Word/Excel when token limit is reached, saves to Markdown DB
+- **Segmented Report (Part A/B)** — Splits selected-region analysis (with references) from out-of-scope general knowledge (with disclaimer)
+- **Anti-Hallucination Enhancement** — Strictly prohibits fabricating unprovided standard clauses
+
 ### v3.4.0 New Features
-- **Arize Phoenix LLM Observability** — Integrated Phoenix backend for real-time tracking of all LLM call token usage, latency, and cost
-- **OpenTelemetry Auto-Instrumentation** — Zero code change auto-capture of all LLM requests via `LiteLLMInstrumentor`
-- **Phoenix Dashboard** — View all LLM interaction traces at http://localhost:6006
-- **Multi-Agent Trace Separation** — Phoenix Projects support for isolating traces from different sub-agents
-- **One-Click Chainlit + Phoenix Launch** — `start.bat` menu option [3] launches both Chainlit UI and Phoenix observability backend simultaneously
-- **Auto Dependency Update** — Existing users who `git pull` will have missing packages auto-detected and installed on startup, no manual `pip install` needed
-- **Auto Port Switching** — On startup, automatically detects if default ports for Chainlit (3000) and Phoenix (6006) are occupied, and seamlessly switches to the next available port with a notification
+- **Arize Phoenix Observability** — Real-time LLM token, latency, and cost tracking
+- **One-Click Launch + Auto-Update** — `start.bat` launches Chainlit + Phoenix together, auto-installs new packages
 
 ### v3.3.0 New Features
-- **`/web` Web Search Command** — Use `/web keyword` to search the web for the latest information (e.g., `/web latest ISO 13485 version`). Results are combined with local document database as LLM context
-- **DuckDuckGo Search Engine** — Free, no API key required web search integration
-- **Dual Context** — `/web` command simultaneously searches the web and local Markdown DB, providing complete source citations
-- **Source Credibility Ranking** — Search results are automatically ranked by source authority, a game-changer for regulated industries:
-  - 🏛️ Tier 0 (Highest): ISO, FDA, EMA, WHO, PMDA, NMPA, TFDA and other international standards/regulatory body official sites
-  - 🏛️ Tier 1: Government domains (.gov, .go.jp, .gov.tw, etc.)
+- **`/web` Web Search** — `/web keyword` searches the web for latest info, combined with local documents as LLM context
+- **Source Credibility Ranking** — Auto-ranks results by source authority, optimized for medical regulatory industry:
+  - 🏛️ Tier 0 (Highest): ISO, FDA, EMA, WHO and other international standards/regulatory bodies
+  - 🏛️ Tier 1: Government domains (.gov, .go.jp, etc.)
   - 🎓 Tier 2: Academic institutions (.edu, .ac.uk, etc.)
-  - ✅ Tier 3: Certification bodies (TÜV, BSI, SGS, etc.), academic publishers (PubMed, Nature, Lancet, etc.)
-  - 🌐 Tier 4: General results
-  - ⬇️ Tier 9 (Lowest): Wikipedia (deprioritized)
+  - ✅ Tier 3: Certification bodies & academic publishers
+  - 🌐 Tier 4: General results, ⬇️ Tier 9: Wikipedia
 
 ### v3.2.0 New Features
-- **20-Language UI** — Supports Traditional Chinese, Simplified Chinese, English, Japanese, Korean, French, German, Spanish, Portuguese, Italian, Russian, Arabic, Hindi, Thai, Vietnamese, Indonesian, Malay, Turkish, Dutch, Polish. Switch languages in real-time via settings
-- **API Key Security Masking** — API Key is automatically masked after input (shows only last 4 characters). Toggle show/hide with a switch
-- **Language Selector** — New language selector in ChatSettings panel for instant UI language switching
+- **20-Language UI** — Supports 20 languages with real-time switching
 
 ## System Architecture
 
@@ -524,6 +518,8 @@ Phoenix Dashboard: http://localhost:6006
 | `obsolete <doc_id>` | Obsolete a document (e.g., obsolete OTHER-016) |
 | `audit trail` | View audit trail records (with Word/Excel export buttons) |
 | `regulatory list` | List all referenced regulatory standards (with Word/Excel export buttons) |
+| `regulatory update` | Regulatory list latest info assessment and analysis (with Word/Excel export buttons) |
+| `download regulatory update word/excel` | Export regulatory update report |
 | `download reference word/excel` | Export version reference list |
 | `/web <keyword>` | Search the web for latest information (e.g., /web latest ISO 13485 version) |
 | `delete database` | Delete all documents (confirmation required) |
@@ -567,7 +563,7 @@ Phoenix Dashboard: http://localhost:6006
 - **MarkItDown-First OCR エンジン** — ローカル処理 約1秒/ファイル、トークン消費ゼロ；スキャン文書は自動的に LLM Vision にフォールバック
 - **インテリジェントバージョン検出** — 新規文書 vs バージョン更新を自動識別、OCR によるバージョン番号スキャン
 - **多言語署名・印鑑検出** — 15以上の言語、200以上のキーワードによる署名状態の自動検出
-- **改ざん防止監査証跡** — SHA-256 ハッシュチェーンによる全文書操作の記録
+- **改ざん検出監査証跡** — SHA-256 ハッシュチェーンによる全文書操作の記録、不正な変更の検出が可能
 - **文書廃止管理** — AI チャットによる文書廃止、監査証跡の完全保持
 - **相互参照検出** — バージョン更新後に関連文書を自動検索
 - **Markdown ストレージ層** — 文書を Markdown 形式に変換し、Agent 間データ抽出に活用
@@ -582,31 +578,27 @@ Phoenix Dashboard: http://localhost:6006
 - 不適合管理
 - 監査報告書の自動生成
 
+### v3.5.0 新機能（強く推奨されるアップデート）
+- **法規地域自動クリーンアップ** — 非選択地域のデータを自動削除、旧バージョンを新バージョンに自動置換
+- **トークン消耗時自動エクスポート** — トークン上限到達時、截断版 Word/Excel を自動生成し Markdown DB に保存
+- **セグメントレポート（Part A/B）** — 選択地域分析（参考データ付き）と範囲外一般知識分析（免責事項付き）に分割
+- **反幻覚強化** — 未提供の標準条文の捏造を厳禁
+
 ### v3.4.0 新機能
-- **Arize Phoenix LLM 可観測性** — Phoenix バックエンドを統合し、全 LLM 呼び出しのトークン使用量、レイテンシ、コストをリアルタイム追跡
-- **OpenTelemetry 自動計装** — `LiteLLMInstrumentor` によるコード変更ゼロの全 LLM リクエスト自動キャプチャ
-- **Phoenix ダッシュボード** — http://localhost:6006 で全 LLM インタラクショントレースを確認可能
-- **マルチ Agent トレース分離** — Phoenix Projects により異なるサブ Agent のトレースデータを分離可能
-- **ワンクリック Chainlit + Phoenix 起動** — `start.bat` メニューオプション [3] で Chainlit UI と Phoenix 可観測性バックエンドを同時起動
-- **自動依存パッケージ更新** — `git pull` 後の起動時に不足パッケージを自動検出・インストール、手動 `pip install` 不要
-- **Port 自動切替** — 起動時に Chainlit (3000) と Phoenix (6006) のデフォルトポートの使用状況を自動検出し、使用中の場合は次の空きポートへ自動切替（通知付き）
+- **Arize Phoenix 可観測性** — リアルタイム LLM トークン・レイテンシ・コスト追跡
+- **ワンクリック起動 + 自動更新** — `start.bat` で Chainlit + Phoenix 同時起動、不足パッケージ自動インストール
 
 ### v3.3.0 新機能
-- **`/web` ウェブ検索コマンド** — `/web キーワード` でウェブを検索して最新情報を取得（例：`/web 最新 ISO 13485 バージョン`）。検索結果をローカル文書データベースと組み合わせて LLM コンテキストとして使用
-- **DuckDuckGo 検索エンジン** — 無料、API Key 不要のウェブ検索統合
-- **デュアルコンテキスト** — `/web` コマンドでウェブとローカル Markdown DB を同時検索し、完全なソース引用を提供
-- **ソース信頼性ランキング (Source Credibility Ranking)** — 検索結果をソースの権威性で自動ランキング。規制産業に最適：
-  - 🏛️ Tier 0（最高）：ISO、FDA、EMA、WHO、PMDA、NMPA、TFDA など国際標準・規制当局の公式サイト
-  - 🏛️ Tier 1：政府ドメイン（.gov、.go.jp、.gov.tw など）
-  - 🎓 Tier 2：学術機関（.edu、.ac.uk など）
-  - ✅ Tier 3：認証機関（TÜV、BSI、SGS など）、学術出版社（PubMed、Nature、Lancet など）
-  - 🌐 Tier 4：一般的な検索結果
-  - ⬇️ Tier 9（最低）：Wikipedia（優先度低）
+- **`/web` ウェブ検索** — `/web キーワード` でウェブ最新情報を取得、ローカル文書と組み合わせて LLM コンテキストとして使用
+- **ソース信頼性ランキング** — 検索結果をソース権威性で自動ランキング、医療法規産業に最適：
+  - 🏛️ Tier 0（最高）：ISO、FDA、EMA、WHO 等国際標準・法規機関
+  - 🏛️ Tier 1：政府ドメイン（.gov、.go.jp 等）
+  - 🎓 Tier 2：学術機関（.edu、.ac.uk 等）
+  - ✅ Tier 3：認証機関・学術出版社
+  - 🌐 Tier 4：一般結果、⬇️ Tier 9：Wikipedia
 
 ### v3.2.0 新機能
-- **20言語 UI 対応** — 繁体字中国語、簡体字中国語、英語、日本語、韓国語、フランス語、ドイツ語、スペイン語、ポルトガル語、イタリア語、ロシア語、アラビア語、ヒンディー語、タイ語、ベトナム語、インドネシア語、マレー語、トルコ語、オランダ語、ポーランド語に対応。設定でリアルタイム切替可能
-- **API Key セキュリティマスク** — API Key 入力後に自動マスク（末尾4文字のみ表示）。スイッチで表示/非表示を切替可能
-- **言語セレクター** — ChatSettings パネルに言語セレクターを追加、UI 言語の即時切替に対応
+- **20言語 UI** — 20言語対応のリアルタイム切替
 
 ## システムアーキテクチャ
 
@@ -790,6 +782,8 @@ Phoenix ダッシュボード：http://localhost:6006
 | `廃止 <文書ID>` | 文書を廃止（例：廃止 OTHER-016） |
 | `監査証跡` | 監査証跡を表示（Word/Excel エクスポートボタン付き） |
 | `規制リスト` | 引用規格一覧を表示（Word/Excel エクスポートボタン付き） |
+| `法規一覧更新` | 法規リスト最新情報の評価分析（Word/Excel エクスポートボタン付き） |
+| `法規更新ダウンロード word/excel` | 法規更新レポートをエクスポート |
 | `引用ダウンロード word/excel` | バージョン引用リストをエクスポート |
 | `/web <キーワード>` | ウェブ検索で最新情報を取得（例：/web 最新 ISO 13485 バージョン） |
 | `データベース削除` | 全文書を削除（確認必要） |
@@ -828,7 +822,7 @@ AI-QMS/
 │   └── doc_control.svg
 ├── src/                         # Source code
 │   ├── chainlit_app/            # Chainlit application
-│   │   ├── app.py               # Main app entry point (v3.4.0)
+│   │   ├── app.py               # Main app entry point (v3.5.0)
 │   │   ├── i18n.py              # 20-language translations
 │   │   └── handlers/
 │   ├── agents/                  # Agent modules
@@ -853,11 +847,34 @@ AI-QMS/
 └── markdown_storage/            # Converted Markdown documents
 ```
 
+## Disclaimer / 免責聲明 / 免責事項
+
+> **❗ 重要聲明：** 本軟體僅供學習與參考用途，**不是**經過驗證的醫療器材品質管理系統軟體。本系統未經任何認證機構驗證，不應作為 ISO 13485 合規性的唯一依據。使用者應自行評估其適用性並承擔使用風險。本軟體的 AI 生成內容（包含法規分析、稽核建議等）僅供參考，不構成專業法律或法規合規建議。
+>
+> **❗ Important:** This software is provided for learning and reference purposes only and is **not** a validated medical device quality management system. It has not been verified by any certification body and should not be relied upon as the sole basis for ISO 13485 compliance. Users should evaluate its suitability and assume all risks of use. AI-generated content (including regulatory analysis, audit suggestions, etc.) is for reference only and does not constitute professional legal or regulatory compliance advice.
+>
+> **❗ 重要：** 本ソフトウェアは学習および参考目的でのみ提供されており、検証済みの医療機器品質管理システムソフトウェアでは**ありません**。認証機関による検証は行われておらず、ISO 13485 準拠の唯一の根拠として使用しないでください。ユーザーはその適用性を自ら評価し、使用におけるすべてのリスクを負うものとします。AI 生成コンテンツ（法規分析、監査提案等）は参考情報であり、専門的な法律または法規準拠に関する助言を構成するものではありません。
+
+## Trademark Notice / 商標聲明 / 商標について
+
+All product names, trademarks, and registered trademarks mentioned in this document are the property of their respective owners. Their use here is for identification purposes only and does not imply endorsement by or affiliation with any trademark holder.
+
+- Microsoft®, Word®, Excel®, PowerPoint® are registered trademarks of Microsoft Corporation.
+- Python® is a registered trademark of the Python Software Foundation.
+- ISO® is a registered trademark of the International Organization for Standardization.
+- OpenAI®, Anthropic™, Google™, and other LLM provider names are trademarks of their respective companies.
+- Chainlit, LangGraph, LiteLLM, Arize Phoenix, OpenTelemetry, DuckDuckGo, Ollama, LM Studio, Miniconda, Anaconda, Git, and GitHub are trademarks or registered trademarks of their respective owners.
+- FDA, EMA, WHO, PMDA, NMPA, and TFDA are government agencies. Mention of these agencies does not imply endorsement of this software.
+
+本文件中所提及的所有產品名稱、商標及註冊商標均為其各自所有者的財產。此處僅為識別目的而使用，不代表任何商標持有人的背書或關聯。
+
+本書に記載されているすべての製品名、商標、登録商標は、それぞれの所有者の財産です。ここでの使用は識別目的のみであり、商標所有者による推奨や提携を意味するものではありません。
+
 ## License / 授權 / ライセンス
 
 This project is licensed under the [Apache License 2.0](LICENSE).
 
-Copyright 2026 AI-QMS Project
+Copyright 2026 AI-QMS Contributors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

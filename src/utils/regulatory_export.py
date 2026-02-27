@@ -5,7 +5,7 @@ Export regulatory standards list and document reference list to Word/Excel forma
 
 from datetime import datetime
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from docx import Document
 from docx.shared import Pt, Cm, RGBColor
@@ -36,7 +36,9 @@ THIN_BORDER = Border(
 # ============================================================
 
 
-def format_regulatory_table_markdown(scan_result: dict) -> str:
+def format_regulatory_table_markdown(
+    scan_result: dict, assessment: Optional[str] = None
+) -> str:
     """Format regulatory scan result as Markdown for chat display."""
     by_doc = scan_result.get("by_document", [])
     aggregate = scan_result.get("aggregate", [])
@@ -47,34 +49,77 @@ def format_regulatory_table_markdown(scan_result: dict) -> str:
     lines = [
         f"📋 **法規清單** (共 {len(aggregate)} 項標準，涵蓋 {len(by_doc)} 份文件)\n",
         "### 標準彙總\n",
-        "| 標準 | 引用文件數 | 引用文件 |",
-        "|------|-----------|---------|",
+        "| 標準 | 引用文件數 |",
+        "|------|-----------|",
     ]
 
     for entry in aggregate:
         std = entry["standard"]
         refs = entry["referenced_by"]
-        ref_str = ", ".join(refs[:5])
-        if len(refs) > 5:
-            ref_str += f" ...等 {len(refs)} 份"
-        lines.append(f"| {std} | {len(refs)} | {ref_str} |")
+        lines.append(f"| {std} | {len(refs)} |")
 
-    lines.append(f"\n### 各文件引用明細\n")
-    lines.append("| 文件編號 | 文件名稱 | 版本 | 引用標準 |")
-    lines.append("|---------|---------|------|---------|")
-
-    for doc in by_doc:
-        stds = ", ".join(doc["standards"][:5])
-        if len(doc["standards"]) > 5:
-            stds += f" ...等 {len(doc['standards'])} 項"
-        lines.append(
-            f"| {doc['doc_id']} | {doc['title'][:30]} | v{doc['current_version']} | {stds} |"
-        )
+    # Assessment section
+    if assessment:
+        lines.append("\n---\n")
+        lines.append("### 📊 QMS 評估報告\n")
+        lines.append(assessment)
 
     return "\n".join(lines)
 
 
-def export_regulatory_to_word(scan_result: dict) -> str:
+def _render_assessment_to_word(doc, assessment: str):
+    """Render assessment markdown text into Word document paragraphs."""
+    doc.add_heading("三、QMS 評估報告", level=2)
+    for para_text in assessment.split("\n"):
+        stripped = para_text.strip()
+        if not stripped:
+            doc.add_paragraph()
+            continue
+        if stripped.startswith("###"):
+            doc.add_heading(stripped.lstrip("#").strip(), level=4)
+        elif stripped.startswith("##"):
+            doc.add_heading(stripped.lstrip("#").strip(), level=3)
+        elif stripped.startswith("#"):
+            doc.add_heading(stripped.lstrip("#").strip(), level=2)
+        elif stripped.startswith("- ") or stripped.startswith("* "):
+            p = doc.add_paragraph(stripped[2:], style="List Bullet")
+            for run in p.runs:
+                run.font.size = Pt(9)
+        elif stripped.startswith(tuple(f"{i}." for i in range(1, 20))):
+            p = doc.add_paragraph(stripped, style="List Number")
+            for run in p.runs:
+                run.font.size = Pt(9)
+        else:
+            p = doc.add_paragraph(stripped)
+            for run in p.runs:
+                run.font.size = Pt(9)
+
+
+def _render_assessment_to_excel(wb, assessment: str):
+    """Render assessment text into a new Excel sheet."""
+    ws = wb.create_sheet("評估報告")
+
+    ws.merge_cells("A1:B1")
+    title_cell = ws.cell(row=1, column=1)
+    title_cell.value = "QMS 評估報告"
+    title_cell.font = Font(name="Microsoft JhengHei", size=14, bold=True)
+    title_cell.alignment = Alignment(horizontal="center")
+
+    assessment_lines = assessment.split("\n")
+    for row_idx, line in enumerate(assessment_lines, 3):
+        cell = ws.cell(row=row_idx, column=1)
+        cell.value = line
+        if line.strip().startswith("#"):
+            cell.font = Font(name="Microsoft JhengHei", size=11, bold=True)
+        else:
+            cell.font = CELL_FONT
+
+    ws.column_dimensions["A"].width = 100
+
+
+def export_regulatory_to_word(
+    scan_result: dict, assessment: Optional[str] = None
+) -> str:
     """
     Export regulatory standards list to Word (.docx).
 
@@ -184,6 +229,11 @@ def export_regulatory_to_word(scan_result: dict) -> str:
             for i, width in enumerate(widths2):
                 row.cells[i].width = width
 
+    # Section 3: Assessment Report
+    if assessment:
+        doc.add_paragraph()
+        _render_assessment_to_word(doc, assessment)
+
     # Footer
     doc.add_paragraph()
     footer = doc.add_paragraph()
@@ -202,7 +252,9 @@ def export_regulatory_to_word(scan_result: dict) -> str:
     return str(filepath)
 
 
-def export_regulatory_to_excel(scan_result: dict) -> str:
+def export_regulatory_to_excel(
+    scan_result: dict, assessment: Optional[str] = None
+) -> str:
     """
     Export regulatory standards list to Excel (.xlsx).
 
@@ -313,6 +365,10 @@ def export_regulatory_to_excel(scan_result: dict) -> str:
     note_cell.font = Font(
         name="Microsoft JhengHei", size=8, italic=True, color="808080"
     )
+
+    # Sheet 3: Assessment Report (if provided)
+    if assessment:
+        _render_assessment_to_excel(wb, assessment)
 
     # Save
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
