@@ -2,8 +2,8 @@
 AI-QMS Phase 1 - Chainlit Application
 ======================================
 
-Version: v3.4.0
-Updated: 2026-02-25
+Version: v3.5.0
+Updated: 2026-02-27
 
 Single Chainlit app with Chat Profiles:
   - Main Agent: System navigation, document listing, obsolete, audit, LLM chat
@@ -19,6 +19,7 @@ import re
 import json
 import shutil
 import asyncio
+import logging
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
@@ -92,6 +93,26 @@ from src.utils.doclist_export import (
     export_allrecords_to_excel,
 )
 from src.ocr.vision_ocr import VisionOCRProcessor, process_document
+from src.services.regulatory_crawler import (
+    get_regulatory_crawler,
+    get_available_regions,
+    get_region_display_info,
+)
+from src.storage.regulatory_storage import (
+    get_regulatory_config,
+    get_regulatory_store,
+)
+from src.utils.regulatory_update_export import (
+    format_regulatory_update_markdown,
+    export_regulatory_update_to_word,
+    export_regulatory_update_to_excel,
+)
+from src.storage.regulatory_markdown_storage import (
+    get_regulatory_markdown_store,
+)
+from src.storage.regulatory_analysis_storage import (
+    get_regulatory_analysis_store,
+)
 
 # v3.1.0: Load cached model lists from previous sessions on startup.
 # This ensures cloud provider models appear immediately without
@@ -251,6 +272,237 @@ def _extract_after_cmd(text: str, cmd_key: str) -> str:
             return text[idx:].strip()
     return text.strip()
 
+
+# --- Region aliases for natural language matching ---
+_REGION_ALIASES = {
+    # Chinese aliases
+    "台灣": "台灣 (Taiwan)",
+    "台湾": "台灣 (Taiwan)",
+    "美國": "美國 (USA)",
+    "美国": "美國 (USA)",
+    "歐盟": "歐盟 (EU)",
+    "欧盟": "歐盟 (EU)",
+    "歐洲": "歐盟 (EU)",
+    "欧洲": "歐盟 (EU)",
+    "英國": "英國 (UK)",
+    "英国": "英國 (UK)",
+    "日本": "日本 (Japan)",
+    "中國": "中國 (China)",
+    "中国": "中國 (China)",
+    "大陸": "中國 (China)",
+    "大陆": "中國 (China)",
+    "韓國": "韓國 (Korea)",
+    "韩国": "韓國 (Korea)",
+    "加拿大": "加拿大 (Canada)",
+    "澳洲": "澳洲 (Australia)",
+    "澳大利亞": "澳洲 (Australia)",
+    "澳大利亚": "澳洲 (Australia)",
+    "瑞士": "瑞士 (Switzerland)",
+    "巴西": "巴西 (Brazil)",
+    "國際": "國際標準 (International)",
+    "国际": "國際標準 (International)",
+    "國際標準": "國際標準 (International)",
+    # English aliases
+    "taiwan": "台灣 (Taiwan)",
+    "tw": "台灣 (Taiwan)",
+    "usa": "美國 (USA)",
+    "us": "美國 (USA)",
+    "america": "美國 (USA)",
+    "united states": "美國 (USA)",
+    "eu": "歐盟 (EU)",
+    "europe": "歐盟 (EU)",
+    "european union": "歐盟 (EU)",
+    "uk": "英國 (UK)",
+    "britain": "英國 (UK)",
+    "england": "英國 (UK)",
+    "united kingdom": "英國 (UK)",
+    "japan": "日本 (Japan)",
+    "jp": "日本 (Japan)",
+    "china": "中國 (China)",
+    "cn": "中國 (China)",
+    "korea": "韓國 (Korea)",
+    "kr": "韓國 (Korea)",
+    "south korea": "韓國 (Korea)",
+    "canada": "加拿大 (Canada)",
+    "ca": "加拿大 (Canada)",
+    "australia": "澳洲 (Australia)",
+    "au": "澳洲 (Australia)",
+    "switzerland": "瑞士 (Switzerland)",
+    "swiss": "瑞士 (Switzerland)",
+    "ch": "瑞士 (Switzerland)",
+    "brazil": "巴西 (Brazil)",
+    "br": "巴西 (Brazil)",
+    "international": "國際標準 (International)",
+    "iso": "國際標準 (International)",
+    # New regions (v2.0)
+    "印度": "印度 (India)",
+    "india": "印度 (India)",
+    "in": "印度 (India)",
+    "新加坡": "新加坡 (Singapore)",
+    "singapore": "新加坡 (Singapore)",
+    "sg": "新加坡 (Singapore)",
+    "沙烏地阿拉伯": "沙烏地阿拉伯 (Saudi Arabia)",
+    "沙特": "沙烏地阿拉伯 (Saudi Arabia)",
+    "沙乌地阿拉伯": "沙烏地阿拉伯 (Saudi Arabia)",
+    "saudi arabia": "沙烏地阿拉伯 (Saudi Arabia)",
+    "saudi": "沙烏地阿拉伯 (Saudi Arabia)",
+    "sa": "沙烏地阿拉伯 (Saudi Arabia)",
+    "泰國": "泰國 (Thailand)",
+    "泰国": "泰國 (Thailand)",
+    "thailand": "泰國 (Thailand)",
+    "th": "泰國 (Thailand)",
+    "紐西蘭": "紐西蘭 (New Zealand)",
+    "纽西兰": "紐西蘭 (New Zealand)",
+    "new zealand": "紐西蘭 (New Zealand)",
+    "nz": "紐西蘭 (New Zealand)",
+    "墨西哥": "墨西哥 (Mexico)",
+    "mexico": "墨西哥 (Mexico)",
+    "mx": "墨西哥 (Mexico)",
+    "阿根廷": "阿根廷 (Argentina)",
+    "argentina": "阿根廷 (Argentina)",
+    "ar": "阿根廷 (Argentina)",
+    "南非": "南非 (South Africa)",
+    "south africa": "南非 (South Africa)",
+    "za": "南非 (South Africa)",
+    "土耳其": "土耳其 (Turkey)",
+    "turkey": "土耳其 (Turkey)",
+    "türkiye": "土耳其 (Turkey)",
+    "tr": "土耳其 (Turkey)",
+    "印尼": "印尼 (Indonesia)",
+    "印度尼西亞": "印尼 (Indonesia)",
+    "印度尼西亚": "印尼 (Indonesia)",
+    "indonesia": "印尼 (Indonesia)",
+    "id": "印尼 (Indonesia)",
+    "馬來西亞": "馬來西亞 (Malaysia)",
+    "马来西亚": "馬來西亞 (Malaysia)",
+    "malaysia": "馬來西亞 (Malaysia)",
+    "my": "馬來西亞 (Malaysia)",
+    "以色列": "以色列 (Israel)",
+    "israel": "以色列 (Israel)",
+    "il": "以色列 (Israel)",
+    "菲律賓": "菲律賓 (Philippines)",
+    "菲律宾": "菲律賓 (Philippines)",
+    "philippines": "菲律賓 (Philippines)",
+    "ph": "菲律賓 (Philippines)",
+    "越南": "越南 (Vietnam)",
+    "vietnam": "越南 (Vietnam)",
+    "vn": "越南 (Vietnam)",
+    "哥倫比亞": "哥倫比亞 (Colombia)",
+    "哥伦比亚": "哥倫比亞 (Colombia)",
+    "colombia": "哥倫比亞 (Colombia)",
+    "co": "哥倫比亞 (Colombia)",
+    "俄羅斯": "俄羅斯 (Russia)",
+    "俄罗斯": "俄羅斯 (Russia)",
+    "russia": "俄羅斯 (Russia)",
+    "ru": "俄羅斯 (Russia)",
+    "埃及": "埃及 (Egypt)",
+    "egypt": "埃及 (Egypt)",
+    "eg": "埃及 (Egypt)",
+    "智利": "智利 (Chile)",
+    "chile": "智利 (Chile)",
+    "cl": "智利 (Chile)",
+    "阿聯酋": "阿聯酋 (UAE)",
+    "阿联酋": "阿聯酋 (UAE)",
+    "uae": "阿聯酋 (UAE)",
+    "united arab emirates": "阿聯酋 (UAE)",
+}
+
+# Exclusion keywords (Chinese + English)
+_EXCLUSION_KEYWORDS = [
+    "除了", "不要", "不含", "移除", "刪除", "排除", "去掉", "不包含",
+    "去除", "不需要", "不用",
+    "except", "exclude", "remove", "without", "not",
+]
+
+# Keep/only keywords (Chinese + English)
+_KEEP_KEYWORDS = [
+    "只保留", "僅保留", "只要", "僅要", "只爬", "只需要",
+    "only", "just", "keep only",
+]
+
+
+def _parse_region_selection(
+    user_input: str, available_regions: list, success_regions: list
+) -> list:
+    """Parse user natural-language region selection input.
+
+    Supports:
+      - Numbers: "1,2,5" or "1 2 5"
+      - Names: "美國、日本、台灣"
+      - Aliases: "EU", "US", "歐盟", "欧洲"
+      - Keep syntax: "只保留美國" -> keep only USA
+      - Exclude syntax: "除了中國以外都要" -> all except China
+      - "all" / "全部" -> all available
+    """
+    input_lower = user_input.lower().strip()
+
+    # Handle "all" / "全部" / "所有"
+    if input_lower in ("all", "全部", "所有", "全部都要", "都要"):
+        return list(available_regions)
+
+    # Detect exclusion mode: "除了X以外" / "except X"
+    is_exclude = any(kw in input_lower for kw in _EXCLUSION_KEYWORDS)
+    # Detect keep-only mode: "只保留X" / "only X"
+    is_keep_only = any(kw in input_lower for kw in _KEEP_KEYWORDS)
+
+    # Extract mentioned regions
+    mentioned = _extract_regions_from_text(input_lower, available_regions)
+
+    if is_exclude and mentioned:
+        # "除了中國以外都要" -> return all except mentioned
+        return [r for r in available_regions if r not in mentioned]
+    elif is_keep_only and mentioned:
+        # "只保留美國" -> return only mentioned
+        return mentioned
+    elif mentioned:
+        # Direct mention without modifiers -> keep mentioned
+        return mentioned
+    else:
+        # Fall through to empty -> caller handles default
+        return []
+
+
+def _extract_regions_from_text(text_lower: str, available_regions: list) -> list:
+    """Extract region names from user text using aliases and substring matching."""
+    found = []
+
+    # 1. Try numeric extraction first
+    numbers = re.findall(r'\b(\d{1,2})\b', text_lower)
+    if numbers:
+        for num_str in numbers:
+            idx = int(num_str) - 1
+            if 0 <= idx < len(available_regions):
+                region = available_regions[idx]
+                if region not in found:
+                    found.append(region)
+        # If we got numeric results, return them (don't mix with text parsing)
+        if found:
+            return found
+
+    # 2. Try alias matching (exact alias -> region)
+    for alias, region_name in _REGION_ALIASES.items():
+        if alias in text_lower and region_name in available_regions:
+            if region_name not in found:
+                found.append(region_name)
+
+    if found:
+        return found
+
+    # 3. Try substring matching against region display names
+    for region in available_regions:
+        # Extract Chinese name and English name from "XX (YY)" format
+        parts = re.match(r'^(.+?)\s*\((.+?)\)$', region)
+        if parts:
+            cn_name = parts.group(1)
+            en_name = parts.group(2).lower()
+            if cn_name in text_lower or en_name in text_lower:
+                if region not in found:
+                    found.append(region)
+        elif region.lower() in text_lower:
+            if region not in found:
+                found.append(region)
+
+    return found
 
 def get_system_prompt(profile: str, lang: str = None) -> str:
     """Get system prompt based on profile and language."""
@@ -1645,6 +1897,75 @@ async def on_settings_update(settings):
 
 
 # ============================================================
+# Background Regulatory Crawler Scheduler (v2.0)
+# ============================================================
+# Simple asyncio.create_task sleep-loop pattern.
+# Starts on first user session; pre-fetches regulatory data daily.
+
+_regulatory_scheduler_started = False
+_REGULATORY_SCHEDULE_HOUR = 6  # Run at 6 AM daily
+
+
+async def _regulatory_background_scheduler():
+    """Background loop: pre-fetch regulatory data once per day at scheduled hour.
+
+    Uses asyncio.sleep to wait until the next scheduled time.
+    Results are saved to storage; next user session gets instant results.
+    """
+    import datetime as _dt
+
+    while True:
+        try:
+            now = _dt.datetime.now()
+            target = now.replace(
+                hour=_REGULATORY_SCHEDULE_HOUR, minute=0, second=0, microsecond=0
+            )
+            if now >= target:
+                target += _dt.timedelta(days=1)
+
+            sleep_seconds = (target - now).total_seconds()
+            logger_name = logging.getLogger(__name__)
+            logger_name.info(
+                f"[Scheduler] Next regulatory crawl at {target.isoformat()}"
+                f" (in {sleep_seconds/3600:.1f}h)"
+            )
+            await asyncio.sleep(sleep_seconds)
+
+            # Execute crawl
+            logger_name.info("[Scheduler] Starting scheduled regulatory crawl...")
+            crawler = get_regulatory_crawler()
+            crawl_results = await crawler.crawl_all_regions()
+
+            # Save results
+            from src.storage.regulatory_storage import get_regulatory_store
+            store = get_regulatory_store()
+            store.save_crawl_results(crawl_results)
+
+            # Save to markdown DB
+            from src.storage.regulatory_markdown_storage import (
+                get_regulatory_markdown_store,
+            )
+            reg_md_store = get_regulatory_markdown_store()
+            reg_md_store.save_from_crawl_results(crawl_results)
+
+            summary = crawl_results.get('summary', {})
+            logger_name.info(
+                f"[Scheduler] Regulatory crawl complete: "
+                f"{summary.get('success_count', 0)}/{summary.get('total_sites', 0)} succeeded"
+            )
+
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logging.getLogger(__name__).error(
+                f"[Scheduler] Regulatory crawl failed: {e}"
+            )
+            # Wait 1 hour before retry on error
+            await asyncio.sleep(3600)
+
+
+
+# ============================================================
 # Chat Start
 # ============================================================
 
@@ -1654,6 +1975,12 @@ async def on_chat_start():
     """Initialize chat session"""
     profile = cl.user_session.get("chat_profile")
     ensure_upload_folder()
+
+    # Start background regulatory scheduler (first user only)
+    global _regulatory_scheduler_started
+    if not _regulatory_scheduler_started:
+        _regulatory_scheduler_started = True
+        asyncio.create_task(_regulatory_background_scheduler())
 
     # Initialize session state
     provider_choices = get_provider_choices()
@@ -1741,6 +2068,24 @@ async def handle_status() -> str:
 - **Phoenix Tracing**: {phoenix_status} ({phoenix_url})"""
 
 
+def _classify_all_docs_sync(all_docs, storage, lang):
+    """Classify all documents by content (runs in thread pool to avoid blocking)."""
+    import asyncio
+    doc_type_cache = {}
+    for doc in all_docs:
+        doc_id = doc["doc_id"]
+        title = doc.get("title", "N/A")
+        raw_doc_type = doc.get("doc_type", "OTHER")
+        doc_result = storage.get_document(doc_id)
+        content_for_classify = ""
+        if doc_result and doc_result.get("success"):
+            content_for_classify = doc_result.get("content", "")[:3000]
+        doc_type_cache[doc_id] = _get_display_doc_type(
+            doc_id, title, content_for_classify, raw_doc_type, lang
+        )
+    return doc_type_cache
+
+
 async def handle_list() -> str:
     """Handle 列表 command - show ALL documents including version history and obsolete."""
     try:
@@ -1755,12 +2100,17 @@ async def handle_list() -> str:
         obsolete_count = sum(1 for d in all_docs if d.get("status") == "obsolete")
         total_versions = sum(len(d.get("versions", [])) for d in all_docs)
         superseded_count = 0
+        lang = cl.user_session.get("language", "zh-TW")
+
+        # Classify all docs in background thread (I/O heavy)
+        import asyncio
+        doc_type_cache = await asyncio.to_thread(_classify_all_docs_sync, all_docs, storage, lang)
 
         doc_lines = []
         for doc in all_docs:
             doc_id = doc["doc_id"]
             title = doc.get("title", "N/A")
-            doc_type = doc.get("doc_type", "OTHER")
+            display_type = doc_type_cache.get(doc_id, doc.get("doc_type", "OTHER"))
             status_str = doc.get("status", "active")
             current_ver = doc.get("current_version", "?")
 
@@ -1782,7 +2132,7 @@ async def handle_list() -> str:
                     superseded_count += 1
 
                 doc_lines.append(
-                    f"| {doc_id} | {title} | {doc_type} | v{ver} | {created_at} | {created_by} | {row_status} |"
+                    f"| {doc_id} | {title} | {display_type} | v{ver} | {created_at} | {created_by} | {row_status} |"
                 )
 
         doc_list = "\n".join(doc_lines)
@@ -1793,7 +2143,6 @@ async def handle_list() -> str:
             )
         if obsolete_count:
             summary_parts.append(t("allrecords.summary_obsolete", count=obsolete_count))
-        lang = cl.user_session.get("language", "zh-TW")
         sep = "、" if lang == "ja-JP" else "，" if lang.startswith("zh") else ", "
         summary_str = sep.join(summary_parts)
         return f"""{t("allrecords.title", doc_count=len(all_docs), version_count=total_versions, summary=summary_str)}
@@ -1812,8 +2161,10 @@ async def handle_document_list() -> str:
     """Handle 文件清單 command - show only current formal (active) versions."""
     try:
         md_service = MarkdownStoreService()
+        storage = get_markdown_store()
         docs = md_service.list_documents()
         stats = md_service.get_stats()
+        lang = cl.user_session.get("language", "zh-TW")
 
         if not docs:
             return t("no_saved_docs")
@@ -1823,10 +2174,15 @@ async def handle_document_list() -> str:
         if not active_docs:
             return t("no_active_docs")
 
+        # Classify all active docs in background thread
+        import asyncio
+        doc_type_cache = await asyncio.to_thread(_classify_all_docs_sync, active_docs, storage, lang)
+
         doc_lines = []
         for d in active_docs:
+            display_type = doc_type_cache.get(d['doc_id'], d.get('doc_type', 'OTHER'))
             doc_lines.append(
-                f"| {d['doc_id']} | {d.get('title', 'N/A')} | {d['doc_type']} | v{d['current_version']} |"
+                f"| {d['doc_id']} | {d.get('title', 'N/A')} | {display_type} | v{d['current_version']} |"
             )
         doc_list = "\n".join(doc_lines)
         return f"""{t("doclist.title", count=len(active_docs))}
@@ -1968,13 +2324,589 @@ async def handle_audit_export(format_type: str):
     return filepath, msg
 
 
+def _classify_document(doc_id: str, title: str, content: str, doc_type: str) -> str:
+    """
+    Classify a document as 'qms_internal' or 'regulatory_uploaded' based on content analysis.
+    
+    QMS internal docs: company procedures, work instructions, forms, quality manuals
+    Regulatory uploaded: actual law/standard documents uploaded by user (e.g., ISO 13485 PDF)
+    
+    NOTE: doc_id prefixes (QM-, QP-, etc.) are NOT used for classification because
+    different companies use different naming conventions. Classification is purely
+    content-driven with title/filename as secondary signals.
+    """
+    import re
+    title_upper = (title or "").upper().strip()
+    content_sample = (content[:3000] if content else "").lower()
+    original_file_upper = (original_file or "").upper().strip() if 'original_file' in dir() else ""
+    
+    # --- Signal 1: Title / filename contains regulatory standard identifiers ---
+    # If the document itself IS a standard/regulation (not just referencing one)
+    regulatory_title_patterns = [
+        r'ISO\s*\d{4,5}',  # ISO 13485, ISO 14971
+        r'IEC\s*\d{4,5}',  # IEC 62304, IEC 60601
+        r'21\s*CFR',  # 21 CFR Part 820
+        r'MDR\s*2017',  # EU MDR 2017/745
+        r'REGULATION.*\(EU\)',  # Regulation (EU)
+        r'CNS\s*\d{4,5}',  # CNS 15013
+        r'ASTM\s*[A-Z]?\s*\d{3,5}',  # ASTM standards
+        r'GB\s*/?T?\s*\d{4,5}',  # Chinese GB standards
+        r'JIS\s*[A-Z]\s*\d{4}',  # Japanese JIS standards
+        r'EN\s*\d{4,5}',  # European EN standards
+        r'BS\s*EN\s*\d{4,5}',  # British Standards
+        r'AS/NZS\s*\d{4}',  # Australia/NZ standards
+        r'MDSAP',  # Medical Device Single Audit Program
+        r'MDD\s*93',  # EU MDD 93/42/EEC
+    ]
+    title_is_regulation = any(re.search(p, title_upper) for p in regulatory_title_patterns)
+    
+    # --- Signal 2: Content structure analysis ---
+    # QMS internal docs have operational/procedural structure
+    qms_indicators = [
+        # Structural sections typical of company procedures
+        'purpose of this', 'purpose:', '目的', '本程序', '本作業指導',
+        'scope:', '適用範圍', 'responsibility', '責任', '權限',
+        'procedure:', '作業步驟', '作業程序', '作業內容',
+        'work instruction', '作業指導', '程序書',
+        '表單說明', 'form instruction', 'how to complete',
+        'revision history', '版本紀錄', '文件編號',
+        'document number', 'effective date', '生效日期',
+        'approved by', '核准', '審查', 'reviewed by',
+        'this document establishes', 'this procedure defines',
+        # Company-specific process language
+        'baseline controls', 'baseline domain', 'when to use',
+        'trigger:', '觸發條件', '執行頻率',
+    ]
+    # Regulatory docs have legal/normative structure
+    regulatory_indicators = [
+        # Standard/regulation structural language
+        'international standard', '國際標準', 'this standard specifies',
+        'this standard establishes', 'this standard provides',
+        'normative reference', '規範性引用文件',
+        'terms and definitions', '術語與定義', '用語和定義',
+        'shall comply', 'shall conform', 'shall meet',
+        'clause ', 'annex ', '附錄', '條款',
+        'article ', '第.*條', '第.*款',
+        # Legal language
+        'regulation', 'directive', '指令',
+        'this regulation', 'member states', '會員國',
+        'official journal', 'federal register', '公報',
+        'the manufacturer shall', '製造商應',
+        'notified body', '驗證機構', '公告機構',
+        'conformity assessment', '符合性評鑑',
+        'essential requirements', 'general safety and performance',
+        '基本要求', '一般安全與性能要求',
+        'technical documentation', '技術文件檔案',
+        # Explicitly a published standard document
+        'published by', 'copyright', '版權', 'all rights reserved',
+        'iso/tc', 'iec/tc', '技術委員會',
+    ]
+    
+    qms_score = sum(1 for kw in qms_indicators if kw in content_sample)
+    reg_score = sum(1 for kw in regulatory_indicators if kw in content_sample)
+    
+    # --- Decision logic ---
+    # Title IS a regulation identifier = strong signal
+    if title_is_regulation and reg_score >= 2:
+        return 'regulatory_uploaded'
+    if title_is_regulation and qms_score <= 2:
+        return 'regulatory_uploaded'
+    
+    # Content clearly regulatory (many regulatory indicators, few QMS indicators)
+    if reg_score >= 5 and reg_score > qms_score:
+        return 'regulatory_uploaded'
+    
+    # doc_type OTHER with more regulatory than QMS signals
+    if doc_type == 'OTHER' and reg_score > qms_score:
+        return 'regulatory_uploaded'
+    
+    # Default: treat as QMS internal document
+    return 'qms_internal'
+
+def _get_display_doc_type(doc_id: str, title: str, content: str, doc_type: str, lang: str = "zh-TW") -> str:
+    """
+    Return a display-friendly document type label based on content analysis.
+    
+    Hierarchy (QMS internal):
+      1階: 品質手冊 (Quality Manual)
+      2階: 程序書 (Procedure/SOP)
+      3階: 作業指導書 (Work Instruction)
+      4階: 表單 (Form)
+    External:
+      外來法規文件 (External Regulatory Document)
+    """
+    # First: is this a regulatory document or QMS internal?
+    classification = _classify_document(doc_id, title, content, doc_type)
+    
+    is_zh = lang.startswith('zh')
+    is_ja = lang.startswith('ja')
+    
+    if classification == 'regulatory_uploaded':
+        if is_zh:
+            return '外來法規文件'
+        elif is_ja:
+            return '外部規制文書'
+        else:
+            return 'Regulatory Doc'
+    
+    # QMS internal: classify by hierarchy level based on content
+    content_lower = (content[:3000] if content else '').lower()
+    title_lower = (title or '').lower()
+    
+    # Level 1: Quality Manual indicators
+    manual_indicators = [
+        'quality manual', '品質手冊', '质量手冊', '品質政策',
+        '組織架構', '管理代表', 'management representative',
+        'organizational structure', '系統範圍', 'qms scope',
+    ]
+    # Level 2: Procedure indicators
+    procedure_indicators = [
+        'procedure', '程序書', '程序', '受控文件',
+        'this procedure defines', '本程序', '執行程序',
+        'process flow', '流程', '運作程序',
+    ]
+    # Level 3: Work Instruction indicators
+    wi_indicators = [
+        'work instruction', '作業指導', '作業說明',
+        '作業步驟', 'step by step', 'step 1',
+        'this work instruction', '本作業指導',
+    ]
+    # Level 4: Form indicators
+    form_indicators = [
+        'form', '表單', '檢查表', 'checklist', 'template',
+        '紀錄表', 'record form', '申請單', '報告表',
+        'log', '登錄表', '審核表', '計畫表',
+        'how to complete', '填寫說明', 'instructions for completing',
+    ]
+    
+    manual_score = sum(1 for kw in manual_indicators if kw in content_lower or kw in title_lower)
+    proc_score = sum(1 for kw in procedure_indicators if kw in content_lower or kw in title_lower)
+    wi_score = sum(1 for kw in wi_indicators if kw in content_lower or kw in title_lower)
+    form_score = sum(1 for kw in form_indicators if kw in content_lower or kw in title_lower)
+    
+    scores = {
+        'manual': manual_score,
+        'procedure': proc_score,
+        'wi': wi_score,
+        'form': form_score,
+    }
+    best = max(scores, key=scores.get)
+    
+    # Only classify if there's a clear signal (score > 0)
+    if scores[best] == 0:
+        # Fallback to original doc_type
+        fallback_map = {
+            'SOP': ('程序書' if is_zh else '手順書' if is_ja else 'Procedure'),
+            'WI': ('作業指導書' if is_zh else '作業指導書' if is_ja else 'Work Instruction'),
+            'FORM': ('表單' if is_zh else 'フォーム' if is_ja else 'Form'),
+            'DHF': ('設計歷史檔案' if is_zh else 'DHF' if is_ja else 'DHF'),
+            'OTHER': ('其他' if is_zh else 'その他' if is_ja else 'Other'),
+        }
+        return fallback_map.get(doc_type, doc_type)
+    
+    if is_zh:
+        label_map = {'manual': '1階-品質手冊', 'procedure': '2階-程序書', 'wi': '3階-作業指導書', 'form': '4階-表單'}
+    elif is_ja:
+        label_map = {'manual': '1階-品質マニュアル', 'procedure': '2階-手順書', 'wi': '3階-作業指導書', 'form': '4階-フォーム'}
+    else:
+        label_map = {'manual': 'L1-Manual', 'procedure': 'L2-Procedure', 'wi': 'L3-WI', 'form': 'L4-Form'}
+    
+    return label_map[best]
+
+
+# Helper: wrap synchronous LLM streaming generator with per-chunk timeout
+# to prevent indefinite hangs when provider connection stalls mid-stream.
+STREAMING_CHUNK_TIMEOUT = 120  # seconds — max wait for a single chunk
+
+async def _iter_stream_with_timeout(sync_generator, chunk_timeout: int = STREAMING_CHUNK_TIMEOUT):
+    """Yield chunks from a synchronous streaming generator with per-chunk timeout.
+    
+    Runs each `next()` call in a thread pool so it doesn't block the event loop,
+    and applies asyncio.wait_for with the given timeout per chunk.
+    Raises asyncio.TimeoutError if any single chunk takes longer than chunk_timeout.
+    """
+    iterator = iter(sync_generator)
+    while True:
+        try:
+            chunk = await asyncio.wait_for(
+                asyncio.to_thread(next, iterator, _STREAM_SENTINEL),
+                timeout=chunk_timeout,
+            )
+            if chunk is _STREAM_SENTINEL:
+                return  # generator exhausted normally
+            yield chunk
+        except asyncio.TimeoutError:
+            raise  # propagate to caller
+        except StopIteration:
+            return
+
+_STREAM_SENTINEL = object()  # sentinel for detecting generator exhaustion
+
 async def handle_regulatory_list():
-    """Handle 法規清單 command — scan and display regulatory standards from all documents."""
+    """Handle 法規清單 command — scan regulatory references, integrate crawl data, LLM assessment."""
     storage = get_markdown_store()
     scan_result = storage.scan_regulatory_references()
     # Store in session for later export
     cl.user_session.set("last_regulatory_scan", scan_result)
-    return format_regulatory_table_markdown(scan_result)
+
+    # Base table markdown
+    base_response = format_regulatory_table_markdown(scan_result)
+
+    # Try to integrate crawl results + LLM assessment
+    store = get_regulatory_store()
+    last_crawl = store.load_last_results()
+
+    if not last_crawl or not last_crawl.get("results"):
+        # No crawl data available — return base response only
+        return base_response + "\n\n---\n\nℹ️ 尚未執行「法規清單更新」，無法提供 QMS 評估報告。請先輸入「法規清單更新」爬取最新法規資訊。"
+
+    # Build online data summary for LLM (enhanced: source labels + PDF info)
+    online_parts = []
+    for r in last_crawl.get("results", []):
+        if r.get("crawl_status") == "success":
+            content_preview = r.get("content_markdown", "")[:1500]
+            pdf_info = ""
+            if r.get("has_pdf") and r.get("pdf_urls"):
+                pdf_info = f"\n  📥 PDF 可下載: {', '.join(r['pdf_urls'][:3])}"
+            online_parts.append(
+                f"### [來源: 🌐 網路爬取] {r['region']} — {r['agency']} ({r.get('agency_name', '')})\n"
+                f"URL: {r['url']}\n"
+                f"爬取日期: {r.get('crawl_timestamp', '未知')[:10]}\n"
+                f"{content_preview}{pdf_info}"
+            )
+    online_data = "\n\n".join(online_parts) if online_parts else "無線上資料"
+
+    # Build local data summary for LLM (enhanced: include standard names + doc_ids)
+    aggregate = scan_result.get("aggregate", [])
+    local_parts = []
+    for ref in aggregate:
+        std = ref.get("standard", "")
+        docs = ref.get("referenced_by", [])
+        if isinstance(docs, list):
+            doc_ids = docs if all(isinstance(d, str) for d in docs) else [d.get("doc_id", "") for d in docs]
+        else:
+            doc_ids = []
+        local_parts.append(f"- {std} (引用於: {', '.join(doc_ids)})")
+    local_data = "\n".join(local_parts) if local_parts else "本地文件未引用任何法規標準"
+
+    # Build regulatory Markdown DB content for LLM
+    # IMPORTANT: Use user's selected regions from config as the primary filter.
+    # This ensures only the regions the user explicitly chose are included,
+    # preventing the LLM from citing data from other countries.
+    config_mgr = get_regulatory_config()
+    if config_mgr.has_config():
+        filter_regions = set(config_mgr.get_selected_regions())
+    else:
+        # Fallback: derive from last crawl results if no config exists yet
+        filter_regions = set()
+        for r in last_crawl.get('results', []):
+            if r.get('crawl_status') == 'success' and r.get('region'):
+                filter_regions.add(r['region'])
+    reg_md_store = get_regulatory_markdown_store()
+    reg_db_parts = []
+    # Filter by selected regions to only include relevant data
+    if filter_regions:
+        for region in filter_regions:
+            region_docs = reg_md_store.list_documents(region=region, status='active')
+            for rd in region_docs[:10]:  # Limit per region to avoid token overflow
+                doc_full = reg_md_store.get_document(rd.get('doc_id', ''))
+                if doc_full:
+                    content = doc_full.get('content', '')[:800]
+                    reg_db_parts.append(
+                        f"### {rd.get('region', '')} \u2014 {rd.get('agency', '')} ({rd.get('title', '')[:60]})\n"
+                        f"\u5132\u5b58\u8def\u5f91: {rd.get('markdown_path', '')}\n"
+                        f"{content}"
+                    )
+    regulatory_db_data = '\n\n'.join(reg_db_parts) if reg_db_parts else '\u6cd5\u898f Markdown DB \u4e2d\u7121\u5df2\u5132\u5b58\u6587\u4ef6'
+
+    # Classify and split by_document into QMS internal vs regulatory uploaded
+    qms_doc_parts = []
+    regulatory_doc_parts = []
+    by_doc = scan_result.get("by_document", [])
+    for doc_info in by_doc[:30]:  # Limit to 30 docs
+        doc_id = doc_info.get("doc_id", "")
+        title = doc_info.get("title", "")
+        standards = doc_info.get("standards", [])
+        version = doc_info.get("current_version", "")
+        doc_type = doc_info.get("doc_type", "OTHER")
+        # Get actual content and metadata from markdown storage
+        doc_result = storage.get_document(doc_id)
+        content_full = ""
+        content_preview = ""
+        upload_date = "未知"
+        original_file = "未知"
+        if doc_result and doc_result.get("success"):
+            content_full = doc_result.get("content", "")
+            content_preview = content_full[:600]
+            upload_date = doc_result.get("created_at", "未知")[:10]
+            original_file = doc_result.get("original_file", "未知")
+        # Classify based on content analysis
+        classification = _classify_document(doc_id, title, content_full, doc_type)
+        if classification == 'regulatory_uploaded':
+            # Distinguish: this document IS the uploaded regulation.
+            # Standards listed in 'standards' are referenced WITHIN this document,
+            # NOT independently uploaded. Clarify this for the LLM.
+            referenced_standards_note = ""
+            if standards:
+                referenced_standards_note = (
+                    f"\n⚠️ 注意：以下標準僅在本文件內被引用/提及，系統中並無這些標準的完整原文："
+                    f"\n{', '.join(standards)}"
+                    f"\n（請勿將這些被引用的標準視為已上傳的法規文件，它們的條文內容不可用於分析）"
+                )
+            regulatory_doc_parts.append(
+                f"### [來源: 📎 手動上傳的法規文件（獨立上傳的完整原文）] {doc_id} — {title}\n"
+                f"版本: v{version} | 上傳日期: {upload_date} | 原始檔案: {original_file}\n"
+                f"本文件為使用者直接上傳的法規/標準完整原文，可直接引用其條文內容。"
+                f"{referenced_standards_note}\n"
+                f"{content_preview}"
+            )
+        else:
+            qms_doc_parts.append(
+                f"### [類型: 📄 公司品質文件] {doc_id} — {title}\n"
+                f"版本: v{version} | 上傳日期: {upload_date} | 原始檔案: {original_file}\n"
+                f"引用標準: {', '.join(standards)}\n"
+                f"{content_preview}"
+            )
+    # Combine: QMS docs first, then regulatory uploads (both go into uploaded_docs_data)
+    all_doc_parts = []
+    if qms_doc_parts:
+        all_doc_parts.append("## 公司品質文件（程序書/作業指導書/表單/品質手冊）")
+        all_doc_parts.extend(qms_doc_parts)
+    if regulatory_doc_parts:
+        all_doc_parts.append("## 手動上傳的法規文件（獨立上傳至系統的法規/標準完整原文，非從其他文件內引用）")
+        all_doc_parts.extend(regulatory_doc_parts)
+    # Add summary note about document counts for LLM clarity
+    if regulatory_doc_parts or qms_doc_parts:
+        summary_note = (
+            f"\n\n---\n"
+            f"ℹ️ 文件統計：共 {len(regulatory_doc_parts)} 份獨立上傳的法規文件，{len(qms_doc_parts)} 份公司品質文件\n"
+            f"❗ 重要：只有標記『📎 手動上傳的法規文件』的文件才有完整原文可供分析。"
+            f"其他在文件內被引用/提及的標準（如 EN ISO 9001:2015、IEC 62304 等）"
+            f"僅為引用關係，系統中並無這些標準的完整條文，請勿編造其內容。"
+        )
+        all_doc_parts.append(summary_note)
+    uploaded_docs_data = "\n\n".join(all_doc_parts) if all_doc_parts else "無上傳文件"
+
+    # Build SOP content data for LLM (actual procedure content for before/after comparison)
+    sop_parts = []
+    # Get documents that reference regulatory standards (these are the SOPs that may need updating)
+    sop_doc_ids = set()
+    for ref in aggregate:
+        docs = ref.get("referenced_by", [])
+        if isinstance(docs, list):
+            for d in docs:
+                if isinstance(d, str):
+                    sop_doc_ids.add(d)
+                elif isinstance(d, dict):
+                    sop_doc_ids.add(d.get("doc_id", ""))
+    # Read actual SOP content (limit to 15 most relevant docs)
+    for sid in list(sop_doc_ids)[:15]:
+        sop_result = storage.get_document(sid)
+        if sop_result and sop_result.get("success"):
+            sop_content = sop_result.get("content", "")
+            sop_title = sop_result.get("title", sid)
+            sop_ver = sop_result.get("version", "")
+            # Include up to 3000 chars of SOP content for comparison
+            sop_parts.append(
+                f"### {sid} — {sop_title} (v{sop_ver})\n"
+                f"{sop_content[:3000]}"
+            )
+    sop_content_data = "\n\n".join(sop_parts) if sop_parts else "無可用的 SOP 內容"
+
+    # Call LLM for assessment
+    provider_id = cl.user_session.get("provider_id", "ollama")
+    model_name = cl.user_session.get("model_name", "default")
+    api_key = cl.user_session.get("api_key", "").strip()
+
+    assessment = ""
+    try:
+        setup_api_key(provider_id, api_key)
+        manager = create_provider_manager(provider_id)
+        if provider_id != "ollama":
+            manager.disable_fallback = True
+
+        # Build selected regions string for prompt
+        selected_regions_str = "、".join(sorted(filter_regions)) if filter_regions else "未指定"
+
+        assessment_prompt = t(
+            "regulatory_update.assessment_prompt",
+            online_data=online_data[:8000],
+            local_data=local_data[:4000],
+            regulatory_db_data=regulatory_db_data[:6000],
+            uploaded_docs_data=uploaded_docs_data[:4000],
+            sop_content_data=sop_content_data[:20000],
+            selected_regions=selected_regions_str,
+        )
+
+        # Show progress
+        await cl.Message(content=t("regulatory_update.assessment_analyzing")).send()
+
+        assess_msg = cl.Message(content="")
+        await assess_msg.send()
+
+        messages = [
+            {"role": "system", "content": "你是資深醫療器材品質管理系統 (QMS) 法規合規性分析專家，具備以下專業能力：\n1. 熟悉 ISO 13485:2016、FDA 21 CFR Part 820、EU MDR 2017/745、MDSAP 等全球主要醫療器材法規\n2. 具備法規修訂歷程分析能力，能解讀監管機構的立法意圖與查核重點\n3. 能進行品質文件間的交叉比對，識別流程矛盾、時限衝突與權責不一致\n4. 能從組織管理角度評估法規變更的衝擊範圍，提出分階段實施策略\n5. 擅長在不中斷現有運作的前提下，規劃品質文件的漸進式修改路徑\n\n⚠️ 嚴格禁止事項（最高優先級）：\n- 系統中僅有標記『📎 手動上傳的法規文件』的文件才有完整原文。\n- 在其他文件（如 ISO 13485）內被『引用/提及』的標準（如 EN ISO 9001:2015、IEC 62304、GHTF 等），系統中並無這些標準的完整條文。\n- 嚴禁將『被引用的標準』視為已上傳的獨立法規文件。\n- 嚴禁編造、杜撰任何未提供的標準條文內容。\n- 若需引用某標準但系統中無該標準原文，必須標示「⚠️ 系統中無此標準原文，以下為專業判斷」。\n\n分析原則：\n- 所有建議必須具體到文件編號、章節號碼與條文內容\n- 區分事實（來自提供的資料）與推論（你的專業判斷），推論處標示「💡 專業判斷」\n- 若資料不足以做出判斷，明確標示「⚠️ 資料不足」，不得編造\n- 優先考慮對公司運作衝擊最小的修改方案"},
+            {"role": "user", "content": assessment_prompt},
+        ]
+
+        # Auto-continuation: if LLM output is truncated (finish_reason='length'),
+        # automatically send continuation requests to complete the report
+        MAX_CONTINUATIONS = 5
+        continuation_count = 0
+        token_exhausted = False
+
+        while continuation_count <= MAX_CONTINUATIONS:
+            finish_reason = None
+
+            response = manager.completion(
+                messages=messages,
+                model=model_name,
+                temperature=0.3,
+                max_tokens=128000,
+                stream=True,
+                timeout=300,
+            )
+
+            try:
+                async for chunk in _iter_stream_with_timeout(response):
+                    if hasattr(chunk, 'choices') and chunk.choices:
+                        delta = chunk.choices[0].delta
+                        if hasattr(delta, 'content') and delta.content:
+                            assessment += delta.content
+                            await assess_msg.stream_token(delta.content)
+                        # Capture finish_reason from the last chunk
+                        _fr = getattr(chunk.choices[0], 'finish_reason', None)
+                        if _fr:
+                            finish_reason = _fr
+            except asyncio.TimeoutError:
+                import logging
+                logging.getLogger(__name__).warning(
+                    f"LLM streaming stalled (no chunk in {STREAMING_CHUNK_TIMEOUT}s). "
+                    f"Treating as token exhaustion. assessment_len={len(assessment)}"
+                )
+                token_exhausted = True
+                break
+            except Exception as stream_err:
+                import logging
+                logging.getLogger(__name__).warning(f"LLM streaming error: {stream_err}")
+                token_exhausted = True
+                break
+
+            # Log finish_reason for debugging truncation issues
+            import logging
+            _logger = logging.getLogger(__name__)
+            _logger.info(f"LLM streaming finished: finish_reason={finish_reason}, continuation_count={continuation_count}, assessment_len={len(assessment)}")
+
+            # Check if output was truncated due to token limit
+            # Some providers return 'max_tokens' instead of 'length'
+            is_truncated = finish_reason in ('length', 'max_tokens')
+            if is_truncated and continuation_count < MAX_CONTINUATIONS:
+                continuation_count += 1
+                # Notify user about continuation
+                cont_notice = f'\n\n---\n\U0001f504 \u5831\u544a\u56e0\u6a21\u578b\u8f38\u51fa\u9577\u5ea6\u9650\u5236\u88ab\u622a\u65b7\uff0c\u81ea\u52d5\u7e8c\u5beb\u4e2d ({continuation_count}/{MAX_CONTINUATIONS})...\n---\n\n'
+                assessment += cont_notice
+                await assess_msg.stream_token(cont_notice)
+                # Add assistant's partial response and continuation prompt to messages
+                messages.append({'role': 'assistant', 'content': assessment})
+                messages.append({'role': 'user', 'content': '\u4f60\u7684\u56de\u7b54\u56e0\u70ba\u9577\u5ea6\u9650\u5236\u88ab\u622a\u65b7\u4e86\u3002\u8acb\u5f9e\u622a\u65b7\u8655\u7e7c\u7e8c\u5b8c\u6210\u5269\u9918\u7684\u5206\u6790\u5167\u5bb9\u3002\u4e0d\u8981\u91cd\u8907\u5df2\u7d93\u5beb\u904e\u7684\u90e8\u5206\uff0c\u76f4\u63a5\u5f9e\u4e0a\u6b21\u4e2d\u65b7\u7684\u5730\u65b9\u7e7c\u7e8c\u3002'})
+            else:
+                # Max continuations reached but still truncated = token exhausted
+                if is_truncated:
+                    token_exhausted = True
+                break
+
+        # Finalize the streaming message
+        assess_msg.content = assessment
+        await assess_msg.update()
+
+        if not assessment:
+            assessment = 'ℹ️ LLM 未提供評估內容。'
+            assess_msg.content = assessment
+            await assess_msg.update()
+    except Exception as e:
+        token_exhausted = True
+        assessment = f"\u26a0\ufe0f QMS \u8a55\u4f30\u5831\u544a\u7522\u751f\u5931\u6557: {str(e)[:200]}\n\n\u8acb\u78ba\u8a8d LLM \u8a2d\u5b9a\u6b63\u78ba\u3002"
+        # Update the streaming message with the error so user sees it
+        try:
+            assess_msg.content = assessment
+            await assess_msg.update()
+        except Exception:
+            pass
+
+    # Store assessment for export
+    cl.user_session.set("last_regulatory_assessment", assessment)
+
+    # Save analysis report to persistent markdown DB for Phase 2 audit sub-agent
+    # Always save when there's meaningful content, even if truncated
+    if assessment and not assessment.startswith('\u26a0\ufe0f'):
+        try:
+            analysis_store = get_regulatory_analysis_store()
+            analysis_store.save_analysis_report(
+                analysis_content=assessment,
+                source_command="regulatory_list",
+                crawl_summary=last_crawl.get("summary") if last_crawl else None,
+                analyzed_standards=[ref.get("standard", "") for ref in aggregate],
+                analyzed_documents=[d.get("doc_id", "") for d in by_doc[:30]],
+                provider=provider_id,
+                model=model_name,
+                is_truncated=token_exhausted,
+            )
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Failed to save analysis report: {e}")
+
+    # If token was exhausted or LLM failed, auto-generate Word/Excel with truncated content
+    if token_exhausted and assessment:
+        truncation_notice = (
+            "\n\n---\n"
+            "\u26a0\ufe0f **LLM Token \u5df2\u9054\u4e0a\u9650\uff0c\u5831\u544a\u53ef\u80fd\u672a\u5b8c\u6574\u3002**\n\n"
+            "\U0001f4cb \u6b63\u5728\u81ea\u52d5\u7522\u751f\u622a\u65b7\u81f3\u76ee\u524d\u70ba\u6b62\u7684 Word \u8207 Excel \u5831\u544a..."
+        )
+        await cl.Message(content=truncation_notice).send()
+        try:
+            scan_result_for_export = cl.user_session.get("last_regulatory_scan")
+            if scan_result_for_export:
+                word_path = export_regulatory_to_word(scan_result_for_export, assessment=assessment)
+                excel_path = export_regulatory_to_excel(scan_result_for_export, assessment=assessment)
+                display_name_w = re.sub(r'^\d{14}_', '', Path(word_path).name)
+                display_name_e = re.sub(r'^\d{14}_', '', Path(excel_path).name)
+                elements = [
+                    cl.File(name=display_name_w, path=word_path, display="inline"),
+                    cl.File(name=display_name_e, path=excel_path, display="inline"),
+                ]
+                await cl.Message(
+                    content="\u2705 \u5831\u544a\u5df2\u81ea\u52d5\u7522\u751f\uff08\u5167\u5bb9\u622a\u65b7\u81f3 Token \u8017\u76e1\u8655\uff09\uff1a",
+                    elements=elements,
+                ).send()
+        except Exception as export_err:
+            import logging
+            logging.getLogger(__name__).warning(f"Auto-export on token exhaustion failed: {export_err}")
+            await cl.Message(content=f"\u26a0\ufe0f \u81ea\u52d5\u7522\u751f\u5831\u544a\u5931\u6557: {str(export_err)[:100]}").send()
+    else:
+        # Normal completion: show Word/Excel export buttons
+        actions = [
+            cl.Action(
+                name="download_regulatory_word",
+                payload={"format": "word"},
+                label="📥 Word (.docx)",
+            ),
+            cl.Action(
+                name="download_regulatory_excel",
+                payload={"format": "excel"},
+                label="📥 Excel (.xlsx)",
+            ),
+        ]
+        await cl.Message(content=base_response, actions=actions).send()
+
+    # Suggestion: update quality documents based on this analysis, then re-run
+    if assessment and not assessment.startswith('\u26a0\ufe0f'):
+        suggestion = (
+            "\n\n---\n"
+            "\U0001f4a1 **\u5efa\u8b70\uff1a** \u8acb\u5148\u4f9d\u64da\u672c\u6b21\u5206\u6790\u7d50\u679c\u66f4\u65b0\u54c1\u8cea\u6587\u4ef6\uff0c\u518d\u91cd\u65b0\u57f7\u884c\u300c\u6cd5\u898f\u6e05\u55ae\u300d\u4ee5\u9a57\u8b49\u4fee\u6539\u662f\u5426\u5b8c\u5584\u3002"
+        )
+        await cl.Message(content=suggestion).send()
+
+    return base_response
 
 
 async def handle_regulatory_export(format_type: str):
@@ -1991,15 +2923,742 @@ async def handle_regulatory_export(format_type: str):
         return None, t("regulatory.no_refs")
 
     if format_type == "word":
-        filepath = export_regulatory_to_word(scan_result)
+        assessment = cl.user_session.get("last_regulatory_assessment")
+        filepath = export_regulatory_to_word(scan_result, assessment=assessment)
         msg = t("regulatory.export_word", count=len(aggregate))
     elif format_type == "excel":
-        filepath = export_regulatory_to_excel(scan_result)
+        assessment = cl.user_session.get("last_regulatory_assessment")
+        filepath = export_regulatory_to_excel(scan_result, assessment=assessment)
         msg = t("regulatory.export_excel", count=len(aggregate))
     else:
         return None, t("regulatory.export_hint")
 
     return filepath, msg
+
+# ============================================================
+# Regulatory Update Handlers (法規清單更新)
+# ============================================================
+
+
+async def handle_regulatory_update():
+    """Handle 法規清單更新 command — crawl regulatory websites and show results."""
+    # Step 0: Show existing local regulatory references first
+    storage = get_markdown_store()
+    scan_result = storage.scan_regulatory_references()
+    aggregate = scan_result.get("aggregate", [])
+    by_doc = scan_result.get("by_document", [])
+
+    if aggregate:
+        local_lines = ["📚 **目前本地文件引用的法規清單**\n"]
+        for ref in aggregate:
+            std = ref.get("standard", "")
+            doc_ids = ref.get("referenced_by", [])
+            local_lines.append(f"- **{std}** — 引用文件數: {len(doc_ids)}")  # Bug 10: show count only
+        local_lines.append(f"\n> 共 {len(aggregate)} 項法規標準，來自 {len(by_doc)} 份文件。")
+        local_lines.append("\n---\n")
+        await cl.Message(content="\n".join(local_lines)).send()
+    else:
+        await cl.Message(content="ℹ️ 目前本地文件中尚未引用任何法規標準。\n\n---").send()
+
+    # Also show existing regulatory markdown DB stats
+    reg_md_store = get_regulatory_markdown_store()
+    reg_stats = reg_md_store.get_stats()
+    reg_active = reg_stats.get('total_active', 0)
+    if reg_active > 0:
+        by_region = reg_stats.get('by_region', {})
+        db_lines = [f"\n📂 **法規 Markdown DB** — 共 {reg_active} 份已儲存文件\n"]
+        for rg, cnt in sorted(by_region.items()):
+            db_lines.append(f"- {rg}: {cnt} 份")
+        db_lines.append("\n---")
+        await cl.Message(content="\n".join(db_lines)).send()
+
+    # Show last crawl info if any
+    result_store = get_regulatory_store()
+    last_crawl = result_store.load_last_results()
+    if last_crawl and last_crawl.get('results'):
+        last_ts = last_crawl.get('crawl_timestamp', '未知')
+        last_summary = last_crawl.get('summary', {})
+        prev_success = last_summary.get('success_count', 0)
+        prev_total = last_summary.get('total_sites', 0)
+        await cl.Message(
+            content=f"📅 上次爬取時間: {last_ts}\n"
+            f"上次結果: {prev_success}/{prev_total} 個網站成功"
+        ).send()
+
+    config_mgr = get_regulatory_config()
+    store = get_regulatory_store()
+
+    # Check if config already exists (non-first run)
+    if config_mgr.has_config():
+        selected_regions = config_mgr.get_selected_regions()
+        if selected_regions:
+            # Non-first run: crawl only selected regions
+            await cl.Message(content=t("regulatory_update.scanning_selected")).send()
+            crawler = get_regulatory_crawler()
+            crawl_results = await crawler.crawl_selected_regions(selected_regions)
+        else:
+            # Config exists but no regions selected — full crawl
+            await cl.Message(content=t("regulatory_update.scanning")).send()
+            crawler = get_regulatory_crawler()
+            crawl_results = await crawler.crawl_all_regions()
+    else:
+        # First run: crawl all regions
+        await cl.Message(content=t("regulatory_update.scanning")).send()
+        crawler = get_regulatory_crawler()
+        crawl_results = await crawler.crawl_all_regions()
+
+    # Store results in session
+    cl.user_session.set("last_regulatory_update", crawl_results)
+
+    # Save crawl results to JSON
+    store.save_crawl_results(crawl_results)
+
+    # Save individual markdown files to independent regulatory markdown DB
+    reg_md_store = get_regulatory_markdown_store()
+    save_result = reg_md_store.save_from_crawl_results(crawl_results)
+    saved_count = save_result.get('saved_count', 0)
+    if saved_count > 0:
+        await cl.Message(
+            content=f"💾 已儲存 {saved_count} 份法規文件至法規 Markdown DB"
+        ).send()
+    # Build per-country status summary
+    summary = crawl_results.get("summary", {})
+    results = crawl_results.get("results", [])
+
+    # Group results by region
+    region_status = {}  # region -> {"success": [...], "failed": [...]}
+    for r in results:
+        region = r.get("region", "Unknown")
+        if region not in region_status:
+            region_status[region] = {"success": [], "failed": []}
+        if r.get("crawl_status") == "success":
+            region_status[region]["success"].append(r)
+        else:
+            region_status[region]["failed"].append(r)
+
+    # Build display: which countries succeeded / failed
+    lines = [
+        f"📋 **法規清單更新結果** (成功 {summary.get('success_count', 0)}/{summary.get('total_sites', 0)} 個網站，"
+        f"耗時 {summary.get('crawl_duration_seconds', 0):.1f} 秒)\n",
+        "### ✅ 可爬取的國家/地區\n",
+    ]
+
+    success_regions = []
+    failed_regions = []
+
+    for region, status in region_status.items():
+        success_sites = status["success"]
+        failed_sites = status["failed"]
+        total_sites = len(success_sites) + len(failed_sites)
+
+        if success_sites:
+            success_regions.append(region)
+            agencies = ", ".join(s["agency"] for s in success_sites)
+            lines.append(f"- ✅ **{region}** — {len(success_sites)}/{total_sites} 個網站成功 ({agencies})")
+            # If some sites failed in this region, note them
+            for fs in failed_sites:
+                reason = fs.get("failure_reason", "未知原因")
+                lines.append(f"  - ⚠️ {fs['agency']}: {reason[:80]}")
+        else:
+            failed_regions.append(region)
+
+    if failed_regions:
+        lines.append("\n### ❌ 無法爬取的國家/地區\n")
+        for region in failed_regions:
+            failed_sites = region_status[region]["failed"]
+            for fs in failed_sites:
+                reason = fs.get("failure_reason", "未知原因")
+                lines.append(f"- ❌ **{region}** — {fs['agency']}: {reason[:100]}")
+
+    # Ask user which countries to keep
+    lines.append("\n---\n")
+    lines.append("### 📝 請選擇要追蹤的法規地區\n")
+    lines.append("您可以使用以下任一方式選擇：")
+    lines.append("- 輸入編號：`1,2,5` 或 `1 2 5`")
+    lines.append("- 輸入地區名稱：`美國、日本、台灣` 或 `USA, Japan`")
+    lines.append("- 只保留特定地區：`只保留美國` 或 `只要歐盟和日本`")
+    lines.append("- 排除特定地區：`除了中國以外都要`")
+    lines.append("- 全部保留：`全部` 或 `all`")
+    lines.append("- 刪除特定法規：`刪除 FDA` 或 `刪除 ISO 13485`")
+    lines.append("- 或直接點擊下方按鈕\n")
+
+    available_regions = get_available_regions()
+    for i, region in enumerate(available_regions, 1):
+        if region in success_regions:
+            lines.append(f"{i}. ✅ {region}")
+        elif region in failed_regions:
+            lines.append(f"{i}. ❌ {region} (爬取失敗)")
+        else:
+            lines.append(f"{i}. ⬜ {region}")
+
+    # Store region mapping in session for later use
+    cl.user_session.set("regulatory_available_regions", available_regions)
+    cl.user_session.set("regulatory_success_regions", success_regions)
+    cl.user_session.set("awaiting_region_selection", True)
+
+    region_display = "\n".join(lines)
+
+    actions = [
+        cl.Action(
+            name="confirm_regulatory_regions_default",
+            payload={"use_default": True},
+            label="✅ 使用預設（保留所有可爬取地區）",
+        ),
+        cl.Action(
+            name="skip_regulatory_regions",
+            payload={"skip": True},
+            label="⏭️ 跳過，直接匯出目前結果",
+        ),
+        cl.Action(
+            name="manage_regulatory_docs",
+            payload={"manage": True},
+            label="🗑️ 管理已儲存法規文件",
+        ),
+    ]
+
+    await cl.Message(content=region_display, actions=actions).send()
+
+
+async def handle_regulatory_update_rescan(selected_regions: list):
+    """Re-scan selected regions and show final results with export buttons."""
+    config_mgr = get_regulatory_config()
+    store = get_regulatory_store()
+    available_regions = get_available_regions()
+
+    # Compute excluded regions
+    excluded = [r for r in available_regions if r not in selected_regions]
+
+    # Save config
+    config_mgr.update_regions(selected_regions, excluded)
+    await cl.Message(content=t("regulatory_update.config_saved")).send()
+
+    # Cleanup: remove regulatory markdown DB entries from non-selected regions
+    reg_md_store = get_regulatory_markdown_store()
+    cleanup_result = reg_md_store.cleanup_non_selected_regions(selected_regions)
+    if cleanup_result.get("deleted_count", 0) > 0:
+        reg_md_store.purge_deleted()
+        import logging
+        logging.getLogger(__name__).info(
+            f"Cleaned up {cleanup_result['deleted_count']} docs from non-selected regions"
+        )
+
+    # Re-scan only selected regions
+    await cl.Message(content=t("regulatory_update.rescan")).send()
+    crawler = get_regulatory_crawler()
+    crawl_results = await crawler.crawl_selected_regions(selected_regions)
+
+    # Store results
+    cl.user_session.set("last_regulatory_update", crawl_results)
+    store.save_crawl_results(crawl_results)
+
+    # Save individual markdown files to independent regulatory markdown DB
+    reg_md_store = get_regulatory_markdown_store()
+    save_result = reg_md_store.save_from_crawl_results(crawl_results)
+
+    # LLM analysis for regulatory update
+    storage = get_markdown_store()
+    assessment = ""
+    try:
+        provider_id = cl.user_session.get("provider_id", "ollama")
+        model_name = cl.user_session.get("model_name", "default")
+        api_key = cl.user_session.get("api_key", "").strip()
+
+        if provider_id and model_name and (provider_id == "ollama" or api_key):
+            setup_api_key(provider_id, api_key)
+            manager = create_provider_manager(provider_id)
+            if provider_id != "ollama":
+                manager.disable_fallback = True
+
+            # Build online data for LLM (with source labels + PDF info)
+            online_parts = []
+            for r in crawl_results.get("results", []):
+                if r.get("crawl_status") == "success":
+                    content_preview = r.get("content_markdown", "")[:1500]
+                    pdf_info = ""
+                    if r.get("has_pdf") and r.get("pdf_urls"):
+                        pdf_info = f"\n  📥 PDF 可下載: {', '.join(r['pdf_urls'][:3])}"
+                    online_parts.append(
+                        f"### [來源: 🌐 網路爬取] {r['region']} — {r['agency']} ({r.get('agency_name', '')})\n"
+                        f"URL: {r['url']}\n"
+                        f"爬取日期: {r.get('crawl_timestamp', '未知')[:10]}\n"
+                        f"{content_preview}{pdf_info}"
+                    )
+            online_data = "\n\n".join(online_parts)[:8000] if online_parts else "無線上資料"
+
+            scan_result_local = storage.scan_regulatory_references()
+            aggregate_local = scan_result_local.get("aggregate", [])
+            local_parts = []
+            for ref in aggregate_local:
+                std = ref.get("standard", "")
+                docs = ref.get("referenced_by", [])
+                if isinstance(docs, list):
+                    doc_ids = docs if all(isinstance(d, str) for d in docs) else [d.get("doc_id", "") for d in docs]
+                else:
+                    doc_ids = []
+                local_parts.append(f"- {std} (引用於: {', '.join(doc_ids)})")
+            local_data = "\n".join(local_parts) if local_parts else "本地文件未引用任何法規標準"
+
+            # Build regulatory Markdown DB content for LLM
+            # IMPORTANT: Only include data from the selected regions,
+            # to prevent the LLM from citing data from other countries.
+            reg_md_store = get_regulatory_markdown_store()
+            reg_db_parts = []
+            for region in selected_regions:
+                region_docs = reg_md_store.list_documents(region=region, status='active')
+                for rd in region_docs[:10]:  # Limit per region to avoid token overflow
+                    doc_full = reg_md_store.get_document(rd.get('doc_id', ''))
+                    if doc_full:
+                        content = doc_full.get('content', '')[:800]
+                        reg_db_parts.append(
+                            f"### {rd.get('region', '')} \u2014 {rd.get('agency', '')} ({rd.get('title', '')[:60]})\n"
+                            f"\u5132\u5b58\u8def\u5f91: {rd.get('markdown_path', '')}\n"
+                            f"{content}"
+                        )
+            regulatory_db_data = '\n\n'.join(reg_db_parts) if reg_db_parts else '\u6cd5\u898f Markdown DB \u4e2d\u7121\u5df2\u5132\u5b58\u6587\u4ef6'
+
+            # Classify and split by_document into QMS internal vs regulatory uploaded
+            qms_doc_parts = []
+            regulatory_doc_parts = []
+            by_doc_local = scan_result_local.get("by_document", [])
+            for doc_info in by_doc_local[:30]:
+                doc_id = doc_info.get("doc_id", "")
+                title = doc_info.get("title", "")
+                standards = doc_info.get("standards", [])
+                version = doc_info.get("current_version", "")
+                doc_type = doc_info.get("doc_type", "OTHER")
+                doc_result = storage.get_document(doc_id)
+                content_full = ""
+                content_preview = ""
+                upload_date = "未知"
+                original_file = "未知"
+                if doc_result and doc_result.get("success"):
+                    content_full = doc_result.get("content", "")
+                    content_preview = content_full[:600]
+                    upload_date = doc_result.get("created_at", "未知")[:10]
+                    original_file = doc_result.get("original_file", "未知")
+                classification = _classify_document(doc_id, title, content_full, doc_type)
+                if classification == 'regulatory_uploaded':
+                    # Distinguish: this document IS the uploaded regulation.
+                    # Standards listed in 'standards' are referenced WITHIN this document,
+                    # NOT independently uploaded. Clarify this for the LLM.
+                    referenced_standards_note = ""
+                    if standards:
+                        referenced_standards_note = (
+                            f"\n⚠️ 注意：以下標準僅在本文件內被引用/提及，系統中並無這些標準的完整原文："
+                            f"\n{', '.join(standards)}"
+                            f"\n（請勿將這些被引用的標準視為已上傳的法規文件，它們的條文內容不可用於分析）"
+                        )
+                    regulatory_doc_parts.append(
+                        f"### [來源: 📎 手動上傳的法規文件（獨立上傳的完整原文）] {doc_id} — {title}\n"
+                        f"版本: v{version} | 上傳日期: {upload_date} | 原始檔案: {original_file}\n"
+                        f"本文件為使用者直接上傳的法規/標準完整原文，可直接引用其條文內容。"
+                        f"{referenced_standards_note}\n"
+                        f"{content_preview}"
+                    )
+                else:
+                    qms_doc_parts.append(
+                        f"### [類型: 📄 公司品質文件] {doc_id} — {title}\n"
+                        f"版本: v{version} | 上傳日期: {upload_date} | 原始檔案: {original_file}\n"
+                        f"引用標準: {', '.join(standards)}\n"
+                        f"{content_preview}"
+                    )
+            all_doc_parts = []
+            if qms_doc_parts:
+                all_doc_parts.append("## 公司品質文件（程序書/作業指導書/表單/品質手冊）")
+                all_doc_parts.extend(qms_doc_parts)
+            if regulatory_doc_parts:
+                all_doc_parts.append("## 手動上傳的法規文件（獨立上傳至系統的法規/標準完整原文，非從其他文件內引用）")
+                all_doc_parts.extend(regulatory_doc_parts)
+            # Add summary note about document counts for LLM clarity
+            if regulatory_doc_parts or qms_doc_parts:
+                summary_note = (
+                    f"\n\n---\n"
+                    f"ℹ️ 文件統計：共 {len(regulatory_doc_parts)} 份獨立上傳的法規文件，{len(qms_doc_parts)} 份公司品質文件\n"
+                    f"❗ 重要：只有標記『📎 手動上傳的法規文件』的文件才有完整原文可供分析。"
+                    f"其他在文件內被引用/提及的標準（如 EN ISO 9001:2015、IEC 62304 等）"
+                    f"僅為引用關係，系統中並無這些標準的完整條文，請勿編造其內容。"
+                )
+                all_doc_parts.append(summary_note)
+            uploaded_docs_data = "\n\n".join(all_doc_parts) if all_doc_parts else "無上傳文件"
+
+            # Build SOP content data for before/after comparison
+            sop_parts = []
+            sop_doc_ids = set()
+            for ref in aggregate_local:
+                docs = ref.get("referenced_by", [])
+                if isinstance(docs, list):
+                    for d in docs:
+                        if isinstance(d, str):
+                            sop_doc_ids.add(d)
+                        elif isinstance(d, dict):
+                            sop_doc_ids.add(d.get("doc_id", ""))
+            for sid in list(sop_doc_ids)[:15]:
+                sop_result = storage.get_document(sid)
+                if sop_result and sop_result.get("success"):
+                    sop_content = sop_result.get("content", "")
+                    sop_title = sop_result.get("title", sid)
+                    sop_ver = sop_result.get("version", "")
+                    sop_parts.append(
+                        f"### {sid} — {sop_title} (v{sop_ver})\n"
+                        f"{sop_content[:3000]}"
+                    )
+            sop_content_data = "\n\n".join(sop_parts) if sop_parts else "無可用的 SOP 內容"
+
+            # Build selected regions string for prompt
+            selected_regions_str = "、".join(selected_regions) if selected_regions else "未指定"
+
+            assessment_prompt = t(
+                "regulatory_update.assessment_prompt",
+                online_data=online_data[:8000],
+                local_data=local_data[:4000],
+                regulatory_db_data=regulatory_db_data[:6000],
+                uploaded_docs_data=uploaded_docs_data[:4000],
+                sop_content_data=sop_content_data[:20000],
+                selected_regions=selected_regions_str,
+            )
+
+            await cl.Message(content=t("regulatory_update.assessment_analyzing")).send()
+            assess_msg = cl.Message(content="")
+            await assess_msg.send()
+
+            messages = [
+                {"role": "system", "content": "你是資深醫療器材品質管理系統 (QMS) 法規合規性分析專家，具備以下專業能力：\n1. 熟悉 ISO 13485:2016、FDA 21 CFR Part 820、EU MDR 2017/745、MDSAP 等全球主要醫療器材法規\n2. 具備法規修訂歷程分析能力，能解讀監管機構的立法意圖與查核重點\n3. 能進行品質文件間的交叉比對，識別流程矛盾、時限衝突與權責不一致\n4. 能從組織管理角度評估法規變更的衝擊範圍，提出分階段實施策略\n5. 擅長在不中斷現有運作的前提下，規劃品質文件的漸進式修改路徑\n\n⚠️ 嚴格禁止事項（最高優先級）：\n- 系統中僅有標記『📎 手動上傳的法規文件』的文件才有完整原文。\n- 在其他文件（如 ISO 13485）內被『引用/提及』的標準（如 EN ISO 9001:2015、IEC 62304、GHTF 等），系統中並無這些標準的完整條文。\n- 嚴禁將『被引用的標準』視為已上傳的獨立法規文件。\n- 嚴禁編造、杜撰任何未提供的標準條文內容。\n- 若需引用某標準但系統中無該標準原文，必須標示「⚠️ 系統中無此標準原文，以下為專業判斷」。\n\n分析原則：\n- 所有建議必須具體到文件編號、章節號碼與條文內容\n- 區分事實（來自提供的資料）與推論（你的專業判斷），推論處標示「💡 專業判斷」\n- 若資料不足以做出判斷，明確標示「⚠️ 資料不足」，不得編造\n- 優先考慮對公司運作衝擊最小的修改方案"},
+                {"role": "user", "content": assessment_prompt},
+            ]
+
+            # Auto-continuation: if LLM output is truncated (finish_reason='length'),
+            # automatically send continuation requests to complete the report
+            MAX_CONTINUATIONS = 5
+            continuation_count = 0
+            token_exhausted = False
+
+            while continuation_count <= MAX_CONTINUATIONS:
+                finish_reason = None
+
+                resp = manager.completion(
+                    messages=messages,
+                    model=model_name,
+                    temperature=0.3,
+                    max_tokens=128000,
+                    stream=True,
+                    timeout=300,
+                )
+
+                try:
+                    async for chunk in _iter_stream_with_timeout(resp):
+                        if hasattr(chunk, 'choices') and chunk.choices:
+                            delta = chunk.choices[0].delta
+                            if hasattr(delta, 'content') and delta.content:
+                                assessment += delta.content
+                                await assess_msg.stream_token(delta.content)
+                            # Capture finish_reason from the last chunk
+                            _fr = getattr(chunk.choices[0], 'finish_reason', None)
+                            if _fr:
+                                finish_reason = _fr
+                except asyncio.TimeoutError:
+                    import logging
+                    logging.getLogger(__name__).warning(
+                        f"LLM streaming stalled (no chunk in {STREAMING_CHUNK_TIMEOUT}s). "
+                        f"Treating as token exhaustion. assessment_len={len(assessment)}"
+                    )
+                    token_exhausted = True
+                    break
+                except Exception as stream_err:
+                    import logging
+                    logging.getLogger(__name__).warning(f"LLM streaming error: {stream_err}")
+                    token_exhausted = True
+                    break
+
+                # Log finish_reason for debugging truncation issues
+                import logging
+                _logger = logging.getLogger(__name__)
+                _logger.info(f"LLM streaming finished: finish_reason={finish_reason}, continuation_count={continuation_count}, assessment_len={len(assessment)}")
+
+                # Check if output was truncated due to token limit
+                # Some providers return 'max_tokens' instead of 'length'
+                is_truncated = finish_reason in ('length', 'max_tokens')
+                if is_truncated and continuation_count < MAX_CONTINUATIONS:
+                    continuation_count += 1
+                    # Notify user about continuation
+                    cont_notice = f'\n\n---\n\U0001f504 \u5831\u544a\u56e0\u6a21\u578b\u8f38\u51fa\u9577\u5ea6\u9650\u5236\u88ab\u622a\u65b7\uff0c\u81ea\u52d5\u7e8c\u5beb\u4e2d ({continuation_count}/{MAX_CONTINUATIONS})...\n---\n\n'
+                    assessment += cont_notice
+                    await assess_msg.stream_token(cont_notice)
+                    # Add assistant's partial response and continuation prompt to messages
+                    messages.append({'role': 'assistant', 'content': assessment})
+                    messages.append({'role': 'user', 'content': '\u4f60\u7684\u56de\u7b54\u56e0\u70ba\u9577\u5ea6\u9650\u5236\u88ab\u622a\u65b7\u4e86\u3002\u8acb\u5f9e\u622a\u65b7\u8655\u7e7c\u7e8c\u5b8c\u6210\u5269\u9918\u7684\u5206\u6790\u5167\u5bb9\u3002\u4e0d\u8981\u91cd\u8907\u5df2\u7d93\u5beb\u904e\u7684\u90e8\u5206\uff0c\u76f4\u63a5\u5f9e\u4e0a\u6b21\u4e2d\u65b7\u7684\u5730\u65b9\u7e7c\u7e8c\u3002'})
+                else:
+                    # Max continuations reached but still truncated = token exhausted
+                    if is_truncated:
+                        token_exhausted = True
+                    break
+
+            # Finalize the streaming message
+            assess_msg.content = assessment
+            await assess_msg.update()
+
+            if not assessment:
+                assessment = 'ℹ️ LLM 未提供評估內容。'
+                assess_msg.content = assessment
+                await assess_msg.update()
+    except Exception as e:
+        token_exhausted = True
+        assessment = f"\u26a0\ufe0f QMS \u8a55\u4f30\u5831\u544a\u7522\u751f\u5931\u6557: {str(e)[:200]}"
+        import logging
+        logging.getLogger(__name__).warning(f"Regulatory update LLM assessment failed: {e}")
+        # Update the streaming message with the error so user sees it
+        try:
+            assess_msg.content = assessment
+            await assess_msg.update()
+        except Exception:
+            pass  # assess_msg might not exist if error happened before it was created
+    cl.user_session.set("last_regulatory_update_assessment", assessment)
+
+    # Save analysis report to persistent markdown DB for Phase 2 audit sub-agent
+    # Always save when there's meaningful content, even if truncated
+    if assessment and not assessment.startswith('\u26a0\ufe0f') and not assessment.startswith('\u2139\ufe0f'):
+        try:
+            analysis_store = get_regulatory_analysis_store()
+            crawl_summary = crawl_results.get("summary") if crawl_results else None
+            analysis_store.save_analysis_report(
+                analysis_content=assessment,
+                source_command="regulatory_update",
+                crawl_summary=crawl_summary,
+                analyzed_standards=[ref.get("standard", "") for ref in aggregate_local],
+                analyzed_documents=[d.get("doc_id", "") for d in by_doc_local[:30]],
+                provider=provider_id,
+                model=model_name,
+                is_truncated=token_exhausted,
+            )
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Failed to save analysis report: {e}")
+
+    # Format crawl summary (WITHOUT assessment, since it was already streamed via assess_msg)
+    response = format_regulatory_update_markdown(crawl_results, assessment=None)
+
+    # If token was exhausted, auto-generate Word/Excel with truncated content
+    if token_exhausted and assessment:
+        response += (
+            "\n\n---\n"
+            "\u26a0\ufe0f **LLM Token \u5df2\u9054\u4e0a\u9650\uff0c\u5831\u544a\u53ef\u80fd\u672a\u5b8c\u6574\u3002**\n\n"
+            "\U0001f4cb \u6b63\u5728\u81ea\u52d5\u7522\u751f\u622a\u65b7\u81f3\u76ee\u524d\u70ba\u6b62\u7684 Word \u8207 Excel \u5831\u544a..."
+        )
+        await cl.Message(content=response).send()
+        try:
+            word_path = export_regulatory_update_to_word(crawl_results, assessment=assessment)
+            excel_path = export_regulatory_update_to_excel(crawl_results, assessment=assessment)
+            display_name_w = re.sub(r'^\d{14}_', '', Path(word_path).name)
+            display_name_e = re.sub(r'^\d{14}_', '', Path(excel_path).name)
+            elements = [
+                cl.File(name=display_name_w, path=word_path, display="inline"),
+                cl.File(name=display_name_e, path=excel_path, display="inline"),
+            ]
+            await cl.Message(
+                content="\u2705 \u5831\u544a\u5df2\u81ea\u52d5\u7522\u751f\uff08\u5167\u5bb9\u622a\u65b7\u81f3 Token \u8017\u76e1\u8655\uff09\uff1a",
+                elements=elements,
+            ).send()
+        except Exception as export_err:
+            import logging
+            logging.getLogger(__name__).warning(f"Auto-export on token exhaustion failed: {export_err}")
+            await cl.Message(content=f"\u26a0\ufe0f \u81ea\u52d5\u7522\u751f\u5831\u544a\u5931\u6557: {str(export_err)[:100]}").send()
+    else:
+        actions = [
+            cl.Action(
+                name="download_regulatory_update_word",
+                payload={"format": "word"},
+                label="\U0001f4e5 Word (.docx)",
+            ),
+            cl.Action(
+                name="download_regulatory_update_excel",
+                payload={"format": "excel"},
+                label="\U0001f4e5 Excel (.xlsx)",
+            ),
+        ]
+        await cl.Message(content=response, actions=actions).send()
+
+    # Suggestion: update quality documents based on this analysis, then re-run
+    if assessment and not assessment.startswith('\u26a0\ufe0f'):
+        suggestion = (
+            "\n\n---\n"
+            "\U0001f4a1 **\u5efa\u8b70\uff1a** \u8acb\u5148\u4f9d\u64da\u672c\u6b21\u5206\u6790\u7d50\u679c\u66f4\u65b0\u54c1\u8cea\u6587\u4ef6\uff0c\u518d\u91cd\u65b0\u57f7\u884c\u300c\u6cd5\u898f\u6e05\u55ae\u66f4\u65b0\u300d\u4ee5\u9a57\u8b49\u4fee\u6539\u662f\u5426\u5b8c\u5584\u3002"
+        )
+        await cl.Message(content=suggestion).send()
+
+
+async def _show_regulatory_update_export_buttons():
+    """Show export buttons for current regulatory update results (skip rescan)."""
+    crawl_results = cl.user_session.get("last_regulatory_update")
+    if not crawl_results:
+        await cl.Message(content="⚠️ 沒有可匯出的法規更新結果。").send()
+        return
+
+    assessment = cl.user_session.get("last_regulatory_update_assessment", "")
+    response = format_regulatory_update_markdown(crawl_results, assessment=assessment)
+
+    actions = [
+        cl.Action(
+            name="download_regulatory_update_word",
+            payload={"format": "word"},
+            label="📥 Word (.docx)",
+        ),
+        cl.Action(
+            name="download_regulatory_update_excel",
+            payload={"format": "excel"},
+            label="📥 Excel (.xlsx)",
+        ),
+    ]
+
+    await cl.Message(content=response, actions=actions).send()
+
+
+async def handle_regulatory_update_export(format_type: str):
+    """Handle regulatory update export to Word/Excel."""
+    crawl_results = cl.user_session.get("last_regulatory_update")
+    if not crawl_results:
+        # Try loading from file
+        store = get_regulatory_store()
+        crawl_results = store.load_last_results()
+        if not crawl_results:
+            return None, "⚠️ 沒有可匯出的法規更新結果。請先執行「法規清單更新」。"
+
+    results = crawl_results.get("results", [])
+    if not results:
+        return None, "⚠️ 法規更新結果為空。"
+
+    total = len(results)
+    if format_type == "word":
+        assessment = cl.user_session.get("last_regulatory_update_assessment")
+        filepath = export_regulatory_update_to_word(crawl_results, assessment=assessment)
+        msg = t("regulatory_update.export_word", count=total)
+    elif format_type == "excel":
+        assessment = cl.user_session.get("last_regulatory_update_assessment")
+        filepath = export_regulatory_update_to_excel(crawl_results, assessment=assessment)
+        msg = t("regulatory_update.export_excel", count=total)
+    else:
+        return None, t("regulatory_update.export_prompt")
+
+    return filepath, msg
+
+
+# ============================================================
+# Regulatory Document Management (管理已儲存法規文件)
+# ============================================================
+
+
+async def handle_regulatory_doc_management():
+    """Show stored regulatory documents and allow deletion."""
+    reg_md_store = get_regulatory_markdown_store()
+    docs = reg_md_store.list_documents(status="active")
+
+    if not docs:
+        await cl.Message(content="ℹ️ 法規 Markdown DB 中尚無已儲存的法規文件。").send()
+        return
+
+    lines = [f"📂 **已儲存的法規文件** (共 {len(docs)} 份)\n"]
+    for i, doc in enumerate(docs, 1):
+        region = doc.get('region', '')
+        agency = doc.get('agency', '')
+        title = doc.get('title', '')[:60]
+        ts = doc.get('crawl_timestamp', '')[:10]
+        lines.append(f"{i}. **{region}** — {agency} | {title} ({ts})")
+
+    lines.append("\n---")
+    lines.append("\n### 🗑️ 刪除法規文件\n")
+    lines.append("您可以使用以下方式刪除：")
+    lines.append("- 輸入編號：`刪除 1,3,5` 或 `刪除 1 3 5`")
+    lines.append("- 輸入關鍵字：`刪除 FDA` 或 `刪除 台灣`")
+    lines.append("- 刪除全部：`刪除全部`")
+    lines.append("- 或輸入 `取消` 返回\n")
+
+    cl.user_session.set("awaiting_regulatory_delete", True)
+    cl.user_session.set("regulatory_doc_list", docs)
+
+    actions = [
+        cl.Action(
+            name="cancel_regulatory_delete",
+            payload={"cancel": True},
+            label="↩️ 取消，返回",
+        ),
+    ]
+
+    await cl.Message(content="\n".join(lines), actions=actions).send()
+
+
+async def _execute_regulatory_delete(user_input: str):
+    """Parse and execute regulatory document deletion."""
+    reg_md_store = get_regulatory_markdown_store()
+    docs = cl.user_session.get("regulatory_doc_list", [])
+    input_lower = user_input.lower().strip()
+
+    # Detect cancel
+    if input_lower in ("取消", "cancel", "返回", "back"):
+        await cl.Message(content="✅ 已取消刪除操作。").send()
+        return
+
+    # Remove delete prefix keywords
+    delete_prefixes = ["刪除", "移除", "刪掉", "去掉", "remove", "delete", "del"]
+    cleaned = input_lower
+    for prefix in delete_prefixes:
+        if cleaned.startswith(prefix):
+            cleaned = cleaned[len(prefix):].strip()
+            break
+
+    # Handle "全部" / "all"
+    if cleaned in ("全部", "all", "所有"):
+        all_doc_ids = [d.get('doc_id') for d in docs]
+        deleted_items = []
+        for doc_id in all_doc_ids:
+            result = reg_md_store.delete_document(doc_id)
+            if result.get('success'):
+                deleted_items.append(result)
+        await cl.Message(
+            content=f"🗑️ 已刪除全部 {len(deleted_items)} 份法規文件。"
+        ).send()
+        return
+
+    # Try numeric extraction
+    numbers = re.findall(r'\b(\d{1,3})\b', cleaned)
+    if numbers:
+        deleted_items = []
+        for num_str in numbers:
+            idx = int(num_str) - 1  # User input is 1-based
+            if 0 <= idx < len(docs):
+                doc = docs[idx]
+                doc_id = doc.get('doc_id', '')
+                result = reg_md_store.delete_document(doc_id)
+                if result.get('success'):
+                    deleted_items.append(result)
+        if deleted_items:
+            names = ", ".join(
+                f"{d['region']}/{d['agency']}" for d in deleted_items
+            )
+            await cl.Message(
+                content=f"🗑️ 已刪除 {len(deleted_items)} 份法規文件: {names}"
+            ).send()
+        else:
+            await cl.Message(content="⚠️ 未找到對應的文件編號。").send()
+        return
+
+    # Try keyword deletion
+    if cleaned:
+        result = reg_md_store.delete_by_keyword(cleaned)
+        count = result.get('deleted_count', 0)
+        if count > 0:
+            items = result.get('deleted_items', [])
+            names = ", ".join(
+                f"{d['region']}/{d['agency']}" for d in items[:10]
+            )
+            suffix = f" ...等" if len(items) > 10 else ""
+            await cl.Message(
+                content=f"🗑️ 已刪除 {count} 份包含 '{cleaned}' 的法規文件: {names}{suffix}"
+            ).send()
+        else:
+            await cl.Message(
+                content=f"⚠️ 未找到包含 '{cleaned}' 的法規文件。"
+            ).send()
+        return
+
+    await cl.Message(content="⚠️ 無法解析刪除指令。請輸入編號或關鍵字。").send()
 
 
 async def handle_reference_export(format_type: str):
@@ -2319,6 +3978,74 @@ async def on_download_allrecords_excel(action):
         await cl.Message(content=msg_text).send()
     await action.remove()
 
+# ============================================================
+# Regulatory Update Action Callbacks (法規清單更新)
+# ============================================================
+
+
+@cl.action_callback("confirm_regulatory_regions_default")
+async def on_confirm_regulatory_regions_default(action):
+    """Use default region selection (all successfully crawled regions)."""
+    await action.remove()
+    cl.user_session.set("awaiting_region_selection", False)
+    success_regions = cl.user_session.get("regulatory_success_regions", [])
+    if not success_regions:
+        success_regions = get_available_regions()
+    await handle_regulatory_update_rescan(success_regions)
+
+
+@cl.action_callback("skip_regulatory_regions")
+async def on_skip_regulatory_regions(action):
+    """Skip region selection, show export buttons for current results."""
+    await action.remove()
+    cl.user_session.set("awaiting_region_selection", False)
+
+    # Save config with current success regions as default
+    success_regions = cl.user_session.get("regulatory_success_regions", [])
+    available_regions = get_available_regions()
+    if success_regions:
+        excluded = [r for r in available_regions if r not in success_regions]
+        config_mgr = get_regulatory_config()
+        config_mgr.update_regions(success_regions, excluded)
+
+    await _show_regulatory_update_export_buttons()
+
+
+@cl.action_callback("download_regulatory_update_word")
+async def on_download_regulatory_update_word(action):
+    """Download regulatory update report as Word."""
+    await action.remove()
+    filepath, msg_text = await handle_regulatory_update_export("word")
+    if filepath:
+        await _send_file_download(filepath, msg_text)
+    else:
+        await cl.Message(content=msg_text).send()
+
+
+@cl.action_callback("download_regulatory_update_excel")
+async def on_download_regulatory_update_excel(action):
+    """Download regulatory update report as Excel."""
+    await action.remove()
+    filepath, msg_text = await handle_regulatory_update_export("excel")
+    if filepath:
+        await _send_file_download(filepath, msg_text)
+    else:
+        await cl.Message(content=msg_text).send()
+
+@cl.action_callback("manage_regulatory_docs")
+async def on_manage_regulatory_docs(action):
+    """Open the regulatory document management view."""
+    await action.remove()
+    cl.user_session.set("awaiting_region_selection", False)
+    await handle_regulatory_doc_management()
+
+
+@cl.action_callback("cancel_regulatory_delete")
+async def on_cancel_regulatory_delete(action):
+    """Cancel regulatory document deletion."""
+    await action.remove()
+    cl.user_session.set("awaiting_regulatory_delete", False)
+    await cl.Message(content="✅ 已取消刪除操作。").send()
 
 @cl.action_callback("download_original_file")
 async def on_download_original_file(action):
@@ -3939,6 +5666,45 @@ async def on_message(message: cl.Message):
         return
 
     # ============================================================
+    # Intercept: awaiting regulatory document deletion
+    # ============================================================
+    if cl.user_session.get("awaiting_regulatory_delete"):
+        cl.user_session.set("awaiting_regulatory_delete", False)
+        await _execute_regulatory_delete(text.strip())
+        return
+
+    # ============================================================
+    # Intercept: awaiting region selection for regulatory update
+    # ============================================================
+    if cl.user_session.get("awaiting_region_selection"):
+        cl.user_session.set("awaiting_region_selection", False)
+        user_input = text.strip()
+        input_lower = user_input.lower()
+
+        # Check if user wants to delete specific regulatory docs instead
+        delete_triggers = ["刪除", "移除", "刪掉", "去掉", "delete", "remove", "del "]
+        if any(input_lower.startswith(dt) for dt in delete_triggers):
+            await _execute_regulatory_delete(user_input)
+            return
+
+        available_regions = cl.user_session.get("regulatory_available_regions", get_available_regions())
+        success_regions = cl.user_session.get(
+            "regulatory_success_regions", available_regions
+        )
+
+        selected = _parse_region_selection(user_input, available_regions, success_regions)
+
+        if not selected:
+            # If parsing failed, default to all success regions
+            selected = success_regions if success_regions else available_regions
+            await cl.Message(content="ℹ️ 無法解析輸入，將使用預設選擇（所有可爬取地區）。").send()
+
+        region_names = ", ".join(selected)
+        await cl.Message(content=f"✅ 已選擇 {len(selected)} 個地區: {region_names}").send()
+        await handle_regulatory_update_rescan(selected)
+        return
+
+    # ============================================================
     # Command routing (both profiles) — i18n aware (20 languages)
     # ============================================================
 
@@ -4121,6 +5887,44 @@ async def on_message(message: cl.Message):
             ).send()
         return
 
+    # --- Regulatory UPDATE export (must check before download_regulatory) ---
+    if _match_cmd(text, "cmd.download_regulatory_update"):
+        if has_word_suffix:
+            filepath, msg_text = await handle_regulatory_update_export("word")
+            if filepath:
+                await _send_file_download(filepath, msg_text)
+            else:
+                await cl.Message(content=msg_text).send()
+        elif has_excel_suffix:
+            filepath, msg_text = await handle_regulatory_update_export("excel")
+            if filepath:
+                await _send_file_download(filepath, msg_text)
+            else:
+                await cl.Message(content=msg_text).send()
+        else:
+            actions = [
+                cl.Action(
+                    name="download_regulatory_update_word",
+                    payload={"format": "word"},
+                    label="📥 Word (.docx)",
+                ),
+                cl.Action(
+                    name="download_regulatory_update_excel",
+                    payload={"format": "excel"},
+                    label="📥 Excel (.xlsx)",
+                ),
+            ]
+            await cl.Message(
+                content=t("regulatory_update.export_prompt"),
+                actions=actions,
+            ).send()
+        return
+
+    # --- Regulatory UPDATE display (must check before cmd.regulatory) ---
+    if _match_cmd(text, "cmd.regulatory_update"):
+        await handle_regulatory_update()
+        return
+
     # --- Regulatory export (must check before regulatory display) ---
     if _match_cmd(text, "cmd.download_regulatory"):
         if has_word_suffix:
@@ -4239,11 +6043,13 @@ async def on_message(message: cl.Message):
             is_file_request
             and not _match_cmd(text, "cmd.download_audit")
             and not _match_cmd(text, "cmd.download_regulatory")
+            and not _match_cmd(text, "cmd.download_regulatory_update")
             and not _match_cmd(text, "cmd.download_reference")
             and not _match_cmd(text, "cmd.download_doclist")
             and not _match_cmd(text, "cmd.download_allrecords")
             and not _match_cmd(text, "cmd.audit")
             and not _match_cmd(text, "cmd.regulatory")
+            and not _match_cmd(text, "cmd.regulatory_update")
         ):
             filepath, msg_text = await handle_download(text)
             if filepath:

@@ -1,11 +1,11 @@
 @echo off
 chcp 65001 >nul 2>&1
-title AI-QMS Phase 1 Document Control - Launcher v3.4.0
+title AI-QMS Phase 1 Document Control - Launcher v3.5.0
 
 echo ========================================================
 echo  AI-QMS Phase 1 Document Control System
-echo  Version: v3.4.0 (Chainlit + Phoenix)
-echo  Date: 2026-02-25
+echo  Version: v3.5.0 (Chainlit + Phoenix)
+echo  Date: 2026-02-27
 echo ========================================================
 echo.
 echo  Architecture (v3.3.0 - Chainlit):
@@ -13,7 +13,7 @@ echo    Chainlit App:       Port 3000 (Single App, Chat Profiles)
 echo    Local LLM:          Ollama (Port 11434)
 echo    Phoenix:            Port 6006 (LLM Observability)
 echo.
-echo  v3.4.0 Features:
+echo  v3.5.0 Features (NEW):
 echo    - Chainlit UI (replaces Gradio dual-app)
 echo    - Chat Profiles: Main Agent + Doc Control
 echo    - Multilingual Signature/Stamp Detection (15+ languages)
