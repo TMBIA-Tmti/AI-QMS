@@ -51,7 +51,7 @@ https://github.com/user-attachments/assets/68cf6037-aab2-41a1-9e01-768c763d8ae1
 - 稽核報告自動生成
 
 ### v3.5.0 新增功能（強烈建議更新）
-- **法規地區自動清理** — 選擇追蹤地區後自動清除非選取地區資料，舊版自動替換為新版
+- **法規地區自動查詢** — 選擇追蹤地區後自動清除非選取地區資料，舊版自動替換為新版
 
 ### v3.4.0 新增功能
 - **Arize Phoenix 可觀測性** — 即時追蹤 LLM Token 用量、延遲、成本
@@ -312,7 +312,7 @@ The system adopts a **Main Agent + Sub-Agent** architecture, where the Main Agen
 - Automated audit report generation
 
 ### v3.5.0 New Features (Strongly Recommended Update)
-- **Regulatory Region Auto-Cleanup** — Auto-cleans non-selected region data, auto-replaces old versions with new
+- **Regulatory Region Auto-Query** — Auto-cleans non-selected region data, auto-replaces old versions with new
 
 ### v3.4.0 New Features
 - **Arize Phoenix Observability** — Real-time LLM token, latency, and cost tracking
@@ -573,7 +573,7 @@ Phoenix Dashboard: http://localhost:6006
 - 監査報告書の自動生成
 
 ### v3.5.0 新機能（強く推奨されるアップデート）
-- **法規地域自動クリーンアップ** — 非選択地域のデータを自動削除、旧バージョンを新バージョンに自動置換
+- **法規地域自動照会** — 非選択地域のデータを自動削除、旧バージョンを新バージョンに自動置換
 
 ### v3.4.0 新機能
 - **Arize Phoenix 可観測性** — リアルタイム LLM トークン・レイテンシ・コスト追跡
