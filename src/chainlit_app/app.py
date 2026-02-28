@@ -2124,27 +2124,6 @@ async def on_chat_start():
                 excel_path = report.get('final_excel_path') or report.get('baseline_excel_path', '')
 
                 if word_path and Path(word_path).exists():
-                    # Determine action button names based on command type
-                    if cmd == 'regulatory_list':
-                        word_action = 'download_regulatory_word'
-                        excel_action = 'download_regulatory_excel'
-                    else:
-                        word_action = 'download_regulatory_update_word'
-                        excel_action = 'download_regulatory_update_excel'
-
-                    actions = [
-                        cl.Action(
-                            name=word_action,
-                            payload={"format": "word"},
-                            label="📥 Word (.docx)",
-                        ),
-                        cl.Action(
-                            name=excel_action,
-                            payload={"format": "excel"},
-                            label="📥 Excel (.xlsx)",
-                        ),
-                    ]
-
                     cmd_label = '法規清單' if cmd == 'regulatory_list' else '法規清單更新'
                     status_label = '✅ 完成' if status == 'completed' else '⚠️ 基線報告' if status == 'baseline_ready' else '⚠️ 中斷'
                     notice = (
@@ -2152,7 +2131,15 @@ async def on_chat_start():
                         f'狀態：{status_label} | 時間：{created}\n'
                         f'請下載以下檔案：'
                     )
-                    await cl.Message(content=notice, actions=actions).send()
+                    # Show cached file as cl.File for direct download
+                    wname = re.sub(r"^\d{14}_", "", Path(word_path).name)
+                    elements = [cl.File(name=wname, path=word_path, display="inline")]
+                    # Also check if Excel version exists alongside
+                    excel_path = word_path.replace('.docx', '.xlsx')
+                    if Path(excel_path).exists():
+                        ename = re.sub(r"^\d{14}_", "", Path(excel_path).name)
+                        elements.append(cl.File(name=ename, path=excel_path, display="inline"))
+                    await cl.Message(content=notice, elements=elements).send()
                     mark_cache_delivered(cache_id)
     except Exception:
         pass  # Don't block startup if cache check fails
@@ -3098,21 +3085,16 @@ async def handle_regulatory_list():
                 # Cache save FIRST (guaranteed), then UI notification (best-effort)
                 save_analysis_cache(cache_id=_cache_id, command="regulatory_list", final_word_path=word_path, final_excel_path=excel_path, status="completed")
                 try:
-                    actions = [
-                        cl.Action(
-                            name="download_regulatory_word",
-                            payload={"format": "word"},
-                            label="📥 Word (.docx)",
-                        ),
-                        cl.Action(
-                            name="download_regulatory_excel",
-                            payload={"format": "excel"},
-                            label="📥 Excel (.xlsx)",
-                        ),
-                    ]
+                    elements = []
+                    if word_path and Path(word_path).exists():
+                        wname = re.sub(r"^\d{14}_", "", Path(word_path).name)
+                        elements.append(cl.File(name=wname, path=word_path, display="inline"))
+                    if excel_path and Path(excel_path).exists():
+                        ename = re.sub(r"^\d{14}_", "", Path(excel_path).name)
+                        elements.append(cl.File(name=ename, path=excel_path, display="inline"))
                     await cl.Message(
                         content="✅ 報告已自動產生（內容截斷至 Token 耗盡處）：",
-                        actions=actions,
+                        elements=elements,
                     ).send()
                 except Exception:
                     pass  # WebSocket disconnected — report is on disk + in cache
@@ -3134,21 +3116,16 @@ async def handle_regulatory_list():
                     # Cache save FIRST (guaranteed), then UI notification (best-effort)
                     save_analysis_cache(cache_id=_cache_id, command="regulatory_list", final_word_path=word_path, final_excel_path=excel_path, status="completed")
                     try:
-                        actions = [
-                            cl.Action(
-                                name="download_regulatory_word",
-                                payload={"format": "word"},
-                                label="📥 Word (.docx)",
-                            ),
-                            cl.Action(
-                                name="download_regulatory_excel",
-                                payload={"format": "excel"},
-                                label="📥 Excel (.xlsx)",
-                            ),
-                        ]
+                        elements = []
+                        if word_path and Path(word_path).exists():
+                            wname = re.sub(r"^\d{14}_", "", Path(word_path).name)
+                            elements.append(cl.File(name=wname, path=word_path, display="inline"))
+                        if excel_path and Path(excel_path).exists():
+                            ename = re.sub(r"^\d{14}_", "", Path(excel_path).name)
+                            elements.append(cl.File(name=ename, path=excel_path, display="inline"))
                         await cl.Message(
                             content=base_response,
-                            actions=actions,
+                            elements=elements,
                         ).send()
                     except Exception:
                         pass  # WebSocket disconnected — report is on disk + in cache
@@ -3162,19 +3139,7 @@ async def handle_regulatory_list():
                 logging.getLogger(__name__).warning(f"Auto-export on normal completion failed: {export_err}")
                 # Fallback: show Action buttons if auto-export fails
                 try:
-                    actions = [
-                        cl.Action(
-                            name="download_regulatory_word",
-                            payload={"format": "word"},
-                            label="📥 Word (.docx)",
-                        ),
-                        cl.Action(
-                            name="download_regulatory_excel",
-                            payload={"format": "excel"},
-                            label="📥 Excel (.xlsx)",
-                        ),
-                    ]
-                    await cl.Message(content=base_response, actions=actions).send()
+                    await cl.Message(content=base_response).send()
                 except Exception:
                     pass
         else:
@@ -3788,21 +3753,16 @@ async def handle_regulatory_update_rescan(selected_regions: list):
             # Cache save FIRST (guaranteed), then UI notification (best-effort)
             save_analysis_cache(cache_id=_cache_id_update, command="regulatory_update", final_word_path=word_path, final_excel_path=excel_path, status="completed")
             try:
-                actions = [
-                    cl.Action(
-                        name="download_regulatory_update_word",
-                        payload={"format": "word"},
-                        label="📥 Word (.docx)",
-                    ),
-                    cl.Action(
-                        name="download_regulatory_update_excel",
-                        payload={"format": "excel"},
-                        label="📥 Excel (.xlsx)",
-                    ),
-                ]
+                elements = []
+                if word_path and Path(word_path).exists():
+                    wname = re.sub(r"^\d{14}_", "", Path(word_path).name)
+                    elements.append(cl.File(name=wname, path=word_path, display="inline"))
+                if excel_path and Path(excel_path).exists():
+                    ename = re.sub(r"^\d{14}_", "", Path(excel_path).name)
+                    elements.append(cl.File(name=ename, path=excel_path, display="inline"))
                 await cl.Message(
                     content="✅ 報告已自動產生（內容截斷至 Token 耗盡處）：",
-                    actions=actions,
+                    elements=elements,
                 ).send()
             except Exception:
                 pass  # WebSocket disconnected — report is on disk + in cache
@@ -3822,21 +3782,16 @@ async def handle_regulatory_update_rescan(selected_regions: list):
                 # Cache save FIRST (guaranteed), then UI notification (best-effort)
                 save_analysis_cache(cache_id=_cache_id_update, command="regulatory_update", final_word_path=word_path, final_excel_path=excel_path, status="completed")
                 try:
-                    actions = [
-                        cl.Action(
-                            name="download_regulatory_update_word",
-                            payload={"format": "word"},
-                            label="📥 Word (.docx)",
-                        ),
-                        cl.Action(
-                            name="download_regulatory_update_excel",
-                            payload={"format": "excel"},
-                            label="📥 Excel (.xlsx)",
-                        ),
-                    ]
+                    elements = []
+                    if word_path and Path(word_path).exists():
+                        wname = re.sub(r"^\d{14}_", "", Path(word_path).name)
+                        elements.append(cl.File(name=wname, path=word_path, display="inline"))
+                    if excel_path and Path(excel_path).exists():
+                        ename = re.sub(r"^\d{14}_", "", Path(excel_path).name)
+                        elements.append(cl.File(name=ename, path=excel_path, display="inline"))
                     await cl.Message(
                         content=response,
-                        actions=actions,
+                        elements=elements,
                     ).send()
                 except Exception:
                     pass  # WebSocket disconnected — report is on disk + in cache
@@ -3845,19 +3800,7 @@ async def handle_regulatory_update_rescan(selected_regions: list):
                 logging.getLogger(__name__).warning(f"Auto-export on normal completion failed: {export_err}")
                 # Fallback: show Action buttons if auto-export fails
                 try:
-                    actions = [
-                        cl.Action(
-                            name="download_regulatory_update_word",
-                            payload={"format": "word"},
-                            label="📥 Word (.docx)",
-                        ),
-                        cl.Action(
-                            name="download_regulatory_update_excel",
-                            payload={"format": "excel"},
-                            label="📥 Excel (.xlsx)",
-                        ),
-                    ]
-                    await cl.Message(content=response, actions=actions).send()
+                    await cl.Message(content=response).send()
                 except Exception:
                     pass
         else:
@@ -3888,20 +3831,24 @@ async def _show_regulatory_update_export_buttons():
     assessment = cl.user_session.get("last_regulatory_update_assessment", "")
     response = format_regulatory_update_markdown(crawl_results, assessment=assessment)
 
-    actions = [
-        cl.Action(
-            name="download_regulatory_update_word",
-            payload={"format": "word"},
-            label="📥 Word (.docx)",
-        ),
-        cl.Action(
-            name="download_regulatory_update_excel",
-            payload={"format": "excel"},
-            label="📥 Excel (.xlsx)",
-        ),
-    ]
+    # Pre-generate Word + Excel for direct download
+    elements = []
+    try:
+        word_path = export_regulatory_update_to_word(crawl_results, assessment=assessment)
+        if word_path and Path(word_path).exists():
+            wname = re.sub(r"^\d{14}_", "", Path(word_path).name)
+            elements.append(cl.File(name=wname, path=word_path, display="inline"))
+    except Exception:
+        pass
+    try:
+        excel_path = export_regulatory_update_to_excel(crawl_results, assessment=assessment)
+        if excel_path and Path(excel_path).exists():
+            ename = re.sub(r"^\d{14}_", "", Path(excel_path).name)
+            elements.append(cl.File(name=ename, path=excel_path, display="inline"))
+    except Exception:
+        pass
 
-    await cl.Message(content=response, actions=actions).send()
+    await cl.Message(content=response, elements=elements).send()
 
 
 async def handle_regulatory_update_export(format_type: str):
@@ -6233,37 +6180,45 @@ async def on_message(message: cl.Message):
     # Document list — current formal versions only (must check before generic list)
     if _match_cmd(text, "cmd.document_list"):
         response = await handle_document_list()
-        actions = [
-            cl.Action(
-                name="download_doclist_word",
-                payload={"format": "word"},
-                label="\ud83d\udce5 Word (.docx)",
-            ),
-            cl.Action(
-                name="download_doclist_excel",
-                payload={"format": "excel"},
-                label="\ud83d\udce5 Excel (.xlsx)",
-            ),
-        ]
-        await cl.Message(content=response, actions=actions).send()
+        # Pre-generate Word + Excel for direct download
+        elements = []
+        try:
+            word_path, _ = await handle_doclist_export("word")
+            if word_path:
+                wname = re.sub(r"^\d{14}_", "", Path(word_path).name)
+                elements.append(cl.File(name=wname, path=word_path, display="inline"))
+        except Exception:
+            pass
+        try:
+            excel_path, _ = await handle_doclist_export("excel")
+            if excel_path:
+                ename = re.sub(r"^\d{14}_", "", Path(excel_path).name)
+                elements.append(cl.File(name=ename, path=excel_path, display="inline"))
+        except Exception:
+            pass
+        await cl.Message(content=response, elements=elements).send()
         return
 
     # List — all records (active + obsolete + version history)
     if _match_cmd(text, "cmd.list") or _match_cmd_exact(text, "cmd.list"):
         response = await handle_list()
-        actions = [
-            cl.Action(
-                name="download_allrecords_word",
-                payload={"format": "word"},
-                label="\ud83d\udce5 Word (.docx)",
-            ),
-            cl.Action(
-                name="download_allrecords_excel",
-                payload={"format": "excel"},
-                label="\ud83d\udce5 Excel (.xlsx)",
-            ),
-        ]
-        await cl.Message(content=response, actions=actions).send()
+        # Pre-generate Word + Excel for direct download
+        elements = []
+        try:
+            word_path, _ = await handle_allrecords_export("word")
+            if word_path:
+                wname = re.sub(r"^\d{14}_", "", Path(word_path).name)
+                elements.append(cl.File(name=wname, path=word_path, display="inline"))
+        except Exception:
+            pass
+        try:
+            excel_path, _ = await handle_allrecords_export("excel")
+            if excel_path:
+                ename = re.sub(r"^\d{14}_", "", Path(excel_path).name)
+                elements.append(cl.File(name=ename, path=excel_path, display="inline"))
+        except Exception:
+            pass
+        await cl.Message(content=response, elements=elements).send()
         return
 
     # Web Search: /web prefix → LLM Chat with Web + DB context
@@ -6397,19 +6352,23 @@ async def on_message(message: cl.Message):
     # Regulatory standards list (display only)
     if _match_cmd(text, "cmd.regulatory"):
         response = await handle_regulatory_list()
-        actions = [
-            cl.Action(
-                name="download_regulatory_word",
-                payload={"format": "word"},
-                label="\ud83d\udce5 Word (.docx)",
-            ),
-            cl.Action(
-                name="download_regulatory_excel",
-                payload={"format": "excel"},
-                label="\ud83d\udce5 Excel (.xlsx)",
-            ),
-        ]
-        await cl.Message(content=response, actions=actions).send()
+        # Pre-generate Word + Excel for direct download
+        elements = []
+        try:
+            word_path, _ = await handle_regulatory_export("word")
+            if word_path:
+                wname = re.sub(r"^\d{14}_", "", Path(word_path).name)
+                elements.append(cl.File(name=wname, path=word_path, display="inline"))
+        except Exception:
+            pass
+        try:
+            excel_path, _ = await handle_regulatory_export("excel")
+            if excel_path:
+                ename = re.sub(r"^\d{14}_", "", Path(excel_path).name)
+                elements.append(cl.File(name=ename, path=excel_path, display="inline"))
+        except Exception:
+            pass
+        await cl.Message(content=response, elements=elements).send()
         return
 
     # --- Reference export ---
@@ -6448,19 +6407,23 @@ async def on_message(message: cl.Message):
     # Audit records (display only)
     if _match_cmd(text, "cmd.audit"):
         response = await handle_audit()
-        actions = [
-            cl.Action(
-                name="download_audit_word",
-                payload={"format": "word"},
-                label="\ud83d\udce5 Word (.docx)",
-            ),
-            cl.Action(
-                name="download_audit_excel",
-                payload={"format": "excel"},
-                label="\ud83d\udce5 Excel (.xlsx)",
-            ),
-        ]
-        await cl.Message(content=response, actions=actions).send()
+        # Pre-generate Word + Excel for direct download
+        elements = []
+        try:
+            word_path, _ = await handle_audit_export("word")
+            if word_path:
+                wname = re.sub(r"^\d{14}_", "", Path(word_path).name)
+                elements.append(cl.File(name=wname, path=word_path, display="inline"))
+        except Exception:
+            pass
+        try:
+            excel_path, _ = await handle_audit_export("excel")
+            if excel_path:
+                ename = re.sub(r"^\d{14}_", "", Path(excel_path).name)
+                elements.append(cl.File(name=ename, path=excel_path, display="inline"))
+        except Exception:
+            pass
+        await cl.Message(content=response, elements=elements).send()
         return
 
     # Obsolete (prefix command: "obsolete doc_id")
