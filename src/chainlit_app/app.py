@@ -2517,6 +2517,7 @@ def _get_display_doc_type(doc_id: str, title: str, content: str, doc_type: str, 
 # Helper: wrap synchronous LLM streaming generator with per-chunk timeout
 # to prevent indefinite hangs when provider connection stalls mid-stream.
 STREAMING_CHUNK_TIMEOUT = 120  # seconds — max wait for a single chunk
+MAX_CONTINUATIONS = 15  # max auto-continuation loops when LLM output is truncated
 
 async def _iter_stream_with_timeout(sync_generator, chunk_timeout: int = STREAMING_CHUNK_TIMEOUT):
     """Yield chunks from a synchronous streaming generator with per-chunk timeout.
@@ -2719,6 +2720,7 @@ async def handle_regulatory_list():
     api_key = cl.user_session.get("api_key", "").strip()
 
     assessment = ""
+    token_exhausted = False
     try:
         setup_api_key(provider_id, api_key)
         manager = create_provider_manager(provider_id)
@@ -2751,7 +2753,6 @@ async def handle_regulatory_list():
 
         # Auto-continuation: if LLM output is truncated (finish_reason='length'),
         # automatically send continuation requests to complete the report
-        MAX_CONTINUATIONS = 5
         continuation_count = 0
         token_exhausted = False
 
@@ -2825,7 +2826,15 @@ async def handle_regulatory_list():
             await assess_msg.update()
     except Exception as e:
         token_exhausted = True
-        assessment = f"\u26a0\ufe0f QMS \u8a55\u4f30\u5831\u544a\u7522\u751f\u5931\u6557: {str(e)[:200]}\n\n\u8acb\u78ba\u8a8d LLM \u8a2d\u5b9a\u6b63\u78ba\u3002"
+        assessment = (
+            f"\u26a0\ufe0f QMS 評估報告產生失敗: {str(e)[:200]}\n\n"
+            f"📋 **可能的阻塞原因：**\n"
+            f"- 🔌 **連線中斷**：網路不穩定或 LLM 提供商服務異常\n"
+            f"- 🔑 **API Key 無效或過期**：請檢查 API Key 是否正確\n"
+            f"- 💾 **提供商限流**：API 請求頻率或 Token 配額已達提供商限制\n"
+            f"- ⚙️ **模型不支援**：所選模型可能不支援此類長文分析\n\n"
+            f"請確認 LLM 設定正確後重試。"
+        )
         # Update the streaming message with the error so user sees it
         try:
             assess_msg.content = assessment
@@ -2859,9 +2868,14 @@ async def handle_regulatory_list():
     if token_exhausted and assessment:
         truncation_notice = (
             "\n\n---\n"
-            "\u26a0\ufe0f **LLM Token \u5df2\u9054\u4e0a\u9650\uff0c\u5831\u544a\u53ef\u80fd\u672a\u5b8c\u6574\u3002**\n\n"
-            "\U0001f4cb \u6b63\u5728\u81ea\u52d5\u7522\u751f\u622a\u65b7\u81f3\u76ee\u524d\u70ba\u6b62\u7684 Word \u8207 Excel \u5831\u544a..."
-        )
+            "⚠️ **LLM 文字生成已中斷，報告可能未完整。**\n\n"
+            "📋 **可能的阻塞原因：**\n"
+            "- 🔄 **Token 輸出上限**：模型單次回覆的 Token 數量已達上限（已自動嘗試續寫 {cont} 次）\n"
+            "- ⏱️ **連線逾時**：LLM 提供商回應時間過長（超過 {timeout} 秒無新內容）\n"
+            "- 🔌 **連線中斷**：網路不穩定或 LLM 提供商服務異常\n"
+            "- 💾 **提供商限流**：API 請求頻率或 Token 配額已達提供商限制\n\n"
+            "📥 正在自動產生截斷至目前為止的 Word 與 Excel 報告..."
+        ).format(cont=MAX_CONTINUATIONS, timeout=STREAMING_CHUNK_TIMEOUT)
         await cl.Message(content=truncation_notice).send()
         try:
             scan_result_for_export = cl.user_session.get("last_regulatory_scan")
@@ -2883,20 +2897,46 @@ async def handle_regulatory_list():
             logging.getLogger(__name__).warning(f"Auto-export on token exhaustion failed: {export_err}")
             await cl.Message(content=f"\u26a0\ufe0f \u81ea\u52d5\u7522\u751f\u5831\u544a\u5931\u6557: {str(export_err)[:100]}").send()
     else:
-        # Normal completion: show Word/Excel export buttons
-        actions = [
-            cl.Action(
-                name="download_regulatory_word",
-                payload={"format": "word"},
-                label="📥 Word (.docx)",
-            ),
-            cl.Action(
-                name="download_regulatory_excel",
-                payload={"format": "excel"},
-                label="📥 Excel (.xlsx)",
-            ),
-        ]
-        await cl.Message(content=base_response, actions=actions).send()
+        # Normal completion: auto-generate Word/Excel files directly
+        # (Previously only showed cl.Action buttons, which users might miss
+        #  or which might not appear if LLM stopped mid-generation silently)
+        if assessment and not assessment.startswith('\u26a0\ufe0f'):
+            try:
+                scan_result_for_export = cl.user_session.get("last_regulatory_scan")
+                if scan_result_for_export:
+                    word_path = export_regulatory_to_word(scan_result_for_export, assessment=assessment)
+                    excel_path = export_regulatory_to_excel(scan_result_for_export, assessment=assessment)
+                    display_name_w = re.sub(r'^\d{14}_', '', Path(word_path).name)
+                    display_name_e = re.sub(r'^\d{14}_', '', Path(excel_path).name)
+                    elements = [
+                        cl.File(name=display_name_w, path=word_path, display="inline"),
+                        cl.File(name=display_name_e, path=excel_path, display="inline"),
+                    ]
+                    await cl.Message(
+                        content=base_response,
+                        elements=elements,
+                    ).send()
+                else:
+                    await cl.Message(content=base_response).send()
+            except Exception as export_err:
+                import logging
+                logging.getLogger(__name__).warning(f"Auto-export on normal completion failed: {export_err}")
+                # Fallback: show Action buttons if auto-export fails
+                actions = [
+                    cl.Action(
+                        name="download_regulatory_word",
+                        payload={"format": "word"},
+                        label="\U0001f4e5 Word (.docx)",
+                    ),
+                    cl.Action(
+                        name="download_regulatory_excel",
+                        payload={"format": "excel"},
+                        label="\U0001f4e5 Excel (.xlsx)",
+                    ),
+                ]
+                await cl.Message(content=base_response, actions=actions).send()
+        else:
+            await cl.Message(content=base_response).send()
 
     # Suggestion: update quality documents based on this analysis, then re-run
     if assessment and not assessment.startswith('\u26a0\ufe0f'):
@@ -3158,6 +3198,7 @@ async def handle_regulatory_update_rescan(selected_regions: list):
     # LLM analysis for regulatory update
     storage = get_markdown_store()
     assessment = ""
+    token_exhausted = False
     try:
         provider_id = cl.user_session.get("provider_id", "ollama")
         model_name = cl.user_session.get("model_name", "default")
@@ -3328,7 +3369,6 @@ async def handle_regulatory_update_rescan(selected_regions: list):
 
             # Auto-continuation: if LLM output is truncated (finish_reason='length'),
             # automatically send continuation requests to complete the report
-            MAX_CONTINUATIONS = 5
             continuation_count = 0
             token_exhausted = False
 
@@ -3402,7 +3442,15 @@ async def handle_regulatory_update_rescan(selected_regions: list):
                 await assess_msg.update()
     except Exception as e:
         token_exhausted = True
-        assessment = f"\u26a0\ufe0f QMS \u8a55\u4f30\u5831\u544a\u7522\u751f\u5931\u6557: {str(e)[:200]}"
+        assessment = (
+            f"\u26a0\ufe0f QMS 評估報告產生失敗: {str(e)[:200]}\n\n"
+            f"📋 **可能的阻塞原因：**\n"
+            f"- 🔌 **連線中斷**：網路不穩定或 LLM 提供商服務異常\n"
+            f"- 🔑 **API Key 無效或過期**：請檢查 API Key 是否正確\n"
+            f"- 💾 **提供商限流**：API 請求頻率或 Token 配額已達提供商限制\n"
+            f"- ⚙️ **模型不支援**：所選模型可能不支援此類長文分析\n\n"
+            f"請確認 LLM 設定正確後重試。"
+        )
         import logging
         logging.getLogger(__name__).warning(f"Regulatory update LLM assessment failed: {e}")
         # Update the streaming message with the error so user sees it
@@ -3440,9 +3488,14 @@ async def handle_regulatory_update_rescan(selected_regions: list):
     if token_exhausted and assessment:
         response += (
             "\n\n---\n"
-            "\u26a0\ufe0f **LLM Token \u5df2\u9054\u4e0a\u9650\uff0c\u5831\u544a\u53ef\u80fd\u672a\u5b8c\u6574\u3002**\n\n"
-            "\U0001f4cb \u6b63\u5728\u81ea\u52d5\u7522\u751f\u622a\u65b7\u81f3\u76ee\u524d\u70ba\u6b62\u7684 Word \u8207 Excel \u5831\u544a..."
-        )
+            "⚠️ **LLM 文字生成已中斷，報告可能未完整。**\n\n"
+            "📋 **可能的阻塞原因：**\n"
+            "- 🔄 **Token 輸出上限**：模型單次回覆的 Token 數量已達上限（已自動嘗試續寫 {cont} 次）\n"
+            "- ⏱️ **連線逾時**：LLM 提供商回應時間過長（超過 {timeout} 秒無新內容）\n"
+            "- 🔌 **連線中斷**：網路不穩定或 LLM 提供商服務異常\n"
+            "- 💾 **提供商限流**：API 請求頻率或 Token 配額已達提供商限制\n\n"
+            "📥 正在自動產生截斷至目前為止的 Word 與 Excel 報告..."
+        ).format(cont=MAX_CONTINUATIONS, timeout=STREAMING_CHUNK_TIMEOUT)
         await cl.Message(content=response).send()
         try:
             word_path = export_regulatory_update_to_word(crawl_results, assessment=assessment)
@@ -3462,19 +3515,42 @@ async def handle_regulatory_update_rescan(selected_regions: list):
             logging.getLogger(__name__).warning(f"Auto-export on token exhaustion failed: {export_err}")
             await cl.Message(content=f"\u26a0\ufe0f \u81ea\u52d5\u7522\u751f\u5831\u544a\u5931\u6557: {str(export_err)[:100]}").send()
     else:
-        actions = [
-            cl.Action(
-                name="download_regulatory_update_word",
-                payload={"format": "word"},
-                label="\U0001f4e5 Word (.docx)",
-            ),
-            cl.Action(
-                name="download_regulatory_update_excel",
-                payload={"format": "excel"},
-                label="\U0001f4e5 Excel (.xlsx)",
-            ),
-        ]
-        await cl.Message(content=response, actions=actions).send()
+        # Normal completion: auto-generate Word/Excel files directly
+        # (Previously only showed cl.Action buttons, which users might miss
+        #  or which might not appear if LLM stopped mid-generation silently)
+        if assessment and not assessment.startswith('\u26a0\ufe0f') and not assessment.startswith('\u2139\ufe0f'):
+            try:
+                word_path = export_regulatory_update_to_word(crawl_results, assessment=assessment)
+                excel_path = export_regulatory_update_to_excel(crawl_results, assessment=assessment)
+                display_name_w = re.sub(r'^\d{14}_', '', Path(word_path).name)
+                display_name_e = re.sub(r'^\d{14}_', '', Path(excel_path).name)
+                elements = [
+                    cl.File(name=display_name_w, path=word_path, display="inline"),
+                    cl.File(name=display_name_e, path=excel_path, display="inline"),
+                ]
+                await cl.Message(
+                    content=response,
+                    elements=elements,
+                ).send()
+            except Exception as export_err:
+                import logging
+                logging.getLogger(__name__).warning(f"Auto-export on normal completion failed: {export_err}")
+                # Fallback: show Action buttons if auto-export fails
+                actions = [
+                    cl.Action(
+                        name="download_regulatory_update_word",
+                        payload={"format": "word"},
+                        label="\U0001f4e5 Word (.docx)",
+                    ),
+                    cl.Action(
+                        name="download_regulatory_update_excel",
+                        payload={"format": "excel"},
+                        label="\U0001f4e5 Excel (.xlsx)",
+                    ),
+                ]
+                await cl.Message(content=response, actions=actions).send()
+        else:
+            await cl.Message(content=response).send()
 
     # Suggestion: update quality documents based on this analysis, then re-run
     if assessment and not assessment.startswith('\u26a0\ufe0f'):
