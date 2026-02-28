@@ -1,52 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
-  <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#1a6b8a;stop-opacity:1"/>
-      <stop offset="100%" style="stop-color:#0d4f6b;stop-opacity:1"/>
-    </linearGradient>
-    <linearGradient id="gold" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:#f0d68a;stop-opacity:1"/>
-      <stop offset="100%" style="stop-color:#c9a84c;stop-opacity:1"/>
-    </linearGradient>
-  </defs>
-  <!-- Background circle -->
-  <circle cx="60" cy="60" r="58" fill="url(#bg)" stroke="#0a3d52" stroke-width="2"/>
-  <!-- Inner ring -->
-  <circle cx="60" cy="60" r="52" fill="none" stroke="url(#gold)" stroke-width="1.5" opacity="0.5"/>
+  <!-- Background -->
+  <circle cx="60" cy="60" r="60" fill="#E8F4F8"/>
 
-  <!-- Clipboard body (document review) -->
-  <rect x="36" y="28" width="48" height="62" rx="4" ry="4" fill="#e8f4f8" stroke="#1a6b8a" stroke-width="1.5"/>
-  <!-- Clipboard clip -->
-  <rect x="48" y="24" width="24" height="10" rx="3" ry="3" fill="#c9a84c" stroke="#a08030" stroke-width="1"/>
-  <circle cx="60" cy="29" r="2.5" fill="#0d4f6b"/>
+  <!-- Rod of Asclepius (blue) — Font Awesome staff-snake, CC BY 4.0 -->
+  <!-- viewBox 384x512 → scale 0.17 → 65x87px -->
+  <g transform="translate(2, 17) scale(0.17)">
+    <path fill="#1565C0" d="M222.6 43.2l-.1 4.8L288 48c53 0 96 43 96 96s-43 96-96 96l-40 0 0-80 40 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-40 0-28 0-4.5 144 40.5 0c53 0 96 43 96 96s-43 96-96 96l-16 0 0-80 16 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-43 0-3.1 99.5L208.5 495l0 1c-.3 8.9-7.6 16-16.5 16s-16.2-7.1-16.5-16l0-1-1-31L136 464c-22.1 0-40-17.9-40-40s17.9-40 40-40l36 0-1-32-19 0c-53 0-96-43-96-96c0-47.6 34.6-87.1 80-94.7l0 94.7c0 8.8 7.2 16 16 16l16.5 0L164 128l-28 0-13.4 0c-9 18.9-28.3 32-50.6 32l-16 0c-30.9 0-56-25.1-56-56S25.1 48 56 48l8 0 8 0 89.5 0-.1-4.8L161 32c0-.7 0-1.3 0-1.9c.5-16.6 14.1-30 31-30s30.5 13.4 31 30c0 .6 0 1.3 0 1.9l-.4 11.2zM64 112a16 16 0 1 0 0-32 16 16 0 1 0 0 32z"/>
+  </g>
 
-  <!-- Document lines (content being reviewed) -->
-  <line x1="43" y1="44" x2="77" y2="44" stroke="#7fb8cc" stroke-width="2" stroke-linecap="round"/>
-  <line x1="43" y1="51" x2="70" y2="51" stroke="#7fb8cc" stroke-width="2" stroke-linecap="round"/>
-  <line x1="43" y1="58" x2="74" y2="58" stroke="#7fb8cc" stroke-width="2" stroke-linecap="round"/>
-  <line x1="43" y1="65" x2="62" y2="65" stroke="#7fb8cc" stroke-width="2" stroke-linecap="round"/>
-
-  <!-- Medical cross (top right of clipboard) -->
-  <rect x="66" y="68" width="14" height="14" rx="2" fill="#c0392b" opacity="0.9"/>
-  <line x1="73" y1="71" x2="73" y2="79" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
-  <line x1="69" y1="75" x2="77" y2="75" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
-
-  <!-- Caduceus / Rod of Asclepius (left side) -->
-  <!-- Staff -->
-  <line x1="28" y1="35" x2="28" y2="95" stroke="url(#gold)" stroke-width="3" stroke-linecap="round"/>
-  <!-- Wings (simplified) -->
-  <path d="M20,38 Q28,30 36,38" fill="none" stroke="url(#gold)" stroke-width="2" stroke-linecap="round"/>
-  <path d="M22,41 Q28,34 34,41" fill="none" stroke="url(#gold)" stroke-width="1.5" stroke-linecap="round"/>
-  <!-- Serpent wrapping the rod -->
-  <path d="M28,48 C35,50 35,56 28,58 C21,60 21,66 28,68 C35,70 35,76 28,78 C21,80 21,86 28,88"
-        fill="none" stroke="#2ecc71" stroke-width="2.5" stroke-linecap="round"/>
-
-  <!-- Magnifying glass (audit/review, bottom right) -->
-  <circle cx="88" cy="88" r="12" fill="none" stroke="#e8f4f8" stroke-width="3" opacity="0.9"/>
-  <line x1="96" y1="96" x2="106" y2="106" stroke="#e8f4f8" stroke-width="3.5" stroke-linecap="round" opacity="0.9"/>
-  <!-- Checkmark inside magnifier -->
-  <polyline points="82,88 86,92 94,84" fill="none" stroke="#2ecc71" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-
-  <!-- "E" letter hint at the bottom center (Eira branding) -->
-  <text x="60" y="105" text-anchor="middle" font-family="Georgia, serif" font-size="10" fill="url(#gold)" font-weight="bold" opacity="0.7">Eira</text>
+  <!-- Pen Nib (gold) — Font Awesome pen-nib, CC BY 4.0 -->
+  <!-- viewBox 512x512 → scale 0.115 → 59x59px -->
+  <g transform="translate(55, 22) scale(0.115)">
+    <path fill="#C9952B" d="M368.4 18.3L312.7 74.1 437.9 199.3l55.7-55.7c21.9-21.9 21.9-57.3 0-79.2L447.6 18.3c-21.9-21.9-57.3-21.9-79.2 0zM288 94.6l-9.2 2.8L134.7 140.6c-19.9 6-35.7 21.2-42.3 41L3.8 445.8c-3.8 11.3-1 23.9 7.3 32.4L164.7 324.7c-3-6.3-4.7-13.3-4.7-20.7c0-26.5 21.5-48 48-48s48 21.5 48 48s-21.5 48-48 48c-7.4 0-14.4-1.7-20.7-4.7L33.7 500.9c8.6 8.3 21.1 11.2 32.4 7.3l264.3-88.6c19.7-6.6 35-22.4 41-42.3l43.2-144.1 2.7-9.2L288 94.6z"/>
+  </g>
 </svg>

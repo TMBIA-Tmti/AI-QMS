@@ -1872,6 +1872,9 @@ async def on_settings_update(settings):
             # Returning user or subsequent LLM changes — show only Eira intro
             intro = t("eira.introduction", name=_user_name)
             await cl.Message(content=intro, author="Eira").send()
+        elif cl.user_session.get("awaiting_user_name"):
+            # User switched provider before entering name — re-prompt
+            await cl.Message(content=t("eira.ask_name"), author="Eira").send()
     else:
         cl.user_session.set("model_name", selected_model)
         settings_msg = t(
@@ -1905,6 +1908,9 @@ async def on_settings_update(settings):
             # Returning user or subsequent LLM changes — show only Eira intro
             intro = t("eira.introduction", name=_user_name)
             await cl.Message(content=intro, author="Eira").send()
+        elif cl.user_session.get("awaiting_user_name"):
+            # User switched model before entering name — re-prompt
+            await cl.Message(content=t("eira.ask_name"), author="Eira").send()
     # Silently persist settings to file for auto-reconnect (no UI feedback)
     _user_name = cl.user_session.get("user_name", "")
     save_user_settings(
@@ -1993,9 +1999,14 @@ async def _regulatory_background_scheduler():
 
 @cl.on_chat_start
 async def on_chat_start():
-    """Initialize chat session"""
+    """Initialize chat session (guarded against duplicate calls)"""
     profile = cl.user_session.get("chat_profile")
     ensure_upload_folder()
+
+    # Guard against duplicate on_chat_start calls (Chainlit may fire twice with chat profiles)
+    if cl.user_session.get("_chat_started"):
+        return
+    cl.user_session.set("_chat_started", True)
 
     # Eira avatar: Chainlit 2.9+ auto-loads from /public/avatars/eira.svg by author name
 

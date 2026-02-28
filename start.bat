@@ -112,18 +112,16 @@ echo  [2] Start Chainlit + Ollama
 echo  [3] Start Chainlit + Phoenix (Observability)
 echo  [4] Check Services Status
 echo  [5] Stop All Services
-echo  [6] Legacy: Gradio Agents (Deprecated)
-echo  [7] Exit
+echo  [6] Exit
 echo.
-set /p choice="Enter choice (1-7): "
+set /p choice="Enter choice (1-6): "
 
 if "%choice%"=="1" goto start_chainlit
 if "%choice%"=="2" goto start_all
 if "%choice%"=="3" goto start_phoenix
 if "%choice%"=="4" goto status
 if "%choice%"=="5" goto stop_all
-if "%choice%"=="6" goto legacy_gradio
-if "%choice%"=="7" goto end
+if "%choice%"=="6" goto end
 goto end
 
 :start_chainlit
@@ -240,52 +238,6 @@ cd /d "%PROJECT_DIR%"
 "%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port %CHAINLIT_PORT% -w
 goto check_error
 
-:legacy_gradio
-echo.
-echo ========================================================
-echo  [DEPRECATED] Gradio Agents (v2.7.0)
-echo ========================================================
-echo.
-echo  NOTE: Gradio has been replaced by Chainlit in v3.0.0.
-echo        Use option [1] for the new Chainlit interface.
-echo.
-echo  Continue with Gradio anyway? (y/n)
-set /p legacy_choice="Choice: "
-if /i not "%legacy_choice%"=="y" goto end
-
-echo.
-echo  [1] Main Agent Only (Port 3000)
-echo  [2] Sub-Agent Only (Port 7860)
-echo  [3] Both Agents
-echo.
-set /p gradio_choice="Enter choice (1-3): "
-
-if "%gradio_choice%"=="1" (
-    echo [INFO] Starting Main Agent (Gradio)...
-    start "" "http://localhost:3000"
-    cd /d "%PROJECT_DIR%"
-    "%QMS_PYTHON%" -m src.gradio_apps.main_agent
-    goto check_error
-)
-if "%gradio_choice%"=="2" (
-    echo [INFO] Starting Sub-Agent (Gradio)...
-    start "" "http://localhost:7860"
-    cd /d "%PROJECT_DIR%"
-    "%QMS_PYTHON%" -m src.gradio_apps.doc_control
-    goto check_error
-)
-if "%gradio_choice%"=="3" (
-    echo [INFO] Starting Both Agents (Gradio)...
-    start "AI-QMS Sub-Agent" cmd /c "cd /d "%PROJECT_DIR%" && "%QMS_PYTHON%" -m src.gradio_apps.doc_control"
-    timeout /t 3 >nul
-    start "" "http://localhost:3000"
-    timeout /t 1 >nul
-    start "" "http://localhost:7860"
-    cd /d "%PROJECT_DIR%"
-    "%QMS_PYTHON%" -m src.gradio_apps.main_agent
-    goto check_error
-)
-goto end
 
 :status
 echo.
@@ -327,16 +279,6 @@ if "%PHOENIX_FOUND_PORT%"=="" (
 )
 echo.
 
-:: Check Legacy Gradio Sub-Agent (port 7860)
-echo [Legacy Sub-Agent - Gradio (Deprecated)]
-netstat -ano 2>nul | find ":7860" | find "LISTENING" >nul
-if errorlevel 1 (
-    echo   Status: STOPPED
-) else (
-    echo   Status: RUNNING
-    echo   URL: http://localhost:7860
-)
-echo.
 pause
 goto end
 
@@ -348,22 +290,16 @@ echo ========================================================
 echo.
 
 :: Stop Chainlit (scan ports 3000-3010 for chainlit process)
-echo [1/4] Stopping Chainlit App...
+echo [1/3] Stopping Chainlit App...
 call :stop_chainlit_ports
 
 :: Stop Phoenix (scan ports 6006-6016 for phoenix process)
-echo [2/4] Stopping Phoenix...
+echo [2/3] Stopping Phoenix...
 call :stop_phoenix_ports
 
-:: Stop Legacy Sub-Agent (port 7860)
-echo [3/4] Stopping Legacy Sub-Agent...
-for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| find ":7860" ^| find "LISTENING"') do (
-    taskkill /PID %%a /F >nul 2>&1
-)
-echo      Done
 
 :: Note about Ollama
-echo [4/4] Ollama...
+echo [3/3] Ollama...
 echo      (Ollama runs as system service, not stopping)
 
 echo.

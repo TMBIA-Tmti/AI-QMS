@@ -4,6 +4,13 @@ Saves and loads user preferences (LLM provider, model, API key, user name)
 to data/user_settings/<user_hash>.json so settings survive browser
 disconnection/restart and multiple users don't overwrite each other.
 
+TTL (Time-To-Live):
+  Settings auto-expire after _SETTINGS_TTL_SECONDS of inactivity.
+  Each save/interaction refreshes updated_at; if the gap between
+  updated_at and current time exceeds TTL, the settings file is
+  deleted and load returns {}. This prevents stale credentials
+  from persisting after a user disconnects.
+
 Architecture:
   data/user_settings/
     _last_user.json          — stores last active user_id (for auto-load)
@@ -18,10 +25,16 @@ import hashlib
 import json
 import base64
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 
 _SETTINGS_DIR = Path(__file__).parent.parent.parent / "data" / "user_settings"
 _LAST_USER_PATH = _SETTINGS_DIR / "_last_user.json"
+
+# Time-To-Live for saved settings (seconds).
+# After this many seconds of inactivity (no save/update), settings are
+# considered expired and will be auto-deleted on next load attempt.
+# 90 seconds = middle of user-requested 60-100s range.
+_SETTINGS_TTL_SECONDS = 90
 
 # Legacy single-file path (for migration)
 _LEGACY_PATH = Path(__file__).parent.parent.parent / "data" / "user_settings.json"
@@ -117,7 +130,7 @@ def load_user_settings(user_id: str = "") -> dict:
     Args:
         user_id: Explicit user identifier. If empty, loads last active user.
 
-    Returns empty dict if not found.
+    Returns empty dict if not found or if settings have expired (TTL exceeded).
     """
     _SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -147,6 +160,20 @@ def load_user_settings(user_id: str = "") -> dict:
     try:
         with open(path, "r", encoding="utf-8") as f:
             settings = json.load(f)
+
+        # --- TTL check ---
+        updated_str = settings.get("updated_at", "")
+        if updated_str:
+            try:
+                updated_at = datetime.fromisoformat(updated_str)
+                if datetime.now() - updated_at > timedelta(seconds=_SETTINGS_TTL_SECONDS):
+                    # Settings expired — delete file and last-user pointer
+                    path.unlink(missing_ok=True)
+                    _LAST_USER_PATH.unlink(missing_ok=True)
+                    return {}
+            except (ValueError, TypeError):
+                pass  # Malformed timestamp — proceed without TTL enforcement
+
         # Decode API key
         if settings.get("api_key_b64"):
             settings["api_key"] = base64.b64decode(settings["api_key_b64"]).decode()
