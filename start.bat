@@ -5,24 +5,18 @@ title AI-QMS Phase 1 Document Control - Launcher v3.5.0
 echo ========================================================
 echo  AI-QMS Phase 1 Document Control System
 echo  Version: v3.5.0 (Chainlit + Phoenix)
-echo  Date: 2026-02-27
+echo  Date: 2026-02-28
 echo ========================================================
 echo.
-echo  Architecture (v3.3.0 - Chainlit):
+echo  Architecture (Chainlit):
 echo    Chainlit App:       Port 3000 (Single App, Chat Profiles)
 echo    Local LLM:          Ollama (Port 11434)
 echo    Phoenix:            Port 6006 (LLM Observability)
 echo.
-echo  v3.5.0 Features (NEW):
-echo    - Chainlit UI (replaces Gradio dual-app)
-echo    - Chat Profiles: Main Agent + Doc Control
-echo    - Multilingual Signature/Stamp Detection (15+ languages)
-echo    - Document Obsolete Feature
-echo    - LLM Model List Auto-Update on Startup
-echo    - 16 LLM Providers (OpenAI, Anthropic, Google, Ollama...)
-echo    - /web Web Search with Source Credibility Ranking
-echo    - 20-Language i18n Support
-echo    - Arize Phoenix LLM Observability (Tracing, Prompts)
+echo  v3.5.0 - Regulatory Region Auto-Query, Disconnect Resilience, Eira AI Assistant
+echo  v3.4.0 - Arize Phoenix LLM Observability, One-Click Launch + Auto-Update
+echo  v3.3.0 - /web Web Search with Source Credibility Ranking
+echo  v3.2.0 - 20-Language i18n, 16 LLM Providers, Chat Profiles
 echo.
 echo ========================================================
 

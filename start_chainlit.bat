@@ -5,28 +5,19 @@ title AI-QMS Phase 1 - Chainlit v3.5.0
 echo ========================================================
 echo  AI-QMS Phase 1 Document Control System
 echo  Version: v3.5.0 (Chainlit + Phoenix)
-echo  Date: 2026-02-27
+echo  Date: 2026-02-28
 echo ========================================================
 echo.
-echo  Architecture (v3.5.0 - Chainlit + Phoenix):
+echo  Architecture (Chainlit + Phoenix):
 echo    Single App:         Chainlit (Port 3000)
 echo    Chat Profiles:      Main Agent + Doc Control
 echo    Local LLM:          Ollama (Port 11434)
 echo    LLM Observability:  Phoenix (Port 6006)
 echo.
-echo  v3.5.0 Features (NEW):
-echo    - Chainlit UI (replaces Gradio dual-app)
-echo    - Chat Profiles: Main Agent + Doc Control
-echo    - Arize Phoenix LLM Observability (auto-start)
-echo    - OpenTelemetry Auto-Instrumentation
-echo    - Multilingual Signature/Stamp Detection (15+ languages)
-echo    - Document Obsolete Feature
-echo    - LLM Model List Auto-Update on Startup
-echo    - 16 LLM Providers (OpenAI, Anthropic, Google, Ollama...)
-echo    - /web Web Search with Source Credibility Ranking
-echo    - 20-Language i18n Support
-echo    - File Upload with OCR Processing
-echo    - Audit Log with SHA-256 Hash Chain
+echo  v3.5.0 - Regulatory Region Auto-Query, Disconnect Resilience, Eira AI Assistant
+echo  v3.4.0 - Arize Phoenix LLM Observability, One-Click Launch + Auto-Update
+echo  v3.3.0 - /web Web Search with Source Credibility Ranking
+echo  v3.2.0 - 20-Language i18n, 16 LLM Providers, Chat Profiles
 echo.
 echo ========================================================
 
