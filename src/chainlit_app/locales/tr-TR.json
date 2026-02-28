@@ -273,7 +273,7 @@
     "çevrimiçi ara"
   ],
   "reference.export_hint": "📋 Şu anda desteklenenler:\n\n📄 **{filename}**",
-  "eira.ask_name": "Merhaba! Ben Eira 🏥\n\nLütfen önce sol taraftaki ⚙️ ayarlar panelinden LLM sağlayıcınızı, modelinizi seçin ve API Key girin, ardından aşağıya adınızı yazın.",
+  "eira.ask_name": "Merhaba! Ben Eira 🏥\n\nLütfen aşağıya adınızı yazın.",
   "eira.name_empty": "Lütfen adınızı girin, sizi tanımak isterim 😊",
   "eira.introduction": "**{name}** kullanıcısını **TMBIA-Tmti** (Taiwan Medical and Biotech Industry Association, Tayvan Tıbbi ve Biyoteknoloji Cihazları Sanayi Derneği) tarafından geliştirilen **AI-QMS** projesine hoş geldiniz.\n\nBenim adım **Eira**; çeşitli ülkelerin tıbbi cihaz mevzuatını anlamanıza yardımcı olmak, yapay zeka destekli kalite yönetimi ile uyumluluk ve güvenliği sağlamak için buradayım.\n\n⚠️ **Önemli Uyarı:** Eira tarafından sunulan tüm değerlendirmeler, analizler ve öneriler yalnızca **referans** amaçlıdır; resmi değerlendirme belgesi olarak kullanılamaz. Kullanıcılar, Eira tarafından sağlanan tüm içeriklerin doğruluğunu ve uygulanabilirliğini bizzat doğrulamalıdır."
 }

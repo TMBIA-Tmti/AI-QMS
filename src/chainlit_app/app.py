@@ -1861,11 +1861,17 @@ async def on_settings_update(settings):
             test_msg.content = t("settings.connection_failed", error=str(e))
             await test_msg.update()
 
-        if language_changed:
+        # Show Eira introduction after LLM connection
+        _user_name = cl.user_session.get("user_name", "")
+        if _user_name:
+            profile = cl.user_session.get("chat_profile")
+            doc_count, doc_limit = get_document_count()
+            await _send_eira_introduction(_user_name, profile, doc_count, doc_limit)
+        elif language_changed:
             await cl.Message(content=t("settings.language_changed")).send()
             profile = cl.user_session.get("chat_profile")
             doc_count, doc_limit = get_document_count()
-            if profile == "文件管制 (Doc Control)":
+            if profile == "\u6587\u4ef6\u7ba1\u5236 (Doc Control)":
                 welcome = (
                     f"{t('welcome.doc_control.title')}\n\n"
                     f"{t('welcome.doc_control.greeting')}\n\n"
@@ -1904,7 +1910,14 @@ async def on_settings_update(settings):
             test_msg.content = t("settings.connection_failed", error=str(e))
             await test_msg.update()
 
-    # Persist settings to file for auto-reconnect
+        # Show Eira introduction after LLM connection
+        _user_name = cl.user_session.get("user_name", "")
+        if _user_name:
+            profile = cl.user_session.get("chat_profile")
+            doc_count, doc_limit = get_document_count()
+            await _send_eira_introduction(_user_name, profile, doc_count, doc_limit)
+
+    # Silently persist settings to file for auto-reconnect (no UI feedback)
     _user_name = cl.user_session.get("user_name", "")
     save_user_settings(
         user_name=_user_name,
@@ -1996,6 +2009,9 @@ async def on_chat_start():
     profile = cl.user_session.get("chat_profile")
     ensure_upload_folder()
 
+    # Register Eira avatar for all Eira-authored messages
+    await cl.Avatar(name="Eira", path="public/avatars/eira.svg").send()
+
     # Start background regulatory scheduler (first user only)
     global _regulatory_scheduler_started
     if not _regulatory_scheduler_started:
@@ -2075,7 +2091,8 @@ async def on_chat_start():
         # New user — ask for name
         cl.user_session.set("awaiting_user_name", True)
         await cl.Message(
-            content=t("eira.ask_name")
+            content=t("eira.ask_name"),
+            author="Eira"
         ).send()
 
     # Check for pending reports from previous disconnected sessions
@@ -2114,24 +2131,29 @@ async def on_chat_start():
         pass  # Don't block startup if cache check fails
 
 async def _send_eira_introduction(user_name: str, profile: str, doc_count: int, doc_limit: int):
-    """Send Eira's full introduction message with user name."""
-    intro = t("eira.introduction", name=user_name)
-    await cl.Message(content=intro).send()
-
-    # Then show profile-specific instructions
+    """Send profile title + greeting + instructions first, then Eira introduction last."""
+    # 1. Profile-specific title + greeting + instructions (original welcome flow)
     if profile == "\u6587\u4ef6\u7ba1\u5236 (Doc Control)":
         instructions = (
+            f"{t('welcome.doc_control.title')}\n\n"
+            f"{t('welcome.doc_control.greeting')}\n\n"
             f"{t('welcome.doc_control.doc_count', count=doc_count, limit=doc_limit)}\n\n"
             f"{t('welcome.doc_control.instructions')}\n\n"
             f"{t('welcome.doc_control.formats')}"
         )
     else:
         instructions = (
+            f"{t('welcome.main.title')}\n\n"
+            f"{t('welcome.main.greeting')}\n\n"
             f"{t('welcome.doc_control.doc_count', count=doc_count, limit=doc_limit)}\n\n"
             f"{t('welcome.main.instructions')}\n\n"
             f"{t('welcome.main.switch_hint')}"
         )
     await cl.Message(content=instructions).send()
+
+    # 2. Eira introduction (at the end)
+    intro = t("eira.introduction", name=user_name)
+    await cl.Message(content=intro, author="Eira").send()
 
 @cl.on_chat_end
 async def on_chat_end():
@@ -6003,7 +6025,7 @@ async def on_message(message: cl.Message):
         user_name = text.strip()
         if not user_name:
             cl.user_session.set("awaiting_user_name", True)
-            await cl.Message(content=t("eira.name_empty")).send()
+            await cl.Message(content=t("eira.name_empty"), author="Eira").send()
             return
 
         cl.user_session.set("user_name", user_name)

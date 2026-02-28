@@ -272,7 +272,7 @@
     "carian web",
     "cari dalam talian"
   ],
-  "eira.ask_name": "Helo! Saya Eira 🏥\n\nSila pilih pembekal LLM, model dan masukkan API Key anda di panel tetapan ⚙️ di sebelah kiri, kemudian masukkan nama anda di bawah.",
+  "eira.ask_name": "Helo! Saya Eira 🏥\n\nSila masukkan nama anda di bawah.",
   "eira.name_empty": "Sila masukkan nama anda supaya saya dapat mengenali anda 😊",
   "eira.introduction": "Selamat datang pengguna **{name}** menggunakan projek **AI-QMS** yang dibangunkan oleh **TMBIA-Tmti**（Taiwan Medical and Biotech Industry Association，台灣醫療暨生技器材工業同業公會）.\n\nSaya **Eira**, berdedikasi untuk membantu semua pihak memahami peraturan peranti perubatan di pelbagai negara, memacu pengurusan kualiti berasaskan AI demi memastikan pematuhan dan keselamatan.\n\n⚠️ **Perisytiharan Penting:** Semua penilaian, analisis dan cadangan yang diberikan oleh Eira adalah untuk **rujukan** sahaja dan tidak boleh digunakan sebagai dokumen penilaian rasmi. Pengguna hendaklah mengesahkan sendiri ketepatan dan kesesuaian semua kandungan yang diberikan oleh Eira."
 }

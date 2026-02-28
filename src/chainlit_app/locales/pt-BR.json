@@ -275,7 +275,7 @@
     "pesquisa web",
     "pesquisar online"
   ],
-  "eira.ask_name": "Olá! Eu sou a Eira 🏥\n\nPor favor, primeiro selecione seu provedor de LLM, modelo e insira sua API Key no painel de configurações ⚙️ à esquerda, depois digite seu nome abaixo.",
+  "eira.ask_name": "Olá! Eu sou a Eira 🏥\n\nPor favor, digite seu nome abaixo.",
   "eira.name_empty": "Por favor, insira seu nome para que eu possa conhecê-lo 😊",
   "eira.introduction": "Bem-vindo, **{name}**, ao projeto **AI-QMS** desenvolvido pela **TMBIA-Tmti** (Taiwan Medical and Biotech Industry Association, Associação Industrial de Equipamentos Médicos e Biotecnológicos de Taiwan).\n\nMeu nome é **Eira**, e estou dedicada a ajudá-lo a compreender as regulamentações de dispositivos médicos de diversos países, impulsionando a gestão da qualidade com IA para garantir conformidade e segurança.\n\n⚠️ **Aviso Importante:** As avaliações, análises e recomendações fornecidas pela Eira são apenas para fins de **referência** e não devem ser utilizadas como documentos de avaliação oficiais. Os usuários devem verificar de forma independente a precisão e a aplicabilidade de todo o conteúdo fornecido pela Eira."
 }

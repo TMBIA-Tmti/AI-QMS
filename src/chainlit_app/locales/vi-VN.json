@@ -273,7 +273,7 @@
     "tìm kiếm web",
     "tìm trên mạng"
   ],
-  "eira.ask_name": "Xin chào! Tôi là Eira 🏥\n\nVui lòng chọn nhà cung cấp LLM, mô hình và nhập API Key trong bảng cài đặt ⚙️ ở bên trái, sau đó nhập tên của bạn vào bên dưới.",
+  "eira.ask_name": "Xin chào! Tôi là Eira 🏥\n\nVui lòng nhập tên của bạn vào bên dưới.",
   "eira.name_empty": "Vui lòng nhập tên của bạn để tôi có thể làm quen với bạn 😊",
   "eira.introduction": "Chào mừng người dùng **{name}** đến với dự án **AI-QMS** được phát triển bởi **TMBIA-Tmti** (Taiwan Medical and Biotech Industry Association, Hiệp hội Công nghiệp Thiết bị Y tế và Công nghệ Sinh học Đài Loan).\n\nTôi là **Eira**, cam kết hỗ trợ mọi người hiểu rõ các quy định về thiết bị y tế của từng quốc gia, ứng dụng AI để quản lý chất lượng, đảm bảo tuân thủ và an toàn.\n\n⚠️ **Tuyên bố quan trọng:** Các đánh giá, phân tích và khuyến nghị do Eira cung cấp chỉ mang tính chất **tham khảo** và không được sử dụng làm tài liệu đánh giá chính thức. Người dùng cần tự xác nhận tính chính xác và phù hợp của tất cả nội dung do Eira cung cấp."
 }

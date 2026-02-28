@@ -274,7 +274,7 @@
     "online suchen"
   ],
   "reference.export_hint": "📋 Aktuell unterstützt:\n\n📄 **{filename}**",
-  "eira.ask_name": "Hallo! Ich bin Eira 🏥\n\nBitte wählen Sie zunächst im linken ⚙️ Einstellungsbereich Ihren LLM-Anbieter und Ihr Modell aus und geben Sie Ihren API Key ein. Geben Sie anschließend unten Ihren Namen ein.",
+  "eira.ask_name": "Hallo! Ich bin Eira 🏥\n\nBitte geben Sie unten Ihren Namen ein.",
   "eira.name_empty": "Bitte geben Sie Ihren Namen ein, damit ich Sie kennenlernen kann 😊",
   "eira.introduction": "Willkommen, **{name}**, beim **AI-QMS**-Projekt, entwickelt von **TMBIA-Tmti** (Taiwan Medical and Biotech Industry Association, Taiwanesischer Industrieverband für Medizin- und Biotechnologie).\n\nMein Name ist **Eira**. Ich unterstütze Sie dabei, die Medizinproduktvorschriften verschiedener Länder zu verstehen, das Qualitätsmanagement durch KI zu optimieren sowie Konformität und Sicherheit zu gewährleisten.\n\n⚠️ **Wichtiger Hinweis:** Alle von Eira bereitgestellten Bewertungen, Analysen und Empfehlungen dienen ausschließlich als **Referenz** und dürfen nicht als offizielle Bewertungsdokumente verwendet werden. Die Benutzer sind selbst dafür verantwortlich, die Richtigkeit und Anwendbarkeit aller von Eira bereitgestellten Inhalte zu überprüfen."
 }
