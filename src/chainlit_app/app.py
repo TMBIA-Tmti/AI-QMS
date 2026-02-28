@@ -2126,10 +2126,10 @@ async def on_chat_start():
                 if word_path and Path(word_path).exists():
                     elements = []
                     if word_path and Path(word_path).exists():
-                        display_w = re.sub(r'^\d{14}_', '', Path(word_path).name)
+                        display_w = re.sub(r'_\d{8}_\d{6}', '', Path(word_path).name)
                         elements.append(cl.File(name=display_w, path=word_path, display='inline'))
                     if excel_path and Path(excel_path).exists():
-                        display_e = re.sub(r'^\d{14}_', '', Path(excel_path).name)
+                        display_e = re.sub(r'_\d{8}_\d{6}', '', Path(excel_path).name)
                         elements.append(cl.File(name=display_e, path=excel_path, display='inline'))
 
                     cmd_label = '法規清單' if cmd == 'regulatory_list' else '法規清單更新'
@@ -2934,7 +2934,7 @@ async def handle_regulatory_list():
         await assess_msg.send()
 
         messages = [
-            {"role": "system", "content": "你是資深醫療器材品質管理系統 (QMS) 法規合規性分析專家，具備以下專業能力：\n1. 熟悉 ISO 13485:2016、FDA 21 CFR Part 820、EU MDR 2017/745、MDSAP 等全球主要醫療器材法規\n2. 具備法規修訂歷程分析能力，能解讀監管機構的立法意圖與查核重點\n3. 能進行品質文件間的交叉比對，識別流程矛盾、時限衝突與權責不一致\n4. 能從組織管理角度評估法規變更的衝擊範圍，提出分階段實施策略\n5. 擅長在不中斷現有運作的前提下，規劃品質文件的漸進式修改路徑\n\n⚠️ 嚴格禁止事項（最高優先級）：\n- 系統中僅有標記『📎 手動上傳的法規文件』的文件才有完整原文。\n- 在其他文件（如 ISO 13485）內被『引用/提及』的標準（如 EN ISO 9001:2015、IEC 62304、GHTF 等），系統中並無這些標準的完整條文。\n- 嚴禁將『被引用的標準』視為已上傳的獨立法規文件。\n- 嚴禁編造、杜撰任何未提供的標準條文內容。\n- 若需引用某標準但系統中無該標準原文，必須標示「⚠️ 系統中無此標準原文，以下為專業判斷」。\n\n分析原則：\n- 所有建議必須具體到文件編號、章節號碼與條文內容\n- 區分事實（來自提供的資料）與推論（你的專業判斷），推論處標示「💡 專業判斷」\n- 若資料不足以做出判斷，明確標示「⚠️ 資料不足」，不得編造\n- 優先考慮對公司運作衝擊最小的修改方案"},
+            {"role": "system", "content": "你是資深醫療器材品質管理系統 (Quality Management System, QMS) 法規合規性分析專家，具備以下專業能力：\n1. 熟悉 ISO 13485:2016、FDA 21 CFR Part 820 QMSR (Quality Management System Regulation)、EU MDR 2017/745、MDSAP 等全球主要醫療器材法規\n2. 具備法規修訂歷程分析能力，能解讀監管機構 (Regulatory Authority) 的立法意圖與查核重點\n3. 能進行品質文件間的交叉比對，識別流程矛盾、時限衝突與權責不一致\n4. 能從組織管理角度評估法規變更的衝擊範圍 (Change Impact)，提出分階段矯正策略 (Remediation Strategy)\n5. 擅長在不中斷現有運作的前提下，規劃品質文件的漸進式修改路徑\n\n⚠️ 嚴格禁止事項（最高優先級）：\n- 系統中僅有標記『📎 手動上傳的法規文件』的文件才有完整原文。\n- 在其他文件（如 ISO 13485）內被『引用/提及』的標準（如 EN ISO 9001:2015、IEC 62304、GHTF 等），系統中並無這些標準的完整條文。\n- 嚴禁將『被引用的標準』視為已上傳的獨立法規文件。\n- 嚴禁編造、杜撰任何未提供的標準條文內容。\n- 若需引用某標準但系統中無該標準原文，必須標示「⚠️ 系統中無此標準原文，以下為專業判斷」。\n\n分析原則：\n- 所有建議必須具體到文件編號、章節號碼與條文內容\n- 區分事實（來自提供的資料）與推論（你的專業判斷），推論處標示「💡 專業判斷」\n- 若資料不足以做出判斷，明確標示「⚠️ 資料不足」，不得編造\n- 優先考慮對公司運作衝擊最小的修改方案\n\n📝 用語規範：\n- 所有法規專業術語必須採用「中文 (English)」雙語格式，與 FDA QMSR、EU MDR、ISO 13485 國際主流用語一致\n- 例如：矯正措施 (Corrective Action)、不符合事項 (Non-conformity)、缺漏分析 (Gap Analysis)、風險管理 (Risk Management)\n- FDA 已於 2026 年施行 QMSR，以 ISO 13485:2016 取代舊版 QSR，報告中應使用 QMSR 而非 QSR"},
             {"role": "user", "content": assessment_prompt},
         ]
 
@@ -3087,8 +3087,8 @@ async def handle_regulatory_list():
                 # Cache save FIRST (guaranteed), then UI notification (best-effort)
                 save_analysis_cache(cache_id=_cache_id, command="regulatory_list", final_word_path=word_path, final_excel_path=excel_path, status="completed")
                 try:
-                    display_name_w = re.sub(r'^\d{14}_', '', Path(word_path).name)
-                    display_name_e = re.sub(r'^\d{14}_', '', Path(excel_path).name)
+                    display_name_w = re.sub(r'_\d{8}_\d{6}', '', Path(word_path).name)
+                    display_name_e = re.sub(r'_\d{8}_\d{6}', '', Path(excel_path).name)
                     elements = [
                         cl.File(name=display_name_w, path=word_path, display="inline"),
                         cl.File(name=display_name_e, path=excel_path, display="inline"),
@@ -3117,8 +3117,8 @@ async def handle_regulatory_list():
                     # Cache save FIRST (guaranteed), then UI notification (best-effort)
                     save_analysis_cache(cache_id=_cache_id, command="regulatory_list", final_word_path=word_path, final_excel_path=excel_path, status="completed")
                     try:
-                        display_name_w = re.sub(r'^\d{14}_', '', Path(word_path).name)
-                        display_name_e = re.sub(r'^\d{14}_', '', Path(excel_path).name)
+                        display_name_w = re.sub(r'_\d{8}_\d{6}', '', Path(word_path).name)
+                        display_name_e = re.sub(r'_\d{8}_\d{6}', '', Path(excel_path).name)
                         elements = [
                             cl.File(name=display_name_w, path=word_path, display="inline"),
                             cl.File(name=display_name_e, path=excel_path, display="inline"),
@@ -3609,7 +3609,7 @@ async def handle_regulatory_update_rescan(selected_regions: list):
             await assess_msg.send()
 
             messages = [
-                {"role": "system", "content": "你是資深醫療器材品質管理系統 (QMS) 法規合規性分析專家，具備以下專業能力：\n1. 熟悉 ISO 13485:2016、FDA 21 CFR Part 820、EU MDR 2017/745、MDSAP 等全球主要醫療器材法規\n2. 具備法規修訂歷程分析能力，能解讀監管機構的立法意圖與查核重點\n3. 能進行品質文件間的交叉比對，識別流程矛盾、時限衝突與權責不一致\n4. 能從組織管理角度評估法規變更的衝擊範圍，提出分階段實施策略\n5. 擅長在不中斷現有運作的前提下，規劃品質文件的漸進式修改路徑\n\n⚠️ 嚴格禁止事項（最高優先級）：\n- 系統中僅有標記『📎 手動上傳的法規文件』的文件才有完整原文。\n- 在其他文件（如 ISO 13485）內被『引用/提及』的標準（如 EN ISO 9001:2015、IEC 62304、GHTF 等），系統中並無這些標準的完整條文。\n- 嚴禁將『被引用的標準』視為已上傳的獨立法規文件。\n- 嚴禁編造、杜撰任何未提供的標準條文內容。\n- 若需引用某標準但系統中無該標準原文，必須標示「⚠️ 系統中無此標準原文，以下為專業判斷」。\n\n分析原則：\n- 所有建議必須具體到文件編號、章節號碼與條文內容\n- 區分事實（來自提供的資料）與推論（你的專業判斷），推論處標示「💡 專業判斷」\n- 若資料不足以做出判斷，明確標示「⚠️ 資料不足」，不得編造\n- 優先考慮對公司運作衝擊最小的修改方案"},
+                {"role": "system", "content": "你是資深醫療器材品質管理系統 (Quality Management System, QMS) 法規合規性分析專家，具備以下專業能力：\n1. 熟悉 ISO 13485:2016、FDA 21 CFR Part 820 QMSR (Quality Management System Regulation)、EU MDR 2017/745、MDSAP 等全球主要醫療器材法規\n2. 具備法規修訂歷程分析能力，能解讀監管機構 (Regulatory Authority) 的立法意圖與查核重點\n3. 能進行品質文件間的交叉比對，識別流程矛盾、時限衝突與權責不一致\n4. 能從組織管理角度評估法規變更的衝擊範圍 (Change Impact)，提出分階段矯正策略 (Remediation Strategy)\n5. 擅長在不中斷現有運作的前提下，規劃品質文件的漸進式修改路徑\n\n⚠️ 嚴格禁止事項（最高優先級）：\n- 系統中僅有標記『📎 手動上傳的法規文件』的文件才有完整原文。\n- 在其他文件（如 ISO 13485）內被『引用/提及』的標準（如 EN ISO 9001:2015、IEC 62304、GHTF 等），系統中並無這些標準的完整條文。\n- 嚴禁將『被引用的標準』視為已上傳的獨立法規文件。\n- 嚴禁編造、杜撰任何未提供的標準條文內容。\n- 若需引用某標準但系統中無該標準原文，必須標示「⚠️ 系統中無此標準原文，以下為專業判斷」。\n\n分析原則：\n- 所有建議必須具體到文件編號、章節號碼與條文內容\n- 區分事實（來自提供的資料）與推論（你的專業判斷），推論處標示「💡 專業判斷」\n- 若資料不足以做出判斷，明確標示「⚠️ 資料不足」，不得編造\n- 優先考慮對公司運作衝擊最小的修改方案\n\n📝 用語規範：\n- 所有法規專業術語必須採用「中文 (English)」雙語格式，與 FDA QMSR、EU MDR、ISO 13485 國際主流用語一致\n- 例如：矯正措施 (Corrective Action)、不符合事項 (Non-conformity)、缺漏分析 (Gap Analysis)、風險管理 (Risk Management)\n- FDA 已於 2026 年施行 QMSR，以 ISO 13485:2016 取代舊版 QSR，報告中應使用 QMSR 而非 QSR"},
                 {"role": "user", "content": assessment_prompt},
             ]
 
@@ -3765,8 +3765,8 @@ async def handle_regulatory_update_rescan(selected_regions: list):
             # Cache save FIRST (guaranteed), then UI notification (best-effort)
             save_analysis_cache(cache_id=_cache_id_update, command="regulatory_update", final_word_path=word_path, final_excel_path=excel_path, status="completed")
             try:
-                display_name_w = re.sub(r'^\d{14}_', '', Path(word_path).name)
-                display_name_e = re.sub(r'^\d{14}_', '', Path(excel_path).name)
+                display_name_w = re.sub(r'_\d{8}_\d{6}', '', Path(word_path).name)
+                display_name_e = re.sub(r'_\d{8}_\d{6}', '', Path(excel_path).name)
                 elements = [
                     cl.File(name=display_name_w, path=word_path, display="inline"),
                     cl.File(name=display_name_e, path=excel_path, display="inline"),
@@ -3793,8 +3793,8 @@ async def handle_regulatory_update_rescan(selected_regions: list):
                 # Cache save FIRST (guaranteed), then UI notification (best-effort)
                 save_analysis_cache(cache_id=_cache_id_update, command="regulatory_update", final_word_path=word_path, final_excel_path=excel_path, status="completed")
                 try:
-                    display_name_w = re.sub(r'^\d{14}_', '', Path(word_path).name)
-                    display_name_e = re.sub(r'^\d{14}_', '', Path(excel_path).name)
+                    display_name_w = re.sub(r'_\d{8}_\d{6}', '', Path(word_path).name)
+                    display_name_e = re.sub(r'_\d{8}_\d{6}', '', Path(excel_path).name)
                     elements = [
                         cl.File(name=display_name_w, path=word_path, display="inline"),
                         cl.File(name=display_name_e, path=excel_path, display="inline"),
@@ -4222,7 +4222,7 @@ async def on_cancel_delete(action):
 
 async def _send_file_download(filepath: str, msg_text: str):
     """Helper: send a file as a download with cl.File element."""
-    display_name = re.sub(r"^\d{14}_", "", Path(filepath).name)
+    display_name = re.sub(r"_\d{8}_\d{6}", "", Path(filepath).name)
     elements = [cl.File(name=display_name, path=filepath, display="inline")]
     await cl.Message(content=msg_text, elements=elements).send()
 
@@ -6183,37 +6183,39 @@ async def on_message(message: cl.Message):
     # Document list — current formal versions only (must check before generic list)
     if _match_cmd(text, "cmd.document_list"):
         response = await handle_document_list()
-        actions = [
-            cl.Action(
-                name="download_doclist_word",
-                payload={"format": "word"},
-                label="📥 Word (.docx)",
-            ),
-            cl.Action(
-                name="download_doclist_excel",
-                payload={"format": "excel"},
-                label="📥 Excel (.xlsx)",
-            ),
-        ]
-        await cl.Message(content=response, actions=actions).send()
+        # Auto-generate Word/Excel and show as inline file downloads
+        elements = []
+        try:
+            filepath_w, msg_w = await handle_doclist_export("word")
+            filepath_e, msg_e = await handle_doclist_export("excel")
+            if filepath_w:
+                display_w = re.sub(r'_\d{8}_\d{6}', '', Path(filepath_w).name)
+                elements.append(cl.File(name=display_w, path=filepath_w, display="inline"))
+            if filepath_e:
+                display_e = re.sub(r'_\d{8}_\d{6}', '', Path(filepath_e).name)
+                elements.append(cl.File(name=display_e, path=filepath_e, display="inline"))
+        except Exception:
+            pass  # If export fails, just show the list without files
+        await cl.Message(content=response, elements=elements).send()
         return
 
     # List — all records (active + obsolete + version history)
     if _match_cmd(text, "cmd.list") or _match_cmd_exact(text, "cmd.list"):
         response = await handle_list()
-        actions = [
-            cl.Action(
-                name="download_allrecords_word",
-                payload={"format": "word"},
-                label="📥 Word (.docx)",
-            ),
-            cl.Action(
-                name="download_allrecords_excel",
-                payload={"format": "excel"},
-                label="📥 Excel (.xlsx)",
-            ),
-        ]
-        await cl.Message(content=response, actions=actions).send()
+        # Auto-generate Word/Excel and show as inline file downloads
+        elements = []
+        try:
+            filepath_w, msg_w = await handle_allrecords_export("word")
+            filepath_e, msg_e = await handle_allrecords_export("excel")
+            if filepath_w:
+                display_w = re.sub(r'_\d{8}_\d{6}', '', Path(filepath_w).name)
+                elements.append(cl.File(name=display_w, path=filepath_w, display="inline"))
+            if filepath_e:
+                display_e = re.sub(r'_\d{8}_\d{6}', '', Path(filepath_e).name)
+                elements.append(cl.File(name=display_e, path=filepath_e, display="inline"))
+        except Exception:
+            pass  # If export fails, just show the list without files
+        await cl.Message(content=response, elements=elements).send()
         return
 
     # Web Search: /web prefix → LLM Chat with Web + DB context
@@ -6347,19 +6349,20 @@ async def on_message(message: cl.Message):
     # Regulatory standards list (display only)
     if _match_cmd(text, "cmd.regulatory"):
         response = await handle_regulatory_list()
-        actions = [
-            cl.Action(
-                name="download_regulatory_word",
-                payload={"format": "word"},
-                label="📥 Word (.docx)",
-            ),
-            cl.Action(
-                name="download_regulatory_excel",
-                payload={"format": "excel"},
-                label="📥 Excel (.xlsx)",
-            ),
-        ]
-        await cl.Message(content=response, actions=actions).send()
+        # Auto-generate Word/Excel and show as inline file downloads
+        elements = []
+        try:
+            filepath_w, msg_w = await handle_regulatory_export("word")
+            filepath_e, msg_e = await handle_regulatory_export("excel")
+            if filepath_w:
+                display_w = re.sub(r'_\d{8}_\d{6}', '', Path(filepath_w).name)
+                elements.append(cl.File(name=display_w, path=filepath_w, display="inline"))
+            if filepath_e:
+                display_e = re.sub(r'_\d{8}_\d{6}', '', Path(filepath_e).name)
+                elements.append(cl.File(name=display_e, path=filepath_e, display="inline"))
+        except Exception:
+            pass  # If export fails, just show the list without files
+        await cl.Message(content=response, elements=elements).send()
         return
 
     # --- Reference export ---
@@ -6398,19 +6401,20 @@ async def on_message(message: cl.Message):
     # Audit records (display only)
     if _match_cmd(text, "cmd.audit"):
         response = await handle_audit()
-        actions = [
-            cl.Action(
-                name="download_audit_word",
-                payload={"format": "word"},
-                label="📥 Word (.docx)",
-            ),
-            cl.Action(
-                name="download_audit_excel",
-                payload={"format": "excel"},
-                label="📥 Excel (.xlsx)",
-            ),
-        ]
-        await cl.Message(content=response, actions=actions).send()
+        # Auto-generate Word/Excel and show as inline file downloads
+        elements = []
+        try:
+            filepath_w, msg_w = await handle_audit_export("word")
+            filepath_e, msg_e = await handle_audit_export("excel")
+            if filepath_w:
+                display_w = re.sub(r'_\d{8}_\d{6}', '', Path(filepath_w).name)
+                elements.append(cl.File(name=display_w, path=filepath_w, display="inline"))
+            if filepath_e:
+                display_e = re.sub(r'_\d{8}_\d{6}', '', Path(filepath_e).name)
+                elements.append(cl.File(name=display_e, path=filepath_e, display="inline"))
+        except Exception:
+            pass  # If export fails, just show the list without files
+        await cl.Message(content=response, elements=elements).send()
         return
 
     # Obsolete (prefix command: "obsolete doc_id")
