@@ -2126,10 +2126,10 @@ async def on_chat_start():
                 if word_path and Path(word_path).exists():
                     elements = []
                     if word_path and Path(word_path).exists():
-                        display_w = re.sub(r'_\d{8}_\d{6}', '', Path(word_path).name)
+                        display_w = re.sub(r'^\d{14}_', '', Path(word_path).name)
                         elements.append(cl.File(name=display_w, path=word_path, display='inline'))
                     if excel_path and Path(excel_path).exists():
-                        display_e = re.sub(r'_\d{8}_\d{6}', '', Path(excel_path).name)
+                        display_e = re.sub(r'^\d{14}_', '', Path(excel_path).name)
                         elements.append(cl.File(name=display_e, path=excel_path, display='inline'))
 
                     cmd_label = '法規清單' if cmd == 'regulatory_list' else '法規清單更新'
@@ -3087,8 +3087,8 @@ async def handle_regulatory_list():
                 # Cache save FIRST (guaranteed), then UI notification (best-effort)
                 save_analysis_cache(cache_id=_cache_id, command="regulatory_list", final_word_path=word_path, final_excel_path=excel_path, status="completed")
                 try:
-                    display_name_w = re.sub(r'_\d{8}_\d{6}', '', Path(word_path).name)
-                    display_name_e = re.sub(r'_\d{8}_\d{6}', '', Path(excel_path).name)
+                    display_name_w = re.sub(r'^\d{14}_', '', Path(word_path).name)
+                    display_name_e = re.sub(r'^\d{14}_', '', Path(excel_path).name)
                     elements = [
                         cl.File(name=display_name_w, path=word_path, display="inline"),
                         cl.File(name=display_name_e, path=excel_path, display="inline"),
@@ -3117,8 +3117,8 @@ async def handle_regulatory_list():
                     # Cache save FIRST (guaranteed), then UI notification (best-effort)
                     save_analysis_cache(cache_id=_cache_id, command="regulatory_list", final_word_path=word_path, final_excel_path=excel_path, status="completed")
                     try:
-                        display_name_w = re.sub(r'_\d{8}_\d{6}', '', Path(word_path).name)
-                        display_name_e = re.sub(r'_\d{8}_\d{6}', '', Path(excel_path).name)
+                        display_name_w = re.sub(r'^\d{14}_', '', Path(word_path).name)
+                        display_name_e = re.sub(r'^\d{14}_', '', Path(excel_path).name)
                         elements = [
                             cl.File(name=display_name_w, path=word_path, display="inline"),
                             cl.File(name=display_name_e, path=excel_path, display="inline"),
@@ -3765,8 +3765,8 @@ async def handle_regulatory_update_rescan(selected_regions: list):
             # Cache save FIRST (guaranteed), then UI notification (best-effort)
             save_analysis_cache(cache_id=_cache_id_update, command="regulatory_update", final_word_path=word_path, final_excel_path=excel_path, status="completed")
             try:
-                display_name_w = re.sub(r'_\d{8}_\d{6}', '', Path(word_path).name)
-                display_name_e = re.sub(r'_\d{8}_\d{6}', '', Path(excel_path).name)
+                display_name_w = re.sub(r'^\d{14}_', '', Path(word_path).name)
+                display_name_e = re.sub(r'^\d{14}_', '', Path(excel_path).name)
                 elements = [
                     cl.File(name=display_name_w, path=word_path, display="inline"),
                     cl.File(name=display_name_e, path=excel_path, display="inline"),
@@ -3793,8 +3793,8 @@ async def handle_regulatory_update_rescan(selected_regions: list):
                 # Cache save FIRST (guaranteed), then UI notification (best-effort)
                 save_analysis_cache(cache_id=_cache_id_update, command="regulatory_update", final_word_path=word_path, final_excel_path=excel_path, status="completed")
                 try:
-                    display_name_w = re.sub(r'_\d{8}_\d{6}', '', Path(word_path).name)
-                    display_name_e = re.sub(r'_\d{8}_\d{6}', '', Path(excel_path).name)
+                    display_name_w = re.sub(r'^\d{14}_', '', Path(word_path).name)
+                    display_name_e = re.sub(r'^\d{14}_', '', Path(excel_path).name)
                     elements = [
                         cl.File(name=display_name_w, path=word_path, display="inline"),
                         cl.File(name=display_name_e, path=excel_path, display="inline"),
@@ -4222,7 +4222,7 @@ async def on_cancel_delete(action):
 
 async def _send_file_download(filepath: str, msg_text: str):
     """Helper: send a file as a download with cl.File element."""
-    display_name = re.sub(r"_\d{8}_\d{6}", "", Path(filepath).name)
+    display_name = re.sub(r"^\d{14}_", "", Path(filepath).name)
     elements = [cl.File(name=display_name, path=filepath, display="inline")]
     await cl.Message(content=msg_text, elements=elements).send()
 
@@ -4417,8 +4417,8 @@ async def on_download_original_file(action):
     storage = get_markdown_store()
     file_path = storage.get_original_file_path(doc_id)
     if file_path:
-        fname = Path(file_path).name
-        await _send_file_download(file_path, f"📄 **{doc_id}** — {fname}")
+        fname = re.sub(r"^\d{14}_", "", Path(file_path).name)
+        await _send_file_download(file_path, t("download.found", doc_id=doc_id, filename=fname))
     else:
         await cl.Message(content=t("download.file_error", doc_id=doc_id)).send()
     await action.remove()
@@ -6183,39 +6183,37 @@ async def on_message(message: cl.Message):
     # Document list — current formal versions only (must check before generic list)
     if _match_cmd(text, "cmd.document_list"):
         response = await handle_document_list()
-        # Auto-generate Word/Excel and show as inline file downloads
-        elements = []
-        try:
-            filepath_w, msg_w = await handle_doclist_export("word")
-            filepath_e, msg_e = await handle_doclist_export("excel")
-            if filepath_w:
-                display_w = re.sub(r'_\d{8}_\d{6}', '', Path(filepath_w).name)
-                elements.append(cl.File(name=display_w, path=filepath_w, display="inline"))
-            if filepath_e:
-                display_e = re.sub(r'_\d{8}_\d{6}', '', Path(filepath_e).name)
-                elements.append(cl.File(name=display_e, path=filepath_e, display="inline"))
-        except Exception:
-            pass  # If export fails, just show the list without files
-        await cl.Message(content=response, elements=elements).send()
+        actions = [
+            cl.Action(
+                name="download_doclist_word",
+                payload={"format": "word"},
+                label="\ud83d\udce5 Word (.docx)",
+            ),
+            cl.Action(
+                name="download_doclist_excel",
+                payload={"format": "excel"},
+                label="\ud83d\udce5 Excel (.xlsx)",
+            ),
+        ]
+        await cl.Message(content=response, actions=actions).send()
         return
 
     # List — all records (active + obsolete + version history)
     if _match_cmd(text, "cmd.list") or _match_cmd_exact(text, "cmd.list"):
         response = await handle_list()
-        # Auto-generate Word/Excel and show as inline file downloads
-        elements = []
-        try:
-            filepath_w, msg_w = await handle_allrecords_export("word")
-            filepath_e, msg_e = await handle_allrecords_export("excel")
-            if filepath_w:
-                display_w = re.sub(r'_\d{8}_\d{6}', '', Path(filepath_w).name)
-                elements.append(cl.File(name=display_w, path=filepath_w, display="inline"))
-            if filepath_e:
-                display_e = re.sub(r'_\d{8}_\d{6}', '', Path(filepath_e).name)
-                elements.append(cl.File(name=display_e, path=filepath_e, display="inline"))
-        except Exception:
-            pass  # If export fails, just show the list without files
-        await cl.Message(content=response, elements=elements).send()
+        actions = [
+            cl.Action(
+                name="download_allrecords_word",
+                payload={"format": "word"},
+                label="\ud83d\udce5 Word (.docx)",
+            ),
+            cl.Action(
+                name="download_allrecords_excel",
+                payload={"format": "excel"},
+                label="\ud83d\udce5 Excel (.xlsx)",
+            ),
+        ]
+        await cl.Message(content=response, actions=actions).send()
         return
 
     # Web Search: /web prefix → LLM Chat with Web + DB context
@@ -6349,20 +6347,19 @@ async def on_message(message: cl.Message):
     # Regulatory standards list (display only)
     if _match_cmd(text, "cmd.regulatory"):
         response = await handle_regulatory_list()
-        # Auto-generate Word/Excel and show as inline file downloads
-        elements = []
-        try:
-            filepath_w, msg_w = await handle_regulatory_export("word")
-            filepath_e, msg_e = await handle_regulatory_export("excel")
-            if filepath_w:
-                display_w = re.sub(r'_\d{8}_\d{6}', '', Path(filepath_w).name)
-                elements.append(cl.File(name=display_w, path=filepath_w, display="inline"))
-            if filepath_e:
-                display_e = re.sub(r'_\d{8}_\d{6}', '', Path(filepath_e).name)
-                elements.append(cl.File(name=display_e, path=filepath_e, display="inline"))
-        except Exception:
-            pass  # If export fails, just show the list without files
-        await cl.Message(content=response, elements=elements).send()
+        actions = [
+            cl.Action(
+                name="download_regulatory_word",
+                payload={"format": "word"},
+                label="\ud83d\udce5 Word (.docx)",
+            ),
+            cl.Action(
+                name="download_regulatory_excel",
+                payload={"format": "excel"},
+                label="\ud83d\udce5 Excel (.xlsx)",
+            ),
+        ]
+        await cl.Message(content=response, actions=actions).send()
         return
 
     # --- Reference export ---
@@ -6401,20 +6398,19 @@ async def on_message(message: cl.Message):
     # Audit records (display only)
     if _match_cmd(text, "cmd.audit"):
         response = await handle_audit()
-        # Auto-generate Word/Excel and show as inline file downloads
-        elements = []
-        try:
-            filepath_w, msg_w = await handle_audit_export("word")
-            filepath_e, msg_e = await handle_audit_export("excel")
-            if filepath_w:
-                display_w = re.sub(r'_\d{8}_\d{6}', '', Path(filepath_w).name)
-                elements.append(cl.File(name=display_w, path=filepath_w, display="inline"))
-            if filepath_e:
-                display_e = re.sub(r'_\d{8}_\d{6}', '', Path(filepath_e).name)
-                elements.append(cl.File(name=display_e, path=filepath_e, display="inline"))
-        except Exception:
-            pass  # If export fails, just show the list without files
-        await cl.Message(content=response, elements=elements).send()
+        actions = [
+            cl.Action(
+                name="download_audit_word",
+                payload={"format": "word"},
+                label="\ud83d\udce5 Word (.docx)",
+            ),
+            cl.Action(
+                name="download_audit_excel",
+                payload={"format": "excel"},
+                label="\ud83d\udce5 Excel (.xlsx)",
+            ),
+        ]
+        await cl.Message(content=response, actions=actions).send()
         return
 
     # Obsolete (prefix command: "obsolete doc_id")
@@ -6443,7 +6439,7 @@ async def on_message(message: cl.Message):
         ):
             filepath, msg_text = await handle_download(text)
             if filepath:
-                fname = Path(filepath).name
+                fname = re.sub(r"^\d{14}_", "", Path(filepath).name)
                 doc_id_match = re.search(
                     r"([A-Z]{2,4}-\d{2,4}(?:-\d{1,2})?)", text, re.IGNORECASE
                 )
