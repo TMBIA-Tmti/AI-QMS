@@ -1552,7 +1552,7 @@ async def chat_profile():
                 "Quality Management Console. Document list, search, obsolete, audit trail, LLM chat.\n\n"
                 "品質管理コンソール。文書一覧、検索、廃止、監査証跡、LLM チャット。"
             ),
-            icon="/public/main_agent.svg",
+            icon="/public/avatars/eira.svg",
         ),
         cl.ChatProfile(
             name="文件管制 (Doc Control)",
@@ -1561,7 +1561,7 @@ async def chat_profile():
                 "File upload, OCR processing, version control, stamp confirmation. Drag & drop to start.\n\n"
                 "ファイルアップロード、OCR 処理、版管理、印鑑確認。ドラッグ＆ドロップで開始。"
             ),
-            icon="/public/doc_control.svg",
+            icon="/public/avatars/eira.svg",
         ),
     ]
 

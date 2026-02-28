@@ -1,4 +1,4 @@
-# AI-QMS: AI-Powered Quality Management System for Medical Devices
+# <img src="public/avatars/eira.svg" alt="Eira" width="40" height="40"> TMBIA-Tmti AI-QMS (Eira) — Intelligent Regulatory Compliance Agent for Medical Device Professionals
 
 <p align="center">
   <strong>
@@ -16,7 +16,9 @@ https://github.com/user-attachments/assets/68cf6037-aab2-41a1-9e01-768c763d8ae1
 
 ## 專案簡介
 
-**AI-QMS** 是一套依據 **ISO 13485 醫療器材品質管理系統**標準需求所開發的 AI 智慧品質管理系統。本系統考量醫療器材 QMS 的實際運作需求，運用 AI Agent 架構實現文件管制、稽核追蹤、版本控制等核心品質管理功能的智慧化與自動化。
+**AI-QMS (Eira)** 是由 **TMBIA-Tmti** 開發的 AI 驅動品質管理系統，專為醫療器材產業的法規合規需求而設計。系統以 **ISO 13485 醫療器材品質管理系統**為核心標準，透過 AI Agent 架構將文件管制、稽核追蹤、版本控制、法規監控等繁瑣且高風險的品質管理作業智慧化與自動化。
+
+TMBIA-Tmti 深知醫療器材法規人員在品質管理實務中面對的挑戰——從多國法規追蹤、文件版本管控到稽核準備，每一環節都需要高度精確且耗費大量人力。AI-QMS (Eira) 的開發初衷，正是讓 AI 承擔這些重複性高、容錯率低的工作，使法規專業人員能專注於更具策略價值的品質決策。
 
 系統採用**主 Agent + 子 Agent** 架構設計，由主 Agent 統籌品質管理系統各模組，文件管制子 Agent 負責文件的上傳、OCR 辨識、版本偵測、簽章驗證及稽核紀錄等作業。
 
@@ -287,7 +289,9 @@ Phoenix Dashboard：http://localhost:6006
 
 ## Project Overview
 
-**AI-QMS** is an AI-powered Quality Management System developed based on the requirements of **ISO 13485 Medical Device Quality Management System**. The system is designed to address the practical operational needs of medical device QMS, leveraging AI Agent architecture to automate and intelligently manage core quality functions including document control, audit trails, and version management.
+**AI-QMS (Eira)** is an AI-powered Quality Management System developed by **TMBIA-Tmti**, purpose-built for the regulatory compliance needs of the medical device industry. Grounded in the **ISO 13485 Medical Device Quality Management System** standard, the system leverages AI Agent architecture to automate and intelligently manage document control, audit trails, version management, and regulatory monitoring — tasks that are both labor-intensive and high-risk.
+
+TMBIA-Tmti understands the challenges that medical device regulatory professionals face in quality management — from tracking multi-country regulations and managing document versions to preparing for audits, every step demands precision and consumes significant manpower. AI-QMS (Eira) was built to let AI handle these repetitive, error-sensitive tasks, freeing regulatory professionals to focus on higher-value quality decisions.
 
 The system adopts a **Main Agent + Sub-Agent** architecture, where the Main Agent orchestrates all QMS modules, and the Document Control Sub-Agent handles document upload, OCR processing, version detection, signature verification, and audit logging.
 
@@ -558,7 +562,9 @@ Phoenix Dashboard: http://localhost:6006
 
 ## プロジェクト概要
 
-**AI-QMS** は、**ISO 13485 医療機器品質マネジメントシステム**の要求事項に基づいて開発された AI 搭載品質管理システムです。医療機器 QMS の実際の運用ニーズを考慮し、AI Agent アーキテクチャを活用して、文書管理、監査証跡、バージョン管理などのコア品質管理機能のインテリジェント化と自動化を実現しています。
+**AI-QMS (Eira)** は、**TMBIA-Tmti** が開発した AI 駆動の品質管理システムで、医療機器業界の法規制コンプライアンスニーズに特化して設計されています。**ISO 13485 医療機器品質マネジメントシステム**を基盤とし、AI Agent アーキテクチャを活用して、文書管理、監査証跡、バージョン管理、法規モニタリングなど、労力がかかりリスクの高い品質管理業務のインテリジェント化と自動化を実現しています。
+
+TMBIA-Tmti は、医療機器の法規担当者が品質管理において直面する課題を深く理解しています — 多国間の法規追跡、文書バージョン管理から監査準備まで、あらゆるステップで高い精度が求められ、多大な人的リソースを消費します。AI-QMS (Eira) は、AI にこれらの反復的でエラーに敏感なタスクを委ね、法規専門家がより戦略的価値の高い品質意思決定に集中できるよう開発されました。
 
 本システムは**メイン Agent + サブ Agent** アーキテクチャを採用しており、メイン Agent が品質管理システム全体のモジュールを統括し、文書管理サブ Agent が文書のアップロード、OCR 処理、バージョン検出、署名検証、監査ログなどの業務を担当します。
 

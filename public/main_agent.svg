@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
-  <rect width="64" height="64" rx="12" fill="#1E40AF"/>
-  <path d="M32 14C22.06 14 14 22.06 14 32s8.06 18 18 18 18-8.06 18-18S41.94 14 32 14z" fill="#3B82F6"/>
-  <path d="M32 20c-6.63 0-12 5.37-12 12s5.37 12 12 12 12-5.37 12-12-5.37-12-12-12z" fill="#1E40AF"/>
-  <circle cx="32" cy="32" r="6" fill="#BFDBFE"/>
-  <path d="M26 28l6-6 6 6M26 36l6 6 6-6" stroke="#BFDBFE" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-  <text x="32" y="52" text-anchor="middle" font-family="Arial,sans-serif" font-size="7" font-weight="bold" fill="#93C5FD">QMS</text>
-</svg>
