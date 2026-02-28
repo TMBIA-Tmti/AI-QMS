@@ -113,6 +113,7 @@ from src.storage.regulatory_markdown_storage import (
 from src.storage.regulatory_analysis_storage import (
     get_regulatory_analysis_store,
 )
+from src.utils.user_settings import save_user_settings, load_user_settings, has_saved_settings
 
 # v3.1.0: Load cached model lists from previous sessions on startup.
 # This ensures cloud provider models appear immediately without
@@ -1895,6 +1896,17 @@ async def on_settings_update(settings):
             test_msg.content = t("settings.connection_failed", error=str(e))
             await test_msg.update()
 
+    # Persist settings to file for auto-reconnect
+    _user_name = cl.user_session.get("user_name", "")
+    save_user_settings(
+        user_name=_user_name,
+        provider_id=cl.user_session.get("provider_id", ""),
+        provider_name=cl.user_session.get("provider_name", ""),
+        model_name=cl.user_session.get("model_name", ""),
+        api_key=cl.user_session.get("real_api_key", "") or cl.user_session.get("api_key", ""),
+        language=cl.user_session.get("language", "zh-TW"),
+    )
+
 
 # ============================================================
 # Background Regulatory Crawler Scheduler (v2.0)
@@ -1982,23 +1994,40 @@ async def on_chat_start():
         _regulatory_scheduler_started = True
         asyncio.create_task(_regulatory_background_scheduler())
 
+    # Check for saved user settings (auto-reconnect)
+    saved = load_user_settings()
+
     # Initialize session state
     provider_choices = get_provider_choices()
-    default_provider_name = (
-        provider_choices[0][0] if provider_choices else "Ollama (Local)"
-    )
-    default_provider_id = provider_choices[0][1] if provider_choices else "ollama"
-    default_models = get_model_choices(default_provider_id)
-    default_model = default_models[0] if default_models else "default"
+
+    if saved and saved.get("provider_id"):
+        # Restore saved settings
+        default_provider_name = saved.get("provider_name", provider_choices[0][0] if provider_choices else "Ollama (Local)")
+        default_provider_id = saved.get("provider_id", "ollama")
+        default_model = saved.get("model_name", "default")
+        restored_api_key = saved.get("api_key", "")
+        restored_language = saved.get("language", "zh-TW")
+        user_name = saved.get("user_name", "")
+    else:
+        default_provider_name = (
+            provider_choices[0][0] if provider_choices else "Ollama (Local)"
+        )
+        default_provider_id = provider_choices[0][1] if provider_choices else "ollama"
+        default_models = get_model_choices(default_provider_id)
+        default_model = default_models[0] if default_models else "default"
+        restored_api_key = ""
+        restored_language = "zh-TW"
+        user_name = ""
 
     cl.user_session.set("provider_name", default_provider_name)
     cl.user_session.set("provider_id", default_provider_id)
     cl.user_session.set("model_name", default_model)
-    cl.user_session.set("api_key", "")
-    cl.user_session.set("real_api_key", "")
+    cl.user_session.set("api_key", restored_api_key)
+    cl.user_session.set("real_api_key", restored_api_key)
     cl.user_session.set("show_api_key", False)
-    cl.user_session.set("language", "zh-TW")
+    cl.user_session.set("language", restored_language)
     cl.user_session.set("message_history", [])
+    cl.user_session.set("user_name", user_name)
 
     # Doc Control specific state
     cl.user_session.set("pending_files", [])
@@ -2007,31 +2036,60 @@ async def on_chat_start():
     cl.user_session.set("current_file_path", None)
     cl.user_session.set("awaiting_delete_confirm", False)
 
-    # Send settings
-    settings = build_chat_settings()
+    # If we have saved settings with API key, set it up
+    if restored_api_key and default_provider_id != "ollama":
+        setup_api_key(default_provider_id, restored_api_key)
+
+    # Send settings (with restored values if available)
+    if saved and saved.get("provider_id"):
+        settings = build_chat_settings(
+            current_provider_name=default_provider_name,
+            current_provider_id=default_provider_id,
+            current_api_key=restored_api_key,
+            current_model=default_model,
+            show_api_key=False,
+            current_language=next(
+                (k for k, v in LANG_CODE_MAP.items() if v == restored_language),
+                SUPPORTED_LANGUAGES[0],
+            ),
+        )
+    else:
+        settings = build_chat_settings()
     await settings.send()
 
-    # Welcome message based on profile
+    # Greeting flow
     doc_count, doc_limit = get_document_count()
 
-    if profile == "文件管制 (Doc Control)":
-        welcome = (
-            f"{t('welcome.doc_control.title')}\n\n"
-            f"{t('welcome.doc_control.greeting')}\n\n"
+    if saved and user_name:
+        # Returning user — show full intro with name
+        await _send_eira_introduction(user_name, profile, doc_count, doc_limit)
+    else:
+        # New user — ask for name
+        cl.user_session.set("awaiting_user_name", True)
+        await cl.Message(
+            content=t("eira.ask_name")
+        ).send()
+
+
+async def _send_eira_introduction(user_name: str, profile: str, doc_count: int, doc_limit: int):
+    """Send Eira's full introduction message with user name."""
+    intro = t("eira.introduction", name=user_name)
+    await cl.Message(content=intro).send()
+
+    # Then show profile-specific instructions
+    if profile == "\u6587\u4ef6\u7ba1\u5236 (Doc Control)":
+        instructions = (
             f"{t('welcome.doc_control.doc_count', count=doc_count, limit=doc_limit)}\n\n"
             f"{t('welcome.doc_control.instructions')}\n\n"
             f"{t('welcome.doc_control.formats')}"
         )
     else:
-        welcome = (
-            f"{t('welcome.main.title')}\n\n"
-            f"{t('welcome.main.greeting')}\n\n"
+        instructions = (
             f"{t('welcome.doc_control.doc_count', count=doc_count, limit=doc_limit)}\n\n"
             f"{t('welcome.main.instructions')}\n\n"
             f"{t('welcome.main.switch_hint')}"
         )
-
-    await cl.Message(content=welcome).send()
+    await cl.Message(content=instructions).send()
 
 
 # ============================================================
@@ -2516,7 +2574,7 @@ def _get_display_doc_type(doc_id: str, title: str, content: str, doc_type: str, 
 
 # Helper: wrap synchronous LLM streaming generator with per-chunk timeout
 # to prevent indefinite hangs when provider connection stalls mid-stream.
-STREAMING_CHUNK_TIMEOUT = 120  # seconds — max wait for a single chunk
+STREAMING_CHUNK_TIMEOUT = 300  # seconds — max wait for a single chunk (increased from 120 for long regulatory analysis)
 MAX_CONTINUATIONS = 15  # max auto-continuation loops when LLM output is truncated
 
 async def _iter_stream_with_timeout(sync_generator, chunk_timeout: int = STREAMING_CHUNK_TIMEOUT):
@@ -5726,6 +5784,34 @@ async def on_message(message: cl.Message):
 
     # Empty message
     if not text:
+        return
+
+    # ============================================================
+    # Intercept: awaiting user name (Eira greeting flow)
+    # ============================================================
+    if cl.user_session.get("awaiting_user_name"):
+        cl.user_session.set("awaiting_user_name", False)
+        user_name = text.strip()
+        if not user_name:
+            cl.user_session.set("awaiting_user_name", True)
+            await cl.Message(content=t("eira.name_empty")).send()
+            return
+
+        cl.user_session.set("user_name", user_name)
+
+        # Save current LLM settings + user name
+        save_user_settings(
+            user_name=user_name,
+            provider_id=cl.user_session.get("provider_id", ""),
+            provider_name=cl.user_session.get("provider_name", ""),
+            model_name=cl.user_session.get("model_name", ""),
+            api_key=cl.user_session.get("real_api_key", "") or cl.user_session.get("api_key", ""),
+            language=cl.user_session.get("language", "zh-TW"),
+        )
+
+        profile = cl.user_session.get("chat_profile")
+        doc_count, doc_limit = get_document_count()
+        await _send_eira_introduction(user_name, profile, doc_count, doc_limit)
         return
 
     # ============================================================
