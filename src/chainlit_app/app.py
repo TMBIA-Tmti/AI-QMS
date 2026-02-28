@@ -4698,11 +4698,93 @@ async def handle_file_upload(files):
     progress_msg.content = "\n".join(lines)
     await progress_msg.update()
 
-    # If there's a version update candidate, offer version update
+    # If there's a version update candidate, run diff analysis BEFORE confirm
     if succeeded and succeeded[-1].get("is_duplicate"):
         last = succeeded[-1]
         existing_ver = last.get("existing_version", "?")
         new_ver = last.get("new_version", "?")
+        dup_doc_id = last["duplicate_doc"]["doc_id"]
+
+        # --- LLM Version Diff Analysis (BEFORE confirm) ---
+        try:
+            storage_manager = get_markdown_store()
+            old_doc = storage_manager.get_document(dup_doc_id, version=existing_ver)
+            old_content = (
+                old_doc.get("content", "") if old_doc.get("success") else ""
+            )
+            new_content = last.get("ocr_result", {}).get("markdown_content", "")
+
+            if old_content and new_content:
+                # Truncate to avoid token overflow
+                max_chars = 6000
+                old_truncated = old_content[:max_chars] + (
+                    "..." if len(old_content) > max_chars else ""
+                )
+                new_truncated = new_content[:max_chars] + (
+                    "..." if len(new_content) > max_chars else ""
+                )
+
+                diff_msg = cl.Message(content=t("version.diff_analyzing"))
+                await diff_msg.send()
+
+                provider_id = cl.user_session.get("provider_id", "ollama")
+                api_key_val = cl.user_session.get("api_key", "").strip()
+                model_name = cl.user_session.get("model_name", "")
+
+                setup_api_key(provider_id, api_key_val)
+                manager = create_provider_manager(provider_id)
+
+                diff_prompt = t(
+                    "version.diff_prompt",
+                    old_ver=existing_ver,
+                    new_ver=new_ver,
+                    old_content=old_truncated,
+                    new_content=new_truncated,
+                )
+
+                diff_response = await asyncio.to_thread(
+                    lambda: manager.completion(
+                        messages=[{"role": "user", "content": diff_prompt}],
+                        model=model_name,
+                        temperature=0.3,
+                        max_tokens=2000,
+                        stream=False,
+                        timeout=60,
+                    )
+                )
+
+                diff_text = ""
+                if hasattr(diff_response, "choices") and diff_response.choices:
+                    diff_text = diff_response.choices[0].message.content or ""
+
+                if diff_text:
+                    diff_msg.content = (
+                        t(
+                            "version.diff_header",
+                            old_ver=existing_ver,
+                            new_ver=new_ver,
+                        )
+                        + diff_text
+                    )
+                else:
+                    diff_msg.content = (
+                        t(
+                            "version.diff_header",
+                            old_ver=existing_ver,
+                            new_ver=new_ver,
+                        )
+                        + "N/A"
+                    )
+                await diff_msg.update()
+        except Exception as diff_err:
+            try:
+                await cl.Message(
+                    content=t("version.diff_error", error=str(diff_err))
+                ).send()
+            except Exception:
+                pass
+
+        # Show confirm/cancel buttons AFTER diff analysis
         actions = [
             cl.Action(
                 name="confirm_version_update",
@@ -4718,7 +4800,7 @@ async def handle_file_upload(files):
         await cl.Message(
             content=t(
                 "file.version_exists",
-                doc_id=last["duplicate_doc"]["doc_id"],
+                doc_id=dup_doc_id,
                 old_ver=existing_ver,
                 new_ver=new_ver,
             ),
@@ -4951,6 +5033,7 @@ async def _execute_version_update(confirmer_name: str):
         audit_log = ImmutableAuditLog()
 
         ocr_detected_version = doc_info.get("detected_version", None)
+
         result = storage_manager.update_document(
             doc_id=doc_info.get("doc_id", "UNKNOWN"),
             markdown_content=ocr_result.get("markdown_content", ""),
@@ -5027,89 +5110,6 @@ async def _execute_version_update(confirmer_name: str):
                 await cl.Message(content=msg, actions=ref_actions).send()
             else:
                 await cl.Message(content=msg).send()
-
-            # --- LLM Version Diff Analysis ---
-            try:
-                previous_version = result["previous_version"]
-                new_version = result["version"]
-                doc_id = doc_info.get("doc_id", "")
-                new_content = ocr_result.get("markdown_content", "")
-
-                # Fetch old version content
-                old_doc = storage_manager.get_document(doc_id, version=previous_version)
-                old_content = (
-                    old_doc.get("content", "") if old_doc.get("success") else ""
-                )
-
-                if old_content and new_content:
-                    # Truncate to avoid token overflow
-                    max_chars = 6000
-                    old_truncated = old_content[:max_chars] + (
-                        "..." if len(old_content) > max_chars else ""
-                    )
-                    new_truncated = new_content[:max_chars] + (
-                        "..." if len(new_content) > max_chars else ""
-                    )
-
-                    diff_msg = cl.Message(content=t("version.diff_analyzing"))
-                    await diff_msg.send()
-
-                    provider_id = cl.user_session.get("provider_id", "ollama")
-                    api_key_val = cl.user_session.get("api_key", "").strip()
-                    model_name = cl.user_session.get("model_name", "")
-
-                    setup_api_key(provider_id, api_key_val)
-                    manager = create_provider_manager(provider_id)
-
-                    diff_prompt = t(
-                        "version.diff_prompt",
-                        old_ver=previous_version,
-                        new_ver=new_version,
-                        old_content=old_truncated,
-                        new_content=new_truncated,
-                    )
-
-                    diff_response = await asyncio.to_thread(
-                        lambda: manager.completion(
-                            messages=[{"role": "user", "content": diff_prompt}],
-                            model=model_name,
-                            temperature=0.3,
-                            max_tokens=2000,
-                            stream=False,
-                            timeout=60,
-                        )
-                    )
-
-                    diff_text = ""
-                    if hasattr(diff_response, "choices") and diff_response.choices:
-                        diff_text = diff_response.choices[0].message.content or ""
-
-                    if diff_text:
-                        diff_msg.content = (
-                            t(
-                                "version.diff_header",
-                                old_ver=previous_version,
-                                new_ver=new_version,
-                            )
-                            + diff_text
-                        )
-                    else:
-                        diff_msg.content = (
-                            t(
-                                "version.diff_header",
-                                old_ver=previous_version,
-                                new_ver=new_version,
-                            )
-                            + "N/A"
-                        )
-                    await diff_msg.update()
-            except Exception as diff_err:
-                try:
-                    await cl.Message(
-                        content=t("version.diff_error", error=str(diff_err))
-                    ).send()
-                except Exception:
-                    pass
 
         else:
             await cl.Message(
