@@ -106,6 +106,16 @@ https://github.com/user-attachments/assets/68cf6037-aab2-41a1-9e01-768c763d8ae1
 ┌──────────────────────┴──────────────────────────────┐
 │                   資料層                              │
 │  [JSON DB] [Markdown Storage] [Audit Log]            │
+└──────────────────────┬──────────────────────────────┘
+                       │
+┌──────────────────────┴──────────────────────────────┐
+│            斷線備援層 (Resilience Layer)               │
+│                                                     │
+│  [Baseline 報告] ──→ LLM 前生成 Word/Excel (保底)     │
+│  [Analysis Cache] ──→ 定期存檔 + 斷線自動儲存         │
+│  [User Settings] ──→ LLM 設定持久化 (自動重連)        │
+│  [on_chat_end]   ──→ 斷線時自動存檔至 cache           │
+│  [Reconnect]     ──→ 重連時自動顯示待下載報告         │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -367,6 +377,16 @@ The system adopts a **Main Agent + Sub-Agent** architecture, where the Main Agen
 ┌──────────────────────┴──────────────────────────────┐
 │                    Data Layer                         │
 │  [JSON DB] [Markdown Storage] [Audit Log]            │
+└──────────────────────┬──────────────────────────────┘
+                       │
+┌──────────────────────┴──────────────────────────────┐
+│             Resilience Layer (Disconnect Recovery)    │
+│                                                     │
+│  [Baseline Report] ──→ Pre-LLM Word/Excel generation │
+│  [Analysis Cache]  ──→ Periodic save + auto-save     │
+│  [User Settings]   ──→ LLM config persistence        │
+│  [on_chat_end]     ──→ Auto-save on disconnect       │
+│  [Reconnect Check] ──→ Show pending reports on login │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -628,6 +648,16 @@ Phoenix Dashboard: http://localhost:6006
 ┌──────────────────────┴──────────────────────────────┐
 │                  データ層                             │
 │  [JSON DB] [Markdown Storage] [Audit Log]            │
+└──────────────────────┬──────────────────────────────┘
+                       │
+┌──────────────────────┴──────────────────────────────┐
+│           断線復旧層 (Resilience Layer)                │
+│                                                     │
+│  [ベースラインレポート] ──→ LLM前 Word/Excel 生成      │
+│  [分析キャッシュ]      ──→ 定期保存 + 自動保存         │
+│  [ユーザー設定]        ──→ LLM設定の永続化             │
+│  [on_chat_end]        ──→ 切断時に自動キャッシュ保存   │
+│  [再接続チェック]      ──→ ログイン時に保留レポート表示 │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -814,7 +844,12 @@ AI-QMS/
 ├── src/                         # Source code
 │   ├── chainlit_app/            # Chainlit application
 │   │   ├── app.py               # Main app entry point (v3.5.0)
-│   │   ├── i18n.py              # 20-language translations
+│   │   ├── i18n.py              # 20-language translations (JSON loader)
+│   │   ├── locales/             # i18n JSON locale files
+│   │   │   ├── zh-TW.json       # Master locale (Traditional Chinese)
+│   │   │   ├── en-US.json       # English
+│   │   │   ├── ja-JP.json       # Japanese
+│   │   │   └── ... (20 locales) # 20 languages total
 │   │   └── handlers/
 │   ├── agents/                  # Agent modules
 │   │   └── tools/               # LangGraph tools
@@ -828,12 +863,21 @@ AI-QMS/
 │   │   └── markdown_storage.py
 │   ├── services/
 │   ├── utils/
+│   │   ├── analysis_cache.py    # Resilient analysis caching (disconnect recovery)
+│   │   ├── user_settings.py     # User/LLM settings persistence
 │   │   ├── audit_export.py      # Audit log Word/Excel export
 │   │   ├── regulatory_export.py # Regulatory/Reference list export
+│   │   ├── regulatory_update_export.py  # Regulatory update export
 │   │   └── doclist_export.py    # Document list Word/Excel export
 │   ├── config.py
 │   └── llm_providers.py         # 16 LLM provider manager
+├── scripts/                     # Utility scripts
+│   ├── auto_translate.py        # AI-powered i18n translation
+│   └── extract_i18n.py          # i18n extraction (one-time)
 ├── data/                        # Runtime data (auto-generated)
+│   ├── analysis_cache/          # Resilient report cache (JSON)
+│   ├── user_settings.json       # Persisted user preferences
+│   └── exports/                 # Generated Word/Excel reports
 ├── uploads/                     # File upload staging
 └── markdown_storage/            # Converted Markdown documents
 ```

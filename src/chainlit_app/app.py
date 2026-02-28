@@ -114,6 +114,14 @@ from src.storage.regulatory_analysis_storage import (
     get_regulatory_analysis_store,
 )
 from src.utils.user_settings import save_user_settings, load_user_settings, has_saved_settings
+from src.utils.analysis_cache import (
+    save_analysis_cache,
+    load_latest_cache,
+    load_cache_by_id,
+    get_pending_reports,
+    mark_cache_delivered,
+    cleanup_old_caches,
+)
 
 # v3.1.0: Load cached model lists from previous sessions on startup.
 # This ensures cloud provider models appear immediately without
@@ -2070,6 +2078,40 @@ async def on_chat_start():
             content=t("eira.ask_name")
         ).send()
 
+    # Check for pending reports from previous disconnected sessions
+    try:
+        pending = get_pending_reports()
+        if pending:
+            for report in pending[:3]:  # Show max 3 pending reports
+                cmd = report.get('command', 'unknown')
+                status = report.get('status', '')
+                cache_id = report.get('cache_id', '')
+                created = report.get('created_at', '')[:19]  # trim to seconds
+
+                # Prefer final reports, fall back to baseline
+                word_path = report.get('final_word_path') or report.get('baseline_word_path', '')
+                excel_path = report.get('final_excel_path') or report.get('baseline_excel_path', '')
+
+                if word_path and Path(word_path).exists():
+                    elements = []
+                    if word_path and Path(word_path).exists():
+                        display_w = re.sub(r'^\d{14}_', '', Path(word_path).name)
+                        elements.append(cl.File(name=display_w, path=word_path, display='inline'))
+                    if excel_path and Path(excel_path).exists():
+                        display_e = re.sub(r'^\d{14}_', '', Path(excel_path).name)
+                        elements.append(cl.File(name=display_e, path=excel_path, display='inline'))
+
+                    cmd_label = '法規清單' if cmd == 'regulatory_list' else '法規清單更新'
+                    status_label = '✅ 完成' if status == 'completed' else '⚠️ 基線報告' if status == 'baseline_ready' else '⚠️ 中斷'
+                    notice = (
+                        f'📥 **先前的報告已產生** ({cmd_label})\n'
+                        f'狀態：{status_label} | 時間：{created}\n'
+                        f'請下載以下檔案：'
+                    )
+                    await cl.Message(content=notice, elements=elements).send()
+                    mark_cache_delivered(cache_id)
+    except Exception:
+        pass  # Don't block startup if cache check fails
 
 async def _send_eira_introduction(user_name: str, profile: str, doc_count: int, doc_limit: int):
     """Send Eira's full introduction message with user name."""
@@ -2090,6 +2132,48 @@ async def _send_eira_introduction(user_name: str, profile: str, doc_count: int, 
             f"{t('welcome.main.switch_hint')}"
         )
     await cl.Message(content=instructions).send()
+
+@cl.on_chat_end
+async def on_chat_end():
+    """Handle session disconnect — save any in-progress analysis to cache."""
+    try:
+        # Save any in-progress regulatory_list analysis
+        assessment = cl.user_session.get("last_regulatory_assessment", "")
+        if assessment:
+            save_analysis_cache(
+                cache_id=f"regulatory_list_session_end_{datetime.now().strftime('%Y%m%d%H%M%S')}",
+                command="regulatory_list",
+                assessment=assessment,
+                status="session_ended",
+                provider_id=cl.user_session.get("provider_id", ""),
+                model_name=cl.user_session.get("model_name", ""),
+            )
+
+        # Save any in-progress regulatory_update analysis
+        update_assessment = cl.user_session.get("last_regulatory_update_assessment", "")
+        if update_assessment:
+            save_analysis_cache(
+                cache_id=f"regulatory_update_session_end_{datetime.now().strftime('%Y%m%d%H%M%S')}",
+                command="regulatory_update",
+                assessment=update_assessment,
+                status="session_ended",
+                provider_id=cl.user_session.get("provider_id", ""),
+                model_name=cl.user_session.get("model_name", ""),
+            )
+
+        # Save user settings on disconnect
+        user_name = cl.user_session.get("user_name", "")
+        if user_name:
+            save_user_settings(
+                user_name=user_name,
+                provider_id=cl.user_session.get("provider_id", ""),
+                provider_name=cl.user_session.get("provider_name", ""),
+                model_name=cl.user_session.get("model_name", ""),
+                api_key=cl.user_session.get("real_api_key", "") or cl.user_session.get("api_key", ""),
+                language=cl.user_session.get("language", "zh-TW"),
+            )
+    except Exception:
+        pass  # Session may already be cleaned up
 
 
 # ============================================================
@@ -2585,19 +2669,27 @@ async def _iter_stream_with_timeout(sync_generator, chunk_timeout: int = STREAMI
     Raises asyncio.TimeoutError if any single chunk takes longer than chunk_timeout.
     """
     iterator = iter(sync_generator)
-    while True:
-        try:
-            chunk = await asyncio.wait_for(
-                asyncio.to_thread(next, iterator, _STREAM_SENTINEL),
-                timeout=chunk_timeout,
-            )
-            if chunk is _STREAM_SENTINEL:
-                return  # generator exhausted normally
-            yield chunk
-        except asyncio.TimeoutError:
-            raise  # propagate to caller
-        except StopIteration:
-            return
+    try:
+        while True:
+            try:
+                chunk = await asyncio.wait_for(
+                    asyncio.to_thread(next, iterator, _STREAM_SENTINEL),
+                    timeout=chunk_timeout,
+                )
+                if chunk is _STREAM_SENTINEL:
+                    return  # generator exhausted normally
+                yield chunk
+            except asyncio.TimeoutError:
+                raise  # propagate to caller
+            except StopIteration:
+                return
+    finally:
+        # Clean up the underlying generator to release HTTP connections
+        if hasattr(sync_generator, 'close'):
+            try:
+                sync_generator.close()
+            except Exception:
+                pass
 
 _STREAM_SENTINEL = object()  # sentinel for detecting generator exhaustion
 
@@ -2772,6 +2864,28 @@ async def handle_regulatory_list():
             )
     sop_content_data = "\n\n".join(sop_parts) if sop_parts else "無可用的 SOP 內容"
 
+    # ── Step 1: Generate baseline Word/Excel BEFORE LLM (guaranteed report) ──
+    _cache_id = f"regulatory_list_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+    baseline_word_path = ""
+    baseline_excel_path = ""
+    try:
+        baseline_word_path = export_regulatory_to_word(scan_result, assessment=None)
+        baseline_excel_path = export_regulatory_to_excel(scan_result, assessment=None)
+        save_analysis_cache(
+            cache_id=_cache_id,
+            command="regulatory_list",
+            scan_result=scan_result,
+            status="baseline_ready",
+            baseline_word_path=baseline_word_path,
+            baseline_excel_path=baseline_excel_path,
+        )
+        import logging
+        logging.getLogger(__name__).info(f"Baseline regulatory report generated: {baseline_word_path}")
+    except Exception as baseline_err:
+        import logging
+        logging.getLogger(__name__).warning(f"Baseline report generation failed: {baseline_err}")
+
+
     # Call LLM for assessment
     provider_id = cl.user_session.get("provider_id", "ollama")
     model_name = cl.user_session.get("model_name", "default")
@@ -2868,6 +2982,8 @@ async def handle_regulatory_list():
                 # Add assistant's partial response and continuation prompt to messages
                 messages.append({'role': 'assistant', 'content': assessment})
                 messages.append({'role': 'user', 'content': '\u4f60\u7684\u56de\u7b54\u56e0\u70ba\u9577\u5ea6\u9650\u5236\u88ab\u622a\u65b7\u4e86\u3002\u8acb\u5f9e\u622a\u65b7\u8655\u7e7c\u7e8c\u5b8c\u6210\u5269\u9918\u7684\u5206\u6790\u5167\u5bb9\u3002\u4e0d\u8981\u91cd\u8907\u5df2\u7d93\u5beb\u904e\u7684\u90e8\u5206\uff0c\u76f4\u63a5\u5f9e\u4e0a\u6b21\u4e2d\u65b7\u7684\u5730\u65b9\u7e7c\u7e8c\u3002'})
+                # Save partial assessment to cache for resilience
+                save_analysis_cache(cache_id=_cache_id, command="regulatory_list", assessment=assessment, status="in_progress")
             else:
                 # Max continuations reached but still truncated = token exhausted
                 if is_truncated:
@@ -2900,8 +3016,18 @@ async def handle_regulatory_list():
         except Exception:
             pass
 
-    # Store assessment for export
-    cl.user_session.set("last_regulatory_assessment", assessment)
+    # Store assessment for export (protected: session may be disconnected)
+    try:
+        cl.user_session.set("last_regulatory_assessment", assessment)
+    except Exception:
+        pass  # Session disconnected — cache save below will persist the data
+
+    # Update cache with final assessment (MUST always execute, even if session is dead)
+    try:
+        save_analysis_cache(cache_id=_cache_id, command="regulatory_list", assessment=assessment, status="completed" if not token_exhausted else "llm_failed", provider_id=provider_id, model_name=model_name)
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning("Failed to save final analysis cache")
 
     # Save analysis report to persistent markdown DB for Phase 2 audit sub-agent
     # Always save when there's meaningful content, even if truncated
@@ -2934,36 +3060,18 @@ async def handle_regulatory_list():
             "- 💾 **提供商限流**：API 請求頻率或 Token 配額已達提供商限制\n\n"
             "📥 正在自動產生截斷至目前為止的 Word 與 Excel 報告..."
         ).format(cont=MAX_CONTINUATIONS, timeout=STREAMING_CHUNK_TIMEOUT)
-        await cl.Message(content=truncation_notice).send()
+        try:
+            await cl.Message(content=truncation_notice).send()
+        except Exception:
+            pass  # WebSocket may be disconnected
         try:
             scan_result_for_export = cl.user_session.get("last_regulatory_scan")
             if scan_result_for_export:
                 word_path = export_regulatory_to_word(scan_result_for_export, assessment=assessment)
                 excel_path = export_regulatory_to_excel(scan_result_for_export, assessment=assessment)
-                display_name_w = re.sub(r'^\d{14}_', '', Path(word_path).name)
-                display_name_e = re.sub(r'^\d{14}_', '', Path(excel_path).name)
-                elements = [
-                    cl.File(name=display_name_w, path=word_path, display="inline"),
-                    cl.File(name=display_name_e, path=excel_path, display="inline"),
-                ]
-                await cl.Message(
-                    content="\u2705 \u5831\u544a\u5df2\u81ea\u52d5\u7522\u751f\uff08\u5167\u5bb9\u622a\u65b7\u81f3 Token \u8017\u76e1\u8655\uff09\uff1a",
-                    elements=elements,
-                ).send()
-        except Exception as export_err:
-            import logging
-            logging.getLogger(__name__).warning(f"Auto-export on token exhaustion failed: {export_err}")
-            await cl.Message(content=f"\u26a0\ufe0f \u81ea\u52d5\u7522\u751f\u5831\u544a\u5931\u6557: {str(export_err)[:100]}").send()
-    else:
-        # Normal completion: auto-generate Word/Excel files directly
-        # (Previously only showed cl.Action buttons, which users might miss
-        #  or which might not appear if LLM stopped mid-generation silently)
-        if assessment and not assessment.startswith('\u26a0\ufe0f'):
-            try:
-                scan_result_for_export = cl.user_session.get("last_regulatory_scan")
-                if scan_result_for_export:
-                    word_path = export_regulatory_to_word(scan_result_for_export, assessment=assessment)
-                    excel_path = export_regulatory_to_excel(scan_result_for_export, assessment=assessment)
+                # Cache save FIRST (guaranteed), then UI notification (best-effort)
+                save_analysis_cache(cache_id=_cache_id, command="regulatory_list", final_word_path=word_path, final_excel_path=excel_path, status="completed")
+                try:
                     display_name_w = re.sub(r'^\d{14}_', '', Path(word_path).name)
                     display_name_e = re.sub(r'^\d{14}_', '', Path(excel_path).name)
                     elements = [
@@ -2971,40 +3079,82 @@ async def handle_regulatory_list():
                         cl.File(name=display_name_e, path=excel_path, display="inline"),
                     ]
                     await cl.Message(
-                        content=base_response,
+                        content="✅ 報告已自動產生（內容截斷至 Token 耗盡處）：",
                         elements=elements,
                     ).send()
+                except Exception:
+                    pass  # WebSocket disconnected — report is on disk + in cache
+        except Exception as export_err:
+            import logging
+            logging.getLogger(__name__).warning(f"Auto-export on token exhaustion failed: {export_err}")
+            try:
+                await cl.Message(content=f"⚠️ 自動產生報告失敗: {str(export_err)[:100]}").send()
+            except Exception:
+                pass
+    else:
+        # Normal completion: auto-generate Word/Excel files directly
+        if assessment and not assessment.startswith('⚠️'):
+            try:
+                scan_result_for_export = cl.user_session.get("last_regulatory_scan")
+                if scan_result_for_export:
+                    word_path = export_regulatory_to_word(scan_result_for_export, assessment=assessment)
+                    excel_path = export_regulatory_to_excel(scan_result_for_export, assessment=assessment)
+                    # Cache save FIRST (guaranteed), then UI notification (best-effort)
+                    save_analysis_cache(cache_id=_cache_id, command="regulatory_list", final_word_path=word_path, final_excel_path=excel_path, status="completed")
+                    try:
+                        display_name_w = re.sub(r'^\d{14}_', '', Path(word_path).name)
+                        display_name_e = re.sub(r'^\d{14}_', '', Path(excel_path).name)
+                        elements = [
+                            cl.File(name=display_name_w, path=word_path, display="inline"),
+                            cl.File(name=display_name_e, path=excel_path, display="inline"),
+                        ]
+                        await cl.Message(
+                            content=base_response,
+                            elements=elements,
+                        ).send()
+                    except Exception:
+                        pass  # WebSocket disconnected — report is on disk + in cache
                 else:
-                    await cl.Message(content=base_response).send()
+                    try:
+                        await cl.Message(content=base_response).send()
+                    except Exception:
+                        pass
             except Exception as export_err:
                 import logging
                 logging.getLogger(__name__).warning(f"Auto-export on normal completion failed: {export_err}")
                 # Fallback: show Action buttons if auto-export fails
-                actions = [
-                    cl.Action(
-                        name="download_regulatory_word",
-                        payload={"format": "word"},
-                        label="\U0001f4e5 Word (.docx)",
-                    ),
-                    cl.Action(
-                        name="download_regulatory_excel",
-                        payload={"format": "excel"},
-                        label="\U0001f4e5 Excel (.xlsx)",
-                    ),
-                ]
-                await cl.Message(content=base_response, actions=actions).send()
+                try:
+                    actions = [
+                        cl.Action(
+                            name="download_regulatory_word",
+                            payload={"format": "word"},
+                            label="📥 Word (.docx)",
+                        ),
+                        cl.Action(
+                            name="download_regulatory_excel",
+                            payload={"format": "excel"},
+                            label="📥 Excel (.xlsx)",
+                        ),
+                    ]
+                    await cl.Message(content=base_response, actions=actions).send()
+                except Exception:
+                    pass
         else:
-            await cl.Message(content=base_response).send()
+            try:
+                await cl.Message(content=base_response).send()
+            except Exception:
+                pass
 
     # Suggestion: update quality documents based on this analysis, then re-run
-    if assessment and not assessment.startswith('\u26a0\ufe0f'):
-        suggestion = (
-            "\n\n---\n"
-            "\U0001f4a1 **\u5efa\u8b70\uff1a** \u8acb\u5148\u4f9d\u64da\u672c\u6b21\u5206\u6790\u7d50\u679c\u66f4\u65b0\u54c1\u8cea\u6587\u4ef6\uff0c\u518d\u91cd\u65b0\u57f7\u884c\u300c\u6cd5\u898f\u6e05\u55ae\u300d\u4ee5\u9a57\u8b49\u4fee\u6539\u662f\u5426\u5b8c\u5584\u3002"
-        )
-        await cl.Message(content=suggestion).send()
-
-    return base_response
+    if assessment and not assessment.startswith('⚠️'):
+        try:
+            suggestion = (
+                "\n\n---\n"
+                "💡 **建議：** 請先依據本次分析結果更新品質文件，再重新執行「法規清單」以驗證修改是否完善。"
+            )
+            await cl.Message(content=suggestion).send()
+        except Exception:
+            pass  # WebSocket disconnected
 
 
 async def handle_regulatory_export(format_type: str):
@@ -3253,6 +3403,29 @@ async def handle_regulatory_update_rescan(selected_regions: list):
     reg_md_store = get_regulatory_markdown_store()
     save_result = reg_md_store.save_from_crawl_results(crawl_results)
 
+    # ── Step 1: Generate baseline Word/Excel BEFORE LLM (guaranteed report) ──
+    _cache_id_update = f"regulatory_update_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+    baseline_word_path_upd = ""
+    baseline_excel_path_upd = ""
+    try:
+        from src.utils.regulatory_update_export import export_regulatory_update_to_word, export_regulatory_update_to_excel
+        baseline_word_path_upd = export_regulatory_update_to_word(crawl_results, assessment=None)
+        baseline_excel_path_upd = export_regulatory_update_to_excel(crawl_results, assessment=None)
+        save_analysis_cache(
+            cache_id=_cache_id_update,
+            command="regulatory_update",
+            crawl_results=crawl_results,
+            status="baseline_ready",
+            baseline_word_path=baseline_word_path_upd,
+            baseline_excel_path=baseline_excel_path_upd,
+        )
+        import logging
+        logging.getLogger(__name__).info(f"Baseline regulatory update report generated: {baseline_word_path_upd}")
+    except Exception as baseline_err:
+        import logging
+        logging.getLogger(__name__).warning(f"Baseline update report generation failed: {baseline_err}")
+
+
     # LLM analysis for regulatory update
     storage = get_markdown_store()
     assessment = ""
@@ -3484,6 +3657,8 @@ async def handle_regulatory_update_rescan(selected_regions: list):
                     # Add assistant's partial response and continuation prompt to messages
                     messages.append({'role': 'assistant', 'content': assessment})
                     messages.append({'role': 'user', 'content': '\u4f60\u7684\u56de\u7b54\u56e0\u70ba\u9577\u5ea6\u9650\u5236\u88ab\u622a\u65b7\u4e86\u3002\u8acb\u5f9e\u622a\u65b7\u8655\u7e7c\u7e8c\u5b8c\u6210\u5269\u9918\u7684\u5206\u6790\u5167\u5bb9\u3002\u4e0d\u8981\u91cd\u8907\u5df2\u7d93\u5beb\u904e\u7684\u90e8\u5206\uff0c\u76f4\u63a5\u5f9e\u4e0a\u6b21\u4e2d\u65b7\u7684\u5730\u65b9\u7e7c\u7e8c\u3002'})
+                    # Save partial assessment to cache for resilience
+                    save_analysis_cache(cache_id=_cache_id_update, command="regulatory_update", assessment=assessment, status="in_progress")
                 else:
                     # Max continuations reached but still truncated = token exhausted
                     if is_truncated:
@@ -3517,7 +3692,18 @@ async def handle_regulatory_update_rescan(selected_regions: list):
             await assess_msg.update()
         except Exception:
             pass  # assess_msg might not exist if error happened before it was created
-    cl.user_session.set("last_regulatory_update_assessment", assessment)
+    # Store assessment for export (protected: session may be disconnected)
+    try:
+        cl.user_session.set("last_regulatory_update_assessment", assessment)
+    except Exception:
+        pass  # Session disconnected — cache save below will persist the data
+
+    # Update cache with final assessment (MUST always execute, even if session is dead)
+    try:
+        save_analysis_cache(cache_id=_cache_id_update, command="regulatory_update", assessment=assessment, status="completed" if not token_exhausted else "llm_failed", provider_id=provider_id, model_name=model_name)
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning("Failed to save final analysis cache for regulatory update")
 
     # Save analysis report to persistent markdown DB for Phase 2 audit sub-agent
     # Always save when there's meaningful content, even if truncated
@@ -3554,32 +3740,16 @@ async def handle_regulatory_update_rescan(selected_regions: list):
             "- 💾 **提供商限流**：API 請求頻率或 Token 配額已達提供商限制\n\n"
             "📥 正在自動產生截斷至目前為止的 Word 與 Excel 報告..."
         ).format(cont=MAX_CONTINUATIONS, timeout=STREAMING_CHUNK_TIMEOUT)
-        await cl.Message(content=response).send()
+        try:
+            await cl.Message(content=response).send()
+        except Exception:
+            pass  # WebSocket may be disconnected
         try:
             word_path = export_regulatory_update_to_word(crawl_results, assessment=assessment)
             excel_path = export_regulatory_update_to_excel(crawl_results, assessment=assessment)
-            display_name_w = re.sub(r'^\d{14}_', '', Path(word_path).name)
-            display_name_e = re.sub(r'^\d{14}_', '', Path(excel_path).name)
-            elements = [
-                cl.File(name=display_name_w, path=word_path, display="inline"),
-                cl.File(name=display_name_e, path=excel_path, display="inline"),
-            ]
-            await cl.Message(
-                content="\u2705 \u5831\u544a\u5df2\u81ea\u52d5\u7522\u751f\uff08\u5167\u5bb9\u622a\u65b7\u81f3 Token \u8017\u76e1\u8655\uff09\uff1a",
-                elements=elements,
-            ).send()
-        except Exception as export_err:
-            import logging
-            logging.getLogger(__name__).warning(f"Auto-export on token exhaustion failed: {export_err}")
-            await cl.Message(content=f"\u26a0\ufe0f \u81ea\u52d5\u7522\u751f\u5831\u544a\u5931\u6557: {str(export_err)[:100]}").send()
-    else:
-        # Normal completion: auto-generate Word/Excel files directly
-        # (Previously only showed cl.Action buttons, which users might miss
-        #  or which might not appear if LLM stopped mid-generation silently)
-        if assessment and not assessment.startswith('\u26a0\ufe0f') and not assessment.startswith('\u2139\ufe0f'):
+            # Cache save FIRST (guaranteed), then UI notification (best-effort)
+            save_analysis_cache(cache_id=_cache_id_update, command="regulatory_update", final_word_path=word_path, final_excel_path=excel_path, status="completed")
             try:
-                word_path = export_regulatory_update_to_word(crawl_results, assessment=assessment)
-                excel_path = export_regulatory_update_to_excel(crawl_results, assessment=assessment)
                 display_name_w = re.sub(r'^\d{14}_', '', Path(word_path).name)
                 display_name_e = re.sub(r'^\d{14}_', '', Path(excel_path).name)
                 elements = [
@@ -3587,36 +3757,75 @@ async def handle_regulatory_update_rescan(selected_regions: list):
                     cl.File(name=display_name_e, path=excel_path, display="inline"),
                 ]
                 await cl.Message(
-                    content=response,
+                    content="✅ 報告已自動產生（內容截斷至 Token 耗盡處）：",
                     elements=elements,
                 ).send()
+            except Exception:
+                pass  # WebSocket disconnected — report is on disk + in cache
+        except Exception as export_err:
+            import logging
+            logging.getLogger(__name__).warning(f"Auto-export on token exhaustion failed: {export_err}")
+            try:
+                await cl.Message(content=f"⚠️ 自動產生報告失敗: {str(export_err)[:100]}").send()
+            except Exception:
+                pass
+    else:
+        # Normal completion: auto-generate Word/Excel files directly
+        if assessment and not assessment.startswith('⚠️') and not assessment.startswith('ℹ️'):
+            try:
+                word_path = export_regulatory_update_to_word(crawl_results, assessment=assessment)
+                excel_path = export_regulatory_update_to_excel(crawl_results, assessment=assessment)
+                # Cache save FIRST (guaranteed), then UI notification (best-effort)
+                save_analysis_cache(cache_id=_cache_id_update, command="regulatory_update", final_word_path=word_path, final_excel_path=excel_path, status="completed")
+                try:
+                    display_name_w = re.sub(r'^\d{14}_', '', Path(word_path).name)
+                    display_name_e = re.sub(r'^\d{14}_', '', Path(excel_path).name)
+                    elements = [
+                        cl.File(name=display_name_w, path=word_path, display="inline"),
+                        cl.File(name=display_name_e, path=excel_path, display="inline"),
+                    ]
+                    await cl.Message(
+                        content=response,
+                        elements=elements,
+                    ).send()
+                except Exception:
+                    pass  # WebSocket disconnected — report is on disk + in cache
             except Exception as export_err:
                 import logging
                 logging.getLogger(__name__).warning(f"Auto-export on normal completion failed: {export_err}")
                 # Fallback: show Action buttons if auto-export fails
-                actions = [
-                    cl.Action(
-                        name="download_regulatory_update_word",
-                        payload={"format": "word"},
-                        label="\U0001f4e5 Word (.docx)",
-                    ),
-                    cl.Action(
-                        name="download_regulatory_update_excel",
-                        payload={"format": "excel"},
-                        label="\U0001f4e5 Excel (.xlsx)",
-                    ),
-                ]
-                await cl.Message(content=response, actions=actions).send()
+                try:
+                    actions = [
+                        cl.Action(
+                            name="download_regulatory_update_word",
+                            payload={"format": "word"},
+                            label="📥 Word (.docx)",
+                        ),
+                        cl.Action(
+                            name="download_regulatory_update_excel",
+                            payload={"format": "excel"},
+                            label="📥 Excel (.xlsx)",
+                        ),
+                    ]
+                    await cl.Message(content=response, actions=actions).send()
+                except Exception:
+                    pass
         else:
-            await cl.Message(content=response).send()
+            try:
+                await cl.Message(content=response).send()
+            except Exception:
+                pass
 
     # Suggestion: update quality documents based on this analysis, then re-run
-    if assessment and not assessment.startswith('\u26a0\ufe0f'):
-        suggestion = (
-            "\n\n---\n"
-            "\U0001f4a1 **\u5efa\u8b70\uff1a** \u8acb\u5148\u4f9d\u64da\u672c\u6b21\u5206\u6790\u7d50\u679c\u66f4\u65b0\u54c1\u8cea\u6587\u4ef6\uff0c\u518d\u91cd\u65b0\u57f7\u884c\u300c\u6cd5\u898f\u6e05\u55ae\u66f4\u65b0\u300d\u4ee5\u9a57\u8b49\u4fee\u6539\u662f\u5426\u5b8c\u5584\u3002"
-        )
-        await cl.Message(content=suggestion).send()
+    if assessment and not assessment.startswith('⚠️'):
+        try:
+            suggestion = (
+                "\n\n---\n"
+                "💡 **建議：** 請先依據本次分析結果更新品質文件，再重新執行「法規清單更新」以驗證修改是否完善。"
+            )
+            await cl.Message(content=suggestion).send()
+        except Exception:
+            pass  # WebSocket disconnected
 
 
 async def _show_regulatory_update_export_buttons():
