@@ -47,11 +47,13 @@ name = "AI-QMS"
 # Default theme
 default_theme = "light"
 
+# Force Chainlit frontend UI language (placeholder, buttons, sidebar, watermark)
+# This controls Chainlit's built-in UI strings; app-level i18n (Eira messages)
+# is controlled by the Language selector in ChatSettings.
+language = "zh-TW"
+
 # Chain of Thought display mode
 cot = "hidden"
-
-# Chat input placeholder
-chat_input_placeholder = "在此輸入訊息或拖放文件（最多 100 份，每份 500MB）..."
 
 layout = "wide"
 
