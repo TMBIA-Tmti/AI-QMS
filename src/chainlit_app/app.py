@@ -4701,7 +4701,9 @@ async def handle_file_upload(files):
                 )
 
                 diff_text = ""
-                if hasattr(diff_response, "choices") and diff_response.choices:
+                if isinstance(diff_response, dict):
+                    diff_text = diff_response.get("content", "") or ""
+                elif hasattr(diff_response, "choices") and diff_response.choices:
                     diff_text = diff_response.choices[0].message.content or ""
 
                 if diff_text:
@@ -5018,7 +5020,7 @@ async def _execute_version_update(confirmer_name: str):
             )
 
             # Cross-reference check
-            ref_actions = []
+            ref_elements = []
             try:
                 current_doc_id = doc_info.get("doc_id", "")
                 ref_docs = storage_manager.find_referencing_documents(current_doc_id)
@@ -5038,23 +5040,26 @@ async def _execute_version_update(confirmer_name: str):
                         ]
                     )
                     msg += f"\n{t('version.ref_warning')}\n{ref_list}"
-                    ref_actions = [
-                        cl.Action(
-                            name="download_reference_word",
-                            payload={"format": "word"},
-                            label="📥 Word (.docx)",
-                        ),
-                        cl.Action(
-                            name="download_reference_excel",
-                            payload={"format": "excel"},
-                            label="📥 Excel (.xlsx)",
-                        ),
-                    ]
+                    # Auto-generate Word/Excel reference reports and attach inline
+                    try:
+                        word_path = export_reference_to_word(current_doc_id, ref_docs)
+                        if word_path:
+                            wname = re.sub(r"^\d{14}_", "", Path(word_path).name)
+                            ref_elements.append(cl.File(name=wname, path=word_path, display="inline"))
+                    except Exception:
+                        pass
+                    try:
+                        excel_path = export_reference_to_excel(current_doc_id, ref_docs)
+                        if excel_path:
+                            ename = re.sub(r"^\d{14}_", "", Path(excel_path).name)
+                            ref_elements.append(cl.File(name=ename, path=excel_path, display="inline"))
+                    except Exception:
+                        pass
             except Exception:
                 pass
 
-            if ref_actions:
-                await cl.Message(content=msg, actions=ref_actions).send()
+            if ref_elements:
+                await cl.Message(content=msg, elements=ref_elements).send()
             else:
                 await cl.Message(content=msg).send()
 
@@ -6126,21 +6131,24 @@ async def on_message(message: cl.Message):
             else:
                 await cl.Message(content=msg_text).send()
         else:
-            actions = [
-                cl.Action(
-                    name="download_doclist_word",
-                    payload={"format": "word"},
-                    label="📥 Word (.docx)",
-                ),
-                cl.Action(
-                    name="download_doclist_excel",
-                    payload={"format": "excel"},
-                    label="📥 Excel (.xlsx)",
-                ),
-            ]
+            elements = []
+            try:
+                word_path, _ = await handle_doclist_export("word")
+                if word_path:
+                    wname = re.sub(r"^\d{14}_", "", Path(word_path).name)
+                    elements.append(cl.File(name=wname, path=word_path, display="inline"))
+            except Exception:
+                pass
+            try:
+                excel_path, _ = await handle_doclist_export("excel")
+                if excel_path:
+                    ename = re.sub(r"^\d{14}_", "", Path(excel_path).name)
+                    elements.append(cl.File(name=ename, path=excel_path, display="inline"))
+            except Exception:
+                pass
             await cl.Message(
-                content=t("export.doclist_prompt"),
-                actions=actions,
+                content="📋 文件清單 Word/Excel 報告",
+                elements=elements,
             ).send()
         return
 
@@ -6159,21 +6167,24 @@ async def on_message(message: cl.Message):
             else:
                 await cl.Message(content=msg_text).send()
         else:
-            actions = [
-                cl.Action(
-                    name="download_allrecords_word",
-                    payload={"format": "word"},
-                    label="📥 Word (.docx)",
-                ),
-                cl.Action(
-                    name="download_allrecords_excel",
-                    payload={"format": "excel"},
-                    label="📥 Excel (.xlsx)",
-                ),
-            ]
+            elements = []
+            try:
+                word_path, _ = await handle_allrecords_export("word")
+                if word_path:
+                    wname = re.sub(r"^\d{14}_", "", Path(word_path).name)
+                    elements.append(cl.File(name=wname, path=word_path, display="inline"))
+            except Exception:
+                pass
+            try:
+                excel_path, _ = await handle_allrecords_export("excel")
+                if excel_path:
+                    ename = re.sub(r"^\d{14}_", "", Path(excel_path).name)
+                    elements.append(cl.File(name=ename, path=excel_path, display="inline"))
+            except Exception:
+                pass
             await cl.Message(
-                content=t("export.allrecords_prompt"),
-                actions=actions,
+                content="📋 全部文件紀錄 Word/Excel 報告",
+                elements=elements,
             ).send()
         return
 
@@ -6239,7 +6250,7 @@ async def on_message(message: cl.Message):
         return
 
     # ============================================================
-    # Export / Download with Action Buttons
+    # Export / Download with Inline File Attachments
     # ============================================================
 
     # --- Audit export (must check before audit display) ---
@@ -6260,21 +6271,24 @@ async def on_message(message: cl.Message):
             _, msg_text = await handle_audit_export("pdf")
             await cl.Message(content=msg_text).send()
         else:
-            actions = [
-                cl.Action(
-                    name="download_audit_word",
-                    payload={"format": "word"},
-                    label="📥 Word (.docx)",
-                ),
-                cl.Action(
-                    name="download_audit_excel",
-                    payload={"format": "excel"},
-                    label="📥 Excel (.xlsx)",
-                ),
-            ]
+            elements = []
+            try:
+                word_path, _ = await handle_audit_export("word")
+                if word_path:
+                    wname = re.sub(r"^\d{14}_", "", Path(word_path).name)
+                    elements.append(cl.File(name=wname, path=word_path, display="inline"))
+            except Exception:
+                pass
+            try:
+                excel_path, _ = await handle_audit_export("excel")
+                if excel_path:
+                    ename = re.sub(r"^\d{14}_", "", Path(excel_path).name)
+                    elements.append(cl.File(name=ename, path=excel_path, display="inline"))
+            except Exception:
+                pass
             await cl.Message(
-                content=t("export.audit_prompt"),
-                actions=actions,
+                content="📋 文件更動紀錄 Word/Excel 報告",
+                elements=elements,
             ).send()
         return
 
@@ -6293,21 +6307,24 @@ async def on_message(message: cl.Message):
             else:
                 await cl.Message(content=msg_text).send()
         else:
-            actions = [
-                cl.Action(
-                    name="download_regulatory_update_word",
-                    payload={"format": "word"},
-                    label="📥 Word (.docx)",
-                ),
-                cl.Action(
-                    name="download_regulatory_update_excel",
-                    payload={"format": "excel"},
-                    label="📥 Excel (.xlsx)",
-                ),
-            ]
+            elements = []
+            try:
+                word_path, _ = await handle_regulatory_update_export("word")
+                if word_path:
+                    wname = re.sub(r"^\d{14}_", "", Path(word_path).name)
+                    elements.append(cl.File(name=wname, path=word_path, display="inline"))
+            except Exception:
+                pass
+            try:
+                excel_path, _ = await handle_regulatory_update_export("excel")
+                if excel_path:
+                    ename = re.sub(r"^\d{14}_", "", Path(excel_path).name)
+                    elements.append(cl.File(name=ename, path=excel_path, display="inline"))
+            except Exception:
+                pass
             await cl.Message(
-                content=t("regulatory_update.export_prompt"),
-                actions=actions,
+                content="📋 法規更新報告 Word/Excel",
+                elements=elements,
             ).send()
         return
 
@@ -6331,21 +6348,24 @@ async def on_message(message: cl.Message):
             else:
                 await cl.Message(content=msg_text).send()
         else:
-            actions = [
-                cl.Action(
-                    name="download_regulatory_word",
-                    payload={"format": "word"},
-                    label="📥 Word (.docx)",
-                ),
-                cl.Action(
-                    name="download_regulatory_excel",
-                    payload={"format": "excel"},
-                    label="📥 Excel (.xlsx)",
-                ),
-            ]
+            elements = []
+            try:
+                word_path, _ = await handle_regulatory_export("word")
+                if word_path:
+                    wname = re.sub(r"^\d{14}_", "", Path(word_path).name)
+                    elements.append(cl.File(name=wname, path=word_path, display="inline"))
+            except Exception:
+                pass
+            try:
+                excel_path, _ = await handle_regulatory_export("excel")
+                if excel_path:
+                    ename = re.sub(r"^\d{14}_", "", Path(excel_path).name)
+                    elements.append(cl.File(name=ename, path=excel_path, display="inline"))
+            except Exception:
+                pass
             await cl.Message(
-                content=t("export.regulatory_prompt"),
-                actions=actions,
+                content="📋 法規清單 Word/Excel 報告",
+                elements=elements,
             ).send()
         return
 
@@ -6386,21 +6406,24 @@ async def on_message(message: cl.Message):
             else:
                 await cl.Message(content=msg_text).send()
         else:
-            actions = [
-                cl.Action(
-                    name="download_reference_word",
-                    payload={"format": "word"},
-                    label="📥 Word (.docx)",
-                ),
-                cl.Action(
-                    name="download_reference_excel",
-                    payload={"format": "excel"},
-                    label="📥 Excel (.xlsx)",
-                ),
-            ]
+            elements = []
+            try:
+                word_path, _ = await handle_reference_export("word")
+                if word_path:
+                    wname = re.sub(r"^\d{14}_", "", Path(word_path).name)
+                    elements.append(cl.File(name=wname, path=word_path, display="inline"))
+            except Exception:
+                pass
+            try:
+                excel_path, _ = await handle_reference_export("excel")
+                if excel_path:
+                    ename = re.sub(r"^\d{14}_", "", Path(excel_path).name)
+                    elements.append(cl.File(name=ename, path=excel_path, display="inline"))
+            except Exception:
+                pass
             await cl.Message(
-                content=t("export.reference_prompt"),
-                actions=actions,
+                content="📋 引用清單 Word/Excel 報告",
+                elements=elements,
             ).send()
         return
 
