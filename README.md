@@ -839,6 +839,8 @@ AI-QMS/
 ├── .chainlit/                   # Chainlit configuration
 │   └── config.toml
 ├── public/                      # Chainlit public assets
+│   ├── avatars/
+│   │   └── eira.svg             # Eira AI assistant icon
 │   ├── main_agent.svg
 │   └── doc_control.svg
 ├── src/                         # Source code
@@ -872,11 +874,11 @@ AI-QMS/
 │   ├── config.py
 │   └── llm_providers.py         # 16 LLM provider manager
 ├── scripts/                     # Utility scripts
-│   ├── auto_translate.py        # AI-powered i18n translation
-│   └── extract_i18n.py          # i18n extraction (one-time)
+│   └── auto_translate.py        # AI-powered i18n translation
 ├── data/                        # Runtime data (auto-generated)
 │   ├── analysis_cache/          # Resilient report cache (JSON)
-│   ├── user_settings.json       # Persisted user preferences
+│   ├── user_settings/           # Per-user settings (JSON, auto-generated)
+│   │   └── _last_user.json      # Last active user pointer
 │   └── exports/                 # Generated Word/Excel reports
 ├── uploads/                     # File upload staging
 └── markdown_storage/            # Converted Markdown documents
