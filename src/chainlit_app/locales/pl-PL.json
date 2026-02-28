@@ -274,7 +274,7 @@
     "wyszukiwanie web",
     "szukaj online"
   ],
-  "eira.ask_name": "Cześć! Jestem Eira 🏥\n\nProsze wpisać swoje imię poniżej.",
-  "eira.name_empty": "Proszę podać swoje imię, abym mogła Cię poznać 😊",
+  "eira.ask_name": "Dzień dobry, jestem Eira, inteligentny asystent ds. regulacji wyrobów medycznych.\n\nAby zapewnić bardziej spersonalizowaną obsługę, proszę podać swoje imię.",
+  "eira.name_empty": "Aby zapewnić lepszą obsługę, proszę podać swoje imię.",
   "eira.introduction": "Witamy użytkownika **{name}** w projekcie **AI-QMS** opracowanym przez **TMBIA-Tmti** (Taiwan Medical and Biotech Industry Association, Tajwańskie Stowarzyszenie Przemysłu Medycznego i Biotechnologicznego).\n\nNazywam się **Eira** i jestem dedykowana wspieraniu Państwa w rozumieniu przepisów dotyczących wyrobów medycznych w różnych krajach, napędzaniu zarządzania jakością za pomocą AI oraz zapewnieniu zgodności z przepisami i bezpieczeństwa.\n\n⚠️ **Ważne zastrzeżenie:** Wszelkie oceny, analizy i zalecenia dostarczane przez Eira mają charakter wyłącznie **informacyjny** i nie mogą być wykorzystywane jako oficjalna dokumentacja oceny. Użytkownicy powinni samodzielnie weryfikować poprawność i adekwatność wszystkich treści dostarczanych przez Eira."
 }

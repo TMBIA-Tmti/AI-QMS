@@ -273,7 +273,7 @@
     "búsqueda web",
     "buscar en línea"
   ],
-  "eira.ask_name": "¡Hola! Soy Eira 🏥\n\nPor favor, ingrese su nombre a continuación.",
-  "eira.name_empty": "Por favor, ingrese su nombre para que pueda conocerle 😊",
+  "eira.ask_name": "Hola, soy Eira, su asistente inteligente de regulación de dispositivos médicos.\n\nPara brindarle un servicio más personalizado, por favor ingrese su nombre.",
+  "eira.name_empty": "Para un mejor servicio, por favor ingrese su nombre.",
   "eira.introduction": "Bienvenido/a, **{name}**, al proyecto **AI-QMS** desarrollado por **TMBIA-Tmti** (Taiwan Medical and Biotech Industry Association, Asociación Industrial de Equipos Médicos y Biotecnológicos de Taiwán).\n\nMe llamo **Eira**, y estoy dedicada a ayudarle a comprender las regulaciones de dispositivos médicos de distintos países, impulsando la gestión de calidad con IA para garantizar el cumplimiento normativo y la seguridad.\n\n⚠️ **Aviso importante:** Las evaluaciones, análisis y recomendaciones proporcionadas por Eira son únicamente de carácter **referencial** y no deben utilizarse como documentos de evaluación oficiales. El usuario debe verificar por su cuenta la exactitud y aplicabilidad de todo el contenido proporcionado por Eira."
 }

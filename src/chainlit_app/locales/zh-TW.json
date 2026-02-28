@@ -276,7 +276,7 @@
     "上網搜尋",
     "上網查詢"
   ],
-  "eira.ask_name": "你好！我是 Eira 🏥\n\n請在下方輸入您的名字，讓我認識您。",
-  "eira.name_empty": "請輸入您的名字，讓我認識您 😊",
+  "eira.ask_name": "您好，我是 Eira，您的醫療器材法規智慧助理。\n\n為了提供更個人化的服務，請輸入您的姓名。",
+  "eira.name_empty": "為了提供更完善的服務，請輸入您的姓名。",
   "eira.introduction": "歡迎使用者 **{name}** 使用由 **TMBIA-Tmti**（Taiwan Medical and Biotech Industry Association，台灣醫療暨生技器材工業同業公會）所開發的 **AI-QMS** 專案。\n\n我叫 **Eira**，致力協助各位理解各國醫療器材法規，以 AI 驅動品質管理，守護合規與安全。\n\n⚠️ **重要聲明：** Eira 所提供的各項評估、分析與建議僅供**參考**，不得作為正式評估文件使用。使用者應自行確認 Eira 所提供的所有內容之正確性與適用性。"
 }

@@ -276,7 +276,7 @@
     "search online"
   ],
   "reference.export_hint": "📋 Currently supported:\n\n📄 **{filename}**",
-  "eira.ask_name": "Hello! I'm Eira 🏥\n\nPlease enter your name below so I can get to know you.",
-  "eira.name_empty": "Please enter your name so I can get to know you 😊",
+  "eira.ask_name": "Hello, I'm Eira, your intelligent medical device regulatory assistant.\n\nTo provide a more personalized experience, please enter your name.",
+  "eira.name_empty": "To better assist you, please enter your name.",
   "eira.introduction": "Welcome, **{name}**, to the **AI-QMS** project developed by **TMBIA-Tmti** (Taiwan Medical and Biotech Industry Association).\n\nMy name is **Eira**, and I am dedicated to helping you understand medical device regulations across different countries, driving quality management with AI to safeguard compliance and safety.\n\n⚠️ **Important Disclaimer:** All assessments, analyses, and recommendations provided by Eira are for **reference purposes only** and must not be used as official assessment documents. Users are responsible for independently verifying the accuracy and applicability of all content provided by Eira."
 }

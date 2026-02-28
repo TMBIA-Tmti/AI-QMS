@@ -1861,33 +1861,17 @@ async def on_settings_update(settings):
             test_msg.content = t("settings.connection_failed", error=str(e))
             await test_msg.update()
 
-        # Show Eira introduction after LLM connection
+        # Eira greeting flow after LLM connection
         _user_name = cl.user_session.get("user_name", "")
-        if _user_name:
-            profile = cl.user_session.get("chat_profile")
-            doc_count, doc_limit = get_document_count()
-            await _send_eira_introduction(_user_name, profile, doc_count, doc_limit)
-        elif language_changed:
-            await cl.Message(content=t("settings.language_changed")).send()
-            profile = cl.user_session.get("chat_profile")
-            doc_count, doc_limit = get_document_count()
-            if profile == "\u6587\u4ef6\u7ba1\u5236 (Doc Control)":
-                welcome = (
-                    f"{t('welcome.doc_control.title')}\n\n"
-                    f"{t('welcome.doc_control.greeting')}\n\n"
-                    f"{t('welcome.doc_control.doc_count', count=doc_count, limit=doc_limit)}\n\n"
-                    f"{t('welcome.doc_control.instructions')}\n\n"
-                    f"{t('welcome.doc_control.formats')}"
-                )
-            else:
-                welcome = (
-                    f"{t('welcome.main.title')}\n\n"
-                    f"{t('welcome.main.greeting')}\n\n"
-                    f"{t('welcome.doc_control.doc_count', count=doc_count, limit=doc_limit)}\n\n"
-                    f"{t('welcome.main.instructions')}\n\n"
-                    f"{t('welcome.main.switch_hint')}"
-                )
-            await cl.Message(content=welcome).send()
+        if cl.user_session.get("eira_name_pending"):
+            # First LLM connection for new user — ask for name
+            cl.user_session.set("eira_name_pending", False)
+            cl.user_session.set("awaiting_user_name", True)
+            await cl.Message(content=t("eira.ask_name"), author="Eira").send()
+        elif _user_name:
+            # Returning user or subsequent LLM changes — show only Eira intro
+            intro = t("eira.introduction", name=_user_name)
+            await cl.Message(content=intro, author="Eira").send()
     else:
         cl.user_session.set("model_name", selected_model)
         settings_msg = t(
@@ -1910,13 +1894,17 @@ async def on_settings_update(settings):
             test_msg.content = t("settings.connection_failed", error=str(e))
             await test_msg.update()
 
-        # Show Eira introduction after LLM connection
+        # Eira greeting flow after LLM connection
         _user_name = cl.user_session.get("user_name", "")
-        if _user_name:
-            profile = cl.user_session.get("chat_profile")
-            doc_count, doc_limit = get_document_count()
-            await _send_eira_introduction(_user_name, profile, doc_count, doc_limit)
-
+        if cl.user_session.get("eira_name_pending"):
+            # First LLM connection for new user — ask for name
+            cl.user_session.set("eira_name_pending", False)
+            cl.user_session.set("awaiting_user_name", True)
+            await cl.Message(content=t("eira.ask_name"), author="Eira").send()
+        elif _user_name:
+            # Returning user or subsequent LLM changes — show only Eira intro
+            intro = t("eira.introduction", name=_user_name)
+            await cl.Message(content=intro, author="Eira").send()
     # Silently persist settings to file for auto-reconnect (no UI feedback)
     _user_name = cl.user_session.get("user_name", "")
     save_user_settings(
@@ -2081,19 +2069,35 @@ async def on_chat_start():
         settings = build_chat_settings()
     await settings.send()
 
-    # Greeting flow
+    # Greeting flow: always show welcome/instructions ONCE at startup
     doc_count, doc_limit = get_document_count()
 
-    if saved and user_name:
-        # Returning user — show full intro with name
-        await _send_eira_introduction(user_name, profile, doc_count, doc_limit)
+    # Always show profile-specific welcome + instructions (shown only once at session start)
+    if profile == "\u6587\u4ef6\u7ba1\u5236 (Doc Control)":
+        welcome = (
+            f"{t('welcome.doc_control.title')}\n\n"
+            f"{t('welcome.doc_control.greeting')}\n\n"
+            f"{t('welcome.doc_control.doc_count', count=doc_count, limit=doc_limit)}\n\n"
+            f"{t('welcome.doc_control.instructions')}\n\n"
+            f"{t('welcome.doc_control.formats')}"
+        )
     else:
-        # New user — ask for name
-        cl.user_session.set("awaiting_user_name", True)
-        await cl.Message(
-            content=t("eira.ask_name"),
-            author="Eira"
-        ).send()
+        welcome = (
+            f"{t('welcome.main.title')}\n\n"
+            f"{t('welcome.main.greeting')}\n\n"
+            f"{t('welcome.doc_control.doc_count', count=doc_count, limit=doc_limit)}\n\n"
+            f"{t('welcome.main.instructions')}\n\n"
+            f"{t('welcome.main.switch_hint')}"
+        )
+    await cl.Message(content=welcome).send()
+
+    if saved and user_name:
+        # Returning user with saved settings — show Eira intro directly
+        intro = t("eira.introduction", name=user_name)
+        await cl.Message(content=intro, author="Eira").send()
+    else:
+        # New user — wait for LLM settings first, then ask name in on_settings_update
+        cl.user_session.set("eira_name_pending", True)
 
     # Check for pending reports from previous disconnected sessions
     try:
@@ -2131,30 +2135,9 @@ async def on_chat_start():
         pass  # Don't block startup if cache check fails
 
 async def _send_eira_introduction(user_name: str, profile: str, doc_count: int, doc_limit: int):
-    """Send profile title + greeting + instructions first, then Eira introduction last."""
-    # 1. Profile-specific title + greeting + instructions (original welcome flow)
-    if profile == "\u6587\u4ef6\u7ba1\u5236 (Doc Control)":
-        instructions = (
-            f"{t('welcome.doc_control.title')}\n\n"
-            f"{t('welcome.doc_control.greeting')}\n\n"
-            f"{t('welcome.doc_control.doc_count', count=doc_count, limit=doc_limit)}\n\n"
-            f"{t('welcome.doc_control.instructions')}\n\n"
-            f"{t('welcome.doc_control.formats')}"
-        )
-    else:
-        instructions = (
-            f"{t('welcome.main.title')}\n\n"
-            f"{t('welcome.main.greeting')}\n\n"
-            f"{t('welcome.doc_control.doc_count', count=doc_count, limit=doc_limit)}\n\n"
-            f"{t('welcome.main.instructions')}\n\n"
-            f"{t('welcome.main.switch_hint')}"
-        )
-    await cl.Message(content=instructions).send()
-
-    # 2. Eira introduction (at the end)
+    """Send Eira introduction only (welcome/instructions already shown in on_chat_start)."""
     intro = t("eira.introduction", name=user_name)
     await cl.Message(content=intro, author="Eira").send()
-
 @cl.on_chat_end
 async def on_chat_end():
     """Handle session disconnect — save any in-progress analysis to cache."""
