@@ -1997,8 +1997,7 @@ async def on_chat_start():
     profile = cl.user_session.get("chat_profile")
     ensure_upload_folder()
 
-    # Register Eira avatar for all Eira-authored messages
-    await cl.Avatar(name="Eira", path="public/avatars/eira.svg").send()
+    # Eira avatar: Chainlit 2.9+ auto-loads from /public/avatars/eira.svg by author name
 
     # Start background regulatory scheduler (first user only)
     global _regulatory_scheduler_started
