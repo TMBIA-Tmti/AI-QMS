@@ -271,9 +271,9 @@
   "welcome.doc_control.formats": "Format yang didukung: PDF, Word, Excel, PowerPoint, Gambar, File teks",
   "welcome.doc_control.greeting": "Halo, saya Eira. Selamat datang di sistem pengendalian dokumen. Eira dapat membantu Anda dalam pengunggahan dokumen, pemrosesan OCR, manajemen versi, deteksi tanda tangan, dan pengelolaan jejak audit.",
   "welcome.doc_control.instructions": "**Cara menggunakan:**\n• **Unggah file** → Seret dan lepas atau klik unggah di chat\n• **Daftar dokumen** → Versi resmi saat ini (dengan tombol ekspor Word/Excel)\n• **Daftar** → Semua catatan (termasuk pembaruan, usang) (dengan tombol ekspor Word/Excel)\n• **Cari kata kunci** → Cari konten dokumen\n• **Unduh id_dokumen** → Unduh file asli\n• **Usang id_dokumen** → Tandai dokumen usang\n• **Jejak audit** → Lihat catatan operasi (dengan tombol ekspor Word/Excel)\n• **Daftar regulasi** → Standar acuan (dengan tombol ekspor Word/Excel)\n• **Pembaruan regulasi** → Pindai situs web regulasi global (dengan tombol ekspor Word/Excel)\n• **Unduh pembaruan regulasi word/excel** → Ekspor laporan\n• **Hapus database** → Hapus semua dokumen (konfirmasi diperlukan)\n• **Status** → Tampilkan status sistem\n• **Bantuan** → Tampilkan panduan lengkap",
-  "welcome.doc_control.title": "📄 **TMBIA-Tmti AI-QMS Pengendalian Dokumen (Eira)**",
+  "welcome.doc_control.title": "**Eira (TMBIA-Tmti) Pengendalian Dokumen**",
   "welcome.main.greeting": "Halo, saya Eira. Selamat datang di sistem manajemen mutu berbasis AI. Eira dapat membantu Anda dalam tinjauan dokumen mutu, penilaian kepatuhan regulasi perangkat medis, serta pencarian dan analisis standar regulasi.",
   "welcome.main.instructions": "**Sub-Sistem:**\n• 📄 **Kontrol Dokumen** — Unggah, OCR, manajemen versi, deteksi tanda tangan, jejak audit, ekspor\n• 🔍 **Manajemen Audit** — CAPA, audit internal, manajemen ketidaksesuaian (Phase 2 direncanakan)\n\n**Umum:** Status · /web pencarian · Bantuan · Tanya langsung",
   "welcome.main.switch_hint": "💡 Beralih ke profil 'Kontrol Dokumen' untuk mengunggah file untuk pemrosesan OCR",
-  "welcome.main.title": "🏥 **TMBIA-Tmti AI-QMS Asisten Regulasi (Eira)**"
+  "welcome.main.title": "**Eira (TMBIA-Tmti)**"
 }

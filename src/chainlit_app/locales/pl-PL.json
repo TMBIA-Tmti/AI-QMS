@@ -273,9 +273,9 @@
   "welcome.doc_control.formats": "Obsługiwane formaty: PDF, Word, Excel, PowerPoint, Obrazy, Pliki tekstowe",
   "welcome.doc_control.greeting": "Dzień dobry, jestem Eira. Witamy w systemie kontroli dokumentów. Eira może pomóc w przesyłaniu dokumentów, przetwarzaniu OCR, zarządzaniu wersjami, wykrywaniu podpisów i zarządzaniu śladami audytowymi.",
   "welcome.doc_control.instructions": "**Jak używać:**\n• **Prześlij pliki** → Przeciągnij i upuść lub kliknij prześlij na czacie\n• **Lista dokumentów** → Bieżące wersje formalne (z przyciskami eksportu Word/Excel)\n• **Lista** → Wszystkie rekordy (wł. aktualizacje, przestarzałe) (z przyciskami eksportu Word/Excel)\n• **Szukaj słowo kluczowe** → Szukaj w treści dokumentów\n• **Pobierz id_dok** → Pobierz oryginalny plik\n• **Przestarzałe id_dok** → Oznacz dokument jako przestarzały\n• **Ścieżka audytu** → Zobacz rekordy operacji (z przyciskami eksportu Word/Excel)\n• **Lista regulacyjna** → Standardy referencyjne (z przyciskami eksportu Word/Excel)\n• **Aktualizacja regulacji** → Skanuj globalne strony regulacyjne (z przyciskami eksportu Word/Excel)\n• **Pobierz aktualizację regulacji word/excel** → Eksportuj raport\n• **Usuń bazę danych** → Usuń wszystkie dokumenty (wymagane potwierdzenie)\n• **Status** → Pokaż status systemu\n• **Pomoc** → Pokaż pełny przewodnik",
-  "welcome.doc_control.title": "📄 **TMBIA-Tmti AI-QMS Kontrola Dokumentów (Eira)**",
+  "welcome.doc_control.title": "**Eira (TMBIA-Tmti) Kontrola Dokumentów**",
   "welcome.main.greeting": "Dzień dobry, jestem Eira. Witamy w systemie zarządzania jakością wspomaganym przez AI. Eira może pomóc w przeglądzie dokumentów jakościowych, ocenie zgodności z przepisami dotyczącymi wyrobów medycznych oraz wyszukiwaniu i analizie norm regulacyjnych.",
   "welcome.main.instructions": "**Podsystemy:**\n• 📄 **Kontrola dokumentów** — Upload, OCR, zarządzanie wersjami, wykrywanie podpisów, ścieżka audytu, eksport\n• 🔍 **Zarządzanie audytem** — CAPA, audyt wewnętrzny, zarządzanie niezgodnościami (Phase 2 planowany)\n\n**Ogólne:** Status · /web wyszukiwanie · Pomoc · Zapytaj bezpośrednio",
   "welcome.main.switch_hint": "💡 Przełącz na profil 'Kontrola dokumentów', aby przesłać pliki do przetwarzania OCR",
-  "welcome.main.title": "🏥 **TMBIA-Tmti AI-QMS Asystent Regulacyjny (Eira)**"
+  "welcome.main.title": "**Eira (TMBIA-Tmti)**"
 }

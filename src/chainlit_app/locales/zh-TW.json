@@ -276,9 +276,9 @@
   "welcome.doc_control.formats": "支援格式: PDF, Word, Excel, PowerPoint, 圖片, 文字檔",
   "welcome.doc_control.greeting": "您好，我是 Eira。歡迎使用文件管制系統，Eira 可協助您進行文件上傳、OCR 辨識、版本管理、簽章偵測及稽核紀錄等品質文件管理作業。",
   "welcome.doc_control.instructions": "**操作方式：**\n• **上傳文件** → 直接在對話框拖放或點擊上傳按鈕\n• **文件清單** → 現行正式版本文件（附 Word/Excel 匯出按鈕）\n• **列表** → 所有文件紀錄（含進版、作廢）（附 Word/Excel 匯出按鈕）\n• **搜尋 關鍵字** → 搜尋文件內容\n• **下載 文件編號** → 下載原始文件\n• **作廢 文件編號** → 作廢文件\n• **文件更動紀錄** → 查看操作紀錄（附 Word/Excel 匯出按鈕）\n• **法規清單** → 列出所有引用的法規標準（附 Word/Excel 匯出按鈕）\n• **法規清單更新** → 法規清單最新資訊評估分析（附 Word/Excel 匯出按鈕）\n• **刪除資料庫** → 刪除所有文件（需確認）\n• **/web 關鍵字** → 搜尋網路（如：/web 最新 ISO 13485 版本）\n• **狀態** → 顯示系統狀態\n• **幫助** → 顯示完整指南",
-  "welcome.doc_control.title": "📄 **TMBIA-Tmti AI-QMS 文件管制系統 (Eira)**",
+  "welcome.doc_control.title": "**Eira (TMBIA-Tmti) 文件管制系統**",
   "welcome.main.greeting": "您好，我是 Eira。歡迎使用本 AI 輔助系統，Eira 可協助您進行品質文件審查、醫療器材法規符合性評估，以及各國法規標準的查詢與分析。",
   "welcome.main.instructions": "**子系統：**\n• 📄 **文件管制** — 文件上傳、OCR、版本管理、簽章偵測、稽核紀錄、匯出\n• 🔍 **稽核管理** — CAPA、內部稽核、不符合事項管理（Phase 2 規劃中）\n\n**通用功能：** 狀態 · /web 搜尋 · 幫助 · 直接提問",
   "welcome.main.switch_hint": "💡 切換到「文件管制」Profile 可上傳文件進行 OCR 處理",
-  "welcome.main.title": "🏥 **TMBIA-Tmti AI-QMS 品質法規助理 (Eira)**"
+  "welcome.main.title": "**Eira (TMBIA-Tmti)**"
 }
