@@ -2124,13 +2124,26 @@ async def on_chat_start():
                 excel_path = report.get('final_excel_path') or report.get('baseline_excel_path', '')
 
                 if word_path and Path(word_path).exists():
-                    elements = []
-                    if word_path and Path(word_path).exists():
-                        display_w = re.sub(r'^\d{14}_', '', Path(word_path).name)
-                        elements.append(cl.File(name=display_w, path=word_path, display='inline'))
-                    if excel_path and Path(excel_path).exists():
-                        display_e = re.sub(r'^\d{14}_', '', Path(excel_path).name)
-                        elements.append(cl.File(name=display_e, path=excel_path, display='inline'))
+                    # Determine action button names based on command type
+                    if cmd == 'regulatory_list':
+                        word_action = 'download_regulatory_word'
+                        excel_action = 'download_regulatory_excel'
+                    else:
+                        word_action = 'download_regulatory_update_word'
+                        excel_action = 'download_regulatory_update_excel'
+
+                    actions = [
+                        cl.Action(
+                            name=word_action,
+                            payload={"format": "word"},
+                            label="📥 Word (.docx)",
+                        ),
+                        cl.Action(
+                            name=excel_action,
+                            payload={"format": "excel"},
+                            label="📥 Excel (.xlsx)",
+                        ),
+                    ]
 
                     cmd_label = '法規清單' if cmd == 'regulatory_list' else '法規清單更新'
                     status_label = '✅ 完成' if status == 'completed' else '⚠️ 基線報告' if status == 'baseline_ready' else '⚠️ 中斷'
@@ -2139,7 +2152,7 @@ async def on_chat_start():
                         f'狀態：{status_label} | 時間：{created}\n'
                         f'請下載以下檔案：'
                     )
-                    await cl.Message(content=notice, elements=elements).send()
+                    await cl.Message(content=notice, actions=actions).send()
                     mark_cache_delivered(cache_id)
     except Exception:
         pass  # Don't block startup if cache check fails
@@ -2308,8 +2321,7 @@ async def handle_list() -> str:
 {doc_list}
 
 {t("allrecords.hint_doclist")}
-{t("allrecords.hint_audit")}
-{t("allrecords.hint_export")}"""
+{t("allrecords.hint_audit")}"""
     except Exception as e:
         return t("allrecords.error", error=str(e))
 
@@ -2348,8 +2360,7 @@ async def handle_document_list() -> str:
 {doc_list}
 
 {t("doclist.hint_list")}
-{t("doclist.hint_search")}
-{t("doclist.hint_export")}"""
+{t("doclist.hint_search")}"""
     except Exception as e:
         return t("doclist.error", error=str(e))
 
@@ -3087,15 +3098,21 @@ async def handle_regulatory_list():
                 # Cache save FIRST (guaranteed), then UI notification (best-effort)
                 save_analysis_cache(cache_id=_cache_id, command="regulatory_list", final_word_path=word_path, final_excel_path=excel_path, status="completed")
                 try:
-                    display_name_w = re.sub(r'^\d{14}_', '', Path(word_path).name)
-                    display_name_e = re.sub(r'^\d{14}_', '', Path(excel_path).name)
-                    elements = [
-                        cl.File(name=display_name_w, path=word_path, display="inline"),
-                        cl.File(name=display_name_e, path=excel_path, display="inline"),
+                    actions = [
+                        cl.Action(
+                            name="download_regulatory_word",
+                            payload={"format": "word"},
+                            label="📥 Word (.docx)",
+                        ),
+                        cl.Action(
+                            name="download_regulatory_excel",
+                            payload={"format": "excel"},
+                            label="📥 Excel (.xlsx)",
+                        ),
                     ]
                     await cl.Message(
                         content="✅ 報告已自動產生（內容截斷至 Token 耗盡處）：",
-                        elements=elements,
+                        actions=actions,
                     ).send()
                 except Exception:
                     pass  # WebSocket disconnected — report is on disk + in cache
@@ -3117,15 +3134,21 @@ async def handle_regulatory_list():
                     # Cache save FIRST (guaranteed), then UI notification (best-effort)
                     save_analysis_cache(cache_id=_cache_id, command="regulatory_list", final_word_path=word_path, final_excel_path=excel_path, status="completed")
                     try:
-                        display_name_w = re.sub(r'^\d{14}_', '', Path(word_path).name)
-                        display_name_e = re.sub(r'^\d{14}_', '', Path(excel_path).name)
-                        elements = [
-                            cl.File(name=display_name_w, path=word_path, display="inline"),
-                            cl.File(name=display_name_e, path=excel_path, display="inline"),
+                        actions = [
+                            cl.Action(
+                                name="download_regulatory_word",
+                                payload={"format": "word"},
+                                label="📥 Word (.docx)",
+                            ),
+                            cl.Action(
+                                name="download_regulatory_excel",
+                                payload={"format": "excel"},
+                                label="📥 Excel (.xlsx)",
+                            ),
                         ]
                         await cl.Message(
                             content=base_response,
-                            elements=elements,
+                            actions=actions,
                         ).send()
                     except Exception:
                         pass  # WebSocket disconnected — report is on disk + in cache
@@ -3765,15 +3788,21 @@ async def handle_regulatory_update_rescan(selected_regions: list):
             # Cache save FIRST (guaranteed), then UI notification (best-effort)
             save_analysis_cache(cache_id=_cache_id_update, command="regulatory_update", final_word_path=word_path, final_excel_path=excel_path, status="completed")
             try:
-                display_name_w = re.sub(r'^\d{14}_', '', Path(word_path).name)
-                display_name_e = re.sub(r'^\d{14}_', '', Path(excel_path).name)
-                elements = [
-                    cl.File(name=display_name_w, path=word_path, display="inline"),
-                    cl.File(name=display_name_e, path=excel_path, display="inline"),
+                actions = [
+                    cl.Action(
+                        name="download_regulatory_update_word",
+                        payload={"format": "word"},
+                        label="📥 Word (.docx)",
+                    ),
+                    cl.Action(
+                        name="download_regulatory_update_excel",
+                        payload={"format": "excel"},
+                        label="📥 Excel (.xlsx)",
+                    ),
                 ]
                 await cl.Message(
                     content="✅ 報告已自動產生（內容截斷至 Token 耗盡處）：",
-                    elements=elements,
+                    actions=actions,
                 ).send()
             except Exception:
                 pass  # WebSocket disconnected — report is on disk + in cache
@@ -3793,15 +3822,21 @@ async def handle_regulatory_update_rescan(selected_regions: list):
                 # Cache save FIRST (guaranteed), then UI notification (best-effort)
                 save_analysis_cache(cache_id=_cache_id_update, command="regulatory_update", final_word_path=word_path, final_excel_path=excel_path, status="completed")
                 try:
-                    display_name_w = re.sub(r'^\d{14}_', '', Path(word_path).name)
-                    display_name_e = re.sub(r'^\d{14}_', '', Path(excel_path).name)
-                    elements = [
-                        cl.File(name=display_name_w, path=word_path, display="inline"),
-                        cl.File(name=display_name_e, path=excel_path, display="inline"),
+                    actions = [
+                        cl.Action(
+                            name="download_regulatory_update_word",
+                            payload={"format": "word"},
+                            label="📥 Word (.docx)",
+                        ),
+                        cl.Action(
+                            name="download_regulatory_update_excel",
+                            payload={"format": "excel"},
+                            label="📥 Excel (.xlsx)",
+                        ),
                     ]
                     await cl.Message(
                         content=response,
-                        elements=elements,
+                        actions=actions,
                     ).send()
                 except Exception:
                     pass  # WebSocket disconnected — report is on disk + in cache
@@ -4953,6 +4988,7 @@ async def _execute_version_update(confirmer_name: str):
             )
 
             # Cross-reference check
+            ref_actions = []
             try:
                 current_doc_id = doc_info.get("doc_id", "")
                 ref_docs = storage_manager.find_referencing_documents(current_doc_id)
@@ -4972,11 +5008,25 @@ async def _execute_version_update(confirmer_name: str):
                         ]
                     )
                     msg += f"\n{t('version.ref_warning')}\n{ref_list}"
-                    msg += f"\n\n{t('version.ref_export_hint')}"
+                    ref_actions = [
+                        cl.Action(
+                            name="download_reference_word",
+                            payload={"format": "word"},
+                            label="📥 Word (.docx)",
+                        ),
+                        cl.Action(
+                            name="download_reference_excel",
+                            payload={"format": "excel"},
+                            label="📥 Excel (.xlsx)",
+                        ),
+                    ]
             except Exception:
                 pass
 
-            await cl.Message(content=msg).send()
+            if ref_actions:
+                await cl.Message(content=msg, actions=ref_actions).send()
+            else:
+                await cl.Message(content=msg).send()
 
             # --- LLM Version Diff Analysis ---
             try:
