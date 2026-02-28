@@ -58,7 +58,7 @@
     },
     "chat": {
         "input": {
-            "placeholder": "Type your message here...",
+            "placeholder": "Type your message or drop files here (up to 100 files, 500MB each)...",
             "actions": {
                 "send": "Send message",
                 "stop": "Stop Task",

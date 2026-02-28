@@ -47,10 +47,10 @@ name = "AI-QMS"
 # Default theme
 default_theme = "light"
 
-# Force Chainlit frontend UI language (placeholder, buttons, sidebar, watermark)
-# This controls Chainlit's built-in UI strings; app-level i18n (Eira messages)
-# is controlled by the Language selector in ChatSettings.
-language = "zh-TW"
+# Chainlit frontend UI language (placeholder, buttons, sidebar, watermark).
+# If not set, the browser's language is used. This is independent of the
+# app-level i18n (Eira messages) controlled by the Language selector.
+# language = "zh-TW"
 
 # Chain of Thought display mode
 cot = "hidden"
