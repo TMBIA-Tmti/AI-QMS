@@ -147,16 +147,19 @@ if errorlevel 1 (
     netstat -an 2>nul | find ":%PHOENIX_PORT%" | find "LISTENING" >nul 2>&1
     if errorlevel 1 (
         echo [INFO] Starting Phoenix server on port %PHOENIX_PORT%...
-        start "Phoenix Server" /min "%QMS_PYTHON%" -m phoenix.server.main serve --port %PHOENIX_PORT%
+        start "Phoenix Server" /min "%QMS_PYTHON%" -m phoenix.server.main --port %PHOENIX_PORT% serve
         timeout /t 3 >nul
         echo [OK] Phoenix started at http://localhost:%PHOENIX_PORT%
     ) else (
         echo [OK] Phoenix already running on port %PHOENIX_PORT%
     )
 )
-
-:: Pass Phoenix port to Python app via environment variable
-:: This allows app.py to auto-connect to the correct Phoenix port
+
+
+:: Pass Phoenix port to Python app via environment variable
+
+:: This allows app.py to auto-connect to the correct Phoenix port
+
 set "PHOENIX_COLLECTOR_ENDPOINT=http://localhost:%PHOENIX_PORT%/v1/traces"
 
 :: Auto-detect free port for Chainlit
