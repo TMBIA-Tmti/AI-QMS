@@ -8,35 +8,23 @@ import os
 import sys
 import hashlib
 from pathlib import Path
-from datetime import datetime
-from typing import Optional
+
+
 
 # Ensure project root is in path
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.llm_providers import (
-    LLMProviderManager,
     DEFAULT_PROVIDERS,
     create_provider_manager,
-    auto_update_models,
-    print_update_summary,
-    load_cached_models,
-    _save_model_cache,
 )
 from src.storage.markdown_storage import MarkdownStorageManager, POC_DOCUMENT_LIMIT
-from src.services.markdown_store_service import (
-    MarkdownStoreService,
-    get_markdown_store,
-)
-from src.database.audit_log import ImmutableAuditLog
-from src.database.document_store import DocumentStore
-from src.utils.audit_export import (
-    format_audit_table_markdown,
-    export_to_word,
-    export_to_excel,
-)
-from src.ocr.vision_ocr import VisionOCRProcessor, process_document, OCRResult
+
+
+
+
+
 
 
 # ============================================================

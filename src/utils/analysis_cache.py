@@ -11,7 +11,7 @@ Cache files are stored in data/analysis_cache/ as JSON.
 """
 
 import json
-import re
+
 from datetime import datetime
 from pathlib import Path
 

@@ -3,14 +3,14 @@ AI-QMS Phase 1 - 文件更動紀錄匯出模組
 Export audit records to Word (.docx) and Excel (.xlsx) formats.
 """
 
-import json
-import tempfile
+
+
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+
 
 from docx import Document
-from docx.shared import Pt, Inches, Cm, RGBColor
+from docx.shared import Pt, Cm, RGBColor
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from openpyxl import Workbook
@@ -77,7 +77,7 @@ def format_audit_table_markdown(records: list) -> str:
 
         lines.append(f"| {i} | {ts_short} | {action} | {doc_id} | {user} | {details} |")
 
-    lines.append(f"\n✅ 紀錄鏈完整性: SHA-256 雜湊鏈保護")
+    lines.append("\n✅ 紀錄鏈完整性: SHA-256 雜湊鏈保護")
     return "\n".join(lines)
 
 

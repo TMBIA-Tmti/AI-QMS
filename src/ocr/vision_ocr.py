@@ -16,7 +16,7 @@ Version: 3.0.0
 Updated: 2026-02-12
 """
 
-import os
+
 import re
 import json
 import time
@@ -24,7 +24,7 @@ import base64
 import platform
 from pathlib import Path
 from typing import TypedDict, Optional, Any
-from datetime import datetime
+
 
 # ============================================================
 # MarkItDown - Primary converter (fast, 0 tokens)
@@ -51,7 +51,7 @@ except ImportError:
     print("[WARN] pdf2image not installed. PDF-to-image conversion disabled.")
 
 try:
-    from PIL import Image
+    from PIL import Image  # noqa: F401
     import io
 
     PIL_AVAILABLE = True
@@ -69,7 +69,7 @@ except ImportError:
 
 # pypdf for image extraction check
 try:
-    import pypdf
+    import pypdf  # noqa: F401
 
     PYPDF_AVAILABLE = True
 except ImportError:
@@ -586,8 +586,8 @@ class VisionOCRProcessor:
 
         if not WIN32COM_AVAILABLE:
             return self._error_result(
-                f"pywin32 not installed. Cannot process legacy format. "
-                f"Please convert to modern format (.docx, .xlsx, .pptx).",
+                "pywin32 not installed. Cannot process legacy format. "
+                "Please convert to modern format (.docx, .xlsx, .pptx).",
                 start_time,
                 file_type,
             )

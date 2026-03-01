@@ -24,6 +24,194 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional
 
+# ============================================================
+# Arize Phoenix - LLM Observability (v3.5.1)
+# ============================================================
+# IMPORTANT: This block MUST execute BEFORE any `from src.*` imports
+# because LiteLLMInstrumentor patches litellm.completion globally,
+# and downstream modules capture `completion` at import time.
+# If instrumentation happens after import, traces are silently lost.
+#
+# Multi-Project Architecture:
+#   - ai-qms-main        → Main Agent traces
+#   - ai-qms-doc-control  → Document Control Sub-Agent traces
+#   - ai-qms-audit        → (Future) Audit Sub-Agent traces
+# Use get_phoenix_project(profile) + dangerously_using_project()
+# to route traces to the correct Phoenix project per-request.
+# ============================================================
+
+PHOENIX_ENABLED = False
+_phoenix_using_project = None  # Will hold dangerously_using_project if available
+_phoenix_using_attributes = None  # Will hold using_attributes if available
+_phoenix_tracer = None  # Will hold OTel tracer for custom (non-LLM) spans
+
+# Agent profile → Phoenix project name mapping (extensible for future agents)
+PHOENIX_PROJECT_MAP = {
+    "主系統 (Main Agent)": "ai-qms-main",
+    "文件管制 (Doc Control)": "ai-qms-doc-control",
+    # Phase 2: "稽核 (Audit)": "ai-qms-audit",
+}
+PHOENIX_DEFAULT_PROJECT = "ai-qms-main"
+
+
+def get_phoenix_project(profile: str = "") -> str:
+    """Get Phoenix project name for the given chat profile."""
+    return PHOENIX_PROJECT_MAP.get(profile, PHOENIX_DEFAULT_PROJECT)
+
+
+try:
+    from phoenix.otel import register as phoenix_register
+    from openinference.instrumentation.litellm import LiteLLMInstrumentor
+    from openinference.instrumentation import (
+        dangerously_using_project,
+        using_attributes,
+    )
+
+    _phoenix_endpoint = os.getenv(
+        "PHOENIX_COLLECTOR_ENDPOINT", "http://localhost:6006/v1/traces"
+    )
+
+    # Register with default project; per-request routing via dangerously_using_project()
+    _phoenix_tracer_provider = phoenix_register(
+        project_name=PHOENIX_DEFAULT_PROJECT,
+        endpoint=_phoenix_endpoint,
+        batch=False,  # Immediate export for debugging; set True in production
+    )
+    LiteLLMInstrumentor().instrument(tracer_provider=_phoenix_tracer_provider)
+
+    # Get a tracer for custom (non-LLM) spans like web search, OCR, etc.
+
+    _phoenix_tracer = _phoenix_tracer_provider.get_tracer("ai-qms-custom")
+
+    _phoenix_using_project = dangerously_using_project
+    _phoenix_using_attributes = using_attributes
+    PHOENIX_ENABLED = True
+    print(
+        f"[OK] Phoenix multi-project tracing enabled → {_phoenix_endpoint}"
+        f" (projects: {', '.join(PHOENIX_PROJECT_MAP.values())})"
+    )
+except ImportError:
+    # Auto-install Phoenix packages for users who upgraded via git pull
+    print("[INFO] Phoenix packages not found. Auto-installing...")
+    try:
+        import subprocess as _sp
+
+        _sp.check_call(
+            [
+                sys.executable,
+                "-m",
+                "pip",
+                "install",
+                "--quiet",
+                "--disable-pip-version-check",
+                "arize-phoenix>=9.0.0",
+                "arize-phoenix-otel>=0.8.0",
+                "openinference-instrumentation-litellm>=0.1.18",
+                "openinference-instrumentation>=0.1.38",
+            ],
+            stdout=_sp.DEVNULL,
+            stderr=_sp.DEVNULL,
+        )
+        # Retry after install
+        from phoenix.otel import register as phoenix_register
+        from openinference.instrumentation.litellm import LiteLLMInstrumentor
+        from openinference.instrumentation import (
+            dangerously_using_project,
+            using_attributes,
+        )
+
+        _phoenix_endpoint = os.getenv(
+            "PHOENIX_COLLECTOR_ENDPOINT", "http://localhost:6006/v1/traces"
+        )
+        _phoenix_tracer_provider = phoenix_register(
+            project_name=PHOENIX_DEFAULT_PROJECT,
+            endpoint=_phoenix_endpoint,
+            batch=False,
+        )
+        LiteLLMInstrumentor().instrument(tracer_provider=_phoenix_tracer_provider)
+
+        _phoenix_tracer = _phoenix_tracer_provider.get_tracer("ai-qms-custom")
+        _phoenix_using_project = dangerously_using_project
+        _phoenix_using_attributes = using_attributes
+        PHOENIX_ENABLED = True
+        print(
+            f"[OK] Phoenix auto-installed and enabled → {_phoenix_endpoint}"
+            f" (projects: {', '.join(PHOENIX_PROJECT_MAP.values())})"
+        )
+    except Exception as auto_err:
+        print(f"[INFO] Phoenix auto-install failed ({auto_err}). LLM tracing disabled.")
+except Exception as e:
+    print(
+        f"[WARN] Phoenix tracing init failed: {e}. App will continue without tracing."
+    )
+
+from contextlib import contextmanager
+
+
+@contextmanager
+def phoenix_trace(profile: str = "", command: str = ""):
+    """Context manager for Phoenix per-request project routing + metadata.
+
+    Usage::
+
+        with phoenix_trace(profile, command="web_search"):
+            response = manager.completion(...)  # Traced to correct project
+
+    If Phoenix is disabled, acts as a no-op (nullcontext).
+    """
+    if not PHOENIX_ENABLED or _phoenix_using_project is None:
+        yield
+        return
+
+    project_name = get_phoenix_project(profile)
+    metadata = {}
+    if command:
+        metadata["command_type"] = command
+    if profile:
+        metadata["agent_profile"] = profile
+
+    # Stack: project routing + metadata attributes
+    with _phoenix_using_project(project_name=project_name):
+        if _phoenix_using_attributes is not None and metadata:
+            with _phoenix_using_attributes(
+                metadata=metadata,
+                tags=[project_name, command] if command else [project_name],
+            ):
+                yield
+        else:
+            yield
+
+
+@contextmanager
+def phoenix_span(name: str, profile: str = "", attributes: dict = None):
+    """Create a custom (non-LLM) OpenTelemetry span for Phoenix tracing.
+
+    Use this for non-LLM operations like web search, regulatory crawl, OCR, etc.
+    The span will appear in Phoenix Dashboard under the correct project.
+
+    Usage::
+
+        with phoenix_span("duckduckgo_search", profile=profile,
+                         attributes={"query": query, "result_count": 15}):
+            results = _web_search_sync(query)
+
+    If Phoenix is disabled, acts as a no-op.
+    """
+    if not PHOENIX_ENABLED or _phoenix_tracer is None:
+        yield None
+        return
+
+    project_name = get_phoenix_project(profile)
+    with _phoenix_using_project(project_name=project_name):
+        with _phoenix_tracer.start_as_current_span(name) as span:
+            if attributes:
+                for k, v in attributes.items():
+                    try:
+                        span.set_attribute(k, v)
+                    except Exception:
+                        pass  # Skip non-serializable values
+            yield span
+
 # Web Search (ddgs >= 8.0 or legacy duckduckgo-search)
 try:
     from ddgs import DDGS
@@ -58,13 +246,10 @@ from src.chainlit_app.handlers.common import (
     test_llm_connection,
 )
 from src.llm_providers import (
-    LLMProviderManager,
     DEFAULT_PROVIDERS,
     create_provider_manager,
     auto_update_models,
-    print_update_summary,
     load_cached_models,
-    _save_model_cache,
 )
 from src.storage.markdown_storage import POC_DOCUMENT_LIMIT  # noqa: F401 (re-exported)
 from src.services.markdown_store_service import (
@@ -72,7 +257,6 @@ from src.services.markdown_store_service import (
     get_markdown_store,
 )
 from src.database.audit_log import ImmutableAuditLog
-from src.database.document_store import DocumentStore
 from src.utils.audit_export import (
     format_audit_table_markdown,
     export_to_word,
@@ -82,7 +266,6 @@ from src.utils.regulatory_export import (
     format_regulatory_table_markdown,
     export_regulatory_to_word,
     export_regulatory_to_excel,
-    format_reference_table_markdown,
     export_reference_to_word,
     export_reference_to_excel,
 )
@@ -92,11 +275,10 @@ from src.utils.doclist_export import (
     export_allrecords_to_word,
     export_allrecords_to_excel,
 )
-from src.ocr.vision_ocr import VisionOCRProcessor, process_document
+from src.ocr.vision_ocr import process_document
 from src.services.regulatory_crawler import (
     get_regulatory_crawler,
     get_available_regions,
-    get_region_display_info,
 )
 from src.storage.regulatory_storage import (
     get_regulatory_config,
@@ -113,14 +295,11 @@ from src.storage.regulatory_markdown_storage import (
 from src.storage.regulatory_analysis_storage import (
     get_regulatory_analysis_store,
 )
-from src.utils.user_settings import save_user_settings, load_user_settings, has_saved_settings
+from src.utils.user_settings import save_user_settings, load_user_settings
 from src.utils.analysis_cache import (
     save_analysis_cache,
-    load_latest_cache,
-    load_cache_by_id,
     get_pending_reports,
     mark_cache_delivered,
-    cleanup_old_caches,
 )
 
 # v3.1.0: Load cached model lists from previous sessions on startup.
@@ -129,77 +308,6 @@ from src.utils.analysis_cache import (
 load_cached_models()
 
 
-# ============================================================
-# Arize Phoenix - LLM Observability (v3.4.0)
-# ============================================================
-# Auto-instruments all LiteLLM completion() calls with OpenTelemetry.
-# Traces are sent to a local Phoenix server (http://localhost:6006).
-# If Phoenix is not running, the app works normally without tracing.
-
-PHOENIX_ENABLED = False
-
-try:
-    from phoenix.otel import register as phoenix_register
-    from openinference.instrumentation.litellm import LiteLLMInstrumentor
-
-    _phoenix_endpoint = os.getenv(
-        "PHOENIX_COLLECTOR_ENDPOINT", "http://localhost:6006/v1/traces"
-    )
-    _phoenix_project = os.getenv("PHOENIX_PROJECT_NAME", "ai-qms-doc-control")
-
-    _phoenix_tracer_provider = phoenix_register(
-        project_name=_phoenix_project,
-        endpoint=_phoenix_endpoint,
-    )
-    LiteLLMInstrumentor().instrument(tracer_provider=_phoenix_tracer_provider)
-
-    PHOENIX_ENABLED = True
-    print(
-        f"[OK] Phoenix tracing enabled → {_phoenix_endpoint} (project: {_phoenix_project})"
-    )
-except ImportError:
-    # Auto-install Phoenix packages for users who upgraded via git pull
-    print("[INFO] Phoenix packages not found. Auto-installing...")
-    try:
-        import subprocess, sys
-
-        subprocess.check_call(
-            [
-                sys.executable,
-                "-m",
-                "pip",
-                "install",
-                "--quiet",
-                "--disable-pip-version-check",
-                "arize-phoenix>=9.0.0",
-                "arize-phoenix-otel>=0.8.0",
-                "openinference-instrumentation-litellm>=0.1.18",
-            ],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        # Retry after install
-        from phoenix.otel import register as phoenix_register
-        from openinference.instrumentation.litellm import LiteLLMInstrumentor
-
-        _phoenix_endpoint = os.getenv(
-            "PHOENIX_COLLECTOR_ENDPOINT", "http://localhost:6006/v1/traces"
-        )
-        _phoenix_project = os.getenv("PHOENIX_PROJECT_NAME", "ai-qms-doc-control")
-        _phoenix_tracer_provider = phoenix_register(
-            project_name=_phoenix_project, endpoint=_phoenix_endpoint
-        )
-        LiteLLMInstrumentor().instrument(tracer_provider=_phoenix_tracer_provider)
-        PHOENIX_ENABLED = True
-        print(
-            f"[OK] Phoenix auto-installed and enabled → {_phoenix_endpoint} (project: {_phoenix_project})"
-        )
-    except Exception as auto_err:
-        print(f"[INFO] Phoenix auto-install failed ({auto_err}). LLM tracing disabled.")
-except Exception as e:
-    print(
-        f"[WARN] Phoenix tracing init failed: {e}. App will continue without tracing."
-    )
 
 # ============================================================
 # Internationalization (i18n) - v3.2.0 (20 languages)
@@ -218,7 +326,7 @@ except ImportError:
         SUPPORTED_LANGUAGES,
         LANG_CODE_MAP,
         I18N,
-        COMMANDS,
+        COMMANDS,  # noqa: F401
         get_all_command_keywords,
     )
 
@@ -1107,7 +1215,7 @@ def detect_document_type(filename: str, ocr_text: str = "") -> dict:
 
     # Scan OCR content for version
     if ocr_text:
-        import sys
+
 
         # --- Strategy 1: Same-line patterns (label + value on one line) ---
         ocr_version_patterns = [
@@ -1476,7 +1584,7 @@ def _pdf_has_stamp_images(file_path: str) -> Optional[bool]:
                             area = width * height
                             aspect = max(width, height) / max(min(width, height), 1)
                             short_side = min(width, height)
-                            long_side = max(width, height)
+
 
                             # --- Scoring system ---
                             # Each signal adds to the score. Score >= 2 = stamp.
@@ -1668,7 +1776,7 @@ def _docx_has_stamp_images(file_path: str) -> Optional[bool]:
     """
     try:
         from docx import Document as DocxDocument
-        from docx.opc.constants import RELATIONSHIP_TYPE as RT
+
 
         doc = DocxDocument(file_path)
         large_image_blobs = []  # Collect large images for color-based fallback
@@ -2440,7 +2548,10 @@ async def _regulatory_background_scheduler():
             # Execute crawl
             logger_name.info("[Scheduler] Starting scheduled regulatory crawl...")
             crawler = get_regulatory_crawler()
-            crawl_results = await crawler.crawl_all_regions()
+            with phoenix_span("regulatory_crawl_scheduled",
+                              profile="文件管制 (Doc Control)",
+                              attributes={"crawl.type": "scheduled_all_regions"}):
+                crawl_results = await crawler.crawl_all_regions()
 
             # Save results
             from src.storage.regulatory_storage import get_regulatory_store
@@ -2689,10 +2800,11 @@ async def handle_status() -> str:
     provider_name = cl.user_session.get("provider_name", "N/A")
     model_name = cl.user_session.get("model_name", "N/A")
 
-    phoenix_status = "✅ Active" if PHOENIX_ENABLED else "❌ Disabled"
+    phoenix_status = "✅ Active (Multi-Project)" if PHOENIX_ENABLED else "❌ Disabled"
     phoenix_url = os.getenv(
         "PHOENIX_COLLECTOR_ENDPOINT", "http://localhost:6006"
     ).replace("/v1/traces", "")
+    phoenix_projects = ", ".join(PHOENIX_PROJECT_MAP.values()) if PHOENIX_ENABLED else "N/A"
 
     return f"""{t("status.title")}
 
@@ -2701,12 +2813,13 @@ async def handle_status() -> str:
 - **{t("status.model")}**: {model_name}
 - **{t("status.ocr")}**: {t("status.ocr_ready")}
 - **{t("status.ui")}**: Chainlit
-- **Phoenix Tracing**: {phoenix_status} ({phoenix_url})"""
+- **Phoenix Tracing**: {phoenix_status} ({phoenix_url})
+- **Phoenix Projects**: {phoenix_projects}"""
 
 
 def _classify_all_docs_sync(all_docs, storage, lang):
     """Classify all documents by content (runs in thread pool to avoid blocking)."""
-    import asyncio
+
     doc_type_cache = {}
     for doc in all_docs:
         doc_id = doc["doc_id"]
@@ -2798,7 +2911,7 @@ async def handle_document_list() -> str:
         md_service = MarkdownStoreService()
         storage = get_markdown_store()
         docs = md_service.list_documents()
-        stats = md_service.get_stats()
+
         lang = cl.user_session.get("language", "zh-TW")
 
         if not docs:
@@ -2972,8 +3085,7 @@ def _classify_document(doc_id: str, title: str, content: str, doc_type: str) -> 
     import re
     title_upper = (title or "").upper().strip()
     content_sample = (content[:3000] if content else "").lower()
-    original_file_upper = (original_file or "").upper().strip() if 'original_file' in dir() else ""
-    
+
     # --- Signal 1: Title / filename contains regulatory standard identifiers ---
     # If the document itself IS a standard/regulation (not just referencing one)
     regulatory_title_patterns = [
@@ -3423,14 +3535,15 @@ async def handle_regulatory_list():
         while continuation_count <= MAX_CONTINUATIONS:
             finish_reason = None
 
-            response = manager.completion(
-                messages=messages,
-                model=model_name,
-                temperature=0.3,
-                max_tokens=128000,
-                stream=True,
-                timeout=300,
-            )
+            with phoenix_trace(profile="文件管制 (Doc Control)", command="regulatory_list"):
+                response = manager.completion(
+                    messages=messages,
+                    model=model_name,
+                    temperature=0.3,
+                    max_tokens=128000,
+                    stream=True,
+                    timeout=300,
+                )
 
             try:
                 async for chunk in _iter_stream_with_timeout(response):
@@ -3725,17 +3838,39 @@ async def handle_regulatory_update():
             # Non-first run: crawl only selected regions
             await cl.Message(content=t("regulatory_update.scanning_selected")).send()
             crawler = get_regulatory_crawler()
-            crawl_results = await crawler.crawl_selected_regions(selected_regions)
+            with phoenix_span("regulatory_crawl",
+                              profile="文件管制 (Doc Control)",
+                              attributes={"crawl.type": "selected_regions",
+                                          "crawl.regions": ", ".join(selected_regions)}) as span:
+                crawl_results = await crawler.crawl_selected_regions(selected_regions)
+                if span is not None:
+                    span.set_attribute("crawl.success_count", crawl_results.get('summary', {}).get('success_count', 0))
+                    span.set_attribute("crawl.failed_count", crawl_results.get('summary', {}).get('failed_count', 0))
+                    span.set_attribute("crawl.total_sites", crawl_results.get('summary', {}).get('total_sites', 0))
         else:
             # Config exists but no regions selected — full crawl
             await cl.Message(content=t("regulatory_update.scanning")).send()
             crawler = get_regulatory_crawler()
-            crawl_results = await crawler.crawl_all_regions()
+            with phoenix_span("regulatory_crawl",
+                              profile="文件管制 (Doc Control)",
+                              attributes={"crawl.type": "all_regions_no_config"}) as span:
+                crawl_results = await crawler.crawl_all_regions()
+                if span is not None:
+                    span.set_attribute("crawl.success_count", crawl_results.get('summary', {}).get('success_count', 0))
+                    span.set_attribute("crawl.failed_count", crawl_results.get('summary', {}).get('failed_count', 0))
+                    span.set_attribute("crawl.total_sites", crawl_results.get('summary', {}).get('total_sites', 0))
     else:
         # First run: crawl all regions
         await cl.Message(content=t("regulatory_update.scanning")).send()
         crawler = get_regulatory_crawler()
-        crawl_results = await crawler.crawl_all_regions()
+        with phoenix_span("regulatory_crawl",
+                          profile="文件管制 (Doc Control)",
+                          attributes={"crawl.type": "first_run_all_regions"}) as span:
+            crawl_results = await crawler.crawl_all_regions()
+            if span is not None:
+                span.set_attribute("crawl.success_count", crawl_results.get('summary', {}).get('success_count', 0))
+                span.set_attribute("crawl.failed_count", crawl_results.get('summary', {}).get('failed_count', 0))
+                span.set_attribute("crawl.total_sites", crawl_results.get('summary', {}).get('total_sites', 0))
 
     # Store results in session
     cl.user_session.set("last_regulatory_update", crawl_results)
@@ -3875,7 +4010,16 @@ async def handle_regulatory_update_rescan(selected_regions: list):
     # Re-scan only selected regions
     await cl.Message(content=t("regulatory_update.rescan")).send()
     crawler = get_regulatory_crawler()
-    crawl_results = await crawler.crawl_selected_regions(selected_regions)
+    with phoenix_span("regulatory_crawl_rescan",
+                      profile="文件管制 (Doc Control)",
+                      attributes={"crawl.type": "rescan_selected",
+                                  "crawl.regions": ", ".join(selected_regions)}) as span:
+        crawl_results = await crawler.crawl_selected_regions(selected_regions)
+        if span is not None:
+            span.set_attribute("crawl.success_count", crawl_results.get('summary', {}).get('success_count', 0))
+            span.set_attribute("crawl.failed_count", crawl_results.get('summary', {}).get('failed_count', 0))
+            span.set_attribute("crawl.total_sites", crawl_results.get('summary', {}).get('total_sites', 0))
+            span.set_attribute("crawl.duration_seconds", crawl_results.get('summary', {}).get('crawl_duration_seconds', 0))
 
     # Store results
     cl.user_session.set("last_regulatory_update", crawl_results)
@@ -3883,7 +4027,7 @@ async def handle_regulatory_update_rescan(selected_regions: list):
 
     # Save individual markdown files to independent regulatory markdown DB
     reg_md_store = get_regulatory_markdown_store()
-    save_result = reg_md_store.save_from_crawl_results(crawl_results)
+    reg_md_store.save_from_crawl_results(crawl_results)
 
     # ── Step 1: Generate baseline Word/Excel BEFORE LLM (guaranteed report) ──
     _cache_id_update = f"regulatory_update_{datetime.now().strftime('%Y%m%d%H%M%S')}"
@@ -4088,14 +4232,15 @@ async def handle_regulatory_update_rescan(selected_regions: list):
             while continuation_count <= MAX_CONTINUATIONS:
                 finish_reason = None
 
-                resp = manager.completion(
-                    messages=messages,
-                    model=model_name,
-                    temperature=0.3,
-                    max_tokens=128000,
-                    stream=True,
-                    timeout=300,
-                )
+                with phoenix_trace(profile="文件管制 (Doc Control)", command="regulatory_update"):
+                    resp = manager.completion(
+                        messages=messages,
+                        model=model_name,
+                        temperature=0.3,
+                        max_tokens=128000,
+                        stream=True,
+                        timeout=300,
+                    )
 
                 try:
                     async for chunk in _iter_stream_with_timeout(resp):
@@ -4467,7 +4612,7 @@ async def _execute_regulatory_delete(user_input: str):
             names = ", ".join(
                 f"{d['region']}/{d['agency']}" for d in items[:10]
             )
-            suffix = f" ...等" if len(items) > 10 else ""
+            suffix = " ...等" if len(items) > 10 else ""
             await cl.Message(
                 content=f"🗑️ 已刪除 {count} 份包含 '{cleaned}' 的法規文件: {names}{suffix}"
             ).send()
@@ -4892,20 +5037,20 @@ async def on_download_original_file(action):
 def _format_process_detail(result: dict) -> str:
     """Format detailed processing information for a single file result."""
     lines = []
-    filename = result.get("filename", "")
+
 
     # Conversion result details
     ocr = result.get("ocr_result", {})
     if ocr:
         provider = ocr.get("provider_used", "unknown")
-        confidence = ocr.get("confidence", 0)
+
         time_ms = ocr.get("processing_time_ms", 0)
         page_count = ocr.get("page_count", 0)
         file_type = ocr.get("file_type", "unknown")
         content_len = len(ocr.get("markdown_content", ""))
 
         time_str = f"{time_ms / 1000:.1f}s" if time_ms else "N/A"
-        conf_str = f"{confidence * 100:.0f}%" if confidence else "N/A"
+
 
         # Show whether MarkItDown or LLM was used
         engine_label = "MarkItDown" if provider == "MarkItDown" else f"LLM ({provider})"
@@ -5031,7 +5176,7 @@ async def handle_file_upload(files):
             failed.append(result)
 
         # --- Show completed result for this file ---
-        detail = _format_process_detail(result)
+
         status_icon = "✅" if result["success"] else "❌"
 
         # Build completed steps display
@@ -5168,16 +5313,18 @@ async def handle_file_upload(files):
                     new_content=new_truncated,
                 )
 
-                diff_response = await asyncio.to_thread(
-                    lambda: manager.completion(
-                        messages=[{"role": "user", "content": diff_prompt}],
-                        model=model_name,
-                        temperature=0.3,
-                        max_tokens=2000,
-                        stream=False,
-                        timeout=60,
-                    )
-                )
+                def _run_version_diff():
+                    with phoenix_trace(profile="文件管制 (Doc Control)", command="version_diff"):
+                        return manager.completion(
+                            messages=[{"role": "user", "content": diff_prompt}],
+                            model=model_name,
+                            temperature=0.3,
+                            max_tokens=2000,
+                            stream=False,
+                            timeout=60,
+                        )
+
+                diff_response = await asyncio.to_thread(_run_version_diff)
 
                 diff_text = ""
                 if isinstance(diff_response, dict):
@@ -5645,14 +5792,15 @@ async def chat_with_llm(message_text: str, profile: str):
     await msg.send()
 
     try:
-        response = manager.completion(
-            messages=messages,
-            model=model_name,
-            temperature=0.7,
-            max_tokens=2000,
-            stream=True,
-            timeout=30,
-        )
+        with phoenix_trace(profile=profile, command="chat"):
+            response = manager.completion(
+                messages=messages,
+                model=model_name,
+                temperature=0.7,
+                max_tokens=2000,
+                stream=True,
+                timeout=30,
+            )
 
         full_response = ""
         for chunk in response:
@@ -6281,7 +6429,24 @@ async def chat_with_llm_web(message_text: str, profile: str):
     await search_msg.send()
 
     try:
-        web_results = await asyncio.to_thread(_web_search_sync, message_text)
+        def _traced_web_search():
+            with phoenix_span("duckduckgo_web_search", profile=profile,
+                              attributes={"search.query": message_text}) as span:
+                results = _web_search_sync(message_text)
+                if span is not None:
+                    tier_counts = {}
+                    for r in results:
+                        t_val = r.get('_tier', 4)
+                        tier_counts[f'tier_{t_val}'] = tier_counts.get(f'tier_{t_val}', 0) + 1
+                    span.set_attribute("search.engine", "DuckDuckGo")
+                    span.set_attribute("search.result_count", len(results))
+                    span.set_attribute("search.tier_distribution", str(tier_counts))
+                    # Record URLs fed to LLM
+                    urls = [r.get('href', r.get('link', '')) for r in results[:20]]
+                    span.set_attribute("search.urls_for_llm", str(urls))
+                return results
+
+        web_results = await asyncio.to_thread(_traced_web_search)
         if web_results:
             # --- Build LLM context from top 20 results (quality over quantity) ---
             _llm_max = min(20, len(web_results))
@@ -6401,14 +6566,15 @@ async def chat_with_llm_web(message_text: str, profile: str):
     await msg.send()
 
     try:
-        response = manager.completion(
-            messages=messages,
-            model=model_name,
-            temperature=0.7,
-            max_tokens=4000,
-            stream=True,
-            timeout=60,
-        )
+        with phoenix_trace(profile=profile, command="web_search"):
+            response = manager.completion(
+                messages=messages,
+                model=model_name,
+                temperature=0.7,
+                max_tokens=4000,
+                stream=True,
+                timeout=60,
+            )
 
         full_response = ""
         for chunk in response:
@@ -6478,7 +6644,7 @@ async def on_message(message: cl.Message):
     """Handle all incoming messages"""
     profile = cl.user_session.get("chat_profile")
     text = message.content.strip() if message.content else ""
-    msg_lower = text.lower()
+
 
     # Check for file uploads (Doc Control profile)
     if message.elements and profile == "文件管制 (Doc Control)":

@@ -32,12 +32,12 @@ Reference: OpenCode /connect providers (https://opencode.ai/docs/providers)
 
 import os
 import base64
-from typing import TypedDict, Literal, Optional, Any
+from typing import TypedDict, Optional, Any
 from pathlib import Path
 
 try:
     import litellm
-    from litellm import completion
+    from litellm import completion  # noqa: F401 — kept for backward compat
 
     LITELLM_AVAILABLE = True
 except ImportError:
@@ -919,8 +919,9 @@ class LLMProviderManager:
                 if k != "stream":
                     api_params[k] = v
 
-            # Call LiteLLM
-            response = completion(**api_params)
+            # Call LiteLLM (use litellm.completion() not local import,
+            # so OpenTelemetry/Phoenix instrumentor can intercept the call)
+            response = litellm.completion(**api_params)
 
             # If streaming, return the generator directly
             if stream:

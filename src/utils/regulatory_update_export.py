@@ -100,7 +100,7 @@ def format_regulatory_update_markdown(
 
     total = summary.get("total_sites", 0)
     success = summary.get("success_count", 0)
-    failed = summary.get("failed_count", 0)
+
     duration = summary.get("crawl_duration_seconds", 0)
     regions = summary.get("regions_covered", [])
 

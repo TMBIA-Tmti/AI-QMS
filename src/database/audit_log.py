@@ -5,7 +5,7 @@ AI-QMS Phase 1 - 防竄改稽核紀錄模組
 
 import hashlib
 import json
-import os
+
 from datetime import datetime
 from typing import TypedDict, Optional
 from pathlib import Path
@@ -124,7 +124,7 @@ class ImmutableAuditLog:
             # 驗證 previous_hash
             if i == 0:
                 if record.get("previous_hash") != "GENESIS_BLOCK":
-                    return False, f"第一筆紀錄的 previous_hash 不正確"
+                    return False, "第一筆紀錄的 previous_hash 不正確"
             else:
                 if record.get("previous_hash") != records[i - 1].get("current_hash"):
                     return False, f"紀錄 {record['record_id']} 的 previous_hash 不符"
