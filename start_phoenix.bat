@@ -88,7 +88,7 @@ if errorlevel 1 (
 :: Auto-detect free port for Phoenix
 call :find_free_phoenix_port
 
-:: Check if Phoenix is already running (HTTP port or gRPC port 4317)
+:: Check if Phoenix is already running (HTTP port or gRPC port)
 netstat -ano 2>nul | find ":%PHOENIX_PORT%" | find "LISTENING" >nul
 if not errorlevel 1 (
     echo [INFO] Phoenix is already running on port %PHOENIX_PORT%
@@ -96,16 +96,6 @@ if not errorlevel 1 (
     echo.
     echo Opening browser...
     start "" "http://localhost:%PHOENIX_PORT%"
-    echo.
-    pause
-    exit /b 0
-)
-netstat -ano 2>nul | find ":4317" | find "LISTENING" >nul
-if not errorlevel 1 (
-    echo [INFO] Phoenix gRPC port 4317 is already in use (another Phoenix instance is running^).
-    echo [INFO] Please close the existing Phoenix instance first, or use its dashboard.
-    echo.
-    echo [TIP] To find the process: netstat -ano ^| find ":4317" ^| find "LISTENING"
     echo.
     pause
     exit /b 0
@@ -121,7 +111,7 @@ echo.
 start "" "http://localhost:%PHOENIX_PORT%"
 
 cd /d "%PROJECT_DIR%"
-"%QMS_PYTHON%" -m phoenix.server.main --port %PHOENIX_PORT% serve
+"%QMS_PYTHON%" -m phoenix.server.main --port %PHOENIX_PORT% serve --grpc-port %PHOENIX_GRPC_PORT%
 
 if errorlevel 1 (
     echo.
@@ -136,24 +126,26 @@ pause
 goto :eof
 
 :: ============================================================
-:: Subroutine: Find a free port for Phoenix (6006-6016)
-:: Sets %PHOENIX_PORT% to the first available port.
+:: Subroutine: Find free ports for Phoenix
+:: Sets %PHOENIX_PORT% (HTTP 6006-6016) and %PHOENIX_GRPC_PORT% (gRPC 4317-4327)
 :: ============================================================
 :find_free_phoenix_port
 set "PHOENIX_PORT=6006"
+set "PHOENIX_GRPC_PORT=4317"
+:: Find free HTTP port
 for /L %%p in (6006,1,6016) do (
     netstat -ano 2>nul | find ":%%p " | find "LISTENING" >nul
     if errorlevel 1 (
         set "PHOENIX_PORT=%%p"
-        goto :phoenix_port_found
+        goto :phoenix_http_found
     )
 )
 set "PHOENIX_PORT=6006"
 echo [WARN] Ports 6006-6016 are all in use! Phoenix may fail to start.
-goto :phoenix_port_display
+goto :phoenix_find_grpc
 
-:phoenix_port_found
-if "%PHOENIX_PORT%"=="6006" goto :phoenix_port_display
+:phoenix_http_found
+if "%PHOENIX_PORT%"=="6006" goto :phoenix_find_grpc
 echo.
 echo [WARN] Port 6006 is occupied by another process:
 for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| find ":6006 " ^| find "LISTENING"') do (
@@ -161,8 +153,25 @@ for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| find ":6006 " ^| find "LISTENI
         echo        PID %%a — %%n
     )
 )
-echo [INFO] Auto-switching Phoenix to port %PHOENIX_PORT%
+echo [INFO] Auto-switching Phoenix HTTP to port %PHOENIX_PORT%
 echo.
+
+:phoenix_find_grpc
+:: Find free gRPC port
+for /L %%p in (4317,1,4327) do (
+    netstat -ano 2>nul | find ":%%p " | find "LISTENING" >nul
+    if errorlevel 1 (
+        set "PHOENIX_GRPC_PORT=%%p"
+        goto :phoenix_grpc_found
+    )
+)
+set "PHOENIX_GRPC_PORT=4317"
+echo [WARN] gRPC ports 4317-4327 are all in use! Phoenix may fail to start.
+goto :phoenix_port_display
+
+:phoenix_grpc_found
+if "%PHOENIX_GRPC_PORT%"=="4317" goto :phoenix_port_display
+echo [INFO] Auto-switching Phoenix gRPC to port %PHOENIX_GRPC_PORT%
 
 :phoenix_port_display
 exit /b 0
