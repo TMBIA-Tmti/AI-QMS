@@ -938,6 +938,94 @@ SIGNATURE_KEYWORDS = [
     "अनुमोदित",
     "सत्यापित",
     "डिजिटल हस्ताक्षर",
+    # --- Additional keywords (comprehensive coverage) ---
+    # English (QMS / regulatory / legal)
+    "controlled copy",
+    "controlled document",
+    "uncontrolled copy",
+    "obsolete",
+    "superseded",
+    "effective",
+    "void",
+    "draft",
+    "notary",
+    "notarized",
+    "notarial",
+    "apostille",
+    "wet signature",
+    "ink signature",
+    "counter-signed",
+    "countersigned",
+    "co-signed",
+    "cosigned",
+    "initialed",
+    "initials",
+    "electronically signed",
+    "electronically signed by",
+    "meaning: approval",
+    "meaning: review",
+    "21 cfr part 11",
+    "signed and dated",
+    "date signed",
+    "witnessed by",
+    "attested by",
+    "certified copy",
+    "authenticated",
+    # 繁體中文 (additional)
+    "大章",
+    "小章",
+    "私章",
+    "管制文件",
+    "受控文件",
+    "正本",
+    "副本",
+    "公證",
+    "公證人",
+    # 簡體中文 (additional)
+    "公章",
+    "合同专用章",
+    "财务章",
+    "发票章",
+    "人事章",
+    "法人章",
+    "电子签章",
+    "电子签名",
+    "数字签名",
+    "受控副本",
+    "公证",
+    "公证人",
+    # 日本語 (additional)
+    "判子",
+    "認め印",
+    "三文判",
+    "公証",
+    "公証人",
+    "銀行印",
+    "契印",
+    "消印",
+    "割印",
+    # 한국어 (additional)
+    "공증",
+    "공증인",
+    "전자인감",
+    "대표인",
+    "통제문서",
+    # Deutsch (additional)
+    "amtssiegel",
+    "notarsiegel",
+    "beglaubigt",
+    # Français (additional)
+    "paraphe",
+    "notarié",
+    "certifié conforme",
+    # Español (additional)
+    "rúbrica",
+    "escritura notarial",
+    "certificado",
+    # Português (additional)
+    "rubrica",
+    "tabelião",
+    "reconhecimento de firma",
     # Vision LLM OCR markers
     "stamps_detected",
     "signatures_detected",
@@ -1103,12 +1191,229 @@ def detect_document_type(filename: str, ocr_text: str = "") -> dict:
     }
 
 
+# ============================================================
+# OpenCV Color-Based Stamp & Handwriting Detection
+# (scanned document fallback)
+# ============================================================
+
+
+def _detect_stamps_by_color(image_data, max_dimension: int = 1000) -> bool:
+    """Detect stamps (red/blue ink) and handwritten signatures in images.
+
+    For scanned documents where stamps/signatures are part of a full-page
+    image (not separate embedded objects). Uses two detection strategies:
+    1. Color detection: red/blue ink regions (stamps, seals)
+    2. Stroke detection: dark ink handwritten strokes (signatures)
+
+    Performance: images are resized to max_dimension before analysis,
+    so even a 300dpi A4 scan (~2480x3508) processes in ~20-50ms.
+
+    Args:
+        image_data: Raw image bytes or numpy array.
+        max_dimension: Resize longest side to this value (default 1000px).
+                       Lower = faster but may miss small stamps.
+
+    Returns:
+        True if stamp or handwritten signature detected, False otherwise.
+    """
+    try:
+        import cv2
+        import numpy as np
+    except ImportError:
+        return False
+
+    try:
+        # --- Decode image ---
+        if isinstance(image_data, np.ndarray):
+            img = image_data.copy()
+        else:
+            nparr = np.frombuffer(image_data, np.uint8)
+            img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            if img is None:
+                return False
+
+        # --- Resize for performance ---
+        h_orig, w_orig = img.shape[:2]
+        longest = max(h_orig, w_orig)
+        if longest > max_dimension:
+            scale = max_dimension / longest
+            new_w = int(w_orig * scale)
+            new_h = int(h_orig * scale)
+            img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
+
+        img_h, img_w = img.shape[:2]
+        img_area = img_h * img_w
+
+        # ==========================================================
+        # Strategy 1: Color-based detection (red / blue ink)
+        # Detects both stamps (compact shapes) and colored-ink
+        # signatures (elongated strokes in red/blue pen).
+        # ==========================================================
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+
+        # Red ink (wraps around H=0/180 in HSV)
+        lower_red1 = np.array([0, 70, 50])
+        upper_red1 = np.array([10, 255, 255])
+        lower_red2 = np.array([160, 70, 50])
+        upper_red2 = np.array([180, 255, 255])
+        mask_red = cv2.bitwise_or(
+            cv2.inRange(hsv, lower_red1, upper_red1),
+            cv2.inRange(hsv, lower_red2, upper_red2),
+        )
+
+        # Blue ink
+        lower_blue = np.array([100, 70, 50])
+        upper_blue = np.array([130, 255, 255])
+        mask_blue = cv2.inRange(hsv, lower_blue, upper_blue)
+
+        mask_color = cv2.bitwise_or(mask_red, mask_blue)
+
+        # Morphological ops: close gaps, remove noise
+        k_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+        mask_color = cv2.morphologyEx(mask_color, cv2.MORPH_CLOSE, k_close)
+        k_open = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        mask_color = cv2.morphologyEx(mask_color, cv2.MORPH_OPEN, k_open)
+
+        contours_color, _ = cv2.findContours(
+            mask_color, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        )
+        for contour in contours_color:
+            area = cv2.contourArea(contour)
+            if area < 300 or area > img_area * 0.25:
+                continue
+            x, y, w, h = cv2.boundingRect(contour)
+            bbox_area = w * h
+            if bbox_area == 0:
+                continue
+            aspect = max(w, h) / max(min(w, h), 1)
+
+            # Mode A: Stamp (compact, roughly circular/square)
+            if aspect <= 3.0:
+                perimeter = cv2.arcLength(contour, True)
+                if perimeter > 0:
+                    circularity = 4 * 3.14159 * area / (perimeter * perimeter)
+                    if circularity > 0.15:
+                        return True  # Stamp detected
+
+            # Mode B: Colored-ink signature (elongated strokes in red/blue)
+            # Handwritten signatures in colored pen produce long, curvy
+            # contours with low fill ratio (ink strokes, not solid blocks).
+            if aspect > 1.5 and area >= 500:
+                fill_ratio = area / bbox_area
+                if fill_ratio < 0.5:  # Sparse = strokes, not solid fill
+                    perimeter = cv2.arcLength(contour, True)
+                    diagonal = (w**2 + h**2) ** 0.5
+                    if diagonal > 0 and perimeter / diagonal > 2.5:
+                        return True  # Colored-ink signature detected
+
+        # ==========================================================
+        # Strategy 2: Dark-ink handwritten signature detection
+        # For black/dark pen signatures that have no distinctive color.
+        # ==========================================================
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+        # Adaptive threshold to isolate dark marks (ink on paper)
+        binary = cv2.adaptiveThreshold(
+            gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            cv2.THRESH_BINARY_INV, 51, 15
+        )
+
+        # Remove areas already covered by color detection (stamps)
+        binary = cv2.bitwise_and(binary, cv2.bitwise_not(mask_color))
+
+        # Gentle dilation to group nearby strokes into signature clusters
+        k_group = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+        grouped = cv2.dilate(binary, k_group, iterations=1)
+
+        contours_dark, _ = cv2.findContours(
+            grouped, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        )
+
+        for contour in contours_dark:
+            area = cv2.contourArea(contour)
+            # Too small = noise/punctuation/individual letters
+            # Too large = text block or border
+            if area < 800 or area > img_area * 0.15:
+                continue
+
+            x, y, w, h = cv2.boundingRect(contour)
+            bbox_area = w * h
+            if bbox_area == 0:
+                continue
+            aspect = max(w, h) / max(min(w, h), 1)
+
+            if aspect > 5.0:
+                continue
+
+            # Combined height + aspect filter: thin, elongated contours
+            # (h < 40px AND aspect > 3.0) are printed text lines/underlines,
+            # not handwriting. E.g. 'Approved by: ________' at 120x30 px,
+            # aspect=4.0 — clearly a text line, not a signature.
+            # Real signatures at 1000px resize are typically h >= 40px
+            # or have moderate aspect ratio (<3.0).
+            if h < 40 and aspect > 3.0:
+                continue
+
+            # Fill ratio: handwriting is sparse (~3%-55%)
+            fill_ratio = area / bbox_area
+            if fill_ratio > 0.6:
+                continue
+
+            # Minimum bounding box: signatures span at least ~80px wide
+            # and ~20px tall after resize.
+            if w < 80 or h < 20:
+                continue
+
+            # Count strokes from original binary (before dilation)
+            roi = binary[y:y+h, x:x+w]
+            n_labels, _, stats, _ = cv2.connectedComponentsWithStats(roi)
+            n_strokes = n_labels - 1  # Subtract background
+
+            # Stroke count analysis:
+            # - 0 strokes = noise (contour exists only in dilated image)
+            # - 1 stroke = could be signature (single connected cursive)
+            #   but needs stronger curviness proof (p/d > 3.5)
+            # - 2-100 strokes = typical multi-stroke handwriting
+            # - >100 = dense printed text
+            if n_strokes < 1 or n_strokes > 100:
+                continue
+
+            # Stroke density filter: printed text has many strokes
+            # packed tightly. Handwriting is more spread out.
+            # Printed text: >0.08 strokes/px. Handwriting: <0.06.
+            stroke_density = n_strokes / max(w, 1)
+            if stroke_density > 0.08:
+                continue
+
+            # Curviness: handwriting has perimeter >> diagonal
+            perimeter = cv2.arcLength(contour, True)
+            diagonal = (w**2 + h**2) ** 0.5
+            if diagonal > 0:
+                p_d_ratio = perimeter / diagonal
+                # Single-stroke needs higher curviness threshold (3.5)
+                # to avoid false positives on simple curved lines.
+                # Multi-stroke (2+) uses standard threshold (2.5).
+                min_p_d = 3.5 if n_strokes == 1 else 2.5
+                if p_d_ratio > min_p_d:
+                    return True  # Handwritten signature detected
+
+        return False
+
+    except Exception:
+        return False
+
+
 def _pdf_has_stamp_images(file_path: str) -> Optional[bool]:
     """Check if PDF contains embedded images (stamps/signatures) on ANY page.
 
     Stamps and signatures may appear on any page (not just the first few).
     They can be embedded as XObject images, annotations, form fields, or
     digital signature dictionaries.
+
+    Uses a scoring system to distinguish stamp/signature images from
+    content images (logos, charts, photos). Each image gets a score based
+    on size, aspect ratio, position, and naming. A score >= 2 means
+    "likely stamp/signature".
 
     Returns:
         True if images/stamps/signatures found (likely stamped/signed)
@@ -1120,17 +1425,17 @@ def _pdf_has_stamp_images(file_path: str) -> Optional[bool]:
 
         with open(file_path, "rb") as f:
             reader = pypdf.PdfReader(f)
+            total_pages = len(reader.pages)
 
-            # --- Check 1: Scan ALL pages for stamp/signature-sized images ---
-            # Content images (charts, figures, logos) are typically large
-            # (e.g. 900x350, 600x475). Stamps/signatures are typically
-            # small-to-medium (e.g. company stamps ~200x200, signature
-            # images ~400x200). However, some stamps can be large
-            # (e.g. 1477x1108 full-page stamp overlay).
-            #
-            # Strategy: Check if image could be a stamp by looking at
-            # its XObject name (FormXob = form/signature overlay) and
-            # aspect ratio / size heuristics.
+            # --- Check 1: Scan ALL pages for stamp/signature images ---
+            # Uses a scoring heuristic to distinguish stamps from content
+            # images. Stamps come in all sizes:
+            #   - Small personal seals: ~100x100
+            #   - Standard company stamps: ~200x200
+            #   - Large company seals: ~400x400 to ~600x600
+            #   - Full-page stamp overlays: ~1477x1108
+            # Content images (charts, photos, logos) also vary in size,
+            # so we use multiple signals rather than a single area threshold.
             for page_idx, page in enumerate(reader.pages):
                 try:
                     resources = page.get("/Resources")
@@ -1159,29 +1464,82 @@ def _pdf_has_stamp_images(file_path: str) -> Optional[bool]:
                                 continue
                             width = int(obj.get("/Width", 0))
                             height = int(obj.get("/Height", 0))
-                            name_str = str(name)
+                            name_str = str(name).lower()
 
                             # Form XObject overlays (stamp/signature overlays)
-                            if "formxob" in name_str.lower():
+                            if "formxob" in name_str:
                                 return True
 
-                            if width > 0 and height > 0:
-                                area = width * height
-                                aspect = max(width, height) / max(min(width, height), 1)
-                                # Small square-ish images (< 350x350 area,
-                                # aspect < 2.0) are likely stamps/seals.
-                                # Content images (charts/figures) are usually
-                                # 400+ px wide and more rectangular.
-                                if area < 120000 and aspect < 2.0:
-                                    return True
-                                # Last-page images are likely approval
-                                # stamps/signatures (approval section at end)
-                                if page_idx == len(reader.pages) - 1:
-                                    return True
-                                # Last-page images are more likely stamps
-                                # (approval section is usually at the end)
-                                if page_idx == len(reader.pages) - 1:
-                                    return True
+                            if width <= 0 or height <= 0:
+                                continue
+
+                            area = width * height
+                            aspect = max(width, height) / max(min(width, height), 1)
+                            short_side = min(width, height)
+                            long_side = max(width, height)
+
+                            # --- Scoring system ---
+                            # Each signal adds to the score. Score >= 2 = stamp.
+                            score = 0
+
+                            # Signal 1: XObject name contains stamp/sig hints
+                            stamp_name_hints = [
+                                "stamp", "seal", "sign", "sig",
+                                "chop", "ink", "approval",
+                            ]
+                            if any(h in name_str for h in stamp_name_hints):
+                                score += 3  # Very strong signal
+
+                            # Signal 2: Small square-ish images (personal seals,
+                            # small company stamps). Area < 160,000 (~400x400)
+                            # and nearly square (aspect < 1.8).
+                            if area < 160000 and aspect < 1.8:
+                                score += 2
+
+                            # Signal 3: Medium square-ish images (large company
+                            # stamps, round seals). Area 160k-500k (~400x400
+                            # to ~700x700) and nearly square (aspect < 1.5).
+                            elif area < 500000 and aspect < 1.5:
+                                score += 2
+
+                            # Signal 4: Large overlay images that cover a
+                            # significant portion of the page (full-page stamp
+                            # overlays, riding seals). These are large but
+                            # typically NOT the same size as a full-page scan
+                            # (which would be ~2480x3508 at 300dpi = 8.7M).
+                            # Stamp overlays are usually < 4M pixels.
+                            elif area < 4000000 and area > 500000 and aspect < 2.0:
+                                score += 1  # Weaker signal alone
+
+                            # Signal 5: Tiny images (< 50x50) are likely
+                            # decorative dots/bullets, not stamps.
+                            if short_side < 50:
+                                score -= 2
+
+                            # Signal 6: Very large full-page images (>= 4M)
+                            # are likely scanned page backgrounds, photos,
+                            # or full-page graphics — NOT stamps.
+                            if area >= 4000000:
+                                score -= 2
+
+                            # Signal 7: Very wide/tall banners (aspect >= 4.0)
+                            # are likely headers, footers, or decorative bars.
+                            if aspect >= 4.0:
+                                score -= 1
+
+                            # Signal 8: Images on approval-heavy pages
+                            # (last 2 pages) get a small boost — approval
+                            # sections with stamp/signature fields are
+                            # commonly at the end of QMS documents.
+                            if total_pages > 1 and page_idx >= total_pages - 2:
+                                # Only boost medium-sized images, not tiny
+                                # logos or huge background images.
+                                if 2500 < area < 4000000 and aspect < 3.0:
+                                    score += 1
+
+                            if score >= 2:
+                                return True
+
                         except Exception:
                             continue
                 except Exception:
@@ -1249,20 +1607,63 @@ def _pdf_has_stamp_images(file_path: str) -> Optional[bool]:
             except Exception:
                 pass
 
+            # --- Check 4: OpenCV stamp & handwriting detection (scanned pages) ---
+            # For scanned PDFs where stamps/signatures are part of the page
+            # image. Uses priority page order for 300+ page performance:
+            #   Tier 1: First page + last page (most common stamp locations)
+            #   Tier 2: Pages 2-4 + last 2-4 pages (secondary stamp locations)
+            #   Tier 3: All remaining pages
+            # Early termination: returns True on first detection.
+            try:
+                seen = set()
+                priority_indices = []
+
+                # Tier 1: First page + last page
+                for i in [0, total_pages - 1]:
+                    if 0 <= i < total_pages and i not in seen:
+                        priority_indices.append(i)
+                        seen.add(i)
+
+                # Tier 2: Pages 2-4 (indices 1,2,3) + last 2-4 pages
+                for i in range(1, min(4, total_pages)):
+                    if i not in seen:
+                        priority_indices.append(i)
+                        seen.add(i)
+                for i in range(max(0, total_pages - 4), total_pages - 1):
+                    if i not in seen:
+                        priority_indices.append(i)
+                        seen.add(i)
+
+                # Tier 3: Remaining pages
+                for i in range(total_pages):
+                    if i not in seen:
+                        priority_indices.append(i)
+
+                for page_idx in priority_indices:
+                    page = reader.pages[page_idx]
+                    for image in page.images:
+                        try:
+                            if _detect_stamps_by_color(image.data):
+                                return True
+                        except Exception:
+                            continue
+            except Exception:
+                pass
+
             return False
     except Exception:
         return None
 
-
 def _docx_has_stamp_images(file_path: str) -> Optional[bool]:
     """Check if a Word (.docx) file contains embedded images (stamps/signatures).
 
-    Stamps and signatures in Word documents are embedded as image parts.
-    Unsigned documents have 0 images; stamped/signed documents have 1+ images.
+    Filters out common non-signature images (tiny icons, large photos/charts)
+    by checking image dimensions. Stamp/signature images are typically
+    50x50 to 800x800 with a near-square aspect ratio.
 
     Returns:
-        True if images found (likely stamped/signed)
-        False if no images found (likely unsigned)
+        True if stamp/signature-sized images found
+        False if no qualifying images found
         None if check failed (can't determine)
     """
     try:
@@ -1270,37 +1671,115 @@ def _docx_has_stamp_images(file_path: str) -> Optional[bool]:
         from docx.opc.constants import RELATIONSHIP_TYPE as RT
 
         doc = DocxDocument(file_path)
-        # Check for image relationships in the document
+        large_image_blobs = []  # Collect large images for color-based fallback
         for rel in doc.part.rels.values():
-            if "image" in rel.reltype:
+            if "image" not in rel.reltype:
+                continue
+            # Try to get image dimensions to filter out logos/photos
+            try:
+                from PIL import Image as PILImage
+                import io
+                image_data = rel.target_part.blob
+                img = PILImage.open(io.BytesIO(image_data))
+                w, h = img.size
+                area = w * h
+                aspect = max(w, h) / max(min(w, h), 1)
+                # Skip tiny images (icons, bullets): < 50x50
+                if min(w, h) < 50:
+                    continue
+                # Large images (photos, full-page scans): > 2M px
+                # Save for color-based detection instead of skipping
+                if area > 2000000:
+                    large_image_blobs.append(image_data)
+                    continue
+                # Skip extreme aspect ratios (banners, borders): > 4.0
+                if aspect > 4.0:
+                    continue
+                # Remaining images are likely stamps/signatures
                 return True
+            except Exception:
+                # Can't check dimensions (PIL not available or corrupt image).
+                # Fall back to assuming image is a stamp (conservative).
+                return True
+
+        # --- Color-based fallback for large images (scanned pages) ---
+        # Large images that were skipped may be scanned pages with stamps.
+        for blob in large_image_blobs:
+            try:
+                if _detect_stamps_by_color(blob):
+                    return True
+            except Exception:
+                continue
+
         return False
     except Exception:
         return None
 
-
 def _xlsx_has_stamp_images(file_path: str) -> Optional[bool]:
     """Check if an Excel (.xlsx) file contains embedded images (stamps/signatures).
 
-    Stamps and signatures in Excel files are embedded as images in the worksheet.
-    Unsigned Excel forms have 0 images; stamped/signed versions have 1+ images.
+    Filters out common non-signature images (tiny icons, large photos/charts)
+    by checking image dimensions. Stamp/signature images are typically
+    50x50 to 800x800 with a near-square aspect ratio.
 
     Returns:
-        True if images found (likely stamped/signed)
-        False if no images found (likely unsigned)
+        True if stamp/signature-sized images found
+        False if no qualifying images found
         None if check failed (can't determine)
     """
     try:
         from openpyxl import load_workbook
 
         wb = load_workbook(file_path, data_only=True)
+        large_image_blobs = []  # Collect large images for color-based fallback
         for ws in wb.worksheets:
-            if ws._images:
-                return True
+            for img in ws._images:
+                try:
+                    # openpyxl Image stores width/height in EMU or pixels
+                    w = getattr(img, 'width', 0) or 0
+                    h = getattr(img, 'height', 0) or 0
+                    # If dimensions are in EMU (> 100000), convert to pixels
+                    if w > 100000:
+                        w = int(w / 9525)  # 1 px = 9525 EMU
+                    if h > 100000:
+                        h = int(h / 9525)
+                    if w <= 0 or h <= 0:
+                        # Can't determine size — assume it could be a stamp
+                        return True
+                    area = w * h
+                    aspect = max(w, h) / max(min(w, h), 1)
+                    # Skip tiny images (icons, bullets): < 50x50
+                    if min(w, h) < 50:
+                        continue
+                    # Large images (photos, charts): > 2M px
+                    # Save for color-based detection instead of skipping
+                    if area > 2000000:
+                        try:
+                            blob = img._data()
+                            large_image_blobs.append(blob)
+                        except Exception:
+                            pass
+                        continue
+                    # Skip extreme aspect ratios (banners, borders): > 4.0
+                    if aspect > 4.0:
+                        continue
+                    # Remaining images are likely stamps/signatures
+                    return True
+                except Exception:
+                    # Can't check dimensions — assume it could be a stamp
+                    return True
+
+        # --- Color-based fallback for large images (scanned pages) ---
+        for blob in large_image_blobs:
+            try:
+                if _detect_stamps_by_color(blob):
+                    return True
+            except Exception:
+                continue
+
         return False
     except Exception:
         return None
-
 
 def detect_signature(ocr_result, file_path: str = "", lang: str = "zh-TW") -> dict:
     """Detect if document has signatures/stamps.
