@@ -88,7 +88,7 @@ if errorlevel 1 (
 :: Auto-detect free port for Phoenix
 call :find_free_phoenix_port
 
-:: Check if Phoenix is already running on detected port
+:: Check if Phoenix is already running (HTTP port or gRPC port 4317)
 netstat -ano 2>nul | find ":%PHOENIX_PORT%" | find "LISTENING" >nul
 if not errorlevel 1 (
     echo [INFO] Phoenix is already running on port %PHOENIX_PORT%
@@ -96,6 +96,16 @@ if not errorlevel 1 (
     echo.
     echo Opening browser...
     start "" "http://localhost:%PHOENIX_PORT%"
+    echo.
+    pause
+    exit /b 0
+)
+netstat -ano 2>nul | find ":4317" | find "LISTENING" >nul
+if not errorlevel 1 (
+    echo [INFO] Phoenix gRPC port 4317 is already in use (another Phoenix instance is running^).
+    echo [INFO] Please close the existing Phoenix instance first, or use its dashboard.
+    echo.
+    echo [TIP] To find the process: netstat -ano ^| find ":4317" ^| find "LISTENING"
     echo.
     pause
     exit /b 0

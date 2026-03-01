@@ -210,9 +210,16 @@ netstat -ano 2>nul | find ":%PHOENIX_PORT%" | find "LISTENING" >nul
 if not errorlevel 1 (
     echo      Phoenix already running on port %PHOENIX_PORT%
 ) else (
-    echo      Starting Phoenix on port %PHOENIX_PORT%...
-    start "AI-QMS Phoenix" cmd /c "cd /d "%PROJECT_DIR%" && "%QMS_PYTHON%" -m phoenix.server.main --port %PHOENIX_PORT% serve"
-    timeout /t 3 >nul
+    :: Check if gRPC port 4317 is occupied by another Phoenix instance
+    netstat -ano 2>nul | find ":4317" | find "LISTENING" >nul
+    if not errorlevel 1 (
+        echo      [WARN] Phoenix gRPC port 4317 is already in use (another Phoenix instance running^).
+        echo      [WARN] Skipping Phoenix launch. Close the other instance first.
+    ) else (
+        echo      Starting Phoenix on port %PHOENIX_PORT%...
+        start "AI-QMS Phoenix" cmd /c "cd /d "%PROJECT_DIR%" && "%QMS_PYTHON%" -m phoenix.server.main --port %PHOENIX_PORT% serve"
+        timeout /t 3 >nul
+    )
 )
 
 
@@ -334,6 +341,20 @@ goto end
 :: ============================================================
 :find_free_port
 set "CHAINLIT_PORT=3000"
+:: First check if another Chainlit is already running on any port 3000-3010
+for /L %%p in (3000,1,3010) do (
+    for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| find ":%%p " ^| find "LISTENING"') do (
+        wmic process where "ProcessId=%%a" get CommandLine 2>nul | find "chainlit" >nul
+        if not errorlevel 1 (
+            echo [INFO] Chainlit is already running on port %%p (PID %%a^).
+            echo [INFO] URL: http://localhost:%%p
+            echo [INFO] If you want to restart, close the existing instance first.
+            set "CHAINLIT_PORT=%%p"
+            goto :port_display
+        )
+    )
+)
+:: No existing Chainlit found — find a free port
 for /L %%p in (3000,1,3010) do (
     netstat -ano 2>nul | find ":%%p " | find "LISTENING" >nul
     if errorlevel 1 (
