@@ -111,7 +111,7 @@ echo.
 start "" "http://localhost:%PHOENIX_PORT%"
 
 cd /d "%PROJECT_DIR%"
-"%QMS_PYTHON%" -m phoenix.server.main serve --port %PHOENIX_PORT%
+"%QMS_PYTHON%" -m phoenix.server.main --port %PHOENIX_PORT% serve
 
 if errorlevel 1 (
     echo.

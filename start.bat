@@ -211,11 +211,13 @@ if not errorlevel 1 (
     echo      Phoenix already running on port %PHOENIX_PORT%
 ) else (
     echo      Starting Phoenix on port %PHOENIX_PORT%...
-    start "AI-QMS Phoenix" cmd /c "cd /d "%PROJECT_DIR%" && "%QMS_PYTHON%" -m phoenix.server.main serve --port %PHOENIX_PORT%"
+    start "AI-QMS Phoenix" cmd /c "cd /d "%PROJECT_DIR%" && "%QMS_PYTHON%" -m phoenix.server.main --port %PHOENIX_PORT% serve"
     timeout /t 3 >nul
 )
-
-:: Pass Phoenix port to Python app via environment variable
+
+
+:: Pass Phoenix port to Python app via environment variable
+
 set "PHOENIX_COLLECTOR_ENDPOINT=http://localhost:%PHOENIX_PORT%/v1/traces"
 echo.
 
