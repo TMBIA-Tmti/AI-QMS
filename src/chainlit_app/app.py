@@ -2828,9 +2828,7 @@ async def handle_status() -> str:
     model_name = cl.user_session.get("model_name", "N/A")
 
     phoenix_status = "✅ Active (Multi-Project)" if PHOENIX_ENABLED else "❌ Disabled"
-    phoenix_url = os.getenv(
-        "PHOENIX_COLLECTOR_ENDPOINT", "http://localhost:6006"
-    ).replace("/v1/traces", "")
+    phoenix_url = _detect_phoenix_endpoint().replace("/v1/traces", "")
     phoenix_projects = ", ".join(PHOENIX_PROJECT_MAP.values()) if PHOENIX_ENABLED else "N/A"
 
     return f"""{t("status.title")}
@@ -5465,7 +5463,8 @@ def process_uploaded_file_sync(
             "error": _t("upload.llm_init_error", error=str(e)),
         }
 
-    ocr_result = process_document(str(dest_path), llm_manager, model_name=model_name)
+    with phoenix_trace(profile="文件管制 (Doc Control)", command="ocr_upload"):
+        ocr_result = process_document(str(dest_path), llm_manager, model_name=model_name)
     if not ocr_result.get("success"):
         try:
             dest_path.unlink()
