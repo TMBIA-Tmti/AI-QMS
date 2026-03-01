@@ -154,6 +154,10 @@ if errorlevel 1 (
         echo [OK] Phoenix already running on port %PHOENIX_PORT%
     )
 )
+
+:: Pass Phoenix port to Python app via environment variable
+:: This allows app.py to auto-connect to the correct Phoenix port
+set "PHOENIX_COLLECTOR_ENDPOINT=http://localhost:%PHOENIX_PORT%/v1/traces"
 
 :: Auto-detect free port for Chainlit
 call :find_free_port

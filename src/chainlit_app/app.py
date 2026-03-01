@@ -59,6 +59,37 @@ def get_phoenix_project(profile: str = "") -> str:
     return PHOENIX_PROJECT_MAP.get(profile, PHOENIX_DEFAULT_PROJECT)
 
 
+def _detect_phoenix_endpoint() -> str:
+    """Auto-detect Phoenix endpoint by scanning ports 6006-6016.
+
+    Priority:
+      1. PHOENIX_COLLECTOR_ENDPOINT env var (set by start.bat / start_chainlit.bat)
+      2. Scan ports 6006-6016 for a running Phoenix server
+      3. Fallback to default http://localhost:6006/v1/traces
+    """
+    import socket
+
+    # 1. Check environment variable first (set by .bat launcher)
+    env_endpoint = os.getenv("PHOENIX_COLLECTOR_ENDPOINT")
+    if env_endpoint:
+        return env_endpoint
+
+    # 2. Scan ports 6006-6016 for a running Phoenix server
+    for port in range(6006, 6017):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(0.3)
+                if s.connect_ex(("localhost", port)) == 0:
+                    endpoint = f"http://localhost:{port}/v1/traces"
+                    if port != 6006:
+                        print(f"[INFO] Phoenix detected on non-default port {port}")
+                    return endpoint
+        except Exception:
+            continue
+
+    # 3. Fallback to default
+    return "http://localhost:6006/v1/traces"
+
 try:
     from phoenix.otel import register as phoenix_register
     from openinference.instrumentation.litellm import LiteLLMInstrumentor
@@ -67,9 +98,7 @@ try:
         using_attributes,
     )
 
-    _phoenix_endpoint = os.getenv(
-        "PHOENIX_COLLECTOR_ENDPOINT", "http://localhost:6006/v1/traces"
-    )
+    _phoenix_endpoint = _detect_phoenix_endpoint()
 
     # Register with default project; per-request routing via dangerously_using_project()
     _phoenix_tracer_provider = phoenix_register(
@@ -120,9 +149,7 @@ except ImportError:
             using_attributes,
         )
 
-        _phoenix_endpoint = os.getenv(
-            "PHOENIX_COLLECTOR_ENDPOINT", "http://localhost:6006/v1/traces"
-        )
+        _phoenix_endpoint = _detect_phoenix_endpoint()
         _phoenix_tracer_provider = phoenix_register(
             project_name=PHOENIX_DEFAULT_PROJECT,
             endpoint=_phoenix_endpoint,

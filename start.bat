@@ -214,6 +214,9 @@ if not errorlevel 1 (
     start "AI-QMS Phoenix" cmd /c "cd /d "%PROJECT_DIR%" && "%QMS_PYTHON%" -m phoenix.server.main serve --port %PHOENIX_PORT%"
     timeout /t 3 >nul
 )
+
+:: Pass Phoenix port to Python app via environment variable
+set "PHOENIX_COLLECTOR_ENDPOINT=http://localhost:%PHOENIX_PORT%/v1/traces"
 echo.
 
 :: 2. Start Chainlit
