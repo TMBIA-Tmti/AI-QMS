@@ -87,17 +87,11 @@ if not errorlevel 1 (
 )
 echo.
 
-:: Auto-update: check for new/missing packages from requirements.txt
+:: Auto-update: always sync all packages from requirements.txt
 echo [INFO] Checking dependencies...
-"%QMS_PYTHON%" -c "import phoenix; from openinference.instrumentation.litellm import LiteLLMInstrumentor" 2>nul
+"%QMS_PYTHON%" -m pip install -r "%PROJECT_DIR%requirements.txt" --quiet --disable-pip-version-check 2>nul
 if errorlevel 1 (
-    echo [INFO] New packages detected. Installing updates from requirements.txt...
-    "%QMS_PYTHON%" -m pip install -r "%PROJECT_DIR%requirements.txt" --quiet --disable-pip-version-check 2>nul
-    if errorlevel 1 (
-        echo [WARN] Some packages failed to install. App will continue with available features.
-    ) else (
-        echo [OK] Dependencies updated successfully.
-    )
+    echo [WARN] Some packages failed to install. App will continue with available features.
 ) else (
     echo [OK] All dependencies up to date.
 )
