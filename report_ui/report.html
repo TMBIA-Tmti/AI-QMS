@@ -22,7 +22,15 @@
         </div>
     </header>
 
-    <!-- ===== Summary Cards ===== -->
+    <!-- ===== Tab Navigation ===== -->
+    <nav class="tab-nav" id="tabNav">
+        <button class="tab-btn active" data-tab="analysis">📊 合規分析結果</button>
+        <button class="tab-btn" data-tab="crossref">🔗 跨國法規交叉比對表</button>
+        <button class="tab-btn" data-tab="crossexam">💬 即時交叉詰問</button>
+    </nav>
+
+    <!-- ===== TAB: Analysis Results ===== -->
+    <div class="tab-content active" id="tabAnalysis" data-tab="analysis">
     <section class="summary-section" id="summarySection">
         <div class="summary-card card-total">
             <div class="card-icon">📋</div>
@@ -138,6 +146,114 @@
             </table>
         </div>
     </section>
+    </div><!-- end tabAnalysis -->
+
+    <!-- ===== TAB: Cross-Reference Comparison ===== -->
+    <div class="tab-content" id="tabCrossref" data-tab="crossref">
+        <section class="crossref-section">
+            <!-- Country Selector -->
+            <div class="crossref-controls">
+                <div class="country-selector">
+                    <h3>🌍 選擇法規國家</h3>
+                    <div class="country-checkboxes" id="countryCheckboxes">
+                        <!-- Populated by JS -->
+                        <div class="loading-cell">載入法規清單中...</div>
+                    </div>
+                    <button class="btn btn-primary" id="btnLoadCrossref">📊 產生交叉比對表</button>
+                </div>
+            </div>
+
+            <!-- Cross-Reference Summary -->
+            <div class="crossref-summary" id="crossrefSummary" style="display:none">
+                <div class="crossref-summary-cards" id="crossrefSummaryCards"></div>
+            </div>
+
+            <!-- Cross-Reference Table -->
+            <div class="crossref-table-wrapper" id="crossrefTableWrapper" style="display:none">
+                <div class="table-info">
+                    <span id="crossrefTableCount"></span>
+                    <div class="crossref-legend">
+                        <span class="legend-item"><span class="legend-dot dot-full"></span>完全採用 (Full)</span>
+                        <span class="legend-item"><span class="legend-dot dot-partial"></span>部分採用 (Partial)</span>
+                        <span class="legend-item"><span class="legend-dot dot-exceeds"></span>超越 ISO (Exceeds)</span>
+                        <span class="legend-item"><span class="legend-dot dot-na"></span>不適用 (N/A)</span>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table class="crossref-table" id="crossrefTable">
+                        <thead id="crossrefTableHead">
+                            <!-- Dynamic: ISO clause + country columns -->
+                        </thead>
+                        <tbody id="crossrefTableBody">
+                            <!-- Dynamic rows -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Inter-Country Differences -->
+            <div class="intercountry-section" id="intercountrySection" style="display:none">
+                <h3>🔀 國家間差異分析</h3>
+                <p class="delta-desc">以下顯示各國法規之間的差異 — 某國有但其他國家沒有的獨特要求。</p>
+                <div id="intercountryContainer"></div>
+            </div>
+
+            <!-- Unique Requirements (Delta Items) -->
+            <div class="delta-section" id="deltaSection" style="display:none">
+                <h3>🚨 國家獨有要求 (Delta Items) — 最高優先級</h3>
+                <p class="delta-desc">以下為各國法規中超出 ISO 13485 的獨有要求，品質文件必須額外涵蓋這些內容。</p>
+                <div id="deltaItemsContainer"></div>
+            </div>
+        </section>
+    </div><!-- end tabCrossref -->
+
+    <!-- ===== TAB: Real-Time Cross-Examination ===== -->
+    <div class="tab-content" id="tabCrossexam" data-tab="crossexam">
+        <section class="crossexam-section">
+            <!-- Cross-Examination Controls -->
+            <div class="crossexam-controls">
+                <div class="crossexam-info">
+                    <h3>💬 即時交叉詰問查看器</h3>
+                    <p>觀看 LLM 分析者與驗證者之間的即時對話，必要時可介入修正。</p>
+                </div>
+                <div class="crossexam-actions">
+                    <span class="crossexam-status" id="crossexamStatus">⏹ 未連線</span>
+                    <button class="btn btn-primary" id="btnConnectSSE">🔌 連線</button>
+                    <button class="btn btn-outline" id="btnPauseExam" disabled>⏸ 暫停</button>
+                    <button class="btn btn-outline" id="btnResumeExam" disabled>▶️ 繼續</button>
+                </div>
+            </div>
+
+            <!-- Run ID Input for SSE connection -->
+            <div class="crossexam-connect" id="crossexamConnect">
+                <div class="form-group" style="margin-bottom:0;display:flex;gap:8px;align-items:center">
+                    <label style="white-space:nowrap;margin-bottom:0">分析 Run ID：</label>
+                    <input type="text" id="sseRunIdInput" class="form-select" style="flex:1;max-width:400px"
+                           placeholder="輸入 Run ID 或使用目前的 Run ID">
+                </div>
+            </div>
+
+            <!-- Message Feed -->
+            <div class="crossexam-feed" id="crossexamFeed">
+                <div class="crossexam-empty">
+                    <div class="empty-state-icon">💬</div>
+                    <div class="empty-state-text">連線後將顯示即時交叉詰問內容</div>
+                </div>
+            </div>
+
+            <!-- Human Intervention Input -->
+            <div class="crossexam-input" id="crossexamInput">
+                <div class="intervention-bar">
+                    <span class="intervention-label">🙋 人工介入：</span>
+                    <input type="text" id="humanMessageInput" class="form-select" style="flex:1"
+                           placeholder="輸入修正訊息，例如：你問錯了，應該問..." disabled>
+                    <button class="btn btn-danger" id="btnSendHuman" disabled>
+                        發送介入
+                    </button>
+                </div>
+            </div>
+        </section>
+    </div><!-- end tabCrossexam -->
 
     <!-- ===== Row Detail Modal ===== -->
     <div class="modal-overlay" id="detailModal">

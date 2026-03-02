@@ -17,16 +17,30 @@ Endpoints:
   POST /api/report/{run_id}/row/{row_id}/rerun     — Reset row for re-run
   GET  /api/report/{run_id}/row/{row_id}/history   — Get version history
   GET  /api/report/{run_id}/export/{format}        — Export Word/Excel
+  GET  /api/report/crossref/regulations            — List available regulations
+  GET  /api/report/crossref/table                  — Cross-reference table
+  GET  /api/report/crossref/questions              — Cross-exam questions
+  GET  /api/report/standards/list                  — List supplemental standards
+  POST /api/report/standards/applicable            — Determine applicable standards
+  POST /api/report/standards/adjust                — Adjust standard-to-clause mapping
+  GET  /api/report/{run_id}/stream                 — SSE cross-examination events
+  POST /api/report/{run_id}/inject                 — Human message injection
+  POST /api/report/{run_id}/pause                  — Pause cross-examination
+  POST /api/report/{run_id}/resume                 — Resume cross-examination
 """
 
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
+import time
+from collections import defaultdict
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
+from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import JSONResponse, FileResponse, HTMLResponse, StreamingResponse
 
 from src.analysis.state import Phase
 from src.analysis.comparison_table import ComparisonTable
@@ -696,3 +710,539 @@ def _build_export_assessment(flat_rows: list[dict], summary: dict) -> str:
         lines.append("")
 
     return "\n".join(lines)
+
+
+# ============================================================
+# Cross-Reference Comparison API
+# ============================================================
+
+
+def _get_cross_ref_modules():
+    """Lazy import cross-reference modules to avoid circular imports."""
+    from src.analysis.compliance_rules import (
+        ISO_13485_CHECKLIST,
+        get_all_regulations,
+        get_regulation,
+        get_overlap_analysis,
+        generate_cross_exam_questions,
+        MappingStatus,
+    )
+    return {
+        "ISO_13485_CHECKLIST": ISO_13485_CHECKLIST,
+        "get_all_regulations": get_all_regulations,
+        "get_regulation": get_regulation,
+        "get_overlap_analysis": get_overlap_analysis,
+        "generate_cross_exam_questions": generate_cross_exam_questions,
+        "MappingStatus": MappingStatus,
+    }
+
+
+@report_router.get("/crossref/regulations")
+async def list_regulations():
+    """List all available regulations (predefined + crawled) for country selector."""
+    mods = _get_cross_ref_modules()
+    all_regs = mods["get_all_regulations"]()
+
+    regulations = []
+    for reg_id, profile in all_regs.items():
+        iso_mapped_count = len(profile.iso_mapped)
+        unique_count = len(profile.unique_requirements)
+
+        # Count statuses
+        status_counts = defaultdict(int)
+        for cm in profile.iso_mapped.values():
+            status_counts[cm.status.value] += 1
+
+        regulations.append({
+            "regulation_id": reg_id,
+            "name_en": profile.name_en,
+            "name_zh": profile.name_zh,
+            "country": profile.country,
+            "country_name_en": profile.country_name_en,
+            "country_name_zh": profile.country_name_zh,
+            "source": profile.source,
+            "source_url": profile.source_url,
+            "last_updated": profile.last_updated,
+            "effective_date": profile.effective_date,
+            "iso_mapped_count": iso_mapped_count,
+            "unique_requirements_count": unique_count,
+            "status_counts": dict(status_counts),
+        })
+
+    return JSONResponse(content={"regulations": regulations})
+
+
+@report_router.get("/crossref/table")
+async def get_crossref_table(
+    regulations: str = Query(..., description="Comma-separated regulation IDs, e.g. QMSR,EU_MDR,TFDA"),
+):
+    """Get the full cross-reference comparison table.
+
+    Returns ISO 13485 clauses as rows, with each selected regulation's
+    mapping status, rationale, method, and confidence.
+    Also returns unique requirements (delta items) per regulation.
+    """
+    mods = _get_cross_ref_modules()
+    reg_ids = [r.strip() for r in regulations.split(",") if r.strip()]
+
+    if not reg_ids:
+        raise HTTPException(status_code=400, detail="No regulations specified")
+
+    # Validate regulation IDs
+    all_regs = mods["get_all_regulations"]()
+    for rid in reg_ids:
+        if rid not in all_regs:
+            raise HTTPException(status_code=404, detail=f"Regulation '{rid}' not found")
+
+    # Build cross-reference rows from ISO 13485 checklist
+    checklist = mods["ISO_13485_CHECKLIST"]
+    rows = []
+
+    for clause in checklist:
+        clause_id = clause["clause_id"]
+        row = {
+            "clause_id": clause_id,
+            "clause_title": clause.get("title", ""),
+            "audit_impact": clause.get("audit_impact", ""),
+            "regulations": {},
+        }
+
+        for rid in reg_ids:
+            analysis = mods["get_overlap_analysis"](rid, clause_id)
+            profile = all_regs[rid]
+
+            reg_data = {
+                "status": analysis.get("status", "na"),
+                "is_delta": analysis.get("is_delta", False),
+                "regulation_ref": analysis.get("regulation_ref", ""),
+                "rationale_en": analysis.get("rationale_en", ""),
+                "rationale_zh": analysis.get("rationale_zh", ""),
+                "method": analysis.get("method", ""),
+                "confidence": analysis.get("confidence", 0.0),
+                "notes": analysis.get("notes", ""),
+                "delta_items": analysis.get("delta_items", []),
+            }
+            row["regulations"][rid] = reg_data
+
+        rows.append(row)
+
+    # Collect unique requirements (delta) per regulation
+    unique_reqs = {}
+    for rid in reg_ids:
+        profile = all_regs[rid]
+        reqs = []
+        for req in profile.unique_requirements:
+            reqs.append({
+                "req_id": req.req_id,
+                "regulation_ref": req.regulation_ref,
+                "title_en": req.title_en,
+                "title_zh": req.title_zh,
+                "requirement_en": req.requirement_en,
+                "requirement_zh": req.requirement_zh,
+                "related_iso_clauses": req.related_iso_clauses,
+                "audit_impact": req.audit_impact,
+                "audit_question_en": req.audit_question_en,
+                "audit_question_zh": req.audit_question_zh,
+                "expected_evidence": req.expected_evidence,
+                "rationale_en": req.rationale_en,
+                "rationale_zh": req.rationale_zh,
+                "method": req.method.value if hasattr(req.method, 'value') else str(req.method),
+                "confidence": req.confidence,
+            })
+        unique_reqs[rid] = reqs
+
+    # Regulation metadata for the header
+    reg_meta = {}
+    for rid in reg_ids:
+        p = all_regs[rid]
+        reg_meta[rid] = {
+            "name_en": p.name_en,
+            "name_zh": p.name_zh,
+            "country": p.country,
+            "country_name_zh": p.country_name_zh,
+            "source": p.source,
+            "effective_date": p.effective_date,
+        }
+
+    return JSONResponse(content={
+        "regulation_ids": reg_ids,
+        "regulation_meta": reg_meta,
+        "iso_clause_count": len(checklist),
+        "rows": rows,
+        "unique_requirements": unique_reqs,
+    })
+
+
+@report_router.get("/crossref/questions")
+async def get_crossref_questions(
+    doc_id: str = Query(..., description="Document ID, e.g. QP-852"),
+    doc_title: str = Query("", description="Document title"),
+    baseline_clause: str = Query("", description="Primary ISO 13485 clause, e.g. 8.5.2"),
+    regulations: str = Query(..., description="Comma-separated regulation IDs"),
+    doc_content_summary: str = Query("", description="Brief document content summary"),
+):
+    """Generate cross-examination questions for a specific document.
+
+    Returns prioritized questions: delta (highest) > exceeds > overlap.
+    """
+    mods = _get_cross_ref_modules()
+    reg_ids = [r.strip() for r in regulations.split(",") if r.strip()]
+
+    if not reg_ids:
+        raise HTTPException(status_code=400, detail="No regulations specified")
+
+    questions = mods["generate_cross_exam_questions"](
+        doc_id=doc_id,
+        doc_title=doc_title,
+        baseline_clause=baseline_clause,
+        selected_regulations=reg_ids,
+        doc_content_summary=doc_content_summary,
+    )
+
+    return JSONResponse(content={
+        "doc_id": doc_id,
+        "baseline_clause": baseline_clause,
+        "selected_regulations": reg_ids,
+        "total_questions": len(questions),
+        "questions": questions,
+    })
+
+
+# ============================================================
+# Supplemental Standards API Endpoints
+# ============================================================
+
+
+def _get_standards_modules():
+    """Lazy import supplemental standards to avoid circular imports."""
+    from src.analysis.compliance_rules import (
+        get_all_standards,
+        get_standard,
+        get_applicable_standards,
+        adjust_standard_clause_mapping,
+        ProductProfile,
+        StandardCategory,
+    )
+    return {
+        "get_all_standards": get_all_standards,
+        "get_standard": get_standard,
+        "get_applicable_standards": get_applicable_standards,
+        "adjust_standard_clause_mapping": adjust_standard_clause_mapping,
+        "ProductProfile": ProductProfile,
+        "StandardCategory": StandardCategory,
+    }
+
+
+@report_router.get("/standards/list")
+async def list_supplemental_standards():
+    """List all available supplemental standards.
+
+    Returns all predefined standards with their categories,
+    detection keywords, ISO 13485 clause links, and regulatory references.
+    """
+    mods = _get_standards_modules()
+    all_stds = mods["get_all_standards"]()
+
+    standards = []
+    for std_id, std in all_stds.items():
+        standards.append({
+            "standard_id": std.standard_id,
+            "name_en": std.name_en,
+            "name_zh": std.name_zh,
+            "category": std.category.value,
+            "version": std.version,
+            "is_universal": std.is_universal,
+            "primary_iso_clauses": std.primary_iso_clauses,
+            "clause_links": [
+                {
+                    "standard_clause": cl.standard_clause,
+                    "iso_13485_clause": cl.iso_13485_clause,
+                    "relationship": cl.relationship,
+                    "description_en": cl.description_en,
+                    "description_zh": cl.description_zh,
+                }
+                for cl in std.clause_links
+            ],
+            "regulatory_references": std.regulatory_references,
+            "audit_questions": std.audit_questions,
+            "detection_keywords_en": std.detection_keywords_en,
+            "detection_keywords_zh": std.detection_keywords_zh,
+        })
+
+    return JSONResponse(content={"standards": standards})
+
+
+@report_router.post("/standards/applicable")
+async def get_applicable_standards_endpoint(request: Request):
+    """Determine which supplemental standards apply based on product profile.
+
+    Accepts a JSON body with product characteristics:
+    {
+        "has_software": true/false,
+        "has_electrical": true/false,
+        "is_implantable": true/false,
+        "is_sterile": true/false,
+        "sterilization_method": "eo"/"radiation"/"steam"/"",
+        "has_biological_contact": true/false,
+        "user_confirmed_standards": ["ISO_14971", ...],
+        "user_rejected_standards": [...],
+        "detected_standard_refs": ["ISO 14971", "IEC 62304", ...],
+        "uploaded_standard_files": ["ISO_11135.pdf", ...]
+    }
+
+    Returns applicable standards list with ISO 13485 clause mappings.
+    """
+    mods = _get_standards_modules()
+    body = await request.json()
+
+    # Build ProductProfile from request body
+    ProfileCls = mods["ProductProfile"]
+    profile = ProfileCls(
+        has_software=(
+            body.get("has_software", False),
+            body.get("has_software_confidence", 0.5),
+            body.get("has_software_source", "user_manual"),
+        ),
+        has_electrical=(
+            body.get("has_electrical", False),
+            body.get("has_electrical_confidence", 0.5),
+            body.get("has_electrical_source", "user_manual"),
+        ),
+        is_implantable=(
+            body.get("is_implantable", False),
+            body.get("is_implantable_confidence", 0.5),
+            body.get("is_implantable_source", "user_manual"),
+        ),
+        is_sterile=(
+            body.get("is_sterile", False),
+            body.get("is_sterile_confidence", 0.5),
+            body.get("is_sterile_source", "user_manual"),
+        ),
+        sterilization_method=body.get("sterilization_method", ""),
+        has_biological_contact=(
+            body.get("has_biological_contact", False),
+            body.get("has_biological_contact_confidence", 0.5),
+            body.get("has_biological_contact_source", "user_manual"),
+        ),
+        is_ivd=(
+            body.get("is_ivd", False),
+            body.get("is_ivd_confidence", 0.5),
+            body.get("is_ivd_source", "user_manual"),
+        ),
+        has_clinical_investigation=(
+            body.get("has_clinical_investigation", False),
+            body.get("has_clinical_investigation_confidence", 0.5),
+            body.get("has_clinical_investigation_source", "user_manual"),
+        ),
+        user_confirmed_standards=body.get("user_confirmed_standards", []),
+        user_rejected_standards=body.get("user_rejected_standards", []),
+        detected_standard_refs=body.get("detected_standard_refs", []),
+        uploaded_standard_files=body.get("uploaded_standard_files", []),
+    )
+
+    applicable = mods["get_applicable_standards"](profile)
+
+    results = []
+    for std in applicable:
+        results.append({
+            "standard_id": std.standard_id,
+            "name_en": std.name_en,
+            "name_zh": std.name_zh,
+            "category": std.category.value,
+            "is_universal": std.is_universal,
+            "primary_iso_clauses": std.primary_iso_clauses,
+            "clause_links": [
+                {
+                    "standard_clause": cl.standard_clause,
+                    "iso_13485_clause": cl.iso_13485_clause,
+                    "relationship": cl.relationship,
+                    "description_en": cl.description_en,
+                    "description_zh": cl.description_zh,
+                }
+                for cl in std.clause_links
+            ],
+            "regulatory_references": std.regulatory_references,
+            "audit_questions": std.audit_questions,
+        })
+
+    return JSONResponse(content={
+        "product_profile": {
+            "has_software": body.get("has_software", False),
+            "has_electrical": body.get("has_electrical", False),
+            "is_implantable": body.get("is_implantable", False),
+            "is_sterile": body.get("is_sterile", False),
+            "sterilization_method": body.get("sterilization_method", ""),
+            "has_biological_contact": body.get("has_biological_contact", False),
+        },
+        "applicable_standards_count": len(results),
+        "applicable_standards": results,
+    })
+
+
+@report_router.post("/standards/adjust")
+async def adjust_standard_mapping(request: Request):
+    """Adjust a supplemental standard's clause-to-ISO-13485 mapping.
+
+    Accepts a JSON body:
+    {
+        "standard_id": "ISO_14971",
+        "standard_clause": "ISO 14971 Clause 4",
+        "old_iso_clause": "7.1",
+        "new_iso_clause": "7.3.3"
+    }
+
+    The old_iso_clause is optional but recommended for safety verification.
+    Changes persist for the server session duration.
+    """
+    mods = _get_standards_modules()
+    body = await request.json()
+
+    standard_id = body.get("standard_id", "")
+    standard_clause = body.get("standard_clause", "")
+    old_iso_clause = body.get("old_iso_clause", "")
+    new_iso_clause = body.get("new_iso_clause", "")
+
+    if not standard_id or not standard_clause or not new_iso_clause:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "success": False,
+                "message": "Required fields: standard_id, standard_clause, new_iso_clause",
+            },
+        )
+
+    result = mods["adjust_standard_clause_mapping"](
+        standard_id=standard_id,
+        standard_clause=standard_clause,
+        old_iso_clause=old_iso_clause,
+        new_iso_clause=new_iso_clause,
+    )
+
+    status_code = 200 if result["success"] else 400
+    return JSONResponse(status_code=status_code, content=result)
+
+
+# ============================================================
+# SSE Event Streaming for Real-Time Cross-Examination
+# ============================================================
+# SSE Event Streaming for Real-Time Cross-Examination
+# ============================================================
+
+
+# Global event bus: run_id → asyncio.Queue
+# Each queue holds dicts like {"type": "analyzer", "content": "...", ...}
+_event_queues: dict[str, list[asyncio.Queue]] = defaultdict(list)
+
+
+def emit_cross_exam_event(run_id: str, event: dict) -> None:
+    """Emit an event to all SSE listeners for a given run.
+
+    Call this from the pipeline/verifier when cross-examination
+    messages are generated.
+
+    Event types:
+        - round_start: {"type": "round_start", "round": 1}
+        - analyzer:    {"type": "analyzer", "round": 1, "content": "...", "regulation": "..."}
+        - verifier:    {"type": "verifier", "round": 1, "content": "...", "regulation": "..."}
+        - round_end:   {"type": "round_end", "round": 1, "agreed": true/false}
+        - complete:    {"type": "complete", "verdict": "...", "flagged": true/false}
+        - error:       {"type": "error", "message": "..."}
+        - human_ack:   {"type": "human_ack", "message": "..."}
+    """
+    event["timestamp"] = time.time()
+    for queue in _event_queues.get(run_id, []):
+        try:
+            queue.put_nowait(event)
+        except asyncio.QueueFull:
+            logger.warning(f"SSE queue full for run {run_id}, dropping event")
+
+
+async def _sse_generator(run_id: str, queue: asyncio.Queue):
+    """Async generator that yields SSE events from the queue."""
+    try:
+        # Send initial connection event
+        yield f"data: {json.dumps({'type': 'connected', 'run_id': run_id, 'timestamp': time.time()})}\n\n"
+
+        while True:
+            try:
+                event = await asyncio.wait_for(queue.get(), timeout=30.0)
+                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+
+                # If complete or error, end the stream
+                if event.get("type") in ("complete", "error"):
+                    break
+            except asyncio.TimeoutError:
+                # Send heartbeat to keep connection alive
+                yield f"data: {json.dumps({'type': 'heartbeat', 'timestamp': time.time()})}\n\n"
+    finally:
+        # Cleanup: remove this queue from the listeners
+        if run_id in _event_queues:
+            try:
+                _event_queues[run_id].remove(queue)
+            except ValueError:
+                pass
+            if not _event_queues[run_id]:
+                del _event_queues[run_id]
+
+
+@report_router.get("/{run_id}/stream")
+async def stream_cross_examination(run_id: str):
+    """SSE endpoint for real-time cross-examination events.
+
+    Client connects with EventSource and receives events as they happen.
+    Events include analyzer/verifier messages, round results, and final verdict.
+    """
+    queue: asyncio.Queue = asyncio.Queue(maxsize=100)
+    _event_queues[run_id].append(queue)
+
+    return StreamingResponse(
+        _sse_generator(run_id, queue),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@report_router.post("/{run_id}/inject")
+async def inject_human_message(run_id: str, body: dict):
+    """Inject a human message into the cross-examination.
+
+    Body:
+        {"message": "你問錯了，應該問...", "user_id": "ra_user"}
+    """
+    message = body.get("message", "").strip()
+    user_id = body.get("user_id", "human")
+
+    if not message:
+        raise HTTPException(status_code=400, detail="Missing 'message' field")
+
+    # Broadcast the human injection event to all SSE listeners
+    event = {
+        "type": "human_injection",
+        "message": message,
+        "user_id": user_id,
+        "run_id": run_id,
+    }
+    emit_cross_exam_event(run_id, event)
+
+    return JSONResponse(content={
+        "success": True,
+        "message": "Human injection sent to cross-examination",
+    })
+
+
+@report_router.post("/{run_id}/pause")
+async def pause_cross_examination(run_id: str):
+    """Pause the cross-examination for this run."""
+    emit_cross_exam_event(run_id, {"type": "pause", "run_id": run_id})
+    return JSONResponse(content={"success": True, "message": "Pause signal sent"})
+
+
+@report_router.post("/{run_id}/resume")
+async def resume_cross_examination(run_id: str):
+    """Resume the cross-examination for this run."""
+    emit_cross_exam_event(run_id, {"type": "resume", "run_id": run_id})
+    return JSONResponse(content={"success": True, "message": "Resume signal sent"})

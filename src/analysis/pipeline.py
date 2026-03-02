@@ -163,6 +163,7 @@ class AnalysisPipeline:
         on_phase_complete: Optional[Callable] = None,
         on_pause: Optional[Callable] = None,
         on_row_complete: Optional[Callable] = None,
+        selected_regulations: list[str] | None = None,
     ):
         """Initialize the pipeline.
 
@@ -176,12 +177,15 @@ class AnalysisPipeline:
             on_phase_complete: Callback(phase, state) after each phase completes
             on_pause: Callback(reason, state) when pipeline pauses
             on_row_complete: Callback(row_state, state) when a row finishes all phases
+            selected_regulations: Country regulation IDs for multi-regulation cross-exam
+                                   (e.g., ['QMSR', 'EU_MDR', 'TFDA'])
         """
         self._llm_fn = llm_completion_fn
         self._model = model
         self._standard = standard
         self._state_dir = state_dir
         self._state_dir.mkdir(parents=True, exist_ok=True)
+        self._selected_regulations = selected_regulations
 
         # Callbacks
         self._on_phase_complete = on_phase_complete
@@ -573,6 +577,8 @@ class AnalysisPipeline:
                 self._state,
                 self._llm_fn,
                 self._model,
+                selected_regulations=self._selected_regulations,
+                run_id=self._state.run_id,
             )
             row.set_phase_result(Phase.VERIFICATION, result)
             if result.status in (
@@ -701,7 +707,14 @@ class AnalysisPipeline:
                 row.advance_to_next_phase()
 
         elif phase == Phase.VERIFICATION:
-            result = run_verification_row(row, self._state, self._llm_fn, self._model)
+            result = run_verification_row(
+                row,
+                self._state,
+                self._llm_fn,
+                self._model,
+                selected_regulations=self._selected_regulations,
+                run_id=self._state.run_id,
+            )
             row.set_phase_result(Phase.VERIFICATION, result)
             if result.status in (
                 PhaseStatus.COMPLETED.value,
@@ -826,6 +839,7 @@ class AnalysisPipeline:
         state_path: Path,
         llm_completion_fn: Callable,
         model: str = "default",
+        selected_regulations: list[str] | None = None,
     ) -> "AnalysisPipeline":
         """Load a pipeline from a saved state file.
 
@@ -833,6 +847,7 @@ class AnalysisPipeline:
             state_path: Path to the saved JSON state file
             llm_completion_fn: LLM completion function
             model: LLM model name
+            selected_regulations: Country regulation IDs for multi-regulation cross-exam
 
         Returns:
             Resumed AnalysisPipeline
@@ -844,6 +859,7 @@ class AnalysisPipeline:
             mode=ExecutionMode(state.mode),
             standard=state.standard,
             state_dir=state_path.parent,
+            selected_regulations=selected_regulations,
         )
         pipeline.initialize_from_state(state)
         return pipeline

@@ -7,11 +7,14 @@ LLM call #4 — Two LLM roles: Analyzer and Verifier.
 Cross-examination (交叉詰問):
   1. Analyzer presents its evidence assessment
   2. Verifier challenges the assessment with counter-questions
+     (including multi-regulation delta/exceeds items if countries selected)
   3. Analyzer responds to challenges
   4. Max 3 rounds. All rounds recorded in backend + Phoenix.
   5. If still disagreeing after 3 rounds → flagged_for_ra = True
+  6. All exchanges emitted via SSE for real-time HTML viewing.
 
 Questions come from compliance_rules.py audit questions.
+Multi-regulation questions come from generate_cross_exam_questions().
 The Verifier role uses the regulation text as ground truth.
 """
 
@@ -34,10 +37,23 @@ from src.analysis.state import (
 __all__ = [
     "run_verification_row",
     "MAX_VERIFICATION_ROUNDS",
+    "emit_verification_event",
 ]
 
 MAX_VERIFICATION_ROUNDS = 3
 
+
+def emit_verification_event(run_id: str, event: dict) -> None:
+    """Emit a cross-examination event to SSE listeners.
+
+    This is the bridge between verifier.py and report_api.py SSE streaming.
+    Events are forwarded to the HTML real-time viewer.
+    """
+    try:
+        from src.analysis.report_api import emit_cross_exam_event
+        emit_cross_exam_event(run_id, event)
+    except ImportError:
+        pass  # SSE not available (e.g., running tests without FastAPI)
 
 # ============================================================
 # Analyzer role — defends the evidence assessment
@@ -98,9 +114,10 @@ _VERIFIER_SYSTEM_PROMPT = """你是品質管理系統「驗證者」角色。你
 1. 檢查分析者是否遺漏了重要的法規要求。
 2. 質疑證據引用是否真正涵蓋了稽核問題的所有面向。
 3. 指出「提到」vs「具體說明如何執行」的差異。
-4. 如果分析者的評估確實合理且有充足證據，你應當同意。
-5. 不要為了質疑而質疑 — 只提出有實質意義的挑戰。
-6. 回答使用指定的 JSON 格式。"""
+4. 如果有多國法規要求，特別注意各國「獨有要求」(delta items)。
+5. 如果分析者的評估確實合理且有充足證據，你應當同意。
+6. 不要為了質疑而質疑 — 只提出有實質意義的挑戰。
+7. 回答使用指定的 JSON 格式。"""
 
 _VERIFIER_CHALLENGE_TEMPLATE = """## 分析者的評估
 
@@ -288,6 +305,8 @@ def run_verification_row(
     model: str = "default",
     temperature: float = 0.2,
     max_tokens: int = 4096,
+    selected_regulations: list[str] | None = None,
+    run_id: str = "",
 ) -> PhaseResult:
     """Execute Phase 5 cross-examination for a single row.
 
@@ -296,6 +315,7 @@ def run_verification_row(
         Round 2: Analyzer responds → Verifier re-evaluates
         Round 3: (if needed) Analyzer final → Verifier final
         If still disagreeing after 3 rounds → flagged_for_ra
+        All rounds emitted via SSE for real-time HTML viewing.
 
     Args:
         row_state: Row with Phase 1-4 results
@@ -304,6 +324,8 @@ def run_verification_row(
         model: Model name
         temperature: LLM temperature
         max_tokens: Max response tokens
+        selected_regulations: Country regulation IDs (e.g., ['QMSR', 'EU_MDR', 'TFDA'])
+        run_id: Pipeline run ID for SSE event emission
 
     Returns:
         PhaseResult with verification rounds and agreement status
@@ -325,6 +347,33 @@ def run_verification_row(
         evidence_summary = _build_evidence_summary(evidence_items)
         regulation_text = _get_regulation_text(row_state.clause_id, row_state.standard)
 
+        # ── Multi-regulation context (delta / exceeds items) ──
+        multi_reg_context = ""
+        if selected_regulations:
+            try:
+                from src.analysis.compliance_rules import generate_cross_exam_questions
+                reg_questions = generate_cross_exam_questions(
+                    doc_id=row_state.doc_id or "",
+                    doc_title=row_state.doc_title or "",
+                    baseline_clause=row_state.clause_id,
+                    selected_regulations=selected_regulations,
+                )
+                delta_items = [q for q in reg_questions if q["question_type"] == "delta"]
+                exceeds_items = [q for q in reg_questions if q["question_type"] == "exceeds"]
+                if delta_items or exceeds_items:
+                    parts = ["## 多國法規特殊要求（需額外驗證）\n"]
+                    for q in delta_items:
+                        parts.append(
+                            f"⚠️ [{q['country']}] {q['title_zh']}: {q['question_zh']}"
+                        )
+                    for q in exceeds_items:
+                        parts.append(
+                            f"📋 [{q['country']}] {q['title_zh']}: {q['question_zh']}"
+                        )
+                    multi_reg_context = "\n".join(parts)
+            except Exception:
+                pass  # Non-critical — proceed without multi-reg context
+
         # Import verdict display
         from src.analysis.risk_matrix import VERDICT_DISPLAY
 
@@ -335,6 +384,17 @@ def run_verification_row(
         total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
         agreed = False
 
+        # Emit SSE: verification start
+        if run_id:
+            emit_verification_event(run_id, {
+                "type": "verification_start",
+                "clause_id": row_state.clause_id,
+                "clause_title": row_state.clause_title,
+                "doc_id": row_state.doc_id or "",
+                "selected_regulations": selected_regulations or [],
+                "has_multi_reg_context": bool(multi_reg_context),
+            })
+
         # ---- Round 1: Analyzer initial position ----
         analyzer_prompt = _ANALYZER_INITIAL_TEMPLATE.format(
             clause_id=row_state.clause_id,
@@ -344,6 +404,14 @@ def run_verification_row(
             gap_severity=row_state.gap_severity or "未評估",
             evidence_summary=evidence_summary,
         )
+
+        # Emit SSE: round start
+        if run_id:
+            emit_verification_event(run_id, {
+                "type": "round_start",
+                "round": 1,
+                "clause_id": row_state.clause_id,
+            })
 
         analyzer_response, usage = _call_llm(
             llm_completion_fn,
@@ -356,7 +424,16 @@ def run_verification_row(
         )
         _merge_usage(total_usage, usage)
 
-        # Verifier challenges
+        # Emit SSE: analyzer response
+        if run_id:
+            emit_verification_event(run_id, {
+                "type": "analyzer",
+                "round": 1,
+                "clause_id": row_state.clause_id,
+                "content": json.dumps(analyzer_response, ensure_ascii=False),
+            })
+
+        # Verifier challenges — append multi-regulation context if available
         verifier_prompt = _VERIFIER_CHALLENGE_TEMPLATE.format(
             analyzer_position=json.dumps(
                 analyzer_response, ensure_ascii=False, indent=2
@@ -364,6 +441,8 @@ def run_verification_row(
             regulation_text=regulation_text,
             audit_question=row_state.audit_question,
         )
+        if multi_reg_context:
+            verifier_prompt += f"\n\n{multi_reg_context}"
 
         verifier_response, usage = _call_llm(
             llm_completion_fn,
@@ -375,6 +454,15 @@ def run_verification_row(
             max_tokens,
         )
         _merge_usage(total_usage, usage)
+
+        # Emit SSE: verifier response
+        if run_id:
+            emit_verification_event(run_id, {
+                "type": "verifier",
+                "round": 1,
+                "clause_id": row_state.clause_id,
+                "content": json.dumps(verifier_response, ensure_ascii=False),
+            })
 
         rounds.append(
             {
@@ -388,10 +476,28 @@ def run_verification_row(
         if agreement == "agree":
             agreed = True
 
+        # Emit SSE: round end
+        if run_id:
+            emit_verification_event(run_id, {
+                "type": "round_end",
+                "round": 1,
+                "clause_id": row_state.clause_id,
+                "agreement_level": agreement,
+                "agreed": agreed,
+            })
+
         # ---- Rounds 2-3: Follow-up if not agreed ----
         for round_num in range(2, MAX_VERIFICATION_ROUNDS + 1):
             if agreed:
                 break
+
+            # Emit SSE: round start
+            if run_id:
+                emit_verification_event(run_id, {
+                    "type": "round_start",
+                    "round": round_num,
+                    "clause_id": row_state.clause_id,
+                })
 
             # Analyzer responds to verifier's challenge
             analyzer_followup = _ANALYZER_RESPONSE_TEMPLATE.format(
@@ -410,6 +516,15 @@ def run_verification_row(
                 max_tokens,
             )
             _merge_usage(total_usage, usage)
+
+            # Emit SSE: analyzer response
+            if run_id:
+                emit_verification_event(run_id, {
+                    "type": "analyzer",
+                    "round": round_num,
+                    "clause_id": row_state.clause_id,
+                    "content": json.dumps(analyzer_response, ensure_ascii=False),
+                })
 
             # Verifier re-evaluates
             verifier_followup = _VERIFIER_FOLLOWUP_TEMPLATE.format(
@@ -432,6 +547,15 @@ def run_verification_row(
             )
             _merge_usage(total_usage, usage)
 
+            # Emit SSE: verifier response
+            if run_id:
+                emit_verification_event(run_id, {
+                    "type": "verifier",
+                    "round": round_num,
+                    "clause_id": row_state.clause_id,
+                    "content": json.dumps(verifier_response, ensure_ascii=False),
+                })
+
             rounds.append(
                 {
                     "round": round_num,
@@ -444,6 +568,15 @@ def run_verification_row(
             if agreement == "agree":
                 agreed = True
 
+            # Emit SSE: round end
+            if run_id:
+                emit_verification_event(run_id, {
+                    "type": "round_end",
+                    "round": round_num,
+                    "clause_id": row_state.clause_id,
+                    "agreement_level": agreement,
+                    "agreed": agreed,
+                })
         # ---- Store results ----
         row_state.verification_rounds = rounds
         row_state.verification_agreed = agreed
@@ -456,9 +589,22 @@ def run_verification_row(
             "flagged_for_ra": not agreed,
             "final_agreement_level": agreement,
             "rounds": rounds,
+            "multi_regulation": bool(multi_reg_context),
+            "selected_regulations": selected_regulations or [],
         }
         phase_result.llm_usage = total_usage
         phase_result.llm_model = model
+
+        # Emit SSE: verification complete
+        if run_id:
+            emit_verification_event(run_id, {
+                "type": "verification_complete",
+                "clause_id": row_state.clause_id,
+                "total_rounds": len(rounds),
+                "agreed": agreed,
+                "flagged_for_ra": not agreed,
+                "final_agreement_level": agreement,
+            })
 
     except RuntimeError as e:
         # Budget exceeded mid-verification

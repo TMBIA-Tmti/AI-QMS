@@ -60,8 +60,15 @@ class ComparisonTable:
     ) -> int:
         """Build initial rows from scan_regulatory_references() output + checklist.
 
-        For each document that references the given standard, create one row
-        per clause in the checklist.
+        Smart matching: instead of creating one row per {document × clause}
+        (which yields ~8875 rows for 125 docs × 71 clauses), we match each
+        document to only the clauses it is designed to cover.
+
+        Multi-strategy matching (all strategies used, results merged):
+          1. Title clause extraction — "(ISO 13485 Clause 4.2.3)" in title
+          2. Title keyword mapping — keywords like "Document Control" → clause
+          3. Tags / metadata clause hints
+          4. Fallback: if no strategy matches, include all clauses (generic docs)
 
         Args:
             scan_result: Output of MarkdownStoreService.scan_regulatory_references()
@@ -78,7 +85,6 @@ class ComparisonTable:
         relevant_docs: list[dict] = []
         for doc in by_doc:
             doc_standards = doc.get("standards", [])
-            # Check if any referenced standard matches (fuzzy: "ISO 13485" matches "ISO_13485")
             standard_normalized = standard.replace("_", " ").lower()
             for ds in doc_standards:
                 if standard_normalized in ds.lower().replace("_", " "):
@@ -89,8 +95,14 @@ class ComparisonTable:
         for doc in relevant_docs:
             doc_id = doc.get("doc_id", "")
             doc_title = doc.get("title", "")
+            doc_tags = doc.get("tags", [])
 
-            for clause_id in clause_ids:
+            # Determine which clauses this document covers
+            matched_clauses = self._match_doc_to_clauses(
+                doc_id, doc_title, doc_tags, clause_ids
+            )
+
+            for clause_id in matched_clauses:
                 clause_info = checklist.get(clause_id, {})
                 row = RowState(
                     clause_id=clause_id,
@@ -106,6 +118,158 @@ class ComparisonTable:
                 row_count += 1
 
         return row_count
+
+    @staticmethod
+    def _match_doc_to_clauses(
+        doc_id: str,
+        doc_title: str,
+        doc_tags: list[str],
+        all_clause_ids: list[str],
+    ) -> list[str]:
+        """Determine which ISO 13485 clauses a document covers.
+
+        Uses multiple strategies (all applied, results merged):
+          1. Title clause reference — "ISO 13485 Clause X.Y.Z" or "條款 X.Y"
+          2. Title keyword mapping — domain keywords → known clause families
+          3. Tags with clause references
+
+        doc_id is NOT used for clause inference because the encoding
+        convention varies across companies (some use clause-based numbering,
+        some use sequential numbering, some use mixed approaches).
+
+        Returns:
+            List of clause IDs this document should be analyzed against.
+            Includes the primary clause + all sub-clauses under it.
+        """
+        import re
+
+        found_clauses: set[str] = set()
+
+        # ---- Strategy 1: Extract clause from title ----
+        # Patterns:
+        #   "Document Control (ISO 13485 Clause 4.2.3)"
+        #   "品質手冊 (ISO 13485 條款 4.1)"
+        #   "Clause 7.3.3 - Design and Development"
+        #   "4.2.3 Document Control"  (clause number at start)
+        clause_patterns = [
+            r"[Cc]lause\s+(\d+(?:\.\d+)*)",       # "Clause 4.2.3"
+            r"條款\s*(\d+(?:\.\d+)*)",              # "條款 4.2.3"
+            r"\bISO\s*13485[^)]*?(\d+\.\d+(?:\.\d+)*)",  # "ISO 13485 Clause 4.2.3"
+            r"^\s*(\d+\.\d+(?:\.\d+)*)\s*[-—\s]+",  # "4.2.3 - Title" at start
+        ]
+        for pattern in clause_patterns:
+            for m in re.finditer(pattern, doc_title):
+                clause_ref = m.group(1)
+                # Always add — may be section prefix, expansion handles validation
+                found_clauses.add(clause_ref)
+
+        # ---- Strategy 2: Title keyword → clause family mapping ----
+        # Maps common QMS document domain keywords to ISO 13485 clause families.
+        # Each keyword maps to a section prefix; all clauses under that prefix match.
+        _KEYWORD_CLAUSE_MAP: dict[str, list[str]] = {
+            # Section 4: QMS
+            "品質手冊": ["4.1", "4.2"],
+            "quality manual": ["4.2.2"],
+            "文件管制": ["4.2.3"],
+            "document control": ["4.2.3"],
+            "紀錄管制": ["4.2.4", "4.2.5"],
+            "record control": ["4.2.4", "4.2.5"],
+            # Section 5: Management
+            "管理責任": ["5"],
+            "management responsibility": ["5"],
+            "管理審查": ["5.6"],
+            "management review": ["5.6"],
+            # Section 6: Resource
+            "資源管理": ["6"],
+            "resource management": ["6"],
+            "人力資源": ["6.2"],
+            "human resources": ["6.2"],
+            "基礎設施": ["6.3"],
+            "infrastructure": ["6.3"],
+            "工作環境": ["6.4"],
+            "work environment": ["6.4"],
+            # Section 7: Product realization
+            "產品實現規劃": ["7.1"],
+            "product realization": ["7.1"],
+            "客戶要求": ["7.2"],
+            "customer requirement": ["7.2"],
+            "設計開發": ["7.3"],
+            "design and development": ["7.3"],
+            "design control": ["7.3"],
+            "採購": ["7.4"],
+            "purchasing": ["7.4"],
+            "生產與服務": ["7.5"],
+            "production and service": ["7.5"],
+            "清潔": ["7.5.2"],
+            "cleanliness": ["7.5.2"],
+            "滅菌": ["7.5.2"],
+            "sterilization": ["7.5.2", "7.5.7"],
+            "安裝確認": ["7.5.6"],
+            "installation": ["7.5.6"],
+            "服務": ["7.5.4"],
+            "servicing": ["7.5.4"],
+            "追溯": ["7.5.9"],
+            "traceability": ["7.5.9"],
+            "監控與測量": ["7.6"],
+            "monitoring and measurement": ["7.6"],
+            # Section 8: Measurement, analysis, improvement
+            "內部稽核": ["8.2.2"],
+            "internal audit": ["8.2.2"],
+            "矯正措施": ["8.5.2"],
+            "corrective action": ["8.5.2"],
+            "CAPA": ["8.5.2", "8.5.3"],
+            "預防措施": ["8.5.3"],
+            "preventive action": ["8.5.3"],
+            "不合格品": ["8.3"],
+            "nonconforming product": ["8.3"],
+            "客訴": ["8.2.2", "8.5.1"],
+            "complaint": ["8.2.2", "8.5.1"],
+            "回饋": ["8.2.1"],
+            "feedback": ["8.2.1"],
+            "資料分析": ["8.4"],
+            "data analysis": ["8.4"],
+            "風險管理": ["7.1"],
+            "risk management": ["7.1"],
+            "標示": ["7.5.1"],
+            "labeling": ["7.5.1"],
+        }
+
+        title_lower = doc_title.lower()
+        title_for_zh = doc_title  # Chinese matching is case-insensitive by nature
+        for keyword, clause_prefixes in _KEYWORD_CLAUSE_MAP.items():
+            if keyword.lower() in title_lower or keyword in title_for_zh:
+                for cp in clause_prefixes:
+                    # Always add — cp may be a section prefix (e.g., "7.3")
+                    # that's not itself a clause but has sub-clauses
+                    found_clauses.add(cp)
+        # ---- Strategy 3: Tags with clause references ----
+        for tag in doc_tags:
+            # Tags might be: "4.2.3", "document-control", "clause-7.3"
+            tag_clause = re.search(r"(\d+\.\d+(?:\.\d+)*)", tag)
+            if tag_clause:
+                clause_ref = tag_clause.group(1)
+                # Always add — may be section prefix, expansion handles validation
+                found_clauses.add(clause_ref)
+
+        # ---- Expand matched clauses to include sub-clauses ----
+        expanded: set[str] = set()
+        for clause in found_clauses:
+            # Only add the clause itself if it's a real checklist clause
+            if clause in all_clause_ids:
+                expanded.add(clause)
+            # Always expand sub-clauses (e.g., "7.3" -> "7.3.1", "7.3.2"...)
+            prefix = clause + "."
+            for cid in all_clause_ids:
+                if cid.startswith(prefix):
+                    expanded.add(cid)
+
+        # ---- Fallback: if no strategy matched, include all clauses ----
+        # This handles generic docs (Quality Manual, Quality Policy) that
+        # span the entire QMS.
+        if not expanded:
+            return list(all_clause_ids)
+
+        return sorted(expanded)
 
     # ── Querying ──
 

@@ -1,30 +1,68 @@
 """
-AI-QMS — Compliance Rules (Audit Checklists)
-=============================================
+AI-QMS — Compliance Rules (Multi-Regulation Cross-Reference)
+=============================================================
 
-Predefined audit checklists for regulatory standards.
-Each clause = one audit question + expected evidence list.
+Multi-regulation compliance baseline for medical device QMS analysis.
 
-LLM's job is to:
-  1. Search company documents for each expected_evidence item
-  2. Found → quote the source text
-  3. Not found → flag as gap
+Architecture (3 layers):
+  Layer 1: ISO 13485:2016 base checklist (71 clauses) — the universal baseline
+  Layer 2: Country-specific regulation profiles (predefined + crawlable)
+           Each profile contains:
+             - iso_mapped: which ISO 13485 clauses this regulation covers
+             - unique_requirements: country-specific delta (not in ISO 13485)
+  Layer 3: Dynamic cross-examination question generator
+           Given a quality document + selected countries →
+           generates tailored questions (delta items = highest priority)
 
-The audit_impact level determines risk severity when combined
-with gap_severity in risk_matrix.py.
+Predefined regulations: US FDA QMSR, EU MDR 2017/745, Taiwan TFDA
+Dynamic regulations: any country via crawler + LLM analysis
+All regulations use the same data format (RegulationProfile).
+
+Downstream usage:
+  - Cross-examination engine uses these questions to debate
+  - Rule engine uses overlap/delta to determine compliance verdict
+  - Risk matrix uses audit_impact to calculate risk level
+  - Human watches cross-examination live, intervenes when needed
 
 Currently supported standards:
   - ISO 13485:2016 (Medical devices — Quality management systems)
 """
 
 from typing import Optional
+from dataclasses import dataclass, field
+from enum import Enum
+import json
+import os
+from datetime import datetime
 
 __all__ = [
+    # Existing API
     "ISO_13485_CHECKLIST",
     "get_checklist",
     "get_clause",
     "list_clauses",
     "SUPPORTED_STANDARDS",
+    # Multi-regulation API
+    "MappingStatus",
+    "UniqueRequirement",
+    "RegulationProfile",
+    "PREDEFINED_REGULATIONS",
+    "get_regulation",
+    "get_all_regulations",
+    "get_overlap_analysis",
+    "generate_cross_exam_questions",
+    "load_crawled_regulation",
+    "save_crawled_regulation",
+    "map_unique_to_iso_clause",
+    # Supplemental Standards API
+    "StandardCategory",
+    "SupplementalStandardProfile",
+    "ProductProfile",
+    "PREDEFINED_STANDARDS",
+    "get_standard",
+    "get_all_standards",
+    "get_applicable_standards",
+    "adjust_standard_clause_mapping",
 ]
 
 
@@ -1066,5 +1104,2794 @@ def list_clauses(standard: str = "ISO_13485") -> list[str]:
     # Sort by numeric value for proper ordering (4.1 < 4.2.1 < 4.2.2 < ... < 8.5.3)
     return sorted(
         checklist.keys(),
+        key=lambda x: [int(n) for n in x.split(".")],
+    )
+
+
+# ============================================================
+# Layer 2: Multi-Regulation Cross-Reference Framework
+# ============================================================
+
+
+class MappingStatus(str, Enum):
+    """How a country's regulation covers an ISO 13485 clause."""
+    FULL = "full"          # Regulation fully adopts / covers this clause
+    PARTIAL = "partial"    # Regulation partially covers (some gaps or additions)
+    NOT_APPLICABLE = "na"  # Regulation does not address this clause area
+    EXCEEDS = "exceeds"    # Regulation exceeds ISO 13485 requirements for this clause
+
+
+class MappingMethod(str, Enum):
+    """How the mapping was determined — for explainability."""
+    OFFICIAL_CROSSREF = "official_crossref"    # Official mapping doc exists (e.g., FDA preamble, EN ISO 13485/A11 Annex ZA)
+    CLAUSE_STRUCTURE = "clause_structure"      # Same clause numbering/structure (e.g., TFDA 84 Articles mirror ISO 13485)
+    SEMANTIC_EN = "semantic_en"                # English semantic analysis of requirement text
+    SEMANTIC_ZH = "semantic_zh"                # Chinese semantic analysis of requirement text
+    KEYWORD_MATCH = "keyword_match"            # Keyword/term overlap between regulation and ISO clause
+    EXPERT_JUDGMENT = "expert_judgment"         # Domain expert manual classification
+    LLM_ANALYSIS = "llm_analysis"              # LLM-assisted analysis (for crawled regulations)
+
+
+@dataclass
+class ClauseMapping:
+    """How one ISO 13485 clause is covered by a specific country's regulation.
+
+    Includes rationale for WHY this mapping was determined,
+    what method was used, and confidence level.
+    Also includes native-language regulatory text for cross-language comparison.
+    """
+    iso_clause: str               # e.g., "4.2.3"
+    status: MappingStatus         # full / partial / na / exceeds
+    regulation_ref: str           # e.g., "§820.10 (adopts ISO 13485)" or "Article 10"
+    rationale_en: str             # WHY this mapping: English explanation
+    rationale_zh: str             # WHY this mapping: Chinese explanation
+    method: MappingMethod         # HOW determined: official crossref, semantic, etc.
+    confidence: float             # 0.0–1.0 how confident in this mapping
+    notes: str = ""               # Additional notes (e.g., "FDA removed exemption for mgmt review")
+    # Native-language fields for cross-language comparison
+    original_text: str = ""       # Regulatory clause text in its NATIVE language (法規原文)
+    original_lang: str = ""       # Language code: "en", "zh-TW", "de", "fr", etc.
+    english_translation: str = "" # English translation (if original is NOT English)
+    semantic_note: str = ""       # Interpretation: what this clause means in practice
+
+@dataclass
+class UniqueRequirement:
+    """A country-specific requirement that goes BEYOND ISO 13485.
+
+    These are the DELTA items — the most critical for cross-examination
+    because quality documents are least likely to cover them.
+    Includes native-language text for cross-language semantic comparison.
+    """
+    req_id: str                   # e.g., "QMSR-001", "MDR-001", "TFDA-001"
+    regulation_ref: str           # e.g., "§820.35", "Article 15", "第33條"
+    title_en: str                 # English title
+    title_zh: str                 # Chinese title
+    requirement_en: str           # Full requirement description (English)
+    requirement_zh: str           # Full requirement description (Chinese)
+    related_iso_clauses: list[str]  # Which ISO 13485 clauses this is closest to
+    audit_impact: str             # "critical" / "major" / "minor"
+    audit_question_en: str        # Audit question in English
+    audit_question_zh: str        # Audit question in Chinese
+    expected_evidence: list[str]  # What evidence should exist
+    rationale_en: str             # WHY this is classified under these ISO clauses
+    rationale_zh: str             # WHY (Chinese)
+    method: MappingMethod         # HOW determined
+    confidence: float             # 0.0–1.0
+    # Native-language fields for cross-language comparison
+    original_text: str = ""       # Regulatory text in its NATIVE language (法規原文)
+    original_lang: str = ""       # Language code: "en", "zh-TW", "de", "fr", etc.
+    english_translation: str = "" # English translation (if original is NOT English)
+    semantic_note: str = ""       # Interpretation: what this means in practice, and how it differs across countries
+
+@dataclass
+class RegulationProfile:
+    """Complete profile for one country's QMS regulation.
+
+    This is the UNIFIED format for both predefined and crawled regulations.
+    When a user selects a country, this profile is used to:
+      1. Show the cross-reference table (overlap vs delta)
+      2. Generate per-document cross-examination questions
+      3. Feed the risk matrix for compliance verdicts
+    """
+    regulation_id: str            # e.g., "QMSR", "EU_MDR", "TFDA", "PMDA"
+    name_en: str                  # e.g., "US FDA QMSR (21 CFR Part 820)"
+    name_zh: str                  # e.g., "美國 FDA QMSR（21 CFR 第820部分）"
+    country: str                  # e.g., "US", "EU", "TW", "JP"
+    country_name_en: str          # e.g., "United States"
+    country_name_zh: str          # e.g., "美國"
+    source: str                   # "predefined" or "crawled"
+    source_url: str = ""          # Official regulation URL
+    last_updated: str = ""       # ISO date of last update
+    effective_date: str = ""     # When regulation became effective
+    # Mapping: ISO 13485 clause → how this regulation covers it
+    iso_mapped: dict[str, ClauseMapping] = field(default_factory=dict)
+    # Delta: requirements UNIQUE to this country (not in ISO 13485)
+    unique_requirements: list[UniqueRequirement] = field(default_factory=list)
+
+
+# ============================================================
+# Supplemental Standards — Product-Profile-Triggered Standards
+# ============================================================
+# ISO/IEC standards that SUPPLEMENT ISO 13485.
+# Country regulations = WHAT to comply with;
+# Supplemental standards = HOW to comply with specific clauses.
+#
+# Trigger sources for product characteristics (5 sources):
+#   1. Quality docs scan (quality manual, IFU, specs, design dev docs)
+#   2. Referenced standards list in documents
+#   3. User-uploaded ISO/IEC files (most reliable signal)
+#   4. User manual selection in HTML UI checkboxes
+#   5. Real-time correction during cross-examination dialog
+
+
+class StandardCategory(str, Enum):
+    """Category of supplemental standard — determines where it fits."""
+    RISK_MANAGEMENT = "risk_management"          # ISO 14971
+    SOFTWARE = "software"                        # IEC 62304
+    USABILITY = "usability"                      # IEC 62366
+    ELECTRICAL_SAFETY = "electrical_safety"      # IEC 60601
+    STERILIZATION = "sterilization"              # ISO 11135/11137/17665
+    PACKAGING = "packaging"                      # ISO 11607
+    BIOCOMPATIBILITY = "biocompatibility"        # ISO 10993
+    IMPLANTABLE = "implantable"                  # ISO 14708
+    LABELING = "labeling"                        # ISO 15223
+    EMC = "emc"                                  # IEC 60601-1-2
+    CLINICAL = "clinical"                        # ISO 14155
+    PROCESS_VALIDATION = "process_validation"    # Process-specific validation
+    ENVIRONMENTAL = "environmental"              # IEC 60068
+
+
+@dataclass
+class StandardClauseLink:
+    """How one supplemental standard clause links to an ISO 13485 clause.
+
+    Defines the 'HOW' relationship: the supplemental standard
+    tells you HOW to satisfy a specific ISO 13485 requirement.
+    """
+    standard_clause: str           # e.g., "ISO 14971 Clause 4"
+    iso_13485_clause: str          # e.g., "7.1"
+    relationship: str              # "elaborates" / "implements" / "supplements" / "verifies"
+    description_en: str            # What this link means
+    description_zh: str            # What this link means (Chinese)
+
+
+@dataclass
+class SupplementalStandardProfile:
+    """Profile for a supplemental standard (ISO/IEC) that supports ISO 13485.
+
+    Unlike RegulationProfile (country regulations = WHAT to comply with),
+    SupplementalStandardProfile defines HOW to comply with specific
+    ISO 13485 clauses for specific product types.
+
+    Activation sources (multi-source product profile):
+      1. Document scan: quality manual, IFU, specs, design dev docs
+      2. Referenced standards list in quality documents
+      3. User-uploaded ISO/IEC files (direct signal)
+      4. User manual selection in HTML UI checkboxes
+      5. Real-time correction during cross-examination dialog
+    """
+    standard_id: str               # e.g., "ISO_14971", "IEC_62304"
+    name_en: str                   # e.g., "ISO 14971:2019 Risk Management"
+    name_zh: str                   # e.g., "ISO 14971:2019 風險管理"
+    category: StandardCategory
+    version: str = ""
+    is_universal: bool = False     # True = applies to ALL products (e.g., ISO 14971)
+    # Keywords to detect in documents / uploaded files
+    detection_keywords_en: list[str] = field(default_factory=list)
+    detection_keywords_zh: list[str] = field(default_factory=list)
+    # How this standard's clauses link to ISO 13485
+    clause_links: list[StandardClauseLink] = field(default_factory=list)
+    # Primary ISO 13485 clauses this standard supports
+    primary_iso_clauses: list[str] = field(default_factory=list)
+    # How country regulations reference this standard
+    # e.g., {"US": "FDA recognized consensus standard", "EU": "Harmonized standard under MDR"}
+    regulatory_references: dict[str, str] = field(default_factory=dict)
+    # Additional audit questions triggered by this standard
+    audit_questions: list[dict] = field(default_factory=list)
+    notes: str = ""
+
+
+@dataclass
+class ProductProfile:
+    """Product characteristics that determine which supplemental standards apply.
+
+    Built from 5 sources:
+      1. LLM scan of quality docs (quality manual, IFU, specs, design dev)
+      2. Referenced standards list scan from documents
+      3. User-uploaded ISO/IEC files (most reliable signal)
+      4. User manual selection in HTML UI
+      5. Corrections from cross-examination dialog
+
+    Each characteristic stores: (value, confidence, source)
+    source: 'document_scan' / 'standards_list' / 'uploaded_file' / 'user_manual' / 'dialog_correction'
+    """
+    has_software: tuple[bool, float, str] = (False, 0.0, "")
+    has_electrical: tuple[bool, float, str] = (False, 0.0, "")
+    is_implantable: tuple[bool, float, str] = (False, 0.0, "")
+    is_sterile: tuple[bool, float, str] = (False, 0.0, "")
+    sterilization_method: str = ""    # "eo" / "radiation" / "steam" / "other" / ""
+    has_biological_contact: tuple[bool, float, str] = (False, 0.0, "")
+    is_ivd: tuple[bool, float, str] = (False, 0.0, "")
+    has_clinical_investigation: tuple[bool, float, str] = (False, 0.0, "")
+    has_wireless_connectivity: tuple[bool, float, str] = (False, 0.0, "")
+    # Risk class per regulation
+    risk_class: dict[str, str] = field(default_factory=dict)  # {"EU": "IIb", "US": "II", "TW": "2"}
+    # User confirmation overrides
+    user_confirmed_standards: list[str] = field(default_factory=list)
+    user_rejected_standards: list[str] = field(default_factory=list)
+    # Detection results
+    detected_standard_refs: list[str] = field(default_factory=list)  # Standards found in docs
+    uploaded_standard_files: list[str] = field(default_factory=list)  # ISO files user uploaded
+    detection_notes: str = ""
+
+# ============================================================
+# Predefined Regulation: US FDA QMSR
+# ============================================================
+
+def _build_qmsr_profile() -> RegulationProfile:
+    """Build the US FDA QMSR regulation profile.
+
+    QMSR (Quality Management System Regulation) replaced 21 CFR 820 QSR.
+    Finalized Feb 2, 2024 (89 FR 7496). Effective Feb 2, 2026.
+    Core mechanism: incorporates ISO 13485:2016 by reference via §820.10.
+
+    Mapping source: FDA Federal Register preamble (89 FR 7496)
+    + AAMI TIR102:2019 cross-reference guide.
+    """
+    # QMSR adopts ALL ISO 13485 clauses via §820.10
+    # Every single ISO 13485 clause is "full" status
+    iso_mapped: dict[str, ClauseMapping] = {}
+    for clause_id, clause_info in ISO_13485_CHECKLIST.items():
+        iso_mapped[clause_id] = ClauseMapping(
+            iso_clause=clause_id,
+            status=MappingStatus.FULL,
+            regulation_ref=f"§820.10 (incorporates ISO 13485:2016 Clause {clause_id} by reference)",
+            rationale_en=(
+                f"QMSR §820.10 formally incorporates ISO 13485:2016 by reference. "
+                f"FDA determined ISO 13485 is 'substantially similar' to legacy 21 CFR 820. "
+                f"Clause {clause_id} ({clause_info['title']}) is fully adopted without modification."
+            ),
+            rationale_zh=(
+                f"QMSR §820.10 正式引用 ISO 13485:2016。"
+                f"FDA 認定 ISO 13485 與原 21 CFR 820 '實質相似'。"
+                f"條款 {clause_id}（{clause_info['title']}）完全採用，未修改。"
+            ),
+            method=MappingMethod.OFFICIAL_CROSSREF,
+            confidence=1.0,
+            notes="FDA Federal Register 89 FR 7496, Feb 2 2024",
+        )
+
+    # FDA-specific unique requirements (delta)
+    unique_reqs = [
+        UniqueRequirement(
+            req_id="QMSR-001",
+            regulation_ref="§820.35(a)",
+            title_en="Control of Records — Signature & Date",
+            title_zh="記錄管制 — 簽名與日期",
+            requirement_en=(
+                "All records required by FDA must include the signature of the person "
+                "performing the activity and the date the activity was performed. "
+                "This is more explicit than ISO 13485 Clause 4.2.5 which says records "
+                "shall remain legible, readily identifiable and retrievable."
+            ),
+            requirement_zh=(
+                "FDA 要求的所有記錄必須包含執行人員的簽名及執行日期。"
+                "此要求比 ISO 13485 條款 4.2.5 更為明確，ISO 僅要求記錄應保持"
+                "清晰、易於識別及可檢索。"
+            ),
+            related_iso_clauses=["4.2.4", "4.2.5"],
+            audit_impact="major",
+            audit_question_en=(
+                "Do quality records include the signature of the person performing "
+                "the activity and the date, as required by FDA §820.35(a)?"
+            ),
+            audit_question_zh=(
+                "品質記錄是否包含執行人員的簽名與執行日期？（FDA §820.35(a) 要求）"
+            ),
+            expected_evidence=[
+                "Records with handwritten or electronic signatures / 含手寫或電子簽名之記錄",
+                "Date stamps on all quality records / 所有品質記錄上之日期戳記",
+            ],
+            rationale_en=(
+                "§820.35(a) explicitly requires signature + date on records. "
+                "ISO 13485 Clause 4.2.5 requires records be identifiable but does not "
+                "explicitly mandate signature + date format. Classified under 4.2.4/4.2.5 "
+                "because both address record control."
+            ),
+            rationale_zh=(
+                "§820.35(a) 明確要求記錄須有簽名與日期。"
+                "ISO 13485 條款 4.2.5 要求記錄可識別，但未明確規定簽名+日期格式。"
+                "歸類於 4.2.4/4.2.5 因兩者皆涉及記錄管制。"
+            ),
+            method=MappingMethod.OFFICIAL_CROSSREF,
+            confidence=0.95,
+            original_text=(
+                "Each manufacturer shall maintain records of all quality activities in accordance with §820.184. "
+                "Such records shall include... the signature of the individual(s) performing "
+                "the activity and the date(s) the activity was performed."
+            ),
+            original_lang="en",
+            english_translation="",  # Already in English
+            semantic_note=(
+                "FDA uses 'signature of the individual(s)' and 'date(s)' as explicit mandatory fields. "
+                "ISO 13485 Cl. 4.2.5 uses broader language: 'records shall remain legible, readily identifiable "
+                "and retrievable' — which does NOT explicitly require signature+date format. "
+                "Practical impact: US-market quality records MUST have name/signature + date on every entry, "
+                "while ISO 13485 alone allows other identification methods (e.g., ID codes, system logs)."
+            ),
+        ),
+        UniqueRequirement(
+            req_id="QMSR-002",
+            regulation_ref="§820.35(b)",
+            title_en="Control of Records — Complaint Records with UDI",
+            title_zh="記錄管制 — 含UDI之客訴記錄",
+            requirement_en=(
+                "Complaint and servicing records must include the Unique Device "
+                "Identifier (UDI) or universal product code (UPC), the date of the event, "
+                "and specific data points not mandated by ISO 13485 in the same format."
+            ),
+            requirement_zh=(
+                "客訴與服務記錄必須包含唯一裝置識別碼（UDI）或通用產品代碼（UPC）、"
+                "事件日期，以及 ISO 13485 未以相同格式要求之特定資料點。"
+            ),
+            related_iso_clauses=["4.2.4", "4.2.5", "8.2.2", "7.5.9.2"],
+            audit_impact="critical",
+            audit_question_en=(
+                "Do complaint and servicing records include the UDI/UPC, date of event, "
+                "and all FDA-required data fields per §820.35(b)?"
+            ),
+            audit_question_zh=(
+                "客訴與服務記錄是否包含 UDI/UPC、事件日期，及 FDA §820.35(b) "
+                "要求之所有必要資料欄位？"
+            ),
+            expected_evidence=[
+                "Complaint records with UDI field populated / 含UDI欄位之客訴記錄",
+                "Event date recorded for each complaint / 每筆客訴之事件日期記錄",
+                "Servicing records with device identification / 含裝置識別之服務記錄",
+            ],
+            rationale_en=(
+                "§820.35(b) requires specific data fields in complaint/servicing records "
+                "that are not in ISO 13485. UDI is an FDA-specific identifier system. "
+                "Related to 8.2.2 (complaint handling), 4.2.4/4.2.5 (records), "
+                "and 7.5.9.2 (UDI traceability)."
+            ),
+            rationale_zh=(
+                "§820.35(b) 要求客訴/服務記錄中的特定資料欄位，ISO 13485 無此要求。"
+                "UDI 是 FDA 特有的識別系統。相關條款：8.2.2（客訴處理）、"
+                "4.2.4/4.2.5（記錄）及 7.5.9.2（UDI 追溯性）。"
+            ),
+            method=MappingMethod.OFFICIAL_CROSSREF,
+            confidence=0.95,
+            original_text=(
+                "Each manufacturer shall maintain complaint files and records of servicing activities... "
+                "including the unique device identifier (UDI) or universal product code (UPC), "
+                "the date of the event, and such information as is reasonably necessary."
+            ),
+            original_lang="en",
+            english_translation="",
+            semantic_note=(
+                "FDA explicitly mandates 'unique device identifier (UDI)' in complaint records. "
+                "ISO 13485 Cl. 8.2.2 requires complaint handling but does NOT specify UDI inclusion. "
+                "EU MDR has its own UDI system (Art 27) but does not require it in complaint records the same way. "
+                "Taiwan TFDA uses its own license number system, not UDI. "
+                "Cross-country difference: the IDENTIFIER used in complaint records varies by jurisdiction."
+            ),
+        ),
+        UniqueRequirement(
+            req_id="QMSR-003",
+            regulation_ref="§820.45",
+            title_en="Device Labeling and Packaging Controls",
+            title_zh="裝置標示與包裝管制",
+            requirement_en=(
+                "FDA requires specific inspection of labeling for accuracy before release, "
+                "including verification of correct expiration dates, UDI placement, "
+                "and labeling content. This is more prescriptive than ISO 13485 Clause 7.5.1 "
+                "which addresses production controls generally."
+            ),
+            requirement_zh=(
+                "FDA 要求在放行前對標示進行特定的正確性檢查，包括驗證有效日期、"
+                "UDI 標示位置及標示內容。此要求比 ISO 13485 條款 7.5.1 的一般性"
+                "生產管制要求更為具體。"
+            ),
+            related_iso_clauses=["7.5.1", "7.5.8", "7.5.11"],
+            audit_impact="major",
+            audit_question_en=(
+                "Is there a specific labeling inspection step before device release "
+                "that verifies accuracy of expiration dates, UDI, and content per §820.45?"
+            ),
+            audit_question_zh=(
+                "在裝置放行前是否有特定的標示檢查步驟，驗證有效日期、UDI "
+                "及內容的正確性？（§820.45 要求）"
+            ),
+            expected_evidence=[
+                "Labeling inspection procedure / 標示檢查程序書",
+                "Labeling verification records before release / 放行前標示驗證記錄",
+                "UDI placement verification / UDI 標示位置確認",
+            ],
+            rationale_en=(
+                "§820.45 was retained because FDA determined ISO 13485 Clause 7.5.1 "
+                "does not provide equivalent specificity for labeling inspection. "
+                "Related to 7.5.8 (identification), 7.5.11 (preservation) as labeling "
+                "is part of product identification and protection."
+            ),
+            rationale_zh=(
+                "§820.45 被保留，因 FDA 認定 ISO 13485 條款 7.5.1 在標示檢查方面"
+                "未提供同等的具體要求。相關條款：7.5.8（識別）、7.5.11（防護），"
+                "因標示屬產品識別與保護之一部分。"
+            ),
+            method=MappingMethod.OFFICIAL_CROSSREF,
+            confidence=0.95,
+            original_text=(
+                "Each manufacturer shall examine the labeling and packaging of each batch, lot, "
+                "or unit to determine that the labeling has not been mislabeled. Labeling inspection "
+                "shall be adequate to detect labeling mixups."
+            ),
+            original_lang="en",
+            english_translation="",
+            semantic_note=(
+                "FDA §820.45 requires a SPECIFIC labeling inspection step — i.e., an active check "
+                "that labeling has not been mixed up before release. ISO 13485 7.5.1 addresses production "
+                "controls generally but has no equivalent 'labeling inspection' gate. "
+                "EU MDR Annex I Chapter III has detailed labeling content requirements but focuses on WHAT "
+                "must be on the label, not on a mandatory inspection step. "
+                "Taiwan TFDA Art 33 mandates Chinese-language labeling but does not specify a labeling "
+                "inspection procedure. Cross-country: US is the only jurisdiction with an explicit "
+                "pre-release labeling inspection requirement."
+            ),
+        ),
+        UniqueRequirement(
+            req_id="QMSR-004",
+            regulation_ref="§820.65",
+            title_en="Traceability — Life-Sustaining/Supporting Devices",
+            title_zh="追溯性 — 維生/生命支持裝置",
+            requirement_en=(
+                "Manufacturers of devices intended to be used in supporting or sustaining "
+                "life must maintain distribution records with specific traceability data "
+                "(name/address of consignee, quantity, date shipped, control numbers). "
+                "This exceeds ISO 13485 Clause 7.5.9 general traceability."
+            ),
+            requirement_zh=(
+                "維生或生命支持裝置之製造商必須維持特定的配銷追溯紀錄"
+                "（受貨人名稱/地址、數量、出貨日期、管制編號）。"
+                "此要求超越 ISO 13485 條款 7.5.9 的一般追溯性要求。"
+            ),
+            related_iso_clauses=["7.5.9", "7.5.9.1", "7.5.9.2"],
+            audit_impact="critical",
+            audit_question_en=(
+                "For life-sustaining/supporting devices, are distribution records maintained "
+                "with consignee details, quantities, dates, and control numbers per §820.65?"
+            ),
+            audit_question_zh=(
+                "對於維生/生命支持裝置，是否維持含受貨人資料、數量、日期"
+                "及管制編號之配銷追溯紀錄？（§820.65 要求）"
+            ),
+            expected_evidence=[
+                "Distribution records for life-sustaining devices / 維生裝置配銷記錄",
+                "Consignee name, address, quantity, date, control number / 受貨人名稱、地址、數量、日期、管制編號",
+            ],
+            rationale_en=(
+                "§820.65 is a legacy FDA requirement for heightened traceability of "
+                "life-critical devices. ISO 13485 7.5.9 requires traceability but does not "
+                "mandate this specific level of distribution detail. Classified under "
+                "7.5.9/7.5.9.1/7.5.9.2 as all address traceability."
+            ),
+            rationale_zh=(
+                "§820.65 是 FDA 對維生裝置的加強追溯性要求。"
+                "ISO 13485 7.5.9 要求追溯性但未規定此等級之配銷細節。"
+                "歸類於 7.5.9/7.5.9.1/7.5.9.2 因均涉及追溯性。"
+            ),
+            method=MappingMethod.OFFICIAL_CROSSREF,
+            confidence=0.95,
+            original_text=(
+                "Any device used in supporting or sustaining life, and whose failure to perform when "
+                "properly used in accordance with instructions for use provided in the labeling can be "
+                "reasonably expected to result in a significant injury to the user, shall be identified "
+                "with a control number... each manufacturer of such a device shall maintain distribution "
+                "records which include the name and address of the consignee, the quantity distributed, "
+                "the date shipped, and the control number(s) used."
+            ),
+            original_lang="en",
+            english_translation="",
+            semantic_note=(
+                "FDA §820.65 creates a HEIGHTENED traceability tier specifically for life-sustaining/supporting "
+                "devices, requiring distribution records with consignee details. ISO 13485 7.5.9 requires "
+                "traceability but does not differentiate by device risk level. "
+                "EU MDR has its own UDI-based traceability system (Art 25/27) but applies to ALL devices, "
+                "not just life-sustaining ones — however, Class III and implantable devices have "
+                "additional traceability via Art 27(9). "
+                "Taiwan TFDA has general traceability requirements but no specific life-sustaining device "
+                "tier. Cross-country: US uniquely applies enhanced distribution traceability based on "
+                "device criticality classification."
+            ),
+        ),
+        UniqueRequirement(
+            req_id="QMSR-005",
+            regulation_ref="§820.35 / FD&C Act",
+            title_en="FDA Inspection Access — No Management Review Exemption",
+            title_zh="FDA 稽查權限 — 管理審查記錄無豁免",
+            requirement_en=(
+                "Under QMSR, FDA explicitly has the right to inspect ALL quality records, "
+                "including management reviews and internal audits. The previous QSR §820.180(c) "
+                "exemption for management review records has been REMOVED. ISO 13485 does not "
+                "address regulatory authority inspection rights."
+            ),
+            requirement_zh=(
+                "在 QMSR 下，FDA 明確有權檢查所有品質記錄，包含管理審查和內部稽核。"
+                "原 QSR §820.180(c) 對管理審查記錄的豁免已被移除。"
+                "ISO 13485 未涉及法規主管機關稽查權限。"
+            ),
+            related_iso_clauses=["5.6.1", "8.2.4", "4.2.4"],
+            audit_impact="major",
+            audit_question_en=(
+                "Are management review and internal audit records maintained in a manner "
+                "that allows full FDA inspection access, without claiming exemptions?"
+            ),
+            audit_question_zh=(
+                "管理審查及內部稽核記錄是否以允許 FDA 完整稽查的方式維護，"
+                "不主張豁免權？"
+            ),
+            expected_evidence=[
+                "Management review records accessible for inspection / 可供稽查之管理審查記錄",
+                "Internal audit records without access restrictions / 無存取限制之內部稽核記錄",
+            ],
+            rationale_en=(
+                "QMSR removed the §820.180(c) exemption. Management reviews (5.6.1) "
+                "and internal audits (8.2.4) records must now be fully accessible. "
+                "Related to 4.2.4 (record control) for access/retention policies."
+            ),
+            rationale_zh=(
+                "QMSR 移除了 §820.180(c) 豁免。管理審查（5.6.1）與內部稽核（8.2.4）"
+                "記錄現在必須完全可供存取。相關條款 4.2.4（記錄管制）涉及存取/保存政策。"
+            ),
+            method=MappingMethod.OFFICIAL_CROSSREF,
+            confidence=0.90,
+            original_text=(
+                "Under the revised QMSR, FDA removed the exemption previously found in §820.180(c) "
+                "which had allowed manufacturers to withhold management review records from FDA "
+                "inspection. All quality records, including management review and internal audit "
+                "records, are now subject to FDA inspection under Section 704 of the FD&C Act."
+            ),
+            original_lang="en",
+            english_translation="",
+            semantic_note=(
+                "Under previous QSR §820.180(c), manufacturers could refuse to show management review "
+                "records to FDA inspectors. QMSR removes this exemption — FDA now has FULL access. "
+                "ISO 13485 does not address regulatory authority inspection rights at all (it is a QMS "
+                "standard, not a regulatory framework). "
+                "EU MDR: Notified Body audits have broad access to QMS records including management review, "
+                "but scope depends on the conformity assessment procedure (Annex IX/X/XI). "
+                "Taiwan TFDA: TFDA inspectors have access to all QMS records under the Medical Device Act. "
+                "Cross-country: the US change is significant because it REVERSES a previous protection, "
+                "meaning US-market manufacturers must now ensure management review records are "
+                "inspection-ready."
+            ),
+        ),
+    ]
+
+    return RegulationProfile(
+        regulation_id="QMSR",
+        name_en="US FDA QMSR (21 CFR Part 820)",
+        name_zh="美國 FDA QMSR（21 CFR 第820部分）",
+        country="US",
+        country_name_en="United States",
+        country_name_zh="美國",
+        source="predefined",
+        source_url="https://www.federalregister.gov/documents/2024/02/02/2024-01709/medical-devices-quality-system-regulation-amendments",
+        last_updated="2024-02-02",
+        effective_date="2026-02-02",
+        iso_mapped=iso_mapped,
+        unique_requirements=unique_reqs,
+    )
+
+
+# ============================================================
+# Predefined Regulation: EU MDR 2017/745
+# ============================================================
+
+def _build_eu_mdr_profile() -> RegulationProfile:
+    """Build the EU MDR 2017/745 regulation profile.
+
+    EU MDR is a PRODUCT SAFETY regulation (not just a QMS standard).
+    ISO 13485 covers the process side; EU MDR adds product-level requirements.
+
+    Mapping source: EN ISO 13485:2016/A11:2021 Annex ZA (official harmonized mapping)
+    + ISO/TR 17223:2018 (clause-by-clause correlation)
+    """
+    # EU MDR partially maps to ISO 13485 — some clauses fully covered,
+    # some exceeded, some only partially addressed
+    iso_mapped: dict[str, ClauseMapping] = {}
+
+    # Clauses where EU MDR fully aligns with ISO 13485 via Article 10(9)
+    full_clauses = {
+        "4.1": ("Annex IX Sec 2.2 / Art 10(9)", "EU MDR Annex IX Section 2.2 requires a QMS. Article 10(9) lists QMS elements that align with ISO 13485 Clause 4.1 general requirements.", "EU MDR 附錄 IX 第2.2節要求建立QMS。第10(9)條列出的QMS要素與 ISO 13485 條款 4.1 一般要求對齊。"),
+        "4.2.1": ("Annex IX Sec 2.2 / Art 10(9)", "Technical documentation requirements (Annex II/III) align with QMS documentation needs.", "技術文件要求（附錄 II/III）與QMS文件化需求對齊。"),
+        "4.2.2": ("Annex IX Sec 2.2", "Quality manual requirements aligned.", "品質手冊要求對齊。"),
+        "4.2.3": ("Annex IX Sec 2.2", "Document control requirements aligned.", "文件管制要求對齊。"),
+        "4.2.4": ("Annex IX Sec 2.2", "Record control requirements aligned.", "記錄管制要求對齊。"),
+        "5.1": ("Art 10(9)(b)", "Management responsibility fully covered by Article 10(9)(b).", "管理責任完全由第10(9)(b)條涵蓋。"),
+        "5.2": ("Art 10(9)(a)", "Customer/regulatory focus via strategy for regulatory compliance.", "透過法規合規策略涵蓋顧客/法規關注。"),
+        "5.3": ("Art 10(9)(b)", "Quality policy under management responsibility.", "品質政策屬管理責任範疇。"),
+        "5.4.1": ("Art 10(9)(b)", "Quality objectives under management responsibility.", "品質目標屬管理責任範疇。"),
+        "5.4.2": ("Art 10(9)(b)", "QMS planning under management responsibility.", "QMS規劃屬管理責任範疇。"),
+        "5.5.1": ("Art 10(9)(b)", "Responsibility and authority aligned.", "責任與權限對齊。"),
+        "5.5.2": ("Art 10(9)(b)", "Management representative aligned.", "管理代表對齊。"),
+        "5.5.3": ("Art 10(9)(b)", "Internal communication aligned.", "內部溝通對齊。"),
+        "5.6.1": ("Art 10(9)(b)", "Management review aligned.", "管理審查對齊。"),
+        "5.6.2": ("Art 10(9)(b)", "Management review input aligned.", "管理審查輸入對齊。"),
+        "5.6.3": ("Art 10(9)(b)", "Management review output aligned.", "管理審查輸出對齊。"),
+        "6.1": ("Art 10(9)(c)", "Resource provision aligned.", "資源提供對齊。"),
+        "6.2": ("Art 10(9)(c)", "Human resources / competence aligned.", "人力資源/能力對齊。"),
+        "6.3": ("Art 10(9)(c)", "Infrastructure aligned.", "基礎設施對齊。"),
+        "6.4.1": ("Art 10(9)(c)", "Work environment aligned.", "工作環境對齊。"),
+        "6.4.2": ("Art 10(9)(c)", "Contamination control aligned.", "污染管制對齊。"),
+        "7.1": ("Art 10(9)(f)", "Product realization planning aligned.", "產品實現規劃對齊。"),
+        "7.2.1": ("Art 10(9)(f)", "Determination of product requirements aligned.", "產品要求確定對齊。"),
+        "7.2.2": ("Art 10(9)(f)", "Review of product requirements aligned.", "產品要求審查對齊。"),
+        "7.2.3": ("Art 10(9)(i)", "Communication with authorities and stakeholders aligned.", "與主管機關及利害關係人溝通對齊。"),
+        "7.4.1": ("Art 10(9)(c)", "Purchasing process aligned (suppliers/subcontractors).", "採購過程對齊（供應商/分包商）。"),
+        "7.4.2": ("Art 10(9)(c)", "Purchasing information aligned.", "採購資訊對齊。"),
+        "7.4.3": ("Art 10(9)(c)", "Verification of purchased product aligned.", "採購產品驗證對齊。"),
+        "7.5.1": ("Art 10(9)(f)", "Control of production aligned.", "生產管制對齊。"),
+        "7.5.2": ("Art 10(9)(f)", "Product cleanliness aligned.", "產品潔淨對齊。"),
+        "7.5.3": ("Art 10(9)(f)", "Installation activities aligned.", "安裝活動對齊。"),
+        "7.5.4": ("Art 10(9)(f)", "Servicing activities aligned.", "服務活動對齊。"),
+        "7.5.5": ("Art 10(9)(f)", "Sterile device requirements aligned.", "無菌裝置要求對齊。"),
+        "7.5.6": ("Art 10(9)(f)", "Process validation aligned.", "過程確認對齊。"),
+        "7.5.7": ("Art 10(9)(f)", "Sterilization process validation aligned.", "滅菌過程確認對齊。"),
+        "7.5.8": ("Art 10(9)(f)", "Identification aligned.", "識別對齊。"),
+        "7.5.9": ("Art 10(9)(f)", "Traceability aligned.", "追溯性對齊。"),
+        "7.5.9.1": ("Art 10(9)(f)", "Implant traceability aligned.", "植入物追溯性對齊。"),
+        "7.5.10": ("Art 10(9)(f)", "Customer property aligned.", "顧客財產對齊。"),
+        "7.5.11": ("Art 10(9)(f)", "Product preservation aligned.", "產品防護對齊。"),
+        "7.6": ("Art 10(9)(f)", "Monitoring and measuring equipment aligned.", "監督與量測設備對齊。"),
+        "8.1": ("Art 10(9)(k)", "General measurement and improvement aligned.", "一般量測與改善對齊。"),
+        "8.2.4": ("Art 10(9)(k)", "Internal audit aligned.", "內部稽核對齊。"),
+        "8.2.4.1": ("Art 10(9)(k)", "Audit criteria aligned.", "稽核準則對齊。"),
+        "8.2.4.2": ("Art 10(9)(k)", "Audit corrective actions aligned.", "稽核矯正措施對齊。"),
+        "8.2.5": ("Art 10(9)(k)", "Process monitoring aligned.", "過程監督對齊。"),
+        "8.2.6": ("Art 10(9)(k)", "Product monitoring aligned.", "產品監督對齊。"),
+        "8.3": ("Art 10(9)(j)", "Nonconforming product control aligned.", "不合格品管制對齊。"),
+        "8.3.1": ("Art 10(9)(j)", "Pre-delivery nonconformance aligned.", "交付前不合格對齊。"),
+        "8.3.2": ("Art 10(9)(j)", "Post-delivery nonconformance aligned.", "交付後不合格對齊。"),
+        "8.3.3": ("Art 10(9)(j)", "Concession control aligned.", "讓步管制對齊。"),
+        "8.3.4": ("Art 10(9)(j)", "Rework control aligned.", "返工管制對齊。"),
+        "8.4": ("Art 10(9)(k)", "Data analysis aligned.", "數據分析對齊。"),
+        "8.5.1": ("Art 10(9)(k)", "Improvement aligned.", "改善對齊。"),
+        "8.5.2": ("Art 10(9)(j)", "Corrective action aligned with CAPA.", "矯正措施與CAPA對齊。"),
+        "8.5.3": ("Art 10(9)(j)", "Preventive action aligned with CAPA.", "預防措施與CAPA對齊。"),
+    }
+    for clause_id, (ref, rationale_en, rationale_zh) in full_clauses.items():
+        iso_mapped[clause_id] = ClauseMapping(
+            iso_clause=clause_id,
+            status=MappingStatus.FULL,
+            regulation_ref=ref,
+            rationale_en=rationale_en,
+            rationale_zh=rationale_zh,
+            method=MappingMethod.OFFICIAL_CROSSREF,
+            confidence=0.90,
+            notes="EN ISO 13485:2016/A11:2021 Annex ZA",
+        )
+
+    # Clauses where EU MDR EXCEEDS ISO 13485
+    exceeds_clauses = {
+        "4.2.5": ("Annex II/III", MappingStatus.EXCEEDS, "EU MDR requires Technical Documentation per Annex II/III format which is more structured than ISO 13485 device file.", "EU MDR 要求按附錄 II/III 格式的技術文件，比 ISO 13485 的器材檔案更結構化。"),
+        "7.3.1": ("Art 10(9)(f) / Annex IX Sec 2.2(c)", MappingStatus.EXCEEDS, "Design planning must integrate clinical evaluation strategy and GSPR compliance demonstration.", "設計規劃必須整合臨床評估策略和GSPR合規展示。"),
+        "7.3.2": ("Art 10(9)(d) / Annex I", MappingStatus.EXCEEDS, "Design input must include GSPR (General Safety & Performance Requirements, Annex I) and risk management per Annex I Sec 3.", "設計輸入必須包含GSPR（一般安全與性能要求，附錄I）及按附錄I第3節之風險管理。"),
+        "7.3.3": ("Art 10(9)(f) / Annex II", MappingStatus.EXCEEDS, "Design output must demonstrate GSPR compliance via Technical Documentation (Annex II).", "設計輸出必須透過技術文件（附錄II）展示GSPR合規。"),
+        "7.3.4": ("Art 10(9)(f)", MappingStatus.EXCEEDS, "Design review must include clinical evidence review and GSPR gap assessment.", "設計審查必須包含臨床證據審查和GSPR差距評估。"),
+        "7.3.5": ("Art 10(9)(f)", MappingStatus.EXCEEDS, "Design verification must include biocompatibility, electrical safety per applicable standards.", "設計驗證必須包含生物相容性、電氣安全等適用標準。"),
+        "7.3.6": ("Art 10(9)(e) / Annex XIV", MappingStatus.EXCEEDS, "Design validation must include clinical evaluation per Annex XIV with PMCF plan. Goes far beyond ISO 13485 clinical requirement.", "設計確認必須包含按附錄XIV之臨床評估及PMCF計畫。遠超ISO 13485的臨床要求。"),
+        "7.3.7": ("Art 10(9)(e) / Annex XIV", MappingStatus.EXCEEDS, "Design transfer must integrate clinical evaluation lifecycle and PMCF considerations.", "設計轉移必須整合臨床評估生命週期及PMCF考量。"),
+        "7.3.8": ("Art 10(9)(f)", MappingStatus.EXCEEDS, "Design changes must assess impact on GSPR compliance and clinical evaluation.", "設計變更必須評估對GSPR合規及臨床評估之影響。"),
+        "7.5.9.2": ("Art 27", MappingStatus.EXCEEDS, "UDI assignment must comply with EU UDI rules and EUDAMED registration.", "UDI指派必須符合歐盟UDI規則及EUDAMED註冊。"),
+        "8.2.1": ("Art 10(9)(h) / Art 83-86", MappingStatus.EXCEEDS, "Post-market surveillance must include formal PMS Plan, PMS Report (PMSR) or PSUR. Far exceeds ISO 13485 feedback.", "上市後監督必須包含正式的PMS計畫、PMS報告（PMSR）或PSUR。遠超ISO 13485的回饋要求。"),
+        "8.2.2": ("Art 10(9)(j) / Art 87-92", MappingStatus.EXCEEDS, "Complaint handling must integrate with vigilance system and specific reporting timelines (15 days serious, 2 days death/life-threatening).", "客訴處理必須與警戒系統整合，並有特定通報時限（嚴重15天、死亡/危及生命2天）。"),
+        "8.2.3": ("Art 87-92", MappingStatus.EXCEEDS, "Regulatory reporting has strict timelines and specific formats. Must report to EUDAMED.", "法規通報有嚴格時限和特定格式。必須向EUDAMED通報。"),
+    }
+    for clause_id, (ref, status, rationale_en, rationale_zh) in exceeds_clauses.items():
+        iso_mapped[clause_id] = ClauseMapping(
+            iso_clause=clause_id,
+            status=status,
+            regulation_ref=ref,
+            rationale_en=rationale_en,
+            rationale_zh=rationale_zh,
+            method=MappingMethod.OFFICIAL_CROSSREF,
+            confidence=0.85,
+            notes="EN ISO 13485:2016/A11:2021 Annex ZA + ISO/TR 17223:2018",
+        )
+
+    # EU MDR-specific unique requirements (delta)
+    unique_reqs = [
+        UniqueRequirement(
+            req_id="MDR-001",
+            regulation_ref="Article 15",
+            title_en="Person Responsible for Regulatory Compliance (PRRC)",
+            title_zh="法規合規負責人 (PRRC)",
+            requirement_en=(
+                "Manufacturers must designate at least one Person Responsible for "
+                "Regulatory Compliance (PRRC) with specific qualifications: degree in law/medicine/"
+                "pharmacy/engineering + 1yr professional experience, OR 4 years experience. "
+                "PRRC must ensure conformity is checked, technical documentation and DoC are "
+                "up to date, and PMS/vigilance obligations are fulfilled."
+            ),
+            requirement_zh=(
+                "製造商必須指定至少一名法規合規負責人（PRRC），需具備特定資格："
+                "法律/醫學/藥學/工程學位+1年專業經驗，或4年經驗。"
+                "PRRC須確保符合性檢查、技術文件和DoC保持最新、"
+                "及上市後監督/警戒義務之履行。"
+            ),
+            related_iso_clauses=["5.5.1", "5.5.2"],
+            audit_impact="critical",
+            audit_question_en=(
+                "Has the organization designated a PRRC with the required qualifications "
+                "per EU MDR Article 15? Are PRRC responsibilities documented?"
+            ),
+            audit_question_zh=(
+                "組織是否依 EU MDR 第15條指定具備所需資格的 PRRC？"
+                "PRRC 的職責是否已文件化？"
+            ),
+            expected_evidence=[
+                "PRRC appointment letter with qualifications / PRRC 任命書及資格證明",
+                "PRRC responsibility description / PRRC 職責說明",
+                "PRRC qualification evidence (degree + experience) / PRRC 資格證據（學歷+經驗）",
+            ],
+            rationale_en=(
+                "PRRC (Article 15) has no equivalent in ISO 13485. The closest clauses are "
+                "5.5.1 (responsibility & authority) and 5.5.2 (management representative), "
+                "but PRRC has specific qualification requirements and legal liability that go "
+                "far beyond a management representative role."
+            ),
+            rationale_zh=(
+                "PRRC（第15條）在 ISO 13485 中無對應。最接近的條款是 5.5.1（責任與權限）"
+                "和 5.5.2（管理代表），但 PRRC 有特定資格要求和法律責任，"
+                "遠超管理代表的角色。"
+            ),
+            method=MappingMethod.OFFICIAL_CROSSREF,
+            confidence=0.95,
+            original_text=(
+                "Article 15(1): Manufacturers shall have available within their organisation at least one "
+                "person responsible for regulatory compliance who possesses the requisite expertise in "
+                "the field of medical devices. The requisite expertise shall be demonstrated by either "
+                "of the following qualifications: (a) a diploma, certificate or other evidence of formal "
+                "qualification... (b) four years of professional experience..."
+            ),
+            original_lang="en",
+            english_translation="",
+            semantic_note=(
+                "EU MDR uses 'person responsible for regulatory compliance' (PRRC) with LEGALLY DEFINED "
+                "qualification requirements (diploma + experience OR 4yr experience). "
+                "ISO 13485 Cl. 5.5.2 uses 'management representative' with no specific qualification criteria. "
+                "US QMSR has no equivalent role — quality responsibility is general management duty. "
+                "Taiwan TFDA has '技術人員' (Technical Personnel, Art 13/15) with 20hr/yr CE requirement "
+                "— similar concept but different scope (focuses on technical competency vs regulatory compliance). "
+                "Key difference: PRRC carries PERSONAL legal liability in EU; no equivalent personal liability "
+                "concept exists in US, Taiwan, or ISO 13485."
+            ),
+        ),
+        UniqueRequirement(
+            req_id="MDR-002",
+            regulation_ref="Annex XIV / Article 61",
+            title_en="Clinical Evaluation & Post-Market Clinical Follow-up (PMCF)",
+            title_zh="臨床評估與上市後臨床追蹤 (PMCF)",
+            requirement_en=(
+                "EU MDR requires a continuous clinical evaluation lifecycle throughout the device "
+                "lifecycle, including a PMCF plan and PMCF evaluation report. This is a "
+                "structured, ongoing process — not a one-time design validation activity. "
+                "Class III and implantable devices have the strictest requirements."
+            ),
+            requirement_zh=(
+                "EU MDR 要求在器材整個生命週期中進行持續的臨床評估，"
+                "包含 PMCF 計畫和 PMCF 評估報告。這是結構化的持續過程，"
+                "而非一次性的設計確認活動。第III類和植入式器材有最嚴格的要求。"
+            ),
+            related_iso_clauses=["7.3.6", "7.3.7", "8.2.1"],
+            audit_impact="critical",
+            audit_question_en=(
+                "Does the organization maintain a clinical evaluation report with ongoing PMCF "
+                "plan per EU MDR Annex XIV? Is clinical evidence updated periodically?"
+            ),
+            audit_question_zh=(
+                "組織是否依 EU MDR 附錄XIV 維持臨床評估報告及持續的 PMCF 計畫？"
+                "臨床證據是否定期更新？"
+            ),
+            expected_evidence=[
+                "Clinical Evaluation Report (CER) / 臨床評估報告",
+                "PMCF Plan / PMCF 計畫",
+                "PMCF Evaluation Report / PMCF 評估報告",
+                "Literature review records / 文獻回顧記錄",
+            ],
+            rationale_en=(
+                "Clinical evaluation (Annex XIV) is an EU MDR-specific lifecycle requirement. "
+                "ISO 13485 mentions clinical evaluation in 7.3.6/7.3.7 for design validation, "
+                "but does not require the continuous PMCF lifecycle approach. "
+                "Also relates to 8.2.1 (feedback) as PMCF feeds back to product improvement."
+            ),
+            rationale_zh=(
+                "臨床評估（附錄XIV）是 EU MDR 特有的生命週期要求。"
+                "ISO 13485 在 7.3.6/7.3.7 提及設計確認的臨床評估，"
+                "但不要求持續的 PMCF 生命週期方法。"
+                "也與 8.2.1（回饋）相關，因 PMCF 回饋至產品改善。"
+            ),
+            method=MappingMethod.OFFICIAL_CROSSREF,
+            confidence=0.95,
+            original_text=(
+                "Manufacturers shall ensure that each device is accompanied by the information needed to "
+                "identify the device and the manufacturer, and by any safety and performance information "
+                "relevant to the user... The manufacturer shall draw up and keep up to date a clinical "
+                "evaluation report which shall, through a clinical evaluation in accordance with "
+                "Annex XIV, support the conformity assessment of the device throughout its lifetime."
+            ),
+            original_lang="en",
+            english_translation="",
+            semantic_note=(
+                "EU MDR Art 61(1) mandates a CONTINUOUS clinical evaluation lifecycle, not a one-time "
+                "design validation. The Clinical Evaluation Report (CER) must be updated throughout the "
+                "device lifetime, supported by PMCF (Post-Market Clinical Follow-up). "
+                "US FDA: 510(k) requires clinical data at submission but has no continuous CER requirement. "
+                "PMA devices have annual reports but not a structured CER/PMCF framework. "
+                "Taiwan TFDA: requires clinical data for 查驗登記 but no structured PMCF lifecycle. "
+                "ISO 13485 7.3.6/7.3.7: mentions design validation including clinical evaluation but "
+                "does not mandate the ongoing lifecycle approach. "
+                "Cross-country: EU is the strictest with continuous lifecycle clinical evaluation."
+            ),
+        ),
+        UniqueRequirement(
+            req_id="MDR-003",
+            regulation_ref="Article 83-86",
+            title_en="Post-Market Surveillance (PMS) System",
+            title_zh="上市後監督 (PMS) 系統",
+            requirement_en=(
+                "Manufacturers must establish a PMS system proportionate to device risk class. "
+                "Must produce PMS Plan, PMS Report (PMSR, for Class I) or Periodic Safety "
+                "Update Report (PSUR, for Class IIa/IIb/III). PMS feeds into clinical evaluation "
+                "and risk management updates."
+            ),
+            requirement_zh=(
+                "製造商必須建立與器材風險等級相稱的 PMS 系統。"
+                "須產出 PMS 計畫、PMS 報告（PMSR，第I類）或定期安全更新報告"
+                "（PSUR，第IIa/IIb/III類）。PMS 回饋至臨床評估與風險管理更新。"
+            ),
+            related_iso_clauses=["8.2.1", "8.4", "8.5.1"],
+            audit_impact="critical",
+            audit_question_en=(
+                "Does the organization have a documented PMS system with PMS Plan "
+                "and appropriate PMS reports (PMSR or PSUR) per EU MDR Articles 83-86?"
+            ),
+            audit_question_zh=(
+                "組織是否建立文件化的 PMS 系統，含 PMS 計畫及適當的 PMS 報告"
+                "（PMSR 或 PSUR）？（EU MDR 第83-86條）"
+            ),
+            expected_evidence=[
+                "PMS Plan / PMS 計畫",
+                "PMS Report (PMSR) or PSUR / PMS 報告或 PSUR",
+                "PMS data collection procedures / PMS 資料收集程序",
+            ],
+            rationale_en=(
+                "PMS system (Art 83-86) is an EU MDR-specific framework. ISO 13485 Clause "
+                "8.2.1 covers feedback but does not require the structured PMS Plan/PMSR/PSUR "
+                "approach. Relates to 8.4 (data analysis) and 8.5.1 (improvement) as PMS "
+                "drives product improvement decisions."
+            ),
+            rationale_zh=(
+                "PMS 系統（第83-86條）是 EU MDR 特有的架構。ISO 13485 條款 8.2.1 "
+                "涵蓋回饋但不要求結構化的 PMS 計畫/PMSR/PSUR 方法。"
+                "與 8.4（數據分析）和 8.5.1（改善）相關，因 PMS 驅動產品改善決策。"
+            ),
+            method=MappingMethod.OFFICIAL_CROSSREF,
+            confidence=0.90,
+            original_text=(
+                "Manufacturers shall plan, establish, document, implement, maintain and update a "
+                "post-market surveillance system... The post-market surveillance plan shall cover: "
+                "(a) a proactive and systematic process to collect and utilise information; "
+                "(b) appropriate indicators and threshold values; (c) methods and protocols to "
+                "collect and evaluate data."
+            ),
+            original_lang="en",
+            english_translation="",
+            semantic_note=(
+                "EU MDR Art 83 creates a structured PMS system with PMSR (Class I) or PSUR (Class IIa+). "
+                "PSUR must be updated at least annually for Class IIa/IIb and at least every 2 years "
+                "for Class IIa, with NB review. "
+                "US FDA: \u00a7822 Post-Market Surveillance applies only to specific ordered devices. "
+                "No mandatory PMSR/PSUR equivalent for all devices. "
+                "Taiwan TFDA: has post-market monitoring requirements under 醫療器材安全監視管理辦法 "
+                "but no structured PMSR/PSUR report format. "
+                "ISO 13485 8.2.1: requires customer feedback system but not a structured PMS plan. "
+                "Cross-country: EU has the most comprehensive mandatory PMS framework."
+            ),
+        ),
+        UniqueRequirement(
+            req_id="MDR-004",
+            regulation_ref="Article 27 / Article 123",
+            title_en="UDI System & EUDAMED Registration",
+            title_zh="UDI 系統與 EUDAMED 註冊",
+            requirement_en=(
+                "Manufacturers must assign UDI to devices and register in EUDAMED database. "
+                "UDI-DI and UDI-PI must be on device label and all higher packaging levels. "
+                "EUDAMED registration includes device, economic operator, certificate, "
+                "and clinical investigation data."
+            ),
+            requirement_zh=(
+                "製造商必須為器材指派 UDI 並在 EUDAMED 資料庫中註冊。"
+                "UDI-DI 和 UDI-PI 必須標示在器材標籤及所有上層包裝上。"
+                "EUDAMED 註冊包含器材、經濟操作者、證書及臨床調查資料。"
+            ),
+            related_iso_clauses=["7.5.8", "7.5.9", "7.5.9.2"],
+            audit_impact="critical",
+            audit_question_en=(
+                "Has UDI been assigned to all devices and registered in EUDAMED "
+                "per EU MDR Article 27?"
+            ),
+            audit_question_zh=(
+                "是否已依 EU MDR 第27條為所有器材指派 UDI 並在 EUDAMED 中註冊？"
+            ),
+            expected_evidence=[
+                "UDI assignment records / UDI 指派記錄",
+                "EUDAMED registration confirmation / EUDAMED 註冊確認",
+                "UDI on device labels / 器材標籤上之 UDI",
+            ],
+            rationale_en=(
+                "EU UDI/EUDAMED (Art 27) has no direct equivalent in ISO 13485. "
+                "Clause 7.5.9.2 mentions UDI but only generically. EU MDR requires "
+                "specific EU-format UDI and EUDAMED database registration. "
+                "Related to 7.5.8 (identification) and 7.5.9 (traceability)."
+            ),
+            rationale_zh=(
+                "歐盟 UDI/EUDAMED（第27條）在 ISO 13485 中無直接對應。"
+                "條款 7.5.9.2 提及 UDI 但僅為一般性。EU MDR 要求特定的歐盟格式 "
+                "UDI 和 EUDAMED 資料庫註冊。相關條款：7.5.8（識別）和 7.5.9（追溯性）。"
+            ),
+            method=MappingMethod.OFFICIAL_CROSSREF,
+            confidence=0.90,
+            original_text=(
+                "The unique device identifier ('UDI') referred to in Article 27(1) shall be created "
+                "by a UDI assigning entity... Before placing a device, other than a custom-made device, "
+                "on the market, the manufacturer shall assign to the device and, where applicable, "
+                "to all higher levels of packaging, a UDI."
+            ),
+            original_lang="en",
+            english_translation="",
+            semantic_note=(
+                "EU MDR Art 27 requires UDI assigned via EU-recognized issuing entities and registration "
+                "in EUDAMED. UDI has two components: UDI-DI (device identifier) + UDI-PI (production identifier). "
+                "US FDA: has its own UDI system (GUDID) under 21 CFR 830, operational since 2013. "
+                "FDA UDI uses the same issuing agencies (GS1, HIBCC, ICCBBA) but registers in GUDID, not EUDAMED. "
+                "Taiwan TFDA: uses its own 許可證字號 (license number) system, not UDI. "
+                "ISO 13485 7.5.9.2: mentions UDI but only as 'where applicable' and does not mandate "
+                "a specific UDI system or database. "
+                "Cross-country: US and EU both require UDI but in separate databases (GUDID vs EUDAMED); "
+                "Taiwan has no UDI system."
+            ),
+        ),
+        UniqueRequirement(
+            req_id="MDR-005",
+            regulation_ref="Article 87-92",
+            title_en="Vigilance — Serious Incident Reporting",
+            title_zh="警戒 — 嚴重事件通報",
+            requirement_en=(
+                "Manufacturers must report serious incidents to competent authorities within "
+                "strict timelines: 2 days for death or unanticipated serious deterioration in "
+                "health, 10 days for serious public health threats, 15 days for other serious "
+                "incidents. Must also report Field Safety Corrective Actions (FSCA)."
+            ),
+            requirement_zh=(
+                "製造商必須在嚴格時限內向主管機關通報嚴重事件："
+                "死亡或非預期嚴重健康惡化2天、嚴重公共衛生威脅10天、"
+                "其他嚴重事件15天。也必須通報現場安全矯正措施（FSCA）。"
+            ),
+            related_iso_clauses=["8.2.2", "8.2.3"],
+            audit_impact="critical",
+            audit_question_en=(
+                "Does the vigilance system meet EU MDR timelines (2/10/15 days) "
+                "for serious incident reporting and FSCA?"
+            ),
+            audit_question_zh=(
+                "警戒系統是否符合 EU MDR 的嚴重事件通報時限（2/10/15天）"
+                "及 FSCA 要求？"
+            ),
+            expected_evidence=[
+                "Vigilance procedure with EU MDR timelines / 含 EU MDR 時限之警戒程序書",
+                "Serious incident report forms / 嚴重事件通報表",
+                "FSCA records / FSCA 記錄",
+            ],
+            rationale_en=(
+                "EU MDR vigilance (Art 87-92) has stricter timelines than ISO 13485. "
+                "ISO 13485 Clause 8.2.3 requires regulatory reporting but does not specify "
+                "2/10/15 day timelines. Relates to 8.2.2 (complaint handling) as vigilance "
+                "often originates from complaints."
+            ),
+            rationale_zh=(
+                "EU MDR 警戒（第87-92條）比 ISO 13485 有更嚴格的時限。"
+                "ISO 13485 條款 8.2.3 要求法規通報但未規定 2/10/15 天時限。"
+                "與 8.2.2（客訴處理）相關，因警戒常源自客訴。"
+            ),
+            method=MappingMethod.OFFICIAL_CROSSREF,
+            confidence=0.90,
+            original_text=(
+                "Manufacturers of devices, other than serious public health threat devices, shall "
+                "report... any serious incident involving devices made available on the Union market "
+                "to the relevant competent authority... without delay after they become aware of the "
+                "causal relationship... and not later than 15 days... In the event of a serious "
+                "public health threat, the period shall be reduced to 2 days."
+            ),
+            original_lang="en",
+            english_translation="",
+            semantic_note=(
+                "EU MDR Art 87 has the strictest vigilance timelines globally: 2/10/15 days. "
+                "US FDA MDR (Medical Device Reports under 21 CFR 803): 5 working days for death-related events, "
+                "30 calendar days for serious injury/malfunction. No FSCA concept in US (uses recalls instead). "
+                "Taiwan TFDA: 7 days for death/life-threatening, 15 days for other serious events. "
+                "ISO 13485 8.2.3: requires reporting to regulatory authorities but specifies no timeline. "
+                "Cross-country comparison of timelines: EU 2/10/15 days > Taiwan 7/15 days > US 5/30 days. "
+                "EU is the most stringent and also requires FSCA (Field Safety Corrective Actions)."
+            ),
+        ),
+        UniqueRequirement(
+            req_id="MDR-006",
+            regulation_ref="Article 32",
+            title_en="Summary of Safety and Clinical Performance (SSCP)",
+            title_zh="安全與臨床性能摘要 (SSCP)",
+            requirement_en=(
+                "For Class III devices and implantable devices (except sutures, staples, "
+                "dental fillings, etc.), manufacturers must prepare an SSCP document, "
+                "validated by the Notified Body, and uploaded to EUDAMED."
+            ),
+            requirement_zh=(
+                "對於第III類器材和植入式器材（縫合線、釘等除外），"
+                "製造商必須準備 SSCP 文件，經公告機構驗證後上傳至 EUDAMED。"
+            ),
+            related_iso_clauses=["4.2.5", "7.3.6"],
+            audit_impact="critical",
+            audit_question_en=(
+                "For Class III/implantable devices, has an SSCP been prepared, "
+                "validated by the Notified Body, and uploaded to EUDAMED?"
+            ),
+            audit_question_zh=(
+                "對於第III類/植入式器材，是否已準備 SSCP 文件，"
+                "經公告機構驗證並上傳至 EUDAMED？"
+            ),
+            expected_evidence=[
+                "SSCP document / SSCP 文件",
+                "Notified Body validation of SSCP / 公告機構對 SSCP 的驗證",
+                "EUDAMED upload confirmation / EUDAMED 上傳確認",
+            ],
+            rationale_en=(
+                "SSCP (Article 32) is entirely new in EU MDR with no equivalent in ISO 13485. "
+                "Closest to 4.2.5 (medical device file) as SSCP is part of technical documentation, "
+                "and 7.3.6 (design validation) as it references clinical performance data."
+            ),
+            rationale_zh=(
+                "SSCP（第32條）是 EU MDR 全新的要求，ISO 13485 中無對應。"
+                "最接近 4.2.5（醫療器材檔案）因 SSCP 是技術文件的一部分，"
+                "及 7.3.6（設計確認）因引用臨床性能資料。"
+            ),
+            method=MappingMethod.OFFICIAL_CROSSREF,
+            confidence=0.90,
+            original_text=(
+                "For implantable devices and for class III devices, the manufacturer shall draw up a "
+                "summary of safety and clinical performance. The summary of safety and clinical "
+                "performance shall be written in a way that is clear to the intended user and, if "
+                "relevant, to the patient and shall be made available to the public via EUDAMED."
+            ),
+            original_lang="en",
+            english_translation="",
+            semantic_note=(
+                "SSCP (Art 32) is a publicly available document unique to EU MDR — no equivalent exists "
+                "in any other jurisdiction. It must be validated by the Notified Body and uploaded to EUDAMED. "
+                "US FDA: no equivalent public-facing clinical performance summary document. "
+                "Taiwan TFDA: no equivalent requirement. "
+                "ISO 13485: no equivalent — the medical device file (4.2.5) is manufacturer-internal. "
+                "Cross-country: SSCP is entirely EU-specific, combining transparency (public access), "
+                "NB oversight (validation), and clinical evidence (safety+performance data) in one document."
+            ),
+        ),
+        UniqueRequirement(
+            req_id="MDR-007",
+            regulation_ref="Annex I (GSPR)",
+            title_en="General Safety and Performance Requirements (GSPR) Compliance",
+            title_zh="一般安全與性能要求 (GSPR) 合規",
+            requirement_en=(
+                "Manufacturers must demonstrate compliance with ALL applicable General Safety "
+                "and Performance Requirements in Annex I. Must use risk management approach "
+                "to reduce risks 'as far as possible' (stricter than ALARP/ALARA). "
+                "GSPR checklist must be part of Technical Documentation."
+            ),
+            requirement_zh=(
+                "製造商必須展示符合附錄I所有適用的一般安全與性能要求。"
+                "必須使用風險管理方法將風險降低'至盡可能低'（比ALARP/ALARA更嚴格）。"
+                "GSPR 檢查表必須作為技術文件的一部分。"
+            ),
+            related_iso_clauses=["7.1", "7.3.2", "7.3.3"],
+            audit_impact="critical",
+            audit_question_en=(
+                "Is there a GSPR checklist demonstrating compliance with all applicable "
+                "Annex I requirements as part of the Technical Documentation?"
+            ),
+            audit_question_zh=(
+                "是否有 GSPR 檢查表作為技術文件的一部分，"
+                "展示符合所有適用的附錄I要求？"
+            ),
+            expected_evidence=[
+                "GSPR checklist / GSPR 檢查表",
+                "Risk-benefit analysis per Annex I / 依附錄I之風險效益分析",
+                "Standards applied per GSPR / 每項GSPR適用之標準",
+            ],
+            rationale_en=(
+                "GSPR (Annex I) is the core safety framework of EU MDR with no ISO 13485 "
+                "equivalent. Closest to 7.1 (product realization planning), 7.3.2 (design input) "
+                "and 7.3.3 (design output) as GSPR defines what the device must achieve."
+            ),
+            rationale_zh=(
+                "GSPR（附錄I）是 EU MDR 的核心安全架構，ISO 13485 無對應。"
+                "最接近 7.1（產品實現規劃）、7.3.2（設計輸入）和 7.3.3（設計輸出），"
+                "因 GSPR 定義器材必須達到的目標。"
+            ),
+            method=MappingMethod.OFFICIAL_CROSSREF,
+            confidence=0.90,
+            original_text=(
+                "Devices shall achieve the performance intended by their manufacturer and shall be "
+                "designed and manufactured in such a way that, during normal conditions of use, they "
+                "are suitable for their intended purpose... The requirement in this Annex to reduce "
+                "risks as far as possible means the reduction of risks as far as possible without "
+                "adversely affecting the benefit-risk ratio."
+            ),
+            original_lang="en",
+            english_translation="",
+            semantic_note=(
+                "EU MDR Annex I uses 'as far as possible' for risk reduction, which is STRICTER than the "
+                "ALARP (As Low As Reasonably Practicable) or ALARA (As Low As Reasonably Achievable) "
+                "principles used in ISO 14971 and other jurisdictions. The difference: 'reasonably' allows "
+                "cost/practicality arguments; 'as far as possible' does not. "
+                "US FDA: uses Essential Performance concept and 'reasonable assurance of safety and effectiveness' "
+                "from the FD&C Act. Less stringent than EU 'as far as possible'. "
+                "Taiwan TFDA: follows 基本原則 (Essential Principles) similar to EU GSPR but without the "
+                "explicit 'as far as possible' language. "
+                "ISO 13485 7.1: requires risk management during product realization but does not define "
+                "risk acceptability criteria — defers to ISO 14971 and manufacturer's risk policy. "
+                "Cross-country: EU has the strictest risk reduction standard globally."
+            ),
+        ),
+    ]
+
+    return RegulationProfile(
+        regulation_id="EU_MDR",
+        name_en="EU MDR 2017/745 (Medical Device Regulation)",
+        name_zh="歐盟 MDR 2017/745（醫療器材法規）",
+        country="EU",
+        country_name_en="European Union",
+        country_name_zh="歐盟",
+        source="predefined",
+        source_url="https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32017R0745",
+        last_updated="2017-05-05",
+        effective_date="2021-05-26",
+        iso_mapped=iso_mapped,
+        unique_requirements=unique_reqs,
+    )
+
+
+# ============================================================
+# Predefined Regulation: Taiwan TFDA
+# ============================================================
+
+def _build_tfda_profile() -> RegulationProfile:
+    """Build the Taiwan TFDA regulation profile.
+
+    Taiwan's Medical Device QMS Regulations (醫療器材品質管理系統準則)
+    84 Articles, promulgated 2021, directly references ISO 13485:2016.
+
+    Mapping source: Official regulation text (laws.moj.gov.tw)
+    + TFDA QMS/GMP Explanatory Notes
+    """
+    # TFDA 84 Articles directly map to ISO 13485 clauses
+    iso_mapped: dict[str, ClauseMapping] = {}
+
+    # Article-to-clause mapping (from TFDA regulation structure)
+    tfda_article_map = {
+        "4.1": ("Art. 6", "Article 6 establishes general QMS requirements, directly referencing ISO 13485 Clause 4.1.", "第6條建立一般QMS要求，直接引用ISO 13485條款4.1。"),
+        "4.2.1": ("Art. 7", "Article 7 covers documentation requirements.", "第7條涵蓋文件化要求。"),
+        "4.2.2": ("Art. 9", "Article 9 covers quality manual.", "第9條涵蓋品質手冊。"),
+        "4.2.3": ("Art. 10", "Article 10 covers document control.", "第10條涵蓋文件管制。"),
+        "4.2.4": ("Art. 11", "Article 11 covers record control.", "第11條涵蓋記錄管制。"),
+        "4.2.5": ("Art. 8", "Article 8 covers medical device file.", "第8條涵蓋醫療器材檔案。"),
+        "5.1": ("Art. 12", "Article 12 covers management commitment.", "第12條涵蓋管理承諾。"),
+        "5.2": ("Art. 13", "Article 13 covers customer focus.", "第13條涵蓋以顧客為重。"),
+        "5.3": ("Art. 14", "Article 14 covers quality policy.", "第14條涵蓋品質政策。"),
+        "5.4.1": ("Art. 15", "Article 15 covers quality objectives.", "第15條涵蓋品質目標。"),
+        "5.4.2": ("Art. 16", "Article 16 covers QMS planning.", "第16條涵蓋QMS規劃。"),
+        "5.5.1": ("Art. 17", "Article 17 covers responsibility and authority.", "第17條涵蓋責任與權限。"),
+        "5.5.2": ("Art. 18", "Article 18 covers management representative.", "第18條涵蓋管理代表。"),
+        "5.5.3": ("Art. 19", "Article 19 covers internal communication.", "第19條涵蓋內部溝通。"),
+        "5.6.1": ("Art. 20", "Article 20 covers management review.", "第20條涵蓋管理審查。"),
+        "5.6.2": ("Art. 20", "Article 20 includes management review input.", "第20條包含管理審查輸入。"),
+        "5.6.3": ("Art. 20", "Article 20 includes management review output.", "第20條包含管理審查輸出。"),
+        "6.1": ("Art. 21", "Article 21 covers resource provision.", "第21條涵蓋資源提供。"),
+        "6.2": ("Art. 22", "Article 22 covers human resources.", "第22條涵蓋人力資源。"),
+        "6.3": ("Art. 23-24", "Articles 23-24 cover infrastructure.", "第23-24條涵蓋基礎設施。"),
+        "6.4.1": ("Art. 25", "Article 25 covers work environment.", "第25條涵蓋工作環境。"),
+        "6.4.2": ("Art. 26", "Article 26 covers contamination control.", "第26條涵蓋污染管制。"),
+        "7.1": ("Art. 27", "Article 27 covers product realization planning.", "第27條涵蓋產品實現規劃。"),
+        "7.2.1": ("Art. 28", "Article 28 covers determination of product requirements.", "第28條涵蓋產品要求確定。"),
+        "7.2.2": ("Art. 29", "Article 29 covers review of product requirements.", "第29條涵蓋產品要求審查。"),
+        "7.2.3": ("Art. 30", "Article 30 covers communication.", "第30條涵蓋溝通。"),
+        "7.3.1": ("Art. 34", "Article 34 covers design planning.", "第34條涵蓋設計規劃。"),
+        "7.3.2": ("Art. 35", "Article 35 covers design input.", "第35條涵蓋設計輸入。"),
+        "7.3.3": ("Art. 36", "Article 36 covers design output.", "第36條涵蓋設計輸出。"),
+        "7.3.4": ("Art. 37", "Article 37 covers design review.", "第37條涵蓋設計審查。"),
+        "7.3.5": ("Art. 38", "Article 38 covers design verification.", "第38條涵蓋設計驗證。"),
+        "7.3.6": ("Art. 39", "Article 39 covers design validation.", "第39條涵蓋設計確認。"),
+        "7.3.7": ("Art. 40", "Article 40 covers design transfer.", "第40條涵蓋設計轉移。"),
+        "7.3.8": ("Art. 41", "Article 41 covers design change control.", "第41條涵蓋設計變更管制。"),
+        "7.3.9": ("Art. 42", "Article 42 covers design files.", "第42條涵蓋設計檔案。"),
+        "7.3.10": ("Art. 43", "Article 43 covers design documentation.", "第43條涵蓋設計文件。"),
+        "7.4.1": ("Art. 44", "Article 44 covers purchasing process.", "第44條涵蓋採購過程。"),
+        "7.4.2": ("Art. 45", "Article 45 covers purchasing information.", "第45條涵蓋採購資訊。"),
+        "7.4.3": ("Art. 46", "Article 46 covers verification of purchased product.", "第46條涵蓋採購產品驗證。"),
+        "7.5.1": ("Art. 51", "Article 51 covers production control.", "第51條涵蓋生產管制。"),
+        "7.5.2": ("Art. 52", "Article 52 covers product cleanliness.", "第52條涵蓋產品潔淨。"),
+        "7.5.3": ("Art. 53", "Article 53 covers installation.", "第53條涵蓋安裝。"),
+        "7.5.4": ("Art. 54", "Article 54 covers servicing.", "第54條涵蓋服務。"),
+        "7.5.5": ("Art. 55", "Article 55 covers sterile device requirements.", "第55條涵蓋無菌裝置要求。"),
+        "7.5.6": ("Art. 56", "Article 56 covers process validation.", "第56條涵蓋過程確認。"),
+        "7.5.7": ("Art. 57", "Article 57 covers sterilization validation.", "第57條涵蓋滅菌確認。"),
+        "7.5.8": ("Art. 58", "Article 58 covers identification.", "第58條涵蓋識別。"),
+        "7.5.9": ("Art. 59", "Article 59 covers traceability.", "第59條涵蓋追溯性。"),
+        "7.5.9.1": ("Art. 60", "Article 60 covers implant traceability.", "第60條涵蓋植入物追溯性。"),
+        "7.5.9.2": ("Art. 61", "Article 61 covers UDI.", "第61條涵蓋UDI。"),
+        "7.5.10": ("Art. 47", "Article 47 covers customer property.", "第47條涵蓋顧客財產。"),
+        "7.5.11": ("Art. 48-50", "Articles 48-50 cover product preservation.", "第48-50條涵蓋產品防護。"),
+        "7.6": ("Art. 62", "Article 62 covers monitoring equipment.", "第62條涵蓋監測設備。"),
+        "8.1": ("Art. 63", "Article 63 covers general measurement requirements.", "第63條涵蓋一般量測要求。"),
+        "8.2.1": ("Art. 64", "Article 64 covers feedback.", "第64條涵蓋回饋。"),
+        "8.2.2": ("Art. 65", "Article 65 covers complaint handling.", "第65條涵蓋客訴處理。"),
+        "8.2.3": ("Art. 66", "Article 66 covers regulatory reporting.", "第66條涵蓋法規通報。"),
+        "8.2.4": ("Art. 67", "Article 67 covers internal audit.", "第67條涵蓋內部稽核。"),
+        "8.2.4.1": ("Art. 67", "Article 67 includes audit criteria.", "第67條包含稽核準則。"),
+        "8.2.4.2": ("Art. 68", "Article 68 covers audit corrective actions.", "第68條涵蓋稽核矯正措施。"),
+        "8.2.5": ("Art. 69", "Article 69 covers process monitoring.", "第69條涵蓋過程監督。"),
+        "8.2.6": ("Art. 70-71", "Articles 70-71 cover product monitoring.", "第70-71條涵蓋產品監督。"),
+        "8.3": ("Art. 72", "Article 72 covers nonconforming product.", "第72條涵蓋不合格品。"),
+        "8.3.1": ("Art. 73", "Article 73 covers pre-delivery nonconformance.", "第73條涵蓋交付前不合格。"),
+        "8.3.2": ("Art. 74", "Article 74 covers post-delivery nonconformance.", "第74條涵蓋交付後不合格。"),
+        "8.3.3": ("Art. 75", "Article 75 covers concessions.", "第75條涵蓋讓步。"),
+        "8.3.4": ("Art. 76", "Article 76 covers rework.", "第76條涵蓋返工。"),
+        "8.4": ("Art. 77", "Article 77 covers data analysis.", "第77條涵蓋數據分析。"),
+        "8.5.1": ("Art. 78", "Article 78 covers improvement.", "第78條涵蓋改善。"),
+        "8.5.2": ("Art. 79", "Article 79 covers corrective action.", "第79條涵蓋矯正措施。"),
+        "8.5.3": ("Art. 80", "Article 80 covers preventive action.", "第80條涵蓋預防措施。"),
+    }
+    for clause_id, (ref, rationale_en, rationale_zh) in tfda_article_map.items():
+        iso_mapped[clause_id] = ClauseMapping(
+            iso_clause=clause_id,
+            status=MappingStatus.FULL,
+            regulation_ref=ref,
+            rationale_en=rationale_en,
+            rationale_zh=rationale_zh,
+            method=MappingMethod.CLAUSE_STRUCTURE,
+            confidence=0.95,
+            notes="醫療器材品質管理系統準則 (laws.moj.gov.tw/LawClass/LawAll.aspx?pcode=L0030097)",
+        )
+
+    # Taiwan-specific unique requirements (delta)
+    unique_reqs = [
+        UniqueRequirement(
+            req_id="TFDA-001",
+            regulation_ref="第11條 / Art. 11",
+            title_en="Record Retention — 3-Year Minimum",
+            title_zh="記錄保存 — 最少3年",
+            requirement_en=(
+                "Records must be kept for at least the lifetime of the medical device, "
+                "but no less than 3 years from the date the product was released. "
+                "ISO 13485 Clause 4.2.5 requires retention for at least 2 years "
+                "or as specified by regulations. Taiwan's 3-year minimum is a specific local floor."
+            ),
+            requirement_zh=(
+                "記錄必須保存至少醫療器材的壽命期間，但不少於產品放行日起3年。"
+                "ISO 13485 條款 4.2.5 要求保存至少2年或依法規規定。"
+                "台灣的3年最低要求是特定的本地底限。"
+            ),
+            related_iso_clauses=["4.2.4", "4.2.5"],
+            audit_impact="major",
+            audit_question_en=(
+                "Are quality records retained for at least 3 years from product release, "
+                "or the lifetime of the device, whichever is longer, per TFDA Article 11?"
+            ),
+            audit_question_zh=(
+                "品質記錄是否依 TFDA 第11條保存至少產品放行日起3年，"
+                "或器材壽命期間（取較長者）？"
+            ),
+            expected_evidence=[
+                "Record retention policy showing 3-year minimum / 顯示3年最低要求之記錄保存政策",
+                "Record retention schedule / 記錄保存期限表",
+            ],
+            rationale_en=(
+                "TFDA Article 11 sets a 3-year floor vs ISO 13485's 2-year minimum. "
+                "Classified under 4.2.4/4.2.5 as both address record retention policies."
+            ),
+            rationale_zh=(
+                "TFDA 第11條設定3年底限，vs ISO 13485 的2年最低要求。"
+                "歸類於 4.2.4/4.2.5 因兩者皆涉及記錄保存政策。"
+            ),
+            method=MappingMethod.CLAUSE_STRUCTURE,
+            confidence=0.95,
+            original_text=(
+                "醫療器材品質管理系統準則第十一條：製造業者應將品質紀錄至少保存自產品放行日起三年"
+                "或醫療器材有效期限加一年（取較長者）。"
+            ),
+            original_lang="zh-TW",
+            english_translation=(
+                "TFDA QMS Regulations Article 11: Manufacturers shall retain quality records for at least "
+                "three years from the date of product release, or the expiry date of the medical device "
+                "plus one year, whichever is longer."
+            ),
+            semantic_note=(
+                "Taiwan uses '至少保存自產品放行日起三年' (at least 3 years from release). "
+                "ISO 13485 Cl. 4.2.5 uses 'at least the lifetime of the medical device as defined by the organization, "
+                "but not less than two years from the date of product release'. "
+                "US QMSR §820.35 follows ISO 13485 (2-year floor). EU MDR does not specify a minimum floor but "
+                "defers to notified body expectations (typically 10-15 years for implants). "
+                "Key difference: Taiwan's 3-year floor is HIGHER than ISO/US 2-year floor, "
+                "but LOWER than typical EU expectations for higher-risk devices."
+            ),
+        ),
+        UniqueRequirement(
+            req_id="TFDA-002",
+            regulation_ref="醫療器材管理法 第33條",
+            title_en="Chinese Labeling & Instructions for Use",
+            title_zh="中文標示與使用說明",
+            requirement_en=(
+                "All medical devices sold in Taiwan must have labeling, instructions for use "
+                "(IFU), and packaging text in Traditional Chinese. This is a market access "
+                "requirement not addressed by ISO 13485."
+            ),
+            requirement_zh=(
+                "所有在台灣銷售的醫療器材必須以繁體中文標示標籤、"
+                "使用說明書（IFU）及包裝文字。此為市場准入要求，ISO 13485 未涉及。"
+            ),
+            related_iso_clauses=["7.5.1", "7.5.8", "7.5.11"],
+            audit_impact="major",
+            audit_question_en=(
+                "Do device labels, IFU, and packaging include Traditional Chinese text "
+                "as required by Taiwan Medical Device Act Article 33?"
+            ),
+            audit_question_zh=(
+                "器材標籤、使用說明書及包裝是否依醫療器材管理法第33條"
+                "包含繁體中文文字？"
+            ),
+            expected_evidence=[
+                "Chinese-language labels / 中文標籤",
+                "Chinese IFU / 中文使用說明書",
+                "Chinese packaging text / 中文包裝文字",
+            ],
+            rationale_en=(
+                "Chinese labeling is a Taiwan market access requirement with no ISO 13485 clause. "
+                "Closest to 7.5.1 (production control includes labeling), 7.5.8 (identification), "
+                "7.5.11 (preservation/packaging). Determined by regulatory text analysis."
+            ),
+            rationale_zh=(
+                "中文標示是台灣市場准入要求，ISO 13485 無對應條款。"
+                "最接近 7.5.1（生產管制含標示）、7.5.8（識別）、7.5.11（防護/包裝）。"
+                "由法規文本分析確定。"
+            ),
+            method=MappingMethod.SEMANTIC_ZH,
+            confidence=0.90,
+            original_text=(
+                "醫療器材管理法第三十三條：醫療器材之標籤、說明書及包裝，應以中文為主，"
+                "必要時輔以外文。不得僅以外文標示。"
+            ),
+            original_lang="zh-TW",
+            english_translation=(
+                "Medical Device Act Article 33: Labels, instructions for use, and packaging of medical devices "
+                "shall be primarily in Chinese, supplemented by foreign languages when necessary. "
+                "Foreign language only labeling is NOT permitted."
+            ),
+            semantic_note=(
+                "Taiwan uses '以中文為主' (Chinese as primary), which means Chinese must be the DOMINANT language. "
+                "US FDA requires English but allows bilingual labeling. "
+                "EU MDR Art 10(11) requires labeling in the language(s) accepted by the Member State — this varies "
+                "by country (e.g., German in Germany, French in France, could be multiple languages). "
+                "Key difference: Taiwan mandates Traditional Chinese as PRIMARY; EU varies by member state; "
+                "US mandates English. Each jurisdiction has different 'native language' requirements for labeling."
+            ),
+        ),
+        UniqueRequirement(
+            req_id="TFDA-003",
+            regulation_ref="醫療器材管理法 第13、15條",
+            title_en="Medical Device Technical Personnel",
+            title_zh="醫療器材技術人員",
+            requirement_en=(
+                "Manufacturers must appoint qualified Technical Personnel who meet specific "
+                "educational and experience criteria and complete 20 hours of continuing "
+                "education every year. This is a personnel qualification requirement "
+                "beyond ISO 13485 Clause 6.2."
+            ),
+            requirement_zh=(
+                "製造商必須任命符合特定學歷與經驗條件的技術人員，"
+                "並每年完成20小時的持續教育。此為超出 ISO 13485 條款 6.2 的人員資格要求。"
+            ),
+            related_iso_clauses=["6.2", "5.5.1"],
+            audit_impact="critical",
+            audit_question_en=(
+                "Are Technical Personnel appointed with required qualifications, "
+                "and do they complete 20 hours of annual continuing education per TFDA requirements?"
+            ),
+            audit_question_zh=(
+                "是否任命具備所需資格的技術人員，"
+                "且每年完成20小時持續教育？（TFDA 要求）"
+            ),
+            expected_evidence=[
+                "Technical Personnel appointment records / 技術人員任命記錄",
+                "Qualification certificates / 資格證書",
+                "Annual CE training records (20 hrs) / 年度持續教育訓練記錄（20小時）",
+            ],
+            rationale_en=(
+                "TFDA Technical Personnel (Art 13/15) has no direct ISO 13485 equivalent. "
+                "Closest to 6.2 (human resources/competence) and 5.5.1 (responsibility). "
+                "The 20-hour CE and specific qualification criteria exceed ISO requirements."
+            ),
+            rationale_zh=(
+                "TFDA 技術人員（第13/15條）在 ISO 13485 中無直接對應。"
+                "最接近 6.2（人力資源/能力）和 5.5.1（責任）。"
+                "20小時持續教育和特定資格條件超出 ISO 要求。"
+            ),
+            method=MappingMethod.SEMANTIC_ZH,
+            confidence=0.90,
+            original_text=(
+                "醫療器材製造業者應置技術人員，其資格條件如下：一、具有醫學、藥學、"
+                "化學、生物學、工程或其他相關學系之大學以上學歷。二、具有醫療器材相關"
+                "工作經驗三年以上。技術人員每年應接受不少於二十小時之持續教育。"
+            ),
+            original_lang="zh-TW",
+            english_translation=(
+                "Medical device manufacturers shall appoint technical personnel meeting the following "
+                "qualifications: 1. University degree or above in medicine, pharmacy, chemistry, biology, "
+                "engineering, or related fields. 2. At least 3 years of medical device-related work experience. "
+                "Technical personnel shall receive at least 20 hours of continuing education annually."
+            ),
+            semantic_note=(
+                "Taiwan Technical Personnel (技術人員) is a NAMED ROLE with specific qualification requirements. "
+                "EU MDR PRRC (Art 15): also a named role with personal legal liability, requires 4+ years of "
+                "professional experience, but focuses on regulatory compliance rather than technical qualifications. "
+                "US FDA QMSR: no specific named individual requirement — only requires 'competent personnel' "
+                "generally under ISO 13485 Clause 6.2. "
+                "ISO 13485 6.2: requires personnel competence based on education, training, skills, experience, "
+                "but does not mandate a specific named role or annual CE hours. "
+                "Cross-country: Taiwan and EU both require named qualified individuals; US does not. "
+                "Taiwan’s 20hr/year CE requirement is the most prescriptive of all three."
+            ),
+        ),
+        UniqueRequirement(
+            req_id="TFDA-004",
+            regulation_ref="醫療器材安全監視管理辦法",
+            title_en="Adverse Event Reporting — 7/15 Day Timelines",
+            title_zh="不良事件通報 — 7/15天時限",
+            requirement_en=(
+                "TFDA requires reporting adverse events within specific timelines: "
+                "7 days for death or serious life-threatening risks, "
+                "15 days for other serious adverse events. ISO 13485 Clause 8.2.3 "
+                "requires regulatory reporting but does not specify these timelines."
+            ),
+            requirement_zh=(
+                "TFDA 要求在特定時限內通報不良事件："
+                "死亡或嚴重危及生命風險7天、其他嚴重不良事件15天。"
+                "ISO 13485 條款 8.2.3 要求法規通報但未規定這些時限。"
+            ),
+            related_iso_clauses=["8.2.2", "8.2.3"],
+            audit_impact="critical",
+            audit_question_en=(
+                "Does the adverse event reporting procedure specify 7-day (death/life-threatening) "
+                "and 15-day (other serious) reporting timelines per TFDA requirements?"
+            ),
+            audit_question_zh=(
+                "不良事件通報程序是否規定7天（死亡/危及生命）"
+                "和15天（其他嚴重事件）的通報時限？（TFDA 要求）"
+            ),
+            expected_evidence=[
+                "Adverse event reporting procedure with TFDA timelines / 含TFDA時限之不良事件通報程序",
+                "Reporting timeline compliance records / 通報時限合規記錄",
+            ],
+            rationale_en=(
+                "TFDA adverse event timelines (7/15 days) are Taiwan-specific. "
+                "ISO 13485 8.2.3 requires reporting but without specific day counts. "
+                "Also relates to 8.2.2 (complaint handling) as adverse events often "
+                "originate from complaints."
+            ),
+            rationale_zh=(
+                "TFDA 不良事件時限（7/15天）為台灣特有要求。"
+                "ISO 13485 8.2.3 要求通報但無特定天數。"
+                "也與 8.2.2（客訴處理）相關，因不良事件常源自客訴。"
+            ),
+            method=MappingMethod.SEMANTIC_ZH,
+            confidence=0.90,
+            original_text=(
+                "醫療器材業者於知悉所製造、輸入或販賣之醫療器材發生嚴重不良事件時，"
+                "應於知悉之日起七日內通報中央主管機關。其他不良事件應於知悉之日起"
+                "十五日內通報。"
+            ),
+            original_lang="zh-TW",
+            english_translation=(
+                "Medical device businesses, upon becoming aware of serious adverse events involving devices "
+                "they manufacture, import, or sell, shall report to the central competent authority within "
+                "7 days from the date of awareness. Other adverse events shall be reported within 15 days."
+            ),
+            semantic_note=(
+                "Taiwan TFDA adverse event timelines: 7 days (serious/death) + 15 days (other). "
+                "EU MDR Art 87: 2 days (death/serious public health threat), 10 days (public health threat), "
+                "15 days (other serious). EU has the most granular tiers and SHORTEST deadlines. "
+                "US FDA 21 CFR 803: 5 working days for death, 30 calendar days for serious injury/malfunction. "
+                "ISO 13485 8.2.3: requires regulatory reporting but NO specific timeline. "
+                "Cross-country timeline comparison (death/serious): EU 2 days < Taiwan 7 days < US 5 working days. "
+                "For other serious events: Taiwan 15 days = EU 15 days < US 30 days. "
+                "Taiwan is between EU (strictest) and US (most lenient) in stringency."
+            ),
+        ),
+        UniqueRequirement(
+            req_id="TFDA-005",
+            regulation_ref="醫療器材管理法 第13條",
+            title_en="Taiwan Authorized Representative",
+            title_zh="台灣在地授權代表",
+            requirement_en=(
+                "Foreign manufacturers must appoint a Taiwan-based legal representative "
+                "(authorized representative) to hold the medical device license and manage "
+                "QMS compliance within Taiwan. This is a market access requirement."
+            ),
+            requirement_zh=(
+                "外國製造商必須指定台灣在地法定代理人（授權代表）"
+                "持有醫療器材許可證並管理台灣境內的QMS合規。此為市場准入要求。"
+            ),
+            related_iso_clauses=["5.5.1", "7.2.3"],
+            audit_impact="major",
+            audit_question_en=(
+                "For foreign manufacturers: has a Taiwan-based authorized representative "
+                "been appointed per Medical Device Act Article 13?"
+            ),
+            audit_question_zh=(
+                "外國製造商：是否依醫療器材管理法第13條指定台灣在地授權代表？"
+            ),
+            expected_evidence=[
+                "Authorized representative agreement / 授權代表合約",
+                "Representative registration with TFDA / 代表之TFDA登記",
+            ],
+            rationale_en=(
+                "Taiwan authorized representative (Art 13) has no ISO 13485 equivalent. "
+                "Closest to 5.5.1 (responsibility/authority) for organizational structure, "
+                "and 7.2.3 (communication) for regulatory communication channel."
+            ),
+            rationale_zh=(
+                "台灣授權代表（第13條）在 ISO 13485 中無對應。"
+                "最接近 5.5.1（責任/權限）涉及組織架構，"
+                "及 7.2.3（溝通）涉及法規溝通管道。"
+            ),
+            method=MappingMethod.SEMANTIC_ZH,
+            confidence=0.85,
+            original_text=(
+                "外國之醫療器材製造業者，應由其在中華民國境內設立並依法登記之"
+                "分公司或指定在中華民國境內具有住所之代理人，申請醫療器材許可證。"
+                "代理人將代為執行品質管理系統相關義務。"
+            ),
+            original_lang="zh-TW",
+            english_translation=(
+                "Foreign medical device manufacturers shall apply for medical device licenses through "
+                "their branch companies established and registered in the territory of the Republic of China, "
+                "or through designated agents with domicile in the territory. "
+                "The agent shall perform QMS-related obligations on behalf of the manufacturer."
+            ),
+            semantic_note=(
+                "Taiwan requires foreign manufacturers to have a local legal entity or designated agent (代理人) "
+                "who holds the medical device license and manages QMS compliance. "
+                "EU MDR Art 11: requires a European Authorized Representative (EU AR) for non-EU manufacturers, "
+                "who ensures compliance and is the contact for competent authorities. "
+                "US FDA: requires a US Agent for foreign establishments (21 CFR 807.40) for FDA correspondence, "
+                "but the US Agent does NOT hold the registration — it’s just a communication contact. "
+                "ISO 13485: does not address authorized representative requirements (this is a regulatory "
+                "market access issue, not a QMS process issue). "
+                "Cross-country: all three jurisdictions require some form of local representation for foreign "
+                "manufacturers, but the scope of responsibility varies: Taiwan’s agent holds the license, "
+                "EU AR ensures compliance, US Agent is only a communication contact."
+            ),
+        ),
+    ]
+
+    return RegulationProfile(
+        regulation_id="TFDA",
+        name_en="Taiwan TFDA Medical Device QMS Regulations",
+        name_zh="台灣 TFDA 醫療器材品質管理系統準則",
+        country="TW",
+        country_name_en="Taiwan",
+        country_name_zh="台灣",
+        source="predefined",
+        source_url="https://laws.moj.gov.tw/LawClass/LawAll.aspx?pcode=L0030097",
+        last_updated="2021-04-14",
+        effective_date="2021-05-01",
+        iso_mapped=iso_mapped,
+        unique_requirements=unique_reqs,
+    )
+
+
+# ============================================================
+# Build predefined profiles (loaded once at import time)
+# ============================================================
+
+PREDEFINED_REGULATIONS: dict[str, RegulationProfile] = {}
+
+
+def _init_predefined() -> None:
+    """Initialize predefined regulation profiles."""
+    global PREDEFINED_REGULATIONS
+    PREDEFINED_REGULATIONS["QMSR"] = _build_qmsr_profile()
+    PREDEFINED_REGULATIONS["EU_MDR"] = _build_eu_mdr_profile()
+    PREDEFINED_REGULATIONS["TFDA"] = _build_tfda_profile()
+
+
+_init_predefined()
+
+
+# ============================================================
+# Predefined Supplemental Standards Library
+# ============================================================
+
+
+def _build_predefined_standards() -> dict[str, SupplementalStandardProfile]:
+    """Build the predefined supplemental standards library.
+
+    These are the most commonly referenced standards in medical device QMS.
+    Each standard defines:
+      - WHEN it applies (detection keywords + universal flag)
+      - HOW it links to ISO 13485 clauses
+      - HOW country regulations reference it
+    """
+    standards: dict[str, SupplementalStandardProfile] = {}
+
+    # ---- ISO 14971: Risk Management (Universal) ----
+    standards["ISO_14971"] = SupplementalStandardProfile(
+        standard_id="ISO_14971",
+        name_en="ISO 14971:2019 Medical devices — Application of risk management",
+        name_zh="ISO 14971:2019 醫療器材 — 風險管理之應用",
+        category=StandardCategory.RISK_MANAGEMENT,
+        version="2019",
+        is_universal=True,  # Applies to ALL medical devices
+        detection_keywords_en=["risk management", "risk analysis", "risk evaluation",
+            "risk control", "hazard", "14971", "risk-based approach"],
+        detection_keywords_zh=["風險管理", "風險分析", "風險評估",
+            "風險控制", "危害", "14971", "風險基礎方法"],
+        primary_iso_clauses=["7.1", "7.3.3", "7.3.9", "8.2.1", "8.5.2"],
+        clause_links=[
+            StandardClauseLink(
+                standard_clause="Clause 4 (Risk management process)",
+                iso_13485_clause="7.1",
+                relationship="elaborates",
+                description_en="ISO 14971 Clause 4 defines the risk management process that satisfies ISO 13485 Clause 7.1 requirement for risk management during product realization planning.",
+                description_zh="ISO 14971 第4條定義的風險管理過程滿足 ISO 13485 條款 7.1 對產品實現規劃中風險管理的要求。",
+            ),
+            StandardClauseLink(
+                standard_clause="Clause 5-8 (Analysis, evaluation, control, residual risk)",
+                iso_13485_clause="7.3.3",
+                relationship="implements",
+                description_en="Risk analysis/evaluation/control outputs feed into design input (ISO 13485 7.3.3c requires risk management output as design input).",
+                description_zh="風險分析/評估/控制輸出作為設計輸入（ISO 13485 7.3.3c 要求風險管理輸出作為設計輸入）。",
+            ),
+            StandardClauseLink(
+                standard_clause="Clause 9 (Production and post-production)",
+                iso_13485_clause="8.2.1",
+                relationship="supplements",
+                description_en="Post-production risk monitoring feeds into ISO 13485 8.2.1 feedback system.",
+                description_zh="上市後風險監控回饋至 ISO 13485 8.2.1 回饋系統。",
+            ),
+            StandardClauseLink(
+                standard_clause="Clause 7 (Risk control)",
+                iso_13485_clause="7.3.9",
+                relationship="elaborates",
+                description_en="Design changes must trigger risk re-evaluation per ISO 14971 Clause 7.",
+                description_zh="設計變更必須依 ISO 14971 第7條觸發風險重新評估。",
+            ),
+        ],
+        regulatory_references={
+            "US": "FDA recognized consensus standard; required under QMSR for risk-based approach (21 CFR 820.10 + ISO 13485 Clause 7.1)",
+            "EU": "Harmonized standard under EU MDR; Annex I GSPR requires risk management system per ISO 14971",
+            "TW": "TFDA 醫療器材品質管理系統準則要求依循 ISO 14971 執行產品實現之風險管理",
+        },
+        audit_questions=[
+            {"question_zh": "組織是否建立並維持風險管理過程，包含風險分析、風險評估、風險控制及殘餘風險評價？",
+             "question_en": "Has the organization established and maintained a risk management process including risk analysis, evaluation, control, and residual risk assessment?",
+             "expected_evidence": ["風險管理計畫 / Risk management plan", "風險管理報告 / Risk management report",
+                                  "風險管理檔案 / Risk management file", "FMEA / FTA / HAZOP 分析紀錄"],
+             "audit_impact": "critical", "iso_clause": "7.1"},
+        ],
+    )
+
+    # ---- IEC 62304: Software Lifecycle ----
+    standards["IEC_62304"] = SupplementalStandardProfile(
+        standard_id="IEC_62304",
+        name_en="IEC 62304:2006+A1:2015 Medical device software — Software life cycle processes",
+        name_zh="IEC 62304:2006+A1:2015 醫療器材軟體 — 軟體生命週期過程",
+        category=StandardCategory.SOFTWARE,
+        version="2006+A1:2015",
+        detection_keywords_en=["software", "SaMD", "software as medical device",
+            "62304", "software lifecycle", "software development", "firmware",
+            "software unit", "software system", "SOUP"],
+        detection_keywords_zh=["軟體", "韌體", "軟體醫療器材",
+            "62304", "軟體生命週期", "軟體開發", "軟體單元", "SOUP"],
+        primary_iso_clauses=["7.3", "7.3.1", "7.3.2", "7.3.3", "7.3.4", "7.3.5",
+            "7.3.6", "7.3.7", "4.1.6", "7.5.6"],
+        clause_links=[
+            StandardClauseLink(
+                standard_clause="Clause 5 (Software development process)",
+                iso_13485_clause="7.3",
+                relationship="implements",
+                description_en="IEC 62304 Clause 5 is the software-specific implementation of ISO 13485 Section 7.3 design and development controls.",
+                description_zh="IEC 62304 第5條是 ISO 13485 第7.3節設計開發控制在軟體領域的具體實作。",
+            ),
+            StandardClauseLink(
+                standard_clause="Clause 7 (Software risk management)",
+                iso_13485_clause="7.1",
+                relationship="supplements",
+                description_en="Software-specific risk management supplements ISO 14971 and satisfies ISO 13485 7.1 risk requirements for software.",
+                description_zh="軟體特定風險管理補充 ISO 14971，滿足 ISO 13485 7.1 對軟體的風險要求。",
+            ),
+            StandardClauseLink(
+                standard_clause="Clause 6 (Software maintenance)",
+                iso_13485_clause="7.5.4",
+                relationship="elaborates",
+                description_en="Software maintenance process elaborates servicing activities for software medical devices.",
+                description_zh="軟體維護過程細化軟體醫療器材的服務活動。",
+            ),
+            StandardClauseLink(
+                standard_clause="Clause 8 (Software configuration management)",
+                iso_13485_clause="4.2.3",
+                relationship="supplements",
+                description_en="Software configuration management supplements document control for software artifacts.",
+                description_zh="軟體配置管理補充軟體產出物的文件控制。",
+            ),
+        ],
+        regulatory_references={
+            "US": "FDA recognized consensus standard; required for software medical devices under QMSR",
+            "EU": "Harmonized standard under EU MDR for SaMD and software components",
+            "TW": "TFDA 醫療器材軟體製造業者品質管理系統指導文件建議參考",
+        },
+        audit_questions=[
+            {"question_zh": "軟體開發過程是否依循 IEC 62304 建立軟體開發計畫、架構設計、單元測試、整合測試及系統測試？",
+             "question_en": "Does the software development process follow IEC 62304 with development plan, architecture, unit testing, integration testing, and system testing?",
+             "expected_evidence": ["軟體開發計畫 / Software development plan",
+                                  "軟體架構文件 / Software architecture document",
+                                  "SOUP 清單 / SOUP list", "軟體測試紀錄 / Software test records"],
+             "audit_impact": "critical", "iso_clause": "7.3"},
+        ],
+    )
+
+    # ---- IEC 62366-1: Usability Engineering ----
+    standards["IEC_62366"] = SupplementalStandardProfile(
+        standard_id="IEC_62366",
+        name_en="IEC 62366-1:2015+A1:2020 Medical devices — Application of usability engineering",
+        name_zh="IEC 62366-1:2015+A1:2020 醫療器材 — 可用性工程之應用",
+        category=StandardCategory.USABILITY,
+        version="2015+A1:2020",
+        detection_keywords_en=["usability", "human factors", "62366", "use error",
+            "user interface", "formative evaluation", "summative evaluation"],
+        detection_keywords_zh=["可用性", "人因工程", "62366", "使用錯誤",
+            "使用者介面", "形成性評估", "總結性評估"],
+        primary_iso_clauses=["7.3.3", "7.3.6", "7.3.10"],
+        clause_links=[
+            StandardClauseLink(
+                standard_clause="Clause 5 (Usability engineering process)",
+                iso_13485_clause="7.3.3",
+                relationship="implements",
+                description_en="IEC 62366-1 Clause 5 implements the usability requirement explicitly cited in ISO 13485 Clause 7.3.3 notes.",
+                description_zh="IEC 62366-1 第5條實施 ISO 13485 條款 7.3.3 註釋中明確引用的可用性要求。",
+            ),
+            StandardClauseLink(
+                standard_clause="Usability Engineering File (UEF)",
+                iso_13485_clause="7.3.10",
+                relationship="supplements",
+                description_en="The UEF is a required component of the ISO 13485 Design and Development File (DHF).",
+                description_zh="可用性工程檔案 (UEF) 是 ISO 13485 設計開發檔案 (DHF) 的必要組成。",
+            ),
+        ],
+        regulatory_references={
+            "US": "FDA recognized consensus standard; Human Factors guidance requires usability engineering",
+            "EU": "Harmonized standard under EU MDR; usability is core safety requirement",
+            "TW": "TFDA 建議參考之可用性標準",
+        },
+    )
+
+    # ---- IEC 60601-1: Electrical Safety ----
+    standards["IEC_60601"] = SupplementalStandardProfile(
+        standard_id="IEC_60601",
+        name_en="IEC 60601-1:2005+A1:2012+A2:2020 Medical electrical equipment — General requirements for basic safety and essential performance",
+        name_zh="IEC 60601-1:2005+A1:2012+A2:2020 醫用電氣設備 — 基本安全與必要性能的一般要求",
+        category=StandardCategory.ELECTRICAL_SAFETY,
+        version="2005+A1:2012+A2:2020",
+        detection_keywords_en=["electrical", "60601", "ME equipment", "medical electrical",
+            "basic safety", "essential performance", "leakage current",
+            "dielectric strength", "protective earth"],
+        detection_keywords_zh=["電氣安全", "60601", "醫用電氣", "醫用電子",
+            "基本安全", "必要性能", "漏電流", "介電強度"],
+        primary_iso_clauses=["7.3.3", "7.3.5", "7.3.6", "4.2.5"],
+        clause_links=[
+            StandardClauseLink(
+                standard_clause="Clause 4 (General requirements)",
+                iso_13485_clause="7.3.3",
+                relationship="supplements",
+                description_en="IEC 60601-1 safety requirements feed into design input as regulatory/safety requirements.",
+                description_zh="IEC 60601-1 安全要求作為法規/安全要求納入設計輸入。",
+            ),
+            StandardClauseLink(
+                standard_clause="Type tests / routine tests",
+                iso_13485_clause="7.3.6",
+                relationship="verifies",
+                description_en="IEC 60601-1 test reports are core design verification evidence for electrical medical devices.",
+                description_zh="IEC 60601-1 測試報告是電氣醫療器材設計驗證的核心證據。",
+            ),
+        ],
+        regulatory_references={
+            "US": "FDA recognized consensus standard; mandatory for 510(k)/PMA of electrical medical devices",
+            "EU": "Harmonized standard under EU MDR; testing required for CE marking",
+            "TW": "TFDA 查驗登記必要測試標準",
+        },
+    )
+
+    # ---- IEC 60601-1-2: EMC ----
+    standards["IEC_60601_1_2"] = SupplementalStandardProfile(
+        standard_id="IEC_60601_1_2",
+        name_en="IEC 60601-1-2:2014+A1:2020 Medical electrical equipment — EMC requirements and tests",
+        name_zh="IEC 60601-1-2:2014+A1:2020 醫用電氣設備 — 電磁相容性要求與測試",
+        category=StandardCategory.EMC,
+        version="2014+A1:2020",
+        detection_keywords_en=["EMC", "electromagnetic compatibility", "60601-1-2",
+            "emissions", "immunity", "electromagnetic", "RF interference"],
+        detection_keywords_zh=["電磁相容性", "EMC", "60601-1-2",
+            "電磁放射", "電磁免疫", "射頻干擾"],
+        primary_iso_clauses=["7.3.3", "7.3.6"],
+        clause_links=[
+            StandardClauseLink(
+                standard_clause="EMC test plan and risk assessment",
+                iso_13485_clause="7.3.3",
+                relationship="supplements",
+                description_en="EMC requirements and intended EM environment feed into design input.",
+                description_zh="EMC 要求及預期電磁環境納入設計輸入。",
+            ),
+        ],
+        regulatory_references={
+            "US": "FDA recognized consensus standard; required for all electrical medical devices",
+            "EU": "Harmonized standard under EU MDR",
+            "TW": "TFDA 查驗登記 EMC 測試必要標準",
+        },
+    )
+
+    # ---- ISO 10993 series: Biocompatibility ----
+    standards["ISO_10993"] = SupplementalStandardProfile(
+        standard_id="ISO_10993",
+        name_en="ISO 10993 series — Biological evaluation of medical devices",
+        name_zh="ISO 10993 系列 — 醫療器材的生物評估",
+        category=StandardCategory.BIOCOMPATIBILITY,
+        version="2018 (Part 1)",
+        detection_keywords_en=["biocompatibility", "10993", "biological evaluation",
+            "cytotoxicity", "sensitization", "irritation", "implantation",
+            "body contact", "tissue contact", "blood contact"],
+        detection_keywords_zh=["生物相容性", "10993", "生物評估",
+            "細胞毒性", "致敏", "刺激", "植入",
+            "身體接觸", "組織接觸", "血液接觸"],
+        primary_iso_clauses=["7.3.3", "7.3.5", "7.3.6"],
+        clause_links=[
+            StandardClauseLink(
+                standard_clause="Part 1: Evaluation and testing within a risk management process",
+                iso_13485_clause="7.3.3",
+                relationship="supplements",
+                description_en="Biocompatibility requirements based on device-body contact nature feed into design input.",
+                description_zh="根據器材與人體接觸性質的生物相容性要求納入設計輸入。",
+            ),
+            StandardClauseLink(
+                standard_clause="Biological test reports",
+                iso_13485_clause="7.3.6",
+                relationship="verifies",
+                description_en="Biocompatibility test reports serve as design verification/validation evidence.",
+                description_zh="生物相容性測試報告作為設計驗證/確認證據。",
+            ),
+        ],
+        regulatory_references={
+            "US": "FDA recognized consensus standard; required for devices with body contact",
+            "EU": "Harmonized standard under EU MDR; GSPR Annex I Chapter II",
+            "TW": "TFDA 查驗登記生物相容性測試必要標準",
+        },
+    )
+
+    # ---- ISO 11135: EO Sterilization ----
+    standards["ISO_11135"] = SupplementalStandardProfile(
+        standard_id="ISO_11135",
+        name_en="ISO 11135:2014 Sterilization of health-care products — Ethylene oxide",
+        name_zh="ISO 11135:2014 醫療保健產品滅菌 — 環氧乙烷 (EO)",
+        category=StandardCategory.STERILIZATION,
+        version="2014",
+        detection_keywords_en=["EO sterilization", "ethylene oxide", "11135",
+            "EO residuals", "EtO", "gas sterilization"],
+        detection_keywords_zh=["EO滅菌", "環氧乙烷", "11135",
+            "EO殘留", "氣體滅菌", "環氧乙烷滅菌"],
+        primary_iso_clauses=["7.5.6", "7.5.7"],
+        clause_links=[
+            StandardClauseLink(
+                standard_clause="EO sterilization validation (IQ/OQ/PQ)",
+                iso_13485_clause="7.5.7",
+                relationship="implements",
+                description_en="ISO 11135 defines how to validate EO sterilization processes per ISO 13485 7.5.7.",
+                description_zh="ISO 11135 定義如何依 ISO 13485 7.5.7 驗證 EO 滅菌過程。",
+            ),
+        ],
+        regulatory_references={
+            "US": "FDA recognized consensus standard for EO sterilization validation",
+            "EU": "Harmonized standard under EU MDR",
+            "TW": "TFDA 滅菌確效必要標準",
+        },
+    )
+
+    # ---- ISO 11137: Radiation Sterilization ----
+    standards["ISO_11137"] = SupplementalStandardProfile(
+        standard_id="ISO_11137",
+        name_en="ISO 11137 series — Sterilization of health-care products — Radiation",
+        name_zh="ISO 11137 系列 — 醫療保健產品滅菌 — 輻射",
+        category=StandardCategory.STERILIZATION,
+        version="2006 (Part 1/2), 2017 (Part 3)",
+        detection_keywords_en=["radiation sterilization", "gamma", "electron beam",
+            "11137", "irradiation", "dose audit"],
+        detection_keywords_zh=["輻射滅菌", "伽瑪", "電子束",
+            "11137", "照射", "劑量稽核"],
+        primary_iso_clauses=["7.5.6", "7.5.7"],
+        clause_links=[
+            StandardClauseLink(
+                standard_clause="Radiation sterilization validation and dose setting",
+                iso_13485_clause="7.5.7",
+                relationship="implements",
+                description_en="ISO 11137 defines radiation sterilization dose setting and validation per ISO 13485 7.5.7.",
+                description_zh="ISO 11137 定義輻射滅菌劑量設定與驗證，依 ISO 13485 7.5.7。",
+            ),
+        ],
+        regulatory_references={
+            "US": "FDA recognized consensus standard for radiation sterilization",
+            "EU": "Harmonized standard under EU MDR",
+            "TW": "TFDA 滅菌確效必要標準",
+        },
+    )
+
+    # ---- ISO 17665: Steam Sterilization ----
+    standards["ISO_17665"] = SupplementalStandardProfile(
+        standard_id="ISO_17665",
+        name_en="ISO 17665-1:2006 Sterilization of health-care products — Moist heat",
+        name_zh="ISO 17665-1:2006 醫療保健產品滅菌 — 濕熱",
+        category=StandardCategory.STERILIZATION,
+        version="2006",
+        detection_keywords_en=["steam sterilization", "moist heat", "17665",
+            "autoclave", "steam sterilizer"],
+        detection_keywords_zh=["蒸氣滅菌", "濕熱滅菌", "17665",
+            "高壓滅菌", "高壓蒸氣滅菌鍋"],
+        primary_iso_clauses=["7.5.6", "7.5.7"],
+        clause_links=[
+            StandardClauseLink(
+                standard_clause="Moist heat sterilization validation",
+                iso_13485_clause="7.5.7",
+                relationship="implements",
+                description_en="ISO 17665 defines moist heat sterilization validation per ISO 13485 7.5.7.",
+                description_zh="ISO 17665 定義濕熱滅菌驗證，依 ISO 13485 7.5.7。",
+            ),
+        ],
+        regulatory_references={
+            "US": "FDA recognized consensus standard for steam sterilization",
+            "EU": "Harmonized standard under EU MDR",
+            "TW": "TFDA 滅菌確效必要標準",
+        },
+    )
+
+    # ---- ISO 11607: Sterile Barrier Packaging ----
+    standards["ISO_11607"] = SupplementalStandardProfile(
+        standard_id="ISO_11607",
+        name_en="ISO 11607 series — Packaging for terminally sterilized medical devices",
+        name_zh="ISO 11607 系列 — 最終滅菌醫療器材之包裝",
+        category=StandardCategory.PACKAGING,
+        version="2019",
+        detection_keywords_en=["sterile barrier", "11607", "packaging validation",
+            "seal strength", "package integrity", "peel test",
+            "sterile packaging", "Tyvek"],
+        detection_keywords_zh=["無菌屏障", "11607", "包裝確效",
+            "密封強度", "包裝完整性", "剥離測試",
+            "無菌包裝", "Tyvek"],
+        primary_iso_clauses=["7.5.1", "7.5.5", "7.5.11"],
+        clause_links=[
+            StandardClauseLink(
+                standard_clause="Part 2: Validation of forming, sealing, assembly processes",
+                iso_13485_clause="7.5.5",
+                relationship="implements",
+                description_en="ISO 11607-2 validates sterile packaging processes per ISO 13485 7.5.5 sterile device requirements.",
+                description_zh="ISO 11607-2 依 ISO 13485 7.5.5 無菌裝置要求驗證無菌包裝過程。",
+            ),
+            StandardClauseLink(
+                standard_clause="Part 1: Materials, sterile barrier systems",
+                iso_13485_clause="7.5.11",
+                relationship="supplements",
+                description_en="Packaging materials and design requirements supplement product preservation (ISO 13485 7.5.11).",
+                description_zh="包裝材料與設計要求補充產品防護（ISO 13485 7.5.11）。",
+            ),
+        ],
+        regulatory_references={
+            "US": "FDA recognized consensus standard for sterile barrier packaging",
+            "EU": "Harmonized standard under EU MDR",
+            "TW": "TFDA 無菌包裝確效必要標準",
+        },
+    )
+
+    # ---- ISO 14708: Active Implantable Medical Devices ----
+    standards["ISO_14708"] = SupplementalStandardProfile(
+        standard_id="ISO_14708",
+        name_en="ISO 14708 series — Implants for surgery — Active implantable medical devices",
+        name_zh="ISO 14708 系列 — 手術植入物 — 主動式植入醫療器材",
+        category=StandardCategory.IMPLANTABLE,
+        version="2014 (Part 1)",
+        detection_keywords_en=["implantable", "implant", "14708", "active implant",
+            "pacemaker", "cochlear", "neurostimulator", "cardiac"],
+        detection_keywords_zh=["植入式", "植入物", "14708", "主動植入",
+            "心律調整器", "人工耳蜘", "神經刺激器"],
+        primary_iso_clauses=["7.3.3", "7.3.6", "7.5.9", "7.5.9.1"],
+        clause_links=[
+            StandardClauseLink(
+                standard_clause="Product-specific safety and performance requirements",
+                iso_13485_clause="7.3.3",
+                relationship="supplements",
+                description_en="ISO 14708 adds implant-specific design input requirements beyond ISO 13485 7.3.3.",
+                description_zh="ISO 14708 在 ISO 13485 7.3.3 之外增加植入物特定的設計輸入要求。",
+            ),
+            StandardClauseLink(
+                standard_clause="Implant-specific testing (biocompatibility, fatigue, EMC)",
+                iso_13485_clause="7.3.6",
+                relationship="verifies",
+                description_en="ISO 14708 testing requirements provide design verification evidence for active implants.",
+                description_zh="ISO 14708 測試要求提供主動植入物的設計驗證證據。",
+            ),
+        ],
+        regulatory_references={
+            "US": "FDA recognized; specific product guidance documents apply",
+            "EU": "Harmonized standard under EU MDR; previously under AIMDD 90/385/EEC",
+            "TW": "TFDA 植入式器材查驗登記參考標準",
+        },
+    )
+
+    # ---- ISO 15223-1: Symbols for Medical Device Labeling ----
+    standards["ISO_15223"] = SupplementalStandardProfile(
+        standard_id="ISO_15223",
+        name_en="ISO 15223-1:2021 Medical devices — Symbols to be used with information to be supplied by the manufacturer",
+        name_zh="ISO 15223-1:2021 醫療器材 — 製造商提供資訊所用的符號",
+        category=StandardCategory.LABELING,
+        version="2021",
+        detection_keywords_en=["15223", "labeling symbols", "medical device symbols",
+            "graphical symbols", "label symbols"],
+        detection_keywords_zh=["15223", "標示符號", "醫療器材符號",
+            "圖形符號", "標籤符號"],
+        primary_iso_clauses=["7.5.1", "7.5.8"],
+        clause_links=[
+            StandardClauseLink(
+                standard_clause="Standardized symbols for labeling",
+                iso_13485_clause="7.5.8",
+                relationship="supplements",
+                description_en="ISO 15223-1 provides standardized symbols that support device identification and labeling per ISO 13485 7.5.8.",
+                description_zh="ISO 15223-1 提供標準化符號，支援 ISO 13485 7.5.8 器材識別與標示。",
+            ),
+        ],
+        regulatory_references={
+            "US": "FDA recognized consensus standard for device labeling symbols",
+            "EU": "Harmonized standard under EU MDR; required for CE marking labels",
+            "TW": "TFDA 醫療器材標示參考標準",
+        },
+    )
+
+    # ---- ISO 14155: Clinical Investigation ----
+    standards["ISO_14155"] = SupplementalStandardProfile(
+        standard_id="ISO_14155",
+        name_en="ISO 14155:2020 Clinical investigation of medical devices for human subjects — Good clinical practice",
+        name_zh="ISO 14155:2020 醫療器材人體臨床試驗 — 優良臨床規範",
+        category=StandardCategory.CLINICAL,
+        version="2020",
+        detection_keywords_en=["clinical investigation", "clinical trial", "14155",
+            "GCP", "good clinical practice", "clinical study",
+            "informed consent", "clinical evidence"],
+        detection_keywords_zh=["臨床試驗", "臨床調查", "14155",
+            "GCP", "優良臨床規範", "臨床研究",
+            "知情同意", "臨床證據"],
+        primary_iso_clauses=["7.3.6", "7.3.7"],
+        clause_links=[
+            StandardClauseLink(
+                standard_clause="Clinical investigation planning and conduct",
+                iso_13485_clause="7.3.6",
+                relationship="implements",
+                description_en="ISO 14155 defines how to conduct clinical investigations that provide design validation evidence per ISO 13485 7.3.6.",
+                description_zh="ISO 14155 定義如何執行臨床試驗，提供 ISO 13485 7.3.6 設計確認證據。",
+            ),
+        ],
+        regulatory_references={
+            "US": "FDA recognized; aligns with 21 CFR 812 (IDE regulations)",
+            "EU": "Harmonized standard under EU MDR; required for clinical investigations per Art 62-82",
+            "TW": "TFDA 醫療器材臨床試驗參考標準",
+        },
+    )
+
+    return standards
+
+
+PREDEFINED_STANDARDS: dict[str, SupplementalStandardProfile] = _build_predefined_standards()
+
+
+def get_standard(standard_id: str) -> Optional[SupplementalStandardProfile]:
+    """Get a supplemental standard profile by ID.
+
+    Args:
+        standard_id: e.g., 'ISO_14971', 'IEC_62304'
+    """
+    return PREDEFINED_STANDARDS.get(standard_id)
+
+
+def get_all_standards() -> dict[str, SupplementalStandardProfile]:
+    """Return all available supplemental standard profiles."""
+    return dict(PREDEFINED_STANDARDS)
+
+def adjust_standard_clause_mapping(
+    standard_id: str,
+    standard_clause: str,
+    old_iso_clause: str,
+    new_iso_clause: str,
+) -> dict:
+    """Adjust a supplemental standard's clause-to-ISO-13485 mapping.
+
+    Used when a user decides that a standard clause should map to a different
+    ISO 13485 clause than the default. For example, moving ISO 14971 Clause 4
+    from ISO 13485 Clause 7.1 to 7.3.3.
+
+    This modifies the in-memory PREDEFINED_STANDARDS dict. The change persists
+    for the duration of the server session.
+
+    Args:
+        standard_id: e.g., 'ISO_14971'
+        standard_clause: The standard's clause to remap, e.g., 'ISO 14971 Clause 4'
+        old_iso_clause: Current ISO 13485 clause (for verification)
+        new_iso_clause: New ISO 13485 clause to map to
+
+    Returns:
+        dict with 'success', 'message', and optionally 'adjusted_link' details
+    """
+    std = PREDEFINED_STANDARDS.get(standard_id)
+    if std is None:
+        return {
+            "success": False,
+            "message": f"Standard '{standard_id}' not found.",
+        }
+
+    # Find the clause link to adjust
+    target_link: Optional[StandardClauseLink] = None
+    for cl in std.clause_links:
+        if cl.standard_clause == standard_clause:
+            target_link = cl
+            break
+
+    if target_link is None:
+        return {
+            "success": False,
+            "message": (
+                f"Clause link '{standard_clause}' not found in {standard_id}. "
+                f"Available: {[cl.standard_clause for cl in std.clause_links]}"
+            ),
+        }
+
+    # Verify the old clause matches (safety check)
+    if old_iso_clause and target_link.iso_13485_clause != old_iso_clause:
+        return {
+            "success": False,
+            "message": (
+                f"Current mapping is '{target_link.iso_13485_clause}', "
+                f"not '{old_iso_clause}' as specified. Aborting to prevent conflicts."
+            ),
+        }
+
+    # Verify new_iso_clause is a valid ISO 13485 clause
+    valid_clauses = list_clauses("ISO_13485")
+    if new_iso_clause not in valid_clauses:
+        return {
+            "success": False,
+            "message": (
+                f"'{new_iso_clause}' is not a valid ISO 13485 clause. "
+                f"Valid clauses: {valid_clauses[:10]}... ({len(valid_clauses)} total)"
+            ),
+        }
+
+    # Apply the adjustment
+    old_value = target_link.iso_13485_clause
+    target_link.iso_13485_clause = new_iso_clause
+
+    # Update primary_iso_clauses if the old clause was listed there
+    if old_value in std.primary_iso_clauses:
+        idx = std.primary_iso_clauses.index(old_value)
+        std.primary_iso_clauses[idx] = new_iso_clause
+
+    return {
+        "success": True,
+        "message": (
+            f"Adjusted {standard_id}: '{standard_clause}' mapping changed "
+            f"from ISO 13485 Clause {old_value} to {new_iso_clause}."
+        ),
+        "adjusted_link": {
+            "standard_id": standard_id,
+            "standard_clause": standard_clause,
+            "old_iso_clause": old_value,
+            "new_iso_clause": new_iso_clause,
+        },
+    }
+
+def get_applicable_standards(
+    product_profile: ProductProfile,
+) -> list[SupplementalStandardProfile]:
+    """Determine which supplemental standards apply based on product profile.
+
+    Logic:
+      1. Universal standards (e.g., ISO 14971) always apply
+      2. User-confirmed standards always apply
+      3. User-rejected standards never apply
+      4. Otherwise: match detection keywords against product characteristics
+
+    Args:
+        product_profile: Product characteristics from multi-source detection
+
+    Returns:
+        List of applicable SupplementalStandardProfile, sorted by category
+    """
+    applicable: list[SupplementalStandardProfile] = []
+
+    for std in PREDEFINED_STANDARDS.values():
+        # User explicit overrides
+        if std.standard_id in product_profile.user_rejected_standards:
+            continue
+        if std.standard_id in product_profile.user_confirmed_standards:
+            applicable.append(std)
+            continue
+
+        # Universal standards always apply
+        if std.is_universal:
+            applicable.append(std)
+            continue
+
+        # Check uploaded files (most reliable signal)
+        for uploaded_file in product_profile.uploaded_standard_files:
+            uploaded_lower = uploaded_file.lower()
+            if std.standard_id.lower().replace("_", " ") in uploaded_lower:
+                applicable.append(std)
+                break
+            # Check by standard number (e.g., "14971" in filename)
+            std_num = std.standard_id.split("_")[-1]
+            if std_num in uploaded_lower:
+                applicable.append(std)
+                break
+        else:
+            # Check detected standard references from documents
+            for ref in product_profile.detected_standard_refs:
+                ref_lower = ref.lower()
+                std_num = std.standard_id.split("_")[-1]
+                if std_num in ref_lower:
+                    applicable.append(std)
+                    break
+            else:
+                # Check product characteristics against keywords
+                _check_product_keywords(std, product_profile, applicable)
+
+    # Sort by category for display consistency
+    applicable.sort(key=lambda s: s.category.value)
+    return applicable
+
+
+def _check_product_keywords(
+    std: SupplementalStandardProfile,
+    profile: ProductProfile,
+    applicable: list[SupplementalStandardProfile],
+) -> None:
+    """Check if product characteristics match standard's trigger keywords."""
+    # Map categories to product profile fields
+    category_checks: dict[StandardCategory, tuple[bool, float, str]] = {
+        StandardCategory.SOFTWARE: profile.has_software,
+        StandardCategory.ELECTRICAL_SAFETY: profile.has_electrical,
+        StandardCategory.EMC: profile.has_electrical,  # EMC applies to all electrical
+        StandardCategory.IMPLANTABLE: profile.is_implantable,
+        StandardCategory.BIOCOMPATIBILITY: profile.has_biological_contact,
+        StandardCategory.CLINICAL: profile.has_clinical_investigation,
+    }
+
+    # Direct category match
+    if std.category in category_checks:
+        value, confidence, _source = category_checks[std.category]
+        if value and confidence > 0.3:
+            applicable.append(std)
+            return
+
+    # Sterilization: check both is_sterile and sterilization_method
+    if std.category == StandardCategory.STERILIZATION:
+        is_sterile, confidence, _source = profile.is_sterile
+        if is_sterile and confidence > 0.3:
+            # Match specific sterilization method to standard
+            method = profile.sterilization_method.lower()
+            if std.standard_id == "ISO_11135" and method in ("eo", "ethylene oxide", ""):
+                applicable.append(std)
+            elif std.standard_id == "ISO_11137" and method in ("radiation", "gamma", "electron beam", ""):
+                applicable.append(std)
+            elif std.standard_id == "ISO_17665" and method in ("steam", "moist heat", "autoclave", ""):
+                applicable.append(std)
+            elif method == "":  # Unknown method, include all sterilization standards
+                applicable.append(std)
+            return
+
+    # Packaging: applies if product is sterile
+    if std.category == StandardCategory.PACKAGING:
+        is_sterile, confidence, _source = profile.is_sterile
+        if is_sterile and confidence > 0.3:
+            applicable.append(std)
+            return
+
+# ============================================================
+# Layer 3: Cross-Examination Question Generator
+# ============================================================
+
+
+def get_regulation(regulation_id: str) -> Optional[RegulationProfile]:
+    """Get a regulation profile by ID (predefined or crawled).
+
+    Args:
+        regulation_id: e.g., "QMSR", "EU_MDR", "TFDA"
+
+    Returns:
+        RegulationProfile or None if not found
+    """
+    return PREDEFINED_REGULATIONS.get(regulation_id)
+
+
+def get_all_regulations() -> dict[str, RegulationProfile]:
+    """Return all available regulation profiles (predefined + loaded crawled)."""
+    return dict(PREDEFINED_REGULATIONS)
+
+
+def get_overlap_analysis(
+    regulation_id: str,
+    iso_clause: str,
+) -> dict:
+    """Analyze how a specific regulation covers an ISO 13485 clause.
+
+    Returns a dict with:
+      - status: full/partial/na/exceeds
+      - is_overlap: True if regulation covers this clause
+      - is_delta: True if regulation has unique requirements for this clause
+      - delta_items: list of UniqueRequirement that relate to this clause
+      - mapping: the ClauseMapping if exists
+      - rationale: why this determination was made
+
+    This is the core function for the HTML cross-reference table.
+    """
+    reg = get_regulation(regulation_id)
+    if reg is None:
+        return {"error": f"Regulation {regulation_id!r} not found"}
+
+    result: dict = {
+        "regulation_id": regulation_id,
+        "regulation_name": reg.name_zh,
+        "iso_clause": iso_clause,
+        "status": "not_mapped",
+        "is_overlap": False,
+        "is_delta": False,
+        "mapping": None,
+        "delta_items": [],
+    }
+
+    # Check if this clause is mapped
+    mapping = reg.iso_mapped.get(iso_clause)
+    if mapping:
+        result["status"] = mapping.status.value
+        result["is_overlap"] = mapping.status in (MappingStatus.FULL, MappingStatus.PARTIAL, MappingStatus.EXCEEDS)
+        result["mapping"] = {
+            "regulation_ref": mapping.regulation_ref,
+            "rationale_en": mapping.rationale_en,
+            "rationale_zh": mapping.rationale_zh,
+            "method": mapping.method.value,
+            "confidence": mapping.confidence,
+            "notes": mapping.notes,
+            "original_text": mapping.original_text,
+            "original_lang": mapping.original_lang,
+            "english_translation": mapping.english_translation,
+            "semantic_note": mapping.semantic_note,
+        }
+
+    # Check if there are delta items that relate to this clause
+    for req in reg.unique_requirements:
+        if iso_clause in req.related_iso_clauses:
+            result["is_delta"] = True
+            result["delta_items"].append({
+                "req_id": req.req_id,
+                "title_en": req.title_en,
+                "title_zh": req.title_zh,
+                "regulation_ref": req.regulation_ref,
+                "audit_impact": req.audit_impact,
+                "audit_question_zh": req.audit_question_zh,
+                "rationale_en": req.rationale_en,
+                "rationale_zh": req.rationale_zh,
+                "method": req.method.value,
+                "confidence": req.confidence,
+                "original_text": req.original_text,
+                "original_lang": req.original_lang,
+                "english_translation": req.english_translation,
+                "semantic_note": req.semantic_note,
+            })
+
+    return result
+
+
+def generate_cross_exam_questions(
+    doc_id: str,
+    doc_title: str,
+    baseline_clause: str,
+    selected_regulations: list[str],
+    doc_content_summary: str = "",
+) -> list[dict]:
+    """Generate tailored cross-examination questions for a specific quality document.
+
+    This is the CORE function that connects the cross-reference table to the
+    cross-examination engine. Given a document and its baseline clause,
+    it produces a prioritized list of questions:
+
+      Priority 1 (HIGHEST): Delta items — country-unique requirements
+                             Most likely to be non-compliant
+      Priority 2: Exceeds items — regulation exceeds ISO 13485
+                  Likely compliant but may have gaps
+      Priority 3: Overlap items — regulation aligns with ISO 13485
+                  Should be compliant, verification questions
+
+    Args:
+        doc_id: Quality document ID (e.g., 'QP-852')
+        doc_title: Document title
+        baseline_clause: ISO 13485 clause this document primarily covers (e.g., '8.5.2')
+        selected_regulations: List of regulation IDs user selected (e.g., ['QMSR', 'EU_MDR', 'TFDA'])
+        doc_content_summary: Optional brief summary of document content for context
+
+    Returns:
+        List of question dicts, sorted by priority (delta first)
+        Each dict:
+        {
+            'priority': 1|2|3,
+            'regulation_id': str,
+            'regulation_name': str,
+            'question_type': 'delta'|'exceeds'|'overlap',
+            'iso_clause': str,
+            'question_zh': str,
+            'question_en': str,
+            'expected_evidence': list[str],
+            'audit_impact': str,
+            'rationale_zh': str,
+            'rationale_en': str,
+            'method': str,
+            'confidence': float,
+        }
+    """
+    questions: list[dict] = []
+
+    for reg_id in selected_regulations:
+        reg = get_regulation(reg_id)
+        if reg is None:
+            continue
+
+        # Priority 1: Delta items (country-unique requirements for this clause)
+        for req in reg.unique_requirements:
+            if baseline_clause in req.related_iso_clauses:
+                questions.append({
+                    "priority": 1,
+                    "regulation_id": reg_id,
+                    "regulation_name": reg.name_zh,
+                    "country": reg.country_name_zh,
+                    "question_type": "delta",
+                    "iso_clause": baseline_clause,
+                    "req_id": req.req_id,
+                    "title_zh": req.title_zh,
+                    "title_en": req.title_en,
+                    "question_zh": req.audit_question_zh,
+                    "question_en": req.audit_question_en,
+                    "expected_evidence": req.expected_evidence,
+                    "audit_impact": req.audit_impact,
+                    "rationale_zh": req.rationale_zh,
+                    "rationale_en": req.rationale_en,
+                    "method": req.method.value,
+                    "confidence": req.confidence,
+                })
+
+        # Priority 2 & 3: Mapped clauses (exceeds vs full overlap)
+        mapping = reg.iso_mapped.get(baseline_clause)
+        if mapping:
+            is_exceeds = mapping.status == MappingStatus.EXCEEDS
+            iso_clause_info = ISO_13485_CHECKLIST.get(baseline_clause, {})
+            questions.append({
+                "priority": 2 if is_exceeds else 3,
+                "regulation_id": reg_id,
+                "regulation_name": reg.name_zh,
+                "country": reg.country_name_zh,
+                "question_type": "exceeds" if is_exceeds else "overlap",
+                "iso_clause": baseline_clause,
+                "req_id": f"{reg_id}-MAP-{baseline_clause}",
+                "title_zh": f"{reg.country_name_zh}法規對應 — {iso_clause_info.get('title', baseline_clause)}",
+                "title_en": f"{reg.country_name_en} regulation mapping — {iso_clause_info.get('title', baseline_clause)}",
+                "question_zh": iso_clause_info.get("audit_question", f"品質文件是否符合 {reg.name_zh} 對 ISO 13485 條款 {baseline_clause} 的要求？"),
+                "question_en": f"Does the quality document comply with {reg.name_en} requirements for ISO 13485 Clause {baseline_clause}?",
+                "expected_evidence": iso_clause_info.get("expected_evidence", []),
+                "audit_impact": iso_clause_info.get("audit_impact", "major"),
+                "rationale_zh": mapping.rationale_zh,
+                "rationale_en": mapping.rationale_en,
+                "method": mapping.method.value,
+                "confidence": mapping.confidence,
+            })
+
+    # Sort: priority 1 (delta) first, then 2 (exceeds), then 3 (overlap)
+    # Within same priority, sort by audit_impact severity
+    impact_order = {"critical": 0, "major": 1, "minor": 2}
+    questions.sort(key=lambda q: (q["priority"], impact_order.get(q["audit_impact"], 9)))
+
+    return questions
+
+
+# ============================================================
+# Crawled Regulation Persistence (JSON save/load)
+# ============================================================
+
+CRAWLED_REGULATIONS_DIR = os.path.join("data", "regulations")
+
+
+def save_crawled_regulation(profile: RegulationProfile) -> str:
+    """Save a crawled regulation profile to JSON file.
+
+    Returns the file path.
+    """
+    os.makedirs(CRAWLED_REGULATIONS_DIR, exist_ok=True)
+    filepath = os.path.join(CRAWLED_REGULATIONS_DIR, f"{profile.regulation_id}.json")
+
+    data = {
+        "regulation_id": profile.regulation_id,
+        "name_en": profile.name_en,
+        "name_zh": profile.name_zh,
+        "country": profile.country,
+        "country_name_en": profile.country_name_en,
+        "country_name_zh": profile.country_name_zh,
+        "source": profile.source,
+        "source_url": profile.source_url,
+        "last_updated": profile.last_updated,
+        "effective_date": profile.effective_date,
+        "iso_mapped": {
+            clause_id: {
+                "iso_clause": m.iso_clause,
+                "status": m.status.value,
+                "regulation_ref": m.regulation_ref,
+                "rationale_en": m.rationale_en,
+                "rationale_zh": m.rationale_zh,
+                "method": m.method.value,
+                "confidence": m.confidence,
+                "notes": m.notes,
+                "original_text": m.original_text,
+                "original_lang": m.original_lang,
+                "english_translation": m.english_translation,
+                "semantic_note": m.semantic_note,
+            }
+            for clause_id, m in profile.iso_mapped.items()
+        },
+        "unique_requirements": [
+            {
+                "req_id": r.req_id,
+                "regulation_ref": r.regulation_ref,
+                "title_en": r.title_en,
+                "title_zh": r.title_zh,
+                "requirement_en": r.requirement_en,
+                "requirement_zh": r.requirement_zh,
+                "related_iso_clauses": r.related_iso_clauses,
+                "audit_impact": r.audit_impact,
+                "audit_question_en": r.audit_question_en,
+                "audit_question_zh": r.audit_question_zh,
+                "expected_evidence": r.expected_evidence,
+                "rationale_en": r.rationale_en,
+                "rationale_zh": r.rationale_zh,
+                "method": r.method.value,
+                "confidence": r.confidence,
+                "original_text": r.original_text,
+                "original_lang": r.original_lang,
+                "english_translation": r.english_translation,
+                "semantic_note": r.semantic_note,
+            }
+            for r in profile.unique_requirements
+        ],
+    }
+
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+    # Also register in memory
+    PREDEFINED_REGULATIONS[profile.regulation_id] = profile
+    return filepath
+
+
+def load_crawled_regulation(filepath: str) -> RegulationProfile:
+    """Load a crawled regulation profile from JSON file.
+
+    Returns RegulationProfile and also registers it in memory.
+    """
+    with open(filepath, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    iso_mapped = {}
+    for clause_id, m in data.get("iso_mapped", {}).items():
+        iso_mapped[clause_id] = ClauseMapping(
+            iso_clause=m["iso_clause"],
+            status=MappingStatus(m["status"]),
+            regulation_ref=m["regulation_ref"],
+            rationale_en=m["rationale_en"],
+            rationale_zh=m["rationale_zh"],
+            method=MappingMethod(m["method"]),
+            confidence=m["confidence"],
+            notes=m.get("notes", ""),
+            original_text=m.get("original_text", ""),
+            original_lang=m.get("original_lang", ""),
+            english_translation=m.get("english_translation", ""),
+            semantic_note=m.get("semantic_note", ""),
+        )
+
+    unique_reqs = []
+    for r in data.get("unique_requirements", []):
+        unique_reqs.append(UniqueRequirement(
+            req_id=r["req_id"],
+            regulation_ref=r["regulation_ref"],
+            title_en=r["title_en"],
+            title_zh=r["title_zh"],
+            requirement_en=r["requirement_en"],
+            requirement_zh=r["requirement_zh"],
+            related_iso_clauses=r["related_iso_clauses"],
+            audit_impact=r["audit_impact"],
+            audit_question_en=r["audit_question_en"],
+            audit_question_zh=r["audit_question_zh"],
+            expected_evidence=r["expected_evidence"],
+            rationale_en=r["rationale_en"],
+            rationale_zh=r["rationale_zh"],
+            method=MappingMethod(r["method"]),
+            confidence=r["confidence"],
+            original_text=r.get("original_text", ""),
+            original_lang=r.get("original_lang", ""),
+            english_translation=r.get("english_translation", ""),
+            semantic_note=r.get("semantic_note", ""),
+        ))
+
+    profile = RegulationProfile(
+        regulation_id=data["regulation_id"],
+        name_en=data["name_en"],
+        name_zh=data["name_zh"],
+        country=data["country"],
+        country_name_en=data["country_name_en"],
+        country_name_zh=data["country_name_zh"],
+        source=data.get("source", "crawled"),
+        source_url=data.get("source_url", ""),
+        last_updated=data.get("last_updated", ""),
+        effective_date=data.get("effective_date", ""),
+        iso_mapped=iso_mapped,
+        unique_requirements=unique_reqs,
+    )
+
+    # Register in memory
+    PREDEFINED_REGULATIONS[profile.regulation_id] = profile
+    return profile
+
+
+def load_all_crawled_regulations() -> int:
+    """Load all crawled regulation profiles from the data directory.
+
+    Returns the number of profiles loaded.
+    """
+    count = 0
+    if not os.path.isdir(CRAWLED_REGULATIONS_DIR):
+        return count
+    for filename in os.listdir(CRAWLED_REGULATIONS_DIR):
+        if filename.endswith(".json"):
+            filepath = os.path.join(CRAWLED_REGULATIONS_DIR, filename)
+            try:
+                load_crawled_regulation(filepath)
+                count += 1
+            except Exception:
+                pass  # Skip malformed files
+    return count
+
+
+def map_unique_to_iso_clause(
+    requirement_text: str,
+    language: str = "auto",
+) -> list[str]:
+    """Determine which ISO 13485 clause(s) a unique requirement relates to.
+
+    For predefined regulations, this is already done manually.
+    For crawled regulations, this function provides keyword-based initial mapping.
+    The LLM can refine this during cross-examination.
+
+    Args:
+        requirement_text: The requirement text to classify
+        language: 'en', 'zh', or 'auto' (detect from content)
+
+    Returns:
+        List of ISO 13485 clause IDs that this requirement most likely relates to
+    """
+    # Keyword-based mapping (fallback for non-LLM classification)
+    keyword_map: dict[str, list[str]] = {
+        # Document/record keywords
+        "document control": ["4.2.3"],
+        "文件管制": ["4.2.3"],
+        "record": ["4.2.4", "4.2.5"],
+        "記錄": ["4.2.4", "4.2.5"],
+        "retention": ["4.2.4", "4.2.5"],
+        "保存": ["4.2.4", "4.2.5"],
+        # Management keywords
+        "management review": ["5.6.1"],
+        "管理審查": ["5.6.1"],
+        "management representative": ["5.5.2"],
+        "管理代表": ["5.5.2"],
+        "responsibility": ["5.5.1"],
+        "責任": ["5.5.1"],
+        # Resource keywords
+        "training": ["6.2"],
+        "訓練": ["6.2"],
+        "personnel": ["6.2"],
+        "人員": ["6.2"],
+        "infrastructure": ["6.3"],
+        "設施": ["6.3"],
+        # Design keywords
+        "design": ["7.3.1"],
+        "設計": ["7.3.1"],
+        "clinical evaluation": ["7.3.6"],
+        "臨床評估": ["7.3.6"],
+        "validation": ["7.3.6"],
+        "確認": ["7.3.6"],
+        "verification": ["7.3.5"],
+        "驗證": ["7.3.5"],
+        # Production keywords
+        "labeling": ["7.5.1", "7.5.8"],
+        "標示": ["7.5.1", "7.5.8"],
+        "標籤": ["7.5.1", "7.5.8"],
+        "traceability": ["7.5.9"],
+        "追溯": ["7.5.9"],
+        "UDI": ["7.5.9.2"],
+        "sterilization": ["7.5.7"],
+        "滅菌": ["7.5.7"],
+        "purchasing": ["7.4.1"],
+        "採購": ["7.4.1"],
+        "supplier": ["7.4.1"],
+        "供應商": ["7.4.1"],
+        # Monitoring/improvement keywords
+        "complaint": ["8.2.2"],
+        "客訴": ["8.2.2"],
+        "抱怨": ["8.2.2"],
+        "adverse event": ["8.2.3"],
+        "不良事件": ["8.2.3"],
+        "vigilance": ["8.2.3"],
+        "警戒": ["8.2.3"],
+        "reporting": ["8.2.3"],
+        "通報": ["8.2.3"],
+        "audit": ["8.2.4"],
+        "稽核": ["8.2.4"],
+        "CAPA": ["8.5.2"],
+        "矯正": ["8.5.2"],
+        "corrective": ["8.5.2"],
+        "preventive": ["8.5.3"],
+        "預防": ["8.5.3"],
+        "nonconform": ["8.3"],
+        "不合格": ["8.3"],
+        "risk management": ["7.1"],
+        "風險管理": ["7.1"],
+        "post-market": ["8.2.1"],
+        "上市後": ["8.2.1"],
+    }
+
+    text_lower = requirement_text.lower()
+    matched_clauses: set[str] = set()
+
+    for keyword, clauses in keyword_map.items():
+        if keyword.lower() in text_lower:
+            matched_clauses.update(clauses)
+
+    if not matched_clauses:
+        # Default: return general QMS clause
+        return ["4.1"]
+
+    # Sort by clause number
+    return sorted(
+        matched_clauses,
         key=lambda x: [int(n) for n in x.split(".")],
     )

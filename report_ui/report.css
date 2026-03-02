@@ -891,3 +891,746 @@ body {
 .empty-state-text {
     font-size: 1rem;
 }
+
+/* ============================================================
+   Tab Navigation
+   ============================================================ */
+
+.tab-nav {
+    display: flex;
+    gap: 0;
+    background: var(--bg-card);
+    border-bottom: 2px solid var(--border);
+    padding: 0 32px;
+    position: sticky;
+    top: 60px;
+    z-index: 98;
+}
+
+.tab-btn {
+    padding: 12px 24px;
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.tab-btn:hover {
+    color: var(--primary);
+    background: var(--primary-bg);
+}
+
+.tab-btn.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* ============================================================
+   Cross-Reference Comparison Table
+   ============================================================ */
+
+.crossref-section {
+    padding: 24px 32px;
+}
+
+/* Country Selector */
+.crossref-controls {
+    margin-bottom: 24px;
+}
+
+.country-selector h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+
+.country-checkboxes {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+}
+
+.country-check-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: all 0.15s;
+    background: var(--bg-card);
+    user-select: none;
+}
+
+.country-check-item:hover {
+    border-color: var(--primary);
+    background: var(--primary-bg);
+}
+
+.country-check-item.checked {
+    border-color: var(--primary);
+    background: var(--primary-light);
+}
+
+.country-check-item input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--primary);
+}
+
+.country-flag {
+    font-size: 1.2rem;
+}
+
+.country-name {
+    font-weight: 500;
+    font-size: 0.85rem;
+}
+
+.country-meta {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+
+/* Cross-Reference Summary Cards */
+.crossref-summary {
+    margin-bottom: 24px;
+}
+
+.crossref-summary-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+}
+
+.crossref-stat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    box-shadow: var(--shadow-sm);
+}
+
+.crossref-stat-card h4 {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.crossref-stat-card .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 3px 0;
+    font-size: 0.82rem;
+}
+
+.crossref-stat-card .stat-bar {
+    height: 8px;
+    background: var(--bg);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 8px;
+}
+
+.crossref-stat-card .stat-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.3s;
+}
+
+/* Cross-Reference Table */
+.crossref-table-wrapper .table-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.crossref-legend {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+}
+
+.legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+}
+
+.dot-full    { background: var(--compliant); }
+.dot-partial { background: var(--partial); }
+.dot-exceeds { background: #2563eb; }
+.dot-na      { background: var(--insufficient); }
+
+.crossref-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+}
+
+.crossref-table thead {
+    background: var(--bg);
+    position: sticky;
+    top: 0;
+}
+
+.crossref-table th {
+    padding: 10px 12px;
+    text-align: center;
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    border-bottom: 2px solid var(--border);
+    white-space: nowrap;
+}
+
+.crossref-table th:first-child {
+    text-align: left;
+    min-width: 200px;
+}
+
+.crossref-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+    text-align: center;
+}
+
+.crossref-table td:first-child {
+    text-align: left;
+}
+
+.crossref-table tbody tr {
+    transition: background-color 0.1s;
+}
+
+.crossref-table tbody tr:hover {
+    background: var(--bg-hover);
+}
+
+/* Status cells in cross-ref table */
+.status-cell {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    min-width: 70px;
+}
+
+.status-cell:hover {
+    transform: scale(1.05);
+    box-shadow: var(--shadow-sm);
+}
+
+.status-full    { background: var(--compliant-bg); color: var(--compliant); }
+.status-partial { background: var(--partial-bg); color: var(--partial); }
+.status-exceeds { background: #dbeafe; color: #2563eb; }
+.status-na      { background: var(--insufficient-bg); color: var(--insufficient); }
+
+/* Unique-to-country marker */
+.status-cell.unique-marker {
+    position: relative;
+}
+
+.status-cell.unique-marker::after {
+    content: "★";
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    font-size: 0.65rem;
+    color: #2563eb;
+}
+
+/* Expandable rationale row */
+.rationale-row {
+    display: none;
+}
+
+.rationale-row.expanded {
+    display: table-row;
+}
+
+.rationale-row td {
+    padding: 12px 16px;
+    background: #f8fafc;
+    border-bottom: 2px solid var(--border);
+}
+
+.rationale-card {
+    display: inline-block;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    margin: 4px;
+    font-size: 0.78rem;
+    vertical-align: top;
+    max-width: 300px;
+    min-width: 220px;
+}
+
+.rationale-card .rc-header {
+    font-weight: 600;
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+}
+
+.rationale-card .rc-field {
+    margin-bottom: 4px;
+}
+
+.rationale-card .rc-label {
+    font-weight: 500;
+    color: var(--text-secondary);
+    font-size: 0.72rem;
+}
+
+.rationale-card .rc-value {
+    color: var(--text);
+}
+
+.rationale-card .rc-confidence {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.confidence-high   { background: var(--compliant-bg); color: var(--compliant); }
+.confidence-medium { background: var(--partial-bg); color: var(--partial); }
+.confidence-low    { background: var(--non-compliant-bg); color: var(--non-compliant); }
+
+/* Method badge */
+.method-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.68rem;
+    font-weight: 500;
+    background: var(--bg);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+}
+
+/* Inter-Country Differences */
+.intercountry-section {
+    margin: 24px 0;
+}
+
+.intercountry-section h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.intercountry-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-left: 4px solid #2563eb;
+    border-radius: var(--radius-sm);
+    padding: 16px;
+    margin-bottom: 12px;
+}
+
+.intercountry-card h4 {
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.intercountry-card .diff-clause-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.diff-clause-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.diff-chip-exceeds { background: #dbeafe; color: #2563eb; }
+.diff-chip-unique  { background: #fce7f3; color: #be185d; }
+
+/* Delta Section */
+.delta-section {
+    margin: 24px 0;
+}
+
+.delta-section h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--non-compliant);
+    margin-bottom: 4px;
+}
+
+.delta-desc {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+}
+
+.delta-country-group {
+    margin-bottom: 20px;
+}
+
+.delta-country-group h4 {
+    font-size: 0.9rem;
+    font-weight: 600;
+    padding: 8px 12px;
+    background: var(--bg);
+    border-radius: var(--radius-sm);
+    margin-bottom: 8px;
+}
+
+.delta-item {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--non-compliant);
+    border-radius: var(--radius-sm);
+    padding: 14px 16px;
+    margin-bottom: 8px;
+    font-size: 0.82rem;
+}
+
+.delta-item .di-title {
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+.delta-item .di-ref {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--primary);
+    margin-bottom: 4px;
+}
+
+.delta-item .di-req {
+    color: var(--text);
+    margin-bottom: 6px;
+    line-height: 1.5;
+}
+
+.delta-item .di-meta {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.delta-item .di-question {
+    background: var(--bg);
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    margin-top: 6px;
+    font-size: 0.78rem;
+    color: var(--text);
+}
+
+/* ============================================================
+   Real-Time Cross-Examination Viewer
+   ============================================================ */
+
+.crossexam-section {
+    padding: 24px 32px;
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 160px);
+}
+
+.crossexam-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.crossexam-info h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.crossexam-info p {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+}
+
+.crossexam-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.crossexam-status {
+    font-size: 0.82rem;
+    font-weight: 500;
+    padding: 4px 12px;
+    border-radius: 20px;
+    background: var(--insufficient-bg);
+    color: var(--insufficient);
+}
+
+.crossexam-status.connected {
+    background: var(--compliant-bg);
+    color: var(--compliant);
+}
+
+.crossexam-status.streaming {
+    background: var(--primary-light);
+    color: var(--primary);
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+.crossexam-connect {
+    margin-bottom: 12px;
+}
+
+/* Message Feed */
+.crossexam-feed {
+    flex: 1;
+    overflow-y: auto;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 12px;
+    min-height: 300px;
+}
+
+.crossexam-empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-muted);
+}
+
+/* Individual messages */
+.exam-message {
+    margin-bottom: 12px;
+    padding: 12px 16px;
+    border-radius: var(--radius);
+    animation: messageSlideIn 0.3s ease-out;
+    max-width: 85%;
+}
+
+@keyframes messageSlideIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.exam-message.msg-analyzer {
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-left: 4px solid var(--primary);
+    margin-right: auto;
+}
+
+.exam-message.msg-verifier {
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+    border-left: 4px solid var(--risk-deadline);
+    margin-left: auto;
+}
+
+.exam-message.msg-human {
+    background: #fce7f3;
+    border: 1px solid #fbcfe8;
+    border-left: 4px solid #be185d;
+    margin: 0 auto;
+    max-width: 70%;
+    text-align: center;
+}
+
+.exam-message.msg-system {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    text-align: center;
+    max-width: 100%;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    padding: 8px 12px;
+}
+
+.msg-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.msg-role {
+    font-weight: 600;
+    font-size: 0.82rem;
+}
+
+.msg-role.role-analyzer { color: var(--primary); }
+.msg-role.role-verifier { color: var(--risk-deadline); }
+.msg-role.role-human    { color: #be185d; }
+
+.msg-regulation {
+    font-size: 0.72rem;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--bg);
+    color: var(--text-secondary);
+}
+
+.msg-time {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+}
+
+.msg-body {
+    font-size: 0.82rem;
+    line-height: 1.6;
+    color: var(--text);
+    white-space: pre-wrap;
+}
+
+.msg-round-divider {
+    text-align: center;
+    padding: 12px 0;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    position: relative;
+}
+
+.msg-round-divider::before,
+.msg-round-divider::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    width: 30%;
+    height: 1px;
+    background: var(--border);
+}
+
+.msg-round-divider::before { left: 0; }
+.msg-round-divider::after  { right: 0; }
+
+/* Human Intervention Bar */
+.crossexam-input {
+    flex-shrink: 0;
+}
+
+.intervention-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+
+.intervention-label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    white-space: nowrap;
+    color: var(--text-secondary);
+}
+
+/* ── Responsive: Tabs ── */
+@media (max-width: 768px) {
+    .tab-nav {
+        padding: 0 16px;
+        overflow-x: auto;
+    }
+
+    .tab-btn {
+        padding: 10px 16px;
+        font-size: 0.8rem;
+    }
+
+    .crossref-section,
+    .crossexam-section {
+        padding: 16px;
+    }
+
+    .country-checkboxes {
+        flex-direction: column;
+    }
+
+    .crossref-summary-cards {
+        grid-template-columns: 1fr;
+    }
+
+    .exam-message {
+        max-width: 95%;
+    }
+}
+
+/* System messages in cross-examination dialog */
+.cross-exam-system-msg {
+    background: #f0f4ff;
+    border-left: 3px solid #3498db;
+    padding: 10px 14px;
+    margin: 8px 0;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: #2c3e50;
+}
+
+.cross-exam-system-msg code {
+    background: #e8ecf1;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.85em;
+}

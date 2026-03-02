@@ -199,6 +199,7 @@ async def run_pipeline_analysis(
     source_command: str = "regulatory_list",
     send_message_fn: Optional[Callable] = None,
     phoenix_trace_ctx: Optional[Callable] = None,
+    selected_regulations: list[str] | None = None,
 ) -> PipelineRunResult:
     """Run the full analysis pipeline with async progress reporting.
 
@@ -215,6 +216,8 @@ async def run_pipeline_analysis(
         source_command: "regulatory_list" or "regulatory_update"
         send_message_fn: Async callback to send Chainlit messages (optional)
         phoenix_trace_ctx: Phoenix trace context manager (optional)
+        selected_regulations: Country regulation IDs for multi-regulation cross-exam
+                               (e.g., ['QMSR', 'EU_MDR', 'TFDA'])
 
     Returns:
         PipelineRunResult with all analysis data
@@ -230,6 +233,7 @@ async def run_pipeline_analysis(
             mode=mode,
             max_tokens_budget=max_tokens_budget,
             standard=standard,
+            selected_regulations=selected_regulations,
         )
 
         # Set up callbacks for progress reporting
