@@ -20,9 +20,77 @@ import json
 import shutil
 import asyncio
 import logging
+import subprocess
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
+
+# ============================================================
+# Dependency Check — Auto-install missing packages on startup
+# ============================================================
+# Ensures all required packages from requirements.txt are installed.
+# pip install is idempotent: already-installed packages are skipped
+# instantly (~1-2s total overhead when everything is up to date).
+# This catches cases where users upgrade via git pull but forget
+# to re-run pip install, or when start.bat's check was incomplete.
+# ============================================================
+
+
+def _check_and_install_dependencies():
+    """Check and auto-install missing dependencies from requirements.txt."""
+    project_root = Path(__file__).parent.parent.parent
+    requirements_file = project_root / "requirements.txt"
+
+    if not requirements_file.exists():
+        return
+
+    # Quick check: test critical packages that are most commonly missing
+    critical_packages = {
+        "cv2": "opencv-python",
+        "litellm": "litellm",
+        "chainlit": "chainlit",
+        "markitdown": "markitdown",
+        "pdf2image": "pdf2image",
+        "pypdf": "pypdf",
+        "PIL": "Pillow",
+        "numpy": "numpy",
+        "ddgs": "ddgs",
+    }
+
+    missing = []
+    for import_name, pip_name in critical_packages.items():
+        try:
+            __import__(import_name)
+        except ImportError:
+            missing.append(pip_name)
+
+    if missing:
+        print(f"[INFO] Missing packages detected: {', '.join(missing)}")
+        print("[INFO] Auto-installing from requirements.txt...")
+        try:
+            subprocess.check_call(
+                [
+                    sys.executable,
+                    "-m",
+                    "pip",
+                    "install",
+                    "-r",
+                    str(requirements_file),
+                    "--quiet",
+                    "--disable-pip-version-check",
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+            )
+            print("[OK] Dependencies installed successfully.")
+        except subprocess.CalledProcessError as e:
+            print(f"[WARN] Some packages failed to install: {e}")
+            print("[WARN] Please run manually: pip install -r requirements.txt")
+        except Exception as e:
+            print(f"[WARN] Auto-install error: {e}")
+
+
+_check_and_install_dependencies()
 
 # ============================================================
 # Arize Phoenix - LLM Observability (v3.5.1)

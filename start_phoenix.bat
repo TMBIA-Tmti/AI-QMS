@@ -72,12 +72,22 @@ exit /b 1
 echo [OK] Python: %QMS_PYTHON%
 echo.
 
+:: Auto-update: always sync all packages from requirements.txt
+echo [INFO] Checking dependencies...
+"%QMS_PYTHON%" -m pip install -r "%PROJECT_DIR%requirements.txt" --quiet --disable-pip-version-check 2>nul
+if errorlevel 1 (
+    echo [WARN] Some packages failed to install. App will continue with available features.
+) else (
+    echo [OK] All dependencies up to date.
+)
+echo.
+
 :: Check if Phoenix is installed
 "%QMS_PYTHON%" -c "import phoenix; print(f'[OK] Phoenix version: {phoenix.__version__}')" 2>nul
 if errorlevel 1 (
-    echo [ERROR] Arize Phoenix not installed!
+    echo [ERROR] Arize Phoenix failed to install.
     echo.
-    echo Please install it with:
+    echo Please install manually:
     echo   conda activate QMS
     echo   pip install arize-phoenix arize-phoenix-otel openinference-instrumentation-litellm
     echo.
