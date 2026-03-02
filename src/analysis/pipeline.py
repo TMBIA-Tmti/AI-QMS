@@ -627,7 +627,7 @@ class AnalysisPipeline:
                 started_at=time.time(),
             )
             try:
-                from src.storage.markdown_storage import MarkdownStoreService
+                from src.services.markdown_store_service import MarkdownStoreService
 
                 service = MarkdownStoreService()
                 doc_result = service.get_document(row.doc_id)

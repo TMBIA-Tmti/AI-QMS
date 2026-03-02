@@ -1,72 +1,4 @@
 {
-  "_commands.cmd.audit": [
-    "rekod audit",
-    "sejarah perubahan",
-    "audit"
-  ],
-  "_commands.cmd.delete_database": [
-    "padam pangkalan data",
-    "padam semua"
-  ],
-  "_commands.cmd.document_list": [
-    "senarai dokumen"
-  ],
-  "_commands.cmd.download_allrecords": [
-    "muat turun semua rekod",
-    "eksport semua rekod"
-  ],
-  "_commands.cmd.download_audit": [
-    "muat turun audit",
-    "eksport audit"
-  ],
-  "_commands.cmd.download_doclist": [
-    "muat turun senarai dokumen",
-    "eksport senarai dokumen"
-  ],
-  "_commands.cmd.download_file": [
-    "muat turun",
-    "dapatkan fail"
-  ],
-  "_commands.cmd.download_regulatory": [
-    "muat turun peraturan",
-    "eksport peraturan"
-  ],
-  "_commands.cmd.help": [
-    "bantuan"
-  ],
-  "_commands.cmd.list": [
-    "senarai",
-    "semua dokumen"
-  ],
-  "_commands.cmd.obsolete": [
-    "usang",
-    "tarik balik"
-  ],
-  "_commands.cmd.regulatory": [
-    "senarai peraturan",
-    "peraturan",
-    "piawaian"
-  ],
-  "_commands.cmd.regulatory_update": [
-    "regulatory update",
-    "update regulatory"
-  ],
-  "_commands.cmd.search": [
-    "cari",
-    "carian"
-  ],
-  "_commands.cmd.status": [
-    "status"
-  ],
-  "_commands.cmd.test_connection": [
-    "uji sambungan",
-    "tes sambungan"
-  ],
-  "_commands.cmd.web": [
-    "/web",
-    "carian web",
-    "cari dalam talian"
-  ],
   "allrecords.error": "Eira：Tidak dapat membaca senarai: {error}",
   "allrecords.export_excel": "Eira：📋 Laporan Excel semua rekod telah dijana ({count} dokumen).",
   "allrecords.export_hint": "Eira：📋 Format yang disokong:\n- 'muat turun semua rekod word'\n- 'muat turun semua rekod excel'",
@@ -271,11 +203,79 @@
   "welcome.doc_control.formats": "Format yang disokong: PDF, Word, Excel, PowerPoint, Imej, Fail teks",
   "welcome.doc_control.greeting": "Hai, saya Eira. Selamat datang ke sistem kawalan dokumen. Eira boleh membantu anda dalam muat naik dokumen, pemprosesan OCR, pengurusan versi, pengesanan tandatangan dan pengurusan jejak audit.",
   "welcome.doc_control.instructions": "**Cara menggunakan:**\n• **Muat naik fail** → Seret dan lepas atau klik muat naik dalam chat\n• **Senarai dokumen** → Versi rasmi semasa (dengan butang eksport Word/Excel)\n• **Senarai** → Semua rekod (termasuk kemas kini, usang) (dengan butang eksport Word/Excel)\n• **Cari kata kunci** → Cari kandungan dokumen\n• **Muat turun id_dokumen** → Muat turun fail asal\n• **Usang id_dokumen** → Tandakan dokumen usang\n• **Jejak audit** → Lihat rekod operasi (dengan butang eksport Word/Excel)\n• **Senarai peraturan** → Standard rujukan (dengan butang eksport Word/Excel)\n• **Kemas kini peraturan** → Imbas laman web peraturan global (dengan butang eksport Word/Excel)\n• **Muat turun kemas kini peraturan word/excel** → Eksport laporan\n• **Padam pangkalan data** → Padam semua dokumen (pengesahan diperlukan)\n• **Status** → Papar status sistem\n• **Bantuan** → Tunjukkan panduan penuh",
-  "welcome.doc_control.title": "**Eira (TMBIA-Tmti) Kawalan Dokumen**",
+  "welcome.doc_control.title": "📄 **TMBIA-Tmti AI-QMS Kawalan Dokumen (Eira)**",
   "welcome.main.greeting": "Hai, saya Eira. Selamat datang ke sistem pengurusan kualiti berasaskan AI. Eira boleh membantu anda dalam semakan dokumen kualiti, penilaian pematuhan regulatori peranti perubatan, serta penyelidikan dan analisis standard regulatori.",
   "welcome.main.instructions": "**Sub-Sistem:**\n• 📄 **Kawalan Dokumen** — Muat naik, OCR, pengurusan versi, pengesanan tandatangan, jejak audit, eksport\n• 🔍 **Pengurusan Audit** — CAPA, audit dalaman, pengurusan ketidakpatuhan (Phase 2 dirancang)\n\n**Umum:** Status · /web carian · Bantuan · Tanya secara langsung",
   "welcome.main.switch_hint": "💡 Beralih ke profil 'Kawalan Dokumen' untuk memuat naik fail untuk pemprosesan OCR",
-  "welcome.main.title": "**Eira (TMBIA-Tmti)**",
+  "welcome.main.title": "🏥 **TMBIA-Tmti AI-QMS Pembantu Regulatori (Eira)**",
   "web.fetching_content": "Eira: 📄 Mengambil kandungan penuh halaman...",
-  "web.fetched_content_count": "📄 Kandungan penuh diambil dari {count} halaman"
+  "web.fetched_content_count": "📄 Kandungan penuh diambil dari {count} halaman",
+  "_commands.cmd.audit": [
+    "rekod audit",
+    "sejarah perubahan",
+    "audit"
+  ],
+  "_commands.cmd.delete_database": [
+    "padam pangkalan data",
+    "padam semua"
+  ],
+  "_commands.cmd.document_list": [
+    "senarai dokumen"
+  ],
+  "_commands.cmd.download_allrecords": [
+    "muat turun semua rekod",
+    "eksport semua rekod"
+  ],
+  "_commands.cmd.download_audit": [
+    "muat turun audit",
+    "eksport audit"
+  ],
+  "_commands.cmd.download_doclist": [
+    "muat turun senarai dokumen",
+    "eksport senarai dokumen"
+  ],
+  "_commands.cmd.download_file": [
+    "muat turun",
+    "dapatkan fail"
+  ],
+  "_commands.cmd.download_regulatory": [
+    "muat turun peraturan",
+    "eksport peraturan"
+  ],
+  "_commands.cmd.help": [
+    "bantuan"
+  ],
+  "_commands.cmd.list": [
+    "senarai",
+    "semua dokumen"
+  ],
+  "_commands.cmd.obsolete": [
+    "usang",
+    "tarik balik"
+  ],
+  "_commands.cmd.regulatory": [
+    "senarai peraturan",
+    "peraturan",
+    "piawaian"
+  ],
+  "_commands.cmd.regulatory_update": [
+    "regulatory update",
+    "update regulatory"
+  ],
+  "_commands.cmd.search": [
+    "cari",
+    "carian"
+  ],
+  "_commands.cmd.status": [
+    "status"
+  ],
+  "_commands.cmd.test_connection": [
+    "uji sambungan",
+    "tes sambungan"
+  ],
+  "_commands.cmd.web": [
+    "/web",
+    "carian web",
+    "cari dalam talian"
+  ]
 }

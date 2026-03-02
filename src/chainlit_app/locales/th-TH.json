@@ -1,71 +1,4 @@
 {
-  "_commands.cmd.audit": [
-    "บันทึกการตรวจสอบ",
-    "ประวัติการเปลี่ยนแปลง",
-    "การตรวจสอบ"
-  ],
-  "_commands.cmd.delete_database": [
-    "ลบฐานข้อมูล",
-    "ลบทั้งหมด"
-  ],
-  "_commands.cmd.document_list": [
-    "รายการเอกสาร"
-  ],
-  "_commands.cmd.download_allrecords": [
-    "ดาวน์โหลดบันทึกทั้งหมด",
-    "ส่งออกบันทึกทั้งหมด"
-  ],
-  "_commands.cmd.download_audit": [
-    "ดาวน์โหลดการตรวจสอบ",
-    "ส่งออกการตรวจสอบ"
-  ],
-  "_commands.cmd.download_doclist": [
-    "ดาวน์โหลดรายการเอกสาร",
-    "ส่งออกรายการเอกสาร"
-  ],
-  "_commands.cmd.download_file": [
-    "ดาวน์โหลด",
-    "รับไฟล์"
-  ],
-  "_commands.cmd.download_regulatory": [
-    "ดาวน์โหลดกฎระเบียบ",
-    "ส่งออกกฎระเบียบ"
-  ],
-  "_commands.cmd.help": [
-    "ช่วยเหลือ",
-    "ความช่วยเหลือ"
-  ],
-  "_commands.cmd.list": [
-    "รายการ",
-    "เอกสารทั้งหมด"
-  ],
-  "_commands.cmd.obsolete": [
-    "ยกเลิก",
-    "เพิกถอน"
-  ],
-  "_commands.cmd.regulatory": [
-    "รายการกฎระเบียบ",
-    "กฎระเบียบ",
-    "มาตรฐาน"
-  ],
-  "_commands.cmd.regulatory_update": [
-    "regulatory update",
-    "update regulatory"
-  ],
-  "_commands.cmd.search": [
-    "ค้นหา"
-  ],
-  "_commands.cmd.status": [
-    "สถานะ"
-  ],
-  "_commands.cmd.test_connection": [
-    "ทดสอบการเชื่อมต่อ"
-  ],
-  "_commands.cmd.web": [
-    "/web",
-    "ค้นหาเว็บ",
-    "ค้นหาออนไลน์"
-  ],
   "allrecords.error": "Eira：ไม่สามารถอ่านรายการ: {error}",
   "allrecords.export_excel": "Eira：📋 สร้างรายงาน Excel บันทึกทั้งหมดแล้ว ({count} ฉบับ)",
   "allrecords.export_hint": "Eira：📋 รูปแบบที่รองรับ:\n- 'ดาวน์โหลดบันทึกทั้งหมด word'\n- 'ดาวน์โหลดบันทึกทั้งหมด excel'",
@@ -270,11 +203,78 @@
   "welcome.doc_control.formats": "รูปแบบที่รองรับ: PDF, Word, Excel, PowerPoint, รูปภาพ, ไฟล์ข้อความ",
   "welcome.doc_control.greeting": "สวัสดีค่ะ ดิฉัน Eira ยินดีต้อนรับสู่ระบบควบคุมเอกสาร Eira สามารถช่วยคุณในการอัปโหลดเอกสาร การประมวลผล OCR การจัดการเวอร์ชัน การตรวจจับลายเซ็น และการจัดการเส้นทางการตรวจสอบ",
   "welcome.doc_control.instructions": "**วิธีใช้:**\n• **อัปโหลดไฟล์** → ลากและวางหรือคลิกอัปโหลดในแชท\n• **รายการเอกสาร** → เวอร์ชันทางการปัจจุบัน (พร้อมปุ่มส่งออก Word/Excel)\n• **รายการ** → บันทึกทั้งหมด (รวมอัปเดต, ล้าสมัย) (พร้อมปุ่มส่งออก Word/Excel)\n• **ค้นหา คำสำคัญ** → ค้นหาเนื้อหาเอกสาร\n• **ดาวน์โหลด รหัสเอกสาร** → ดาวน์โหลดไฟล์ต้นฉบับ\n• **ล้าสมัย รหัสเอกสาร** → ทำให้เอกสารล้าสมัย\n• **บันทึกการตรวจสอบ** → ดูบันทึกการดำเนินงาน\n• **ดาวน์โหลด ตรวจสอบ word/excel** → ส่งออกบันทึก\n• **รายการข้อกำหนด** → มาตรฐานอ้างอิง (พร้อมปุ่มส่งออก Word/Excel)\n• **อัปเดตข้อกำหนด** → สแกนเว็บไซต์กฎระเบียบทั่วโลก (พร้อมปุ่มส่งออก Word/Excel)\n• **ดาวน์โหลด อัปเดตข้อกำหนด word/excel** → ส่งออกรายงาน\n• **ดาวน์โหลด ข้อกำหนด word/excel** → ส่งออกมาตรฐาน\n• **ลบฐานข้อมูล** → ลบเอกสารทั้งหมด (ต้องยืนยัน)\n• **/web คำค้นหา** → ค้นหาเว็บ (เช่น /web เวอร์ชันล่าสุด ISO 13485)\n• **สถานะ** → แสดงสถานะระบบ\n• **ช่วยเหลือ** → แสดงคู่มือฉบับเต็ม",
-  "welcome.doc_control.title": "**Eira (TMBIA-Tmti) ระบบควบคุมเอกสาร**",
+  "welcome.doc_control.title": "📄 **TMBIA-Tmti AI-QMS ระบบควบคุมเอกสาร (Eira)**",
   "welcome.main.greeting": "สวัสดีค่ะ ดิฉัน Eira ยินดีต้อนรับสู่ระบบบริหารคุณภาพที่ขับเคลื่อนด้วย AI Eira สามารถช่วยคุณในการตรวจสอบเอกสารคุณภาพ การประเมินความสอดคล้องของกฎระเบียบเครื่องมือแพทย์ และการค้นคว้าวิเคราะห์มาตรฐานกฎระเบียบต่างๆ",
   "welcome.main.instructions": "**ระบบย่อย:**\n• 📄 **การควบคุมเอกสาร** — อัปโหลด, OCR, การจัดการเวอร์ชัน, ตรวจจับลายเซ็น, บันทึกการตรวจสอบ, ส่งออก\n• 🔍 **การจัดการตรวจสอบ** — CAPA, การตรวจสอบภายใน, การจัดการความไม่สอดคล้อง (Phase 2 วางแผน)\n\n**ทั่วไป:** สถานะ · /web ค้นหา · ช่วยเหลือ · ถามโดยตรง",
   "welcome.main.switch_hint": "💡 เปลี่ยนไปที่โปรไฟล์ 'การควบคุมเอกสาร' เพื่ออัปโหลดไฟล์สำหรับการประมวลผล OCR",
-  "welcome.main.title": "**Eira (TMBIA-Tmti)**",
+  "welcome.main.title": "🏥 **TMBIA-Tmti AI-QMS ผู้ช่วยด้านกฎระเบียบ (Eira)**",
   "web.fetching_content": "Eira: 📄 กำลังดึงเนื้อหาเต็มของหน้าเว็บ...",
-  "web.fetched_content_count": "📄 ดึงเนื้อหาเต็มจาก {count} หน้าแล้ว"
+  "web.fetched_content_count": "📄 ดึงเนื้อหาเต็มจาก {count} หน้าแล้ว",
+  "_commands.cmd.audit": [
+    "บันทึกการตรวจสอบ",
+    "ประวัติการเปลี่ยนแปลง",
+    "การตรวจสอบ"
+  ],
+  "_commands.cmd.delete_database": [
+    "ลบฐานข้อมูล",
+    "ลบทั้งหมด"
+  ],
+  "_commands.cmd.document_list": [
+    "รายการเอกสาร"
+  ],
+  "_commands.cmd.download_allrecords": [
+    "ดาวน์โหลดบันทึกทั้งหมด",
+    "ส่งออกบันทึกทั้งหมด"
+  ],
+  "_commands.cmd.download_audit": [
+    "ดาวน์โหลดการตรวจสอบ",
+    "ส่งออกการตรวจสอบ"
+  ],
+  "_commands.cmd.download_doclist": [
+    "ดาวน์โหลดรายการเอกสาร",
+    "ส่งออกรายการเอกสาร"
+  ],
+  "_commands.cmd.download_file": [
+    "ดาวน์โหลด",
+    "รับไฟล์"
+  ],
+  "_commands.cmd.download_regulatory": [
+    "ดาวน์โหลดกฎระเบียบ",
+    "ส่งออกกฎระเบียบ"
+  ],
+  "_commands.cmd.help": [
+    "ช่วยเหลือ",
+    "ความช่วยเหลือ"
+  ],
+  "_commands.cmd.list": [
+    "รายการ",
+    "เอกสารทั้งหมด"
+  ],
+  "_commands.cmd.obsolete": [
+    "ยกเลิก",
+    "เพิกถอน"
+  ],
+  "_commands.cmd.regulatory": [
+    "รายการกฎระเบียบ",
+    "กฎระเบียบ",
+    "มาตรฐาน"
+  ],
+  "_commands.cmd.regulatory_update": [
+    "regulatory update",
+    "update regulatory"
+  ],
+  "_commands.cmd.search": [
+    "ค้นหา"
+  ],
+  "_commands.cmd.status": [
+    "สถานะ"
+  ],
+  "_commands.cmd.test_connection": [
+    "ทดสอบการเชื่อมต่อ"
+  ],
+  "_commands.cmd.web": [
+    "/web",
+    "ค้นหาเว็บ",
+    "ค้นหาออนไลน์"
+  ]
 }

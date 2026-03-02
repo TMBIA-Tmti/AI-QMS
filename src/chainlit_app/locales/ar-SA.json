@@ -1,73 +1,4 @@
 {
-  "_commands.cmd.audit": [
-    "سجل التدقيق",
-    "سجل التغييرات",
-    "تدقيق"
-  ],
-  "_commands.cmd.delete_database": [
-    "حذف قاعدة البيانات",
-    "حذف الكل"
-  ],
-  "_commands.cmd.document_list": [
-    "قائمة المستندات",
-    "قائمة الوثائق"
-  ],
-  "_commands.cmd.download_allrecords": [
-    "تحميل السجلات",
-    "تصدير السجلات",
-    "تحميل جميع السجلات"
-  ],
-  "_commands.cmd.download_audit": [
-    "تحميل التدقيق",
-    "تصدير التدقيق"
-  ],
-  "_commands.cmd.download_doclist": [
-    "تحميل قائمة المستندات",
-    "تصدير قائمة المستندات"
-  ],
-  "_commands.cmd.download_file": [
-    "تحميل",
-    "الحصول على ملف"
-  ],
-  "_commands.cmd.download_regulatory": [
-    "تحميل اللوائح",
-    "تصدير اللوائح"
-  ],
-  "_commands.cmd.help": [
-    "مساعدة"
-  ],
-  "_commands.cmd.list": [
-    "قائمة",
-    "جميع المستندات"
-  ],
-  "_commands.cmd.obsolete": [
-    "إلغاء",
-    "سحب"
-  ],
-  "_commands.cmd.regulatory": [
-    "قائمة اللوائح",
-    "اللوائح",
-    "المعايير"
-  ],
-  "_commands.cmd.regulatory_update": [
-    "regulatory update",
-    "update regulatory"
-  ],
-  "_commands.cmd.search": [
-    "بحث"
-  ],
-  "_commands.cmd.status": [
-    "الحالة",
-    "حالة"
-  ],
-  "_commands.cmd.test_connection": [
-    "اختبار الاتصال"
-  ],
-  "_commands.cmd.web": [
-    "/web",
-    "بحث ويب",
-    "بحث على الإنترنت"
-  ],
   "allrecords.error": "Eira：لا يمكن قراءة القائمة: {error}",
   "allrecords.export_excel": "Eira：📋 تم إنشاء تقرير Excel لجميع السجلات ({count} مستند).",
   "allrecords.export_hint": "Eira：📋 الصيغ المتاحة:\n- 'تحميل السجلات word'\n- 'تحميل السجلات excel'",
@@ -272,11 +203,80 @@
   "welcome.doc_control.formats": "التنسيقات المدعومة: PDF، Word، Excel، PowerPoint، صور، ملفات نصية",
   "welcome.doc_control.greeting": "مرحباً، أنا Eira. أهلاً بكم في نظام التحكم في الوثائق. يمكن لـ Eira مساعدتكم في رفع الوثائق ومعالجة OCR وإدارة الإصدارات وكشف التوقيعات وإدارة مسارات التدقيق.",
   "welcome.doc_control.instructions": "**كيفية الاستخدام:**\n• **رفع الملفات** → اسحب وأفلت أو انقر على رفع في الدردشة\n• **قائمة المستندات** → الإصدارات الرسمية الحالية (مع أزرار تصدير Word/Excel)\n• **قائمة** → جميع السجلات (تشمل التحديثات والمتقادمة)\n• **بحث كلمة مفتاحية** → البحث في محتوى المستندات\n• **تنزيل معرف_المستند** → تنزيل الملف الأصلي\n• **متقادم معرف_المستند** → جعل المستند متقادماً\n• **سجل التدقيق** → عرض سجلات العمليات (مع أزرار تصدير Word/Excel)\n• **تنزيل تدقيق word/excel** → تصدير السجلات\n• **قائمة اللوائح** → المعايير المرجعية (مع أزرار تصدير Word/Excel)\n• **تحديث اللوائح** → مسح المواقع التنظيمية العالمية (مع أزرار تصدير Word/Excel)\n• **تنزيل تحديث اللوائح word/excel** → تصدير تقرير\n• **تنزيل لوائح word/excel** → تصدير المعايير\n• **حذف قاعدة البيانات** → حذف جميع المستندات (يتطلب تأكيد)\n• **/web كلمة مفتاحية** → بحث على الويب (مثال: /web أحدث إصدار ISO 13485)\n• **الحالة** → عرض حالة النظام\n• **مساعدة** → عرض الدليل الكامل",
-  "welcome.doc_control.title": "**Eira (TMBIA-Tmti) التحكم في الوثائق**",
+  "welcome.doc_control.title": "📄 **TMBIA-Tmti AI-QMS التحكم في الوثائق (Eira)**",
   "welcome.main.greeting": "مرحباً، أنا Eira. أهلاً بكم في نظام إدارة الجودة المدعوم بالذكاء الاصطناعي. يمكن لـ Eira مساعدتكم في مراجعة وثائق الجودة وتقييم الامتثال التنظيمي للأجهزة الطبية والبحث والتحليل في المعايير التنظيمية.",
   "welcome.main.instructions": "**الأنظمة الفرعية:**\n• 📄 **التحكم بالمستندات** — الرفع، OCR، إدارة الإصدارات، كشف التوقيع، سجل التدقيق، التصدير\n• 🔍 **إدارة التدقيق** — CAPA، التدقيق الداخلي، إدارة عدم المطابقة (Phase 2 مخطط)\n\n**عام:** الحالة · /web بحث · مساعدة · اسأل مباشرة",
   "welcome.main.switch_hint": "💡 التبديل إلى ملف 'التحكم بالمستندات' لرفع الملفات لمعالجة OCR",
-  "welcome.main.title": "**Eira (TMBIA-Tmti)**",
+  "welcome.main.title": "🏥 **TMBIA-Tmti AI-QMS مساعد التنظيم (Eira)**",
   "web.fetching_content": "Eira: 📄 جارٍ جلب محتوى الصفحة الكامل...",
-  "web.fetched_content_count": "📄 تم جلب المحتوى الكامل من {count} صفحات"
+  "web.fetched_content_count": "📄 تم جلب المحتوى الكامل من {count} صفحات",
+  "_commands.cmd.audit": [
+    "سجل التدقيق",
+    "سجل التغييرات",
+    "تدقيق"
+  ],
+  "_commands.cmd.delete_database": [
+    "حذف قاعدة البيانات",
+    "حذف الكل"
+  ],
+  "_commands.cmd.document_list": [
+    "قائمة المستندات",
+    "قائمة الوثائق"
+  ],
+  "_commands.cmd.download_allrecords": [
+    "تحميل السجلات",
+    "تصدير السجلات",
+    "تحميل جميع السجلات"
+  ],
+  "_commands.cmd.download_audit": [
+    "تحميل التدقيق",
+    "تصدير التدقيق"
+  ],
+  "_commands.cmd.download_doclist": [
+    "تحميل قائمة المستندات",
+    "تصدير قائمة المستندات"
+  ],
+  "_commands.cmd.download_file": [
+    "تحميل",
+    "الحصول على ملف"
+  ],
+  "_commands.cmd.download_regulatory": [
+    "تحميل اللوائح",
+    "تصدير اللوائح"
+  ],
+  "_commands.cmd.help": [
+    "مساعدة"
+  ],
+  "_commands.cmd.list": [
+    "قائمة",
+    "جميع المستندات"
+  ],
+  "_commands.cmd.obsolete": [
+    "إلغاء",
+    "سحب"
+  ],
+  "_commands.cmd.regulatory": [
+    "قائمة اللوائح",
+    "اللوائح",
+    "المعايير"
+  ],
+  "_commands.cmd.regulatory_update": [
+    "regulatory update",
+    "update regulatory"
+  ],
+  "_commands.cmd.search": [
+    "بحث"
+  ],
+  "_commands.cmd.status": [
+    "الحالة",
+    "حالة"
+  ],
+  "_commands.cmd.test_connection": [
+    "اختبار الاتصال"
+  ],
+  "_commands.cmd.web": [
+    "/web",
+    "بحث ويب",
+    "بحث على الإنترنت"
+  ]
 }

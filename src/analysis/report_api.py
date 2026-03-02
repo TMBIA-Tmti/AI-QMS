@@ -440,24 +440,92 @@ async def export_report(run_id: str, fmt: str):
 
     try:
         if fmt == "word":
-            from src.utils.regulatory_export import export_regulatory_list_to_word
+            from docx import Document
+            from docx.shared import Pt, RGBColor
+            from docx.enum.text import WD_ALIGN_PARAGRAPH
 
             filepath = export_dir / f"compliance_report_{run_id}.docx"
-            # Build assessment text from flat rows
             assessment = _build_export_assessment(flat_rows, summary)
-            export_regulatory_list_to_word(
-                assessment=assessment,
-                output_path=str(filepath),
-            )
+
+            doc = Document()
+            title = doc.add_heading("AI-QMS 合規性分析報告", level=1)
+            title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+            from datetime import datetime
+            meta = doc.add_paragraph()
+            meta.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+            run = meta.add_run(f"分析 ID: {run_id}  |  匯出時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            run.font.size = Pt(9)
+            run.font.color.rgb = RGBColor(128, 128, 128)
+
+            # Summary section
+            doc.add_heading("摘要", level=2)
+            doc.add_paragraph(assessment)
+
+            # Detail table
+            doc.add_heading("詳細分析結果", level=2)
+            if flat_rows:
+                headers = ["條款", "文件", "稽核影響", "判定", "風險", "差距", "RA 標記"]
+                tbl = doc.add_table(rows=1 + len(flat_rows), cols=len(headers))
+                tbl.style = "Table Grid"
+                for i, h in enumerate(headers):
+                    tbl.rows[0].cells[i].text = h
+                for ri, row in enumerate(flat_rows, 1):
+                    tbl.rows[ri].cells[0].text = f"{row.get('clause_id', '')} {row.get('clause_title', '')}"
+                    tbl.rows[ri].cells[1].text = f"{row.get('doc_id', '')}"
+                    tbl.rows[ri].cells[2].text = row.get('audit_impact', '')
+                    tbl.rows[ri].cells[3].text = f"{row.get('verdict_icon', '')} {row.get('verdict_label', '')}"
+                    tbl.rows[ri].cells[4].text = f"{row.get('risk_icon', '')} {row.get('risk_label', '')}"
+                    tbl.rows[ri].cells[5].text = row.get('gap_severity', '') or ''
+                    tbl.rows[ri].cells[6].text = '⚠️' if row.get('flagged_for_ra') else ''
+
+            doc.save(str(filepath))
+
         else:  # excel
-            from src.utils.regulatory_export import export_regulatory_list_to_excel
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, Alignment, PatternFill
 
             filepath = export_dir / f"compliance_report_{run_id}.xlsx"
             assessment = _build_export_assessment(flat_rows, summary)
-            export_regulatory_list_to_excel(
-                assessment=assessment,
-                output_path=str(filepath),
-            )
+
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "合規分析"
+
+            # Headers
+            headers = ["條款 ID", "條款名稱", "文件 ID", "文件標題", "稽核影響",
+                       "稽核問題", "判定", "風險等級", "差距嚴重度",
+                       "證據 (找到/總計)", "RA 標記", "RA 覆寫", "RA 備註"]
+            header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+            header_font = Font(bold=True, color="FFFFFF", size=10)
+            for ci, h in enumerate(headers, 1):
+                cell = ws.cell(row=1, column=ci, value=h)
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.alignment = Alignment(horizontal="center")
+
+            for ri, row in enumerate(flat_rows, 2):
+                ws.cell(row=ri, column=1, value=row.get('clause_id', ''))
+                ws.cell(row=ri, column=2, value=row.get('clause_title', ''))
+                ws.cell(row=ri, column=3, value=row.get('doc_id', ''))
+                ws.cell(row=ri, column=4, value=row.get('doc_title', ''))
+                ws.cell(row=ri, column=5, value=row.get('audit_impact', ''))
+                ws.cell(row=ri, column=6, value=row.get('audit_question', ''))
+                ws.cell(row=ri, column=7, value=f"{row.get('verdict_icon', '')} {row.get('verdict_label', '')}")
+                ws.cell(row=ri, column=8, value=f"{row.get('risk_icon', '')} {row.get('risk_label', '')}")
+                ws.cell(row=ri, column=9, value=row.get('gap_severity', '') or '')
+                ws.cell(row=ri, column=10, value=f"{row.get('evidence_found', 0)}/{row.get('evidence_total', 0)}")
+                ws.cell(row=ri, column=11, value='Y' if row.get('flagged_for_ra') else '')
+                override = row.get('ra_override')
+                ws.cell(row=ri, column=12, value=override.get('reason', '') if isinstance(override, dict) else '')
+                ws.cell(row=ri, column=13, value=row.get('ra_notes', '') or '')
+
+            # Auto-width
+            for col in ws.columns:
+                max_len = max((len(str(c.value or '')) for c in col), default=8)
+                ws.column_dimensions[col[0].column_letter].width = min(max_len + 2, 50)
+
+            wb.save(str(filepath))
     except ImportError:
         raise HTTPException(
             status_code=500,

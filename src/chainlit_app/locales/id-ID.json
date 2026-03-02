@@ -1,72 +1,4 @@
 {
-  "_commands.cmd.audit": [
-    "catatan audit",
-    "riwayat perubahan",
-    "audit"
-  ],
-  "_commands.cmd.delete_database": [
-    "hapus database",
-    "hapus semua"
-  ],
-  "_commands.cmd.document_list": [
-    "daftar dokumen"
-  ],
-  "_commands.cmd.download_allrecords": [
-    "unduh semua catatan",
-    "ekspor semua catatan"
-  ],
-  "_commands.cmd.download_audit": [
-    "unduh audit",
-    "ekspor audit"
-  ],
-  "_commands.cmd.download_doclist": [
-    "unduh daftar dokumen",
-    "ekspor daftar dokumen"
-  ],
-  "_commands.cmd.download_file": [
-    "unduh",
-    "ambil file"
-  ],
-  "_commands.cmd.download_regulatory": [
-    "unduh regulasi",
-    "ekspor regulasi"
-  ],
-  "_commands.cmd.help": [
-    "bantuan"
-  ],
-  "_commands.cmd.list": [
-    "daftar",
-    "semua dokumen"
-  ],
-  "_commands.cmd.obsolete": [
-    "usang",
-    "tarik"
-  ],
-  "_commands.cmd.regulatory": [
-    "daftar regulasi",
-    "regulasi",
-    "standar"
-  ],
-  "_commands.cmd.regulatory_update": [
-    "regulatory update",
-    "update regulatory"
-  ],
-  "_commands.cmd.search": [
-    "cari",
-    "pencarian"
-  ],
-  "_commands.cmd.status": [
-    "status"
-  ],
-  "_commands.cmd.test_connection": [
-    "tes koneksi",
-    "uji koneksi"
-  ],
-  "_commands.cmd.web": [
-    "/web",
-    "pencarian web",
-    "cari online"
-  ],
   "allrecords.error": "Eira：Tidak dapat membaca daftar: {error}",
   "allrecords.export_excel": "Eira：📋 Laporan Excel semua catatan telah dibuat ({count} dokumen).",
   "allrecords.export_hint": "Eira：📋 Format yang didukung:\n- 'unduh semua catatan word'\n- 'unduh semua catatan excel'",
@@ -271,11 +203,79 @@
   "welcome.doc_control.formats": "Format yang didukung: PDF, Word, Excel, PowerPoint, Gambar, File teks",
   "welcome.doc_control.greeting": "Halo, saya Eira. Selamat datang di sistem pengendalian dokumen. Eira dapat membantu Anda dalam pengunggahan dokumen, pemrosesan OCR, manajemen versi, deteksi tanda tangan, dan pengelolaan jejak audit.",
   "welcome.doc_control.instructions": "**Cara menggunakan:**\n• **Unggah file** → Seret dan lepas atau klik unggah di chat\n• **Daftar dokumen** → Versi resmi saat ini (dengan tombol ekspor Word/Excel)\n• **Daftar** → Semua catatan (termasuk pembaruan, usang) (dengan tombol ekspor Word/Excel)\n• **Cari kata kunci** → Cari konten dokumen\n• **Unduh id_dokumen** → Unduh file asli\n• **Usang id_dokumen** → Tandai dokumen usang\n• **Jejak audit** → Lihat catatan operasi (dengan tombol ekspor Word/Excel)\n• **Daftar regulasi** → Standar acuan (dengan tombol ekspor Word/Excel)\n• **Pembaruan regulasi** → Pindai situs web regulasi global (dengan tombol ekspor Word/Excel)\n• **Unduh pembaruan regulasi word/excel** → Ekspor laporan\n• **Hapus database** → Hapus semua dokumen (konfirmasi diperlukan)\n• **Status** → Tampilkan status sistem\n• **Bantuan** → Tampilkan panduan lengkap",
-  "welcome.doc_control.title": "**Eira (TMBIA-Tmti) Pengendalian Dokumen**",
+  "welcome.doc_control.title": "📄 **TMBIA-Tmti AI-QMS Pengendalian Dokumen (Eira)**",
   "welcome.main.greeting": "Halo, saya Eira. Selamat datang di sistem manajemen mutu berbasis AI. Eira dapat membantu Anda dalam tinjauan dokumen mutu, penilaian kepatuhan regulasi perangkat medis, serta pencarian dan analisis standar regulasi.",
   "welcome.main.instructions": "**Sub-Sistem:**\n• 📄 **Kontrol Dokumen** — Unggah, OCR, manajemen versi, deteksi tanda tangan, jejak audit, ekspor\n• 🔍 **Manajemen Audit** — CAPA, audit internal, manajemen ketidaksesuaian (Phase 2 direncanakan)\n\n**Umum:** Status · /web pencarian · Bantuan · Tanya langsung",
   "welcome.main.switch_hint": "💡 Beralih ke profil 'Kontrol Dokumen' untuk mengunggah file untuk pemrosesan OCR",
-  "welcome.main.title": "**Eira (TMBIA-Tmti)**",
+  "welcome.main.title": "🏥 **TMBIA-Tmti AI-QMS Asisten Regulasi (Eira)**",
   "web.fetching_content": "Eira: 📄 Mengambil konten halaman lengkap...",
-  "web.fetched_content_count": "📄 Konten lengkap diambil dari {count} halaman"
+  "web.fetched_content_count": "📄 Konten lengkap diambil dari {count} halaman",
+  "_commands.cmd.audit": [
+    "catatan audit",
+    "riwayat perubahan",
+    "audit"
+  ],
+  "_commands.cmd.delete_database": [
+    "hapus database",
+    "hapus semua"
+  ],
+  "_commands.cmd.document_list": [
+    "daftar dokumen"
+  ],
+  "_commands.cmd.download_allrecords": [
+    "unduh semua catatan",
+    "ekspor semua catatan"
+  ],
+  "_commands.cmd.download_audit": [
+    "unduh audit",
+    "ekspor audit"
+  ],
+  "_commands.cmd.download_doclist": [
+    "unduh daftar dokumen",
+    "ekspor daftar dokumen"
+  ],
+  "_commands.cmd.download_file": [
+    "unduh",
+    "ambil file"
+  ],
+  "_commands.cmd.download_regulatory": [
+    "unduh regulasi",
+    "ekspor regulasi"
+  ],
+  "_commands.cmd.help": [
+    "bantuan"
+  ],
+  "_commands.cmd.list": [
+    "daftar",
+    "semua dokumen"
+  ],
+  "_commands.cmd.obsolete": [
+    "usang",
+    "tarik"
+  ],
+  "_commands.cmd.regulatory": [
+    "daftar regulasi",
+    "regulasi",
+    "standar"
+  ],
+  "_commands.cmd.regulatory_update": [
+    "regulatory update",
+    "update regulatory"
+  ],
+  "_commands.cmd.search": [
+    "cari",
+    "pencarian"
+  ],
+  "_commands.cmd.status": [
+    "status"
+  ],
+  "_commands.cmd.test_connection": [
+    "tes koneksi",
+    "uji koneksi"
+  ],
+  "_commands.cmd.web": [
+    "/web",
+    "pencarian web",
+    "cari online"
+  ]
 }

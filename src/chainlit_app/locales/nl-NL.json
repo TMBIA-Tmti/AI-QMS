@@ -1,75 +1,4 @@
 {
-  "_commands.cmd.audit": [
-    "auditlogboek",
-    "wijzigingsgeschiedenis",
-    "audit"
-  ],
-  "_commands.cmd.delete_database": [
-    "database verwijderen",
-    "alles verwijderen"
-  ],
-  "_commands.cmd.document_list": [
-    "documentenlijst",
-    "documenten lijst"
-  ],
-  "_commands.cmd.download_allrecords": [
-    "records downloaden",
-    "records exporteren",
-    "alle records downloaden"
-  ],
-  "_commands.cmd.download_audit": [
-    "audit downloaden",
-    "audit exporteren"
-  ],
-  "_commands.cmd.download_doclist": [
-    "documentenlijst downloaden",
-    "documentenlijst exporteren"
-  ],
-  "_commands.cmd.download_file": [
-    "downloaden",
-    "bestand ophalen"
-  ],
-  "_commands.cmd.download_regulatory": [
-    "regelgeving downloaden",
-    "regelgeving exporteren"
-  ],
-  "_commands.cmd.help": [
-    "hulp",
-    "help"
-  ],
-  "_commands.cmd.list": [
-    "lijst",
-    "alle documenten"
-  ],
-  "_commands.cmd.obsolete": [
-    "verouderd",
-    "intrekken"
-  ],
-  "_commands.cmd.regulatory": [
-    "regelgevingslijst",
-    "regelgeving",
-    "normen"
-  ],
-  "_commands.cmd.regulatory_update": [
-    "regulatory update",
-    "update regulatory"
-  ],
-  "_commands.cmd.search": [
-    "zoeken",
-    "zoek"
-  ],
-  "_commands.cmd.status": [
-    "status"
-  ],
-  "_commands.cmd.test_connection": [
-    "verbinding testen",
-    "verbindingstest"
-  ],
-  "_commands.cmd.web": [
-    "/web",
-    "web zoeken",
-    "online zoeken"
-  ],
   "allrecords.error": "Eira：Kan lijst niet lezen: {error}",
   "allrecords.export_excel": "Eira：📋 Excel-rapport alle records aangemaakt ({count} documenten).",
   "allrecords.export_hint": "Eira：📋 Ondersteunde formaten:\n- 'records downloaden word'\n- 'records downloaden excel'",
@@ -274,11 +203,82 @@
   "welcome.doc_control.formats": "Ondersteunde formaten: PDF, Word, Excel, PowerPoint, Afbeeldingen, Tekstbestanden",
   "welcome.doc_control.greeting": "Hallo, ik ben Eira. Welkom bij het documentbeheersysteem. Eira kan u helpen bij het uploaden van documenten, OCR-verwerking, versiebeheer, handtekeningdetectie en het beheer van audittrails.",
   "welcome.doc_control.instructions": "**Hoe te gebruiken:**\n• **Bestanden uploaden** → Sleep en plaats of klik op uploaden in het chatvenster\n• **Documentlijst** → Huidige formele versies\n• **Lijst** → Alle records (incl. updates, verouderd) (met Word/Excel-exportknoppen)\n• **Zoek trefwoord** → Documentinhoud doorzoeken\n• **Download doc-ID** → Origineel bestand downloaden\n• **Verouderd doc-ID** → Document als verouderd markeren\n• **Audit-trail** → Bewerkingsrecords bekijken\n• **Regelgevingslijst** → Referentiestandaarden (met Word/Excel-exportknoppen)\n• **Regelgeving update** → Scan wereldwijde regelgevingswebsites (met Word/Excel-exportknoppen)\n• **Download regelgeving update word/excel** → Exporteer rapport\n• **Download regelgeving word/excel** → Standaarden exporteren\n• **Database verwijderen** → Alle documenten verwijderen (bevestiging vereist)\n• **Status** → Systeemstatus weergeven\n• **Help** → Volledige handleiding tonen",
-  "welcome.doc_control.title": "**Eira (TMBIA-Tmti) Documentbeheer**",
+  "welcome.doc_control.title": "📄 **TMBIA-Tmti AI-QMS Documentbeheer (Eira)**",
   "welcome.main.greeting": "Hallo, ik ben Eira. Welkom bij het AI-ondersteunde kwaliteitsmanagementsysteem. Eira kan u helpen bij de beoordeling van kwaliteitsdocumenten, de evaluatie van de naleving van regelgeving voor medische hulpmiddelen en het onderzoek en de analyse van regelgevingsnormen.",
   "welcome.main.instructions": "**Subsystemen:**\n• 📄 **Documentbeheer** — Upload, OCR, versiebeheer, handtekeningdetectie, audit-trail, export\n• 🔍 **Auditbeheer** — CAPA, interne audit, afwijkingsbeheer (Phase 2 gepland)\n\n**Algemeen:** Status · /web zoeken · Help · Direct een vraag stellen",
   "welcome.main.switch_hint": "💡 Schakel over naar het profiel 'Documentbeheer' om bestanden te uploaden voor OCR-verwerking",
-  "welcome.main.title": "**Eira (TMBIA-Tmti)**",
+  "welcome.main.title": "🏥 **TMBIA-Tmti AI-QMS Regelgevingsassistent (Eira)**",
   "web.fetching_content": "Eira: 📄 Volledige pagina-inhoud ophalen...",
-  "web.fetched_content_count": "📄 Volledige inhoud opgehaald van {count} pagina's"
+  "web.fetched_content_count": "📄 Volledige inhoud opgehaald van {count} pagina's",
+  "_commands.cmd.audit": [
+    "auditlogboek",
+    "wijzigingsgeschiedenis",
+    "audit"
+  ],
+  "_commands.cmd.delete_database": [
+    "database verwijderen",
+    "alles verwijderen"
+  ],
+  "_commands.cmd.document_list": [
+    "documentenlijst",
+    "documenten lijst"
+  ],
+  "_commands.cmd.download_allrecords": [
+    "records downloaden",
+    "records exporteren",
+    "alle records downloaden"
+  ],
+  "_commands.cmd.download_audit": [
+    "audit downloaden",
+    "audit exporteren"
+  ],
+  "_commands.cmd.download_doclist": [
+    "documentenlijst downloaden",
+    "documentenlijst exporteren"
+  ],
+  "_commands.cmd.download_file": [
+    "downloaden",
+    "bestand ophalen"
+  ],
+  "_commands.cmd.download_regulatory": [
+    "regelgeving downloaden",
+    "regelgeving exporteren"
+  ],
+  "_commands.cmd.help": [
+    "hulp",
+    "help"
+  ],
+  "_commands.cmd.list": [
+    "lijst",
+    "alle documenten"
+  ],
+  "_commands.cmd.obsolete": [
+    "verouderd",
+    "intrekken"
+  ],
+  "_commands.cmd.regulatory": [
+    "regelgevingslijst",
+    "regelgeving",
+    "normen"
+  ],
+  "_commands.cmd.regulatory_update": [
+    "regulatory update",
+    "update regulatory"
+  ],
+  "_commands.cmd.search": [
+    "zoeken",
+    "zoek"
+  ],
+  "_commands.cmd.status": [
+    "status"
+  ],
+  "_commands.cmd.test_connection": [
+    "verbinding testen",
+    "verbindingstest"
+  ],
+  "_commands.cmd.web": [
+    "/web",
+    "web zoeken",
+    "online zoeken"
+  ]
 }

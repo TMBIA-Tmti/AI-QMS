@@ -1,72 +1,4 @@
 {
-  "_commands.cmd.audit": [
-    "ऑडिट रिकॉर्ड",
-    "ऑडिट लॉग",
-    "ऑडिट"
-  ],
-  "_commands.cmd.delete_database": [
-    "डेटाबेस हटाएं",
-    "सब हटाएं"
-  ],
-  "_commands.cmd.document_list": [
-    "दस्तावेज़ सूची"
-  ],
-  "_commands.cmd.download_allrecords": [
-    "सभी रिकॉर्ड डाउनलोड",
-    "सभी रिकॉर्ड निर्यात"
-  ],
-  "_commands.cmd.download_audit": [
-    "ऑडिट डाउनलोड",
-    "ऑडिट निर्यात"
-  ],
-  "_commands.cmd.download_doclist": [
-    "दस्तावेज़ सूची डाउनलोड",
-    "दस्तावेज़ सूची निर्यात"
-  ],
-  "_commands.cmd.download_file": [
-    "डाउनलोड",
-    "फ़ाइल प्राप्त करें"
-  ],
-  "_commands.cmd.download_regulatory": [
-    "नियामक डाउनलोड",
-    "नियामक निर्यात"
-  ],
-  "_commands.cmd.help": [
-    "सहायता",
-    "मदद"
-  ],
-  "_commands.cmd.list": [
-    "सूची",
-    "सभी दस्तावेज़"
-  ],
-  "_commands.cmd.obsolete": [
-    "अप्रचलित",
-    "वापस लें"
-  ],
-  "_commands.cmd.regulatory": [
-    "नियामक सूची",
-    "नियामक",
-    "मानक"
-  ],
-  "_commands.cmd.regulatory_update": [
-    "regulatory update",
-    "update regulatory"
-  ],
-  "_commands.cmd.search": [
-    "खोज",
-    "खोजें"
-  ],
-  "_commands.cmd.status": [
-    "स्थिति"
-  ],
-  "_commands.cmd.test_connection": [
-    "कनेक्शन परीक्षण"
-  ],
-  "_commands.cmd.web": [
-    "/web",
-    "वेब खोज",
-    "ऑनलाइन खोज"
-  ],
   "allrecords.error": "Eira：सूची पढ़ी नहीं जा सकती: {error}",
   "allrecords.export_excel": "Eira：📋 सभी रिकॉर्ड Excel रिपोर्ट तैयार ({count} दस्तावेज़)।",
   "allrecords.export_hint": "Eira：📋 समर्थित प्रारूप:\n- 'सभी रिकॉर्ड डाउनलोड word'\n- 'सभी रिकॉर्ड डाउनलोड excel'",
@@ -271,11 +203,79 @@
   "welcome.doc_control.formats": "समर्थित प्रारूप: PDF, Word, Excel, PowerPoint, चित्र, टेक्स्ट फ़ाइलें",
   "welcome.doc_control.greeting": "नमस्कार, मैं Eira हूँ। दस्तावेज़ नियंत्रण प्रणाली में आपका स्वागत है। Eira दस्तावेज़ अपलोड, OCR प्रसंस्करण, संस्करण प्रबंधन, हस्ताक्षर पहचान और ऑडिट ट्रेल प्रबंधन में आपकी सहायता कर सकती है।",
   "welcome.doc_control.instructions": "**उपयोग कैसे करें:**\n• **फ़ाइलें अपलोड करें** → चैट में खींचें और छोड़ें या अपलोड क्लिक करें\n• **दस्तावेज़ सूची** → वर्तमान औपचारिक संस्करण (Word/Excel निर्यात बटन सहित)\n• **सूची** → सभी रिकॉर्ड (अपडेट, अप्रचलित सहित) (Word/Excel निर्यात बटन सहित)\n• **खोज कीवर्ड** → दस्तावेज़ सामग्री खोजें\n• **अप्रचलित दस्तावेज़_ID** → दस्तावेज़ अप्रचलित करें\n• **ऑडिट ट्रेल** → संचालन रिकॉर्ड देखें (Word/Excel निर्यात बटन सहित)\n• **विनियामक सूची** → संदर्भ मानक (Word/Excel निर्यात बटन सहित)\n• **विनियामक अपडेट** → वैश्विक नियामक वेबसाइटों को क्रॉल करें (Word/Excel निर्यात बटन सहित)\n• **डेटाबेस हटाएं** → सभी दस्तावेज़ हटाएं (पुष्टि आवश्यक)\n• **/web कीवर्ड** → वेब खोज (उदा: /web नवीनतम ISO 13485 संस्करण)\n• **स्थिति** → सिस्टम स्थिति दिखाएं\n• **सहायता** → पूर्ण गाइड दिखाएं",
-  "welcome.doc_control.title": "**Eira (TMBIA-Tmti) दस्तावेज़ नियंत्रण**",
+  "welcome.doc_control.title": "📄 **TMBIA-Tmti AI-QMS दस्तावेज़ नियंत्रण (Eira)**",
   "welcome.main.greeting": "नमस्कार, मैं Eira हूँ। AI-सहायता प्राप्त गुणवत्ता प्रबंधन प्रणाली में आपका स्वागत है। Eira गुणवत्ता दस्तावेजों की समीक्षा, चिकित्सा उपकरण नियामक अनुपालन मूल्यांकन और नियामक मानकों के अनुसंधान एवं विश्लेषण में आपकी सहायता कर सकती है।",
   "welcome.main.instructions": "**उप-प्रणालियां:**\n• 📄 **दस्तावेज़ नियंत्रण** — अपलोड, OCR, संस्करण प्रबंधन, हस्ताक्षर पहचान, ऑडिट ट्रेल, निर्यात\n• 🔍 **ऑडिट प्रबंधन** — CAPA, आंतरिक ऑडिट, गैर-अनुरूपता प्रबंधन (Phase 2 नियोजित)\n\n**सामान्य:** स्थिति · /web खोज · सहायता · सीधे पूछें",
   "welcome.main.switch_hint": "💡 OCR प्रसंस्करण के लिए फ़ाइलें अपलोड करने हेतु 'दस्तावेज़ नियंत्रण' प्रोफ़ाइल पर स्विच करें",
-  "welcome.main.title": "**Eira (TMBIA-Tmti)**",
+  "welcome.main.title": "🏥 **TMBIA-Tmti AI-QMS नियामक सहायक (Eira)**",
   "web.fetching_content": "Eira: 📄 पूर्ण पृष्ठ सामग्री प्राप्त कर रहा है...",
-  "web.fetched_content_count": "📄 {count} पृष्ठों से पूर्ण सामग्री प्राप्त की गई"
+  "web.fetched_content_count": "📄 {count} पृष्ठों से पूर्ण सामग्री प्राप्त की गई",
+  "_commands.cmd.audit": [
+    "ऑडिट रिकॉर्ड",
+    "ऑडिट लॉग",
+    "ऑडिट"
+  ],
+  "_commands.cmd.delete_database": [
+    "डेटाबेस हटाएं",
+    "सब हटाएं"
+  ],
+  "_commands.cmd.document_list": [
+    "दस्तावेज़ सूची"
+  ],
+  "_commands.cmd.download_allrecords": [
+    "सभी रिकॉर्ड डाउनलोड",
+    "सभी रिकॉर्ड निर्यात"
+  ],
+  "_commands.cmd.download_audit": [
+    "ऑडिट डाउनलोड",
+    "ऑडिट निर्यात"
+  ],
+  "_commands.cmd.download_doclist": [
+    "दस्तावेज़ सूची डाउनलोड",
+    "दस्तावेज़ सूची निर्यात"
+  ],
+  "_commands.cmd.download_file": [
+    "डाउनलोड",
+    "फ़ाइल प्राप्त करें"
+  ],
+  "_commands.cmd.download_regulatory": [
+    "नियामक डाउनलोड",
+    "नियामक निर्यात"
+  ],
+  "_commands.cmd.help": [
+    "सहायता",
+    "मदद"
+  ],
+  "_commands.cmd.list": [
+    "सूची",
+    "सभी दस्तावेज़"
+  ],
+  "_commands.cmd.obsolete": [
+    "अप्रचलित",
+    "वापस लें"
+  ],
+  "_commands.cmd.regulatory": [
+    "नियामक सूची",
+    "नियामक",
+    "मानक"
+  ],
+  "_commands.cmd.regulatory_update": [
+    "regulatory update",
+    "update regulatory"
+  ],
+  "_commands.cmd.search": [
+    "खोज",
+    "खोजें"
+  ],
+  "_commands.cmd.status": [
+    "स्थिति"
+  ],
+  "_commands.cmd.test_connection": [
+    "कनेक्शन परीक्षण"
+  ],
+  "_commands.cmd.web": [
+    "/web",
+    "वेब खोज",
+    "ऑनलाइन खोज"
+  ]
 }

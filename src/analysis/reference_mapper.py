@@ -218,7 +218,7 @@ def run_reference_mapping(state: PipelineState) -> dict:
             # Get document content (cached)
             if row.doc_id not in doc_cache:
                 try:
-                    from src.storage.markdown_storage import MarkdownStoreService
+                    from src.services.markdown_store_service import MarkdownStoreService
 
                     service = MarkdownStoreService()
                     doc_result = service.get_document(row.doc_id)

@@ -66,7 +66,7 @@ def _check_document_availability(doc_id: str) -> dict:
     Returns dict with: exists, has_content, content_length, is_obsolete, title
     """
     try:
-        from src.storage.markdown_storage import MarkdownStoreService
+        from src.services.markdown_store_service import MarkdownStoreService
 
         service = MarkdownStoreService()
         result = service.get_document(doc_id)
@@ -109,7 +109,7 @@ def _check_regulatory_data_available() -> bool:
         from src.storage.regulatory_storage import get_regulatory_store
 
         store = get_regulatory_store()
-        last_crawl = store.get_last_crawl_results()
+        last_crawl = store.load_last_results()
         if not last_crawl:
             return False
 

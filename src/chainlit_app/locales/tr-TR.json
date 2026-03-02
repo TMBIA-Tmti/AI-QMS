@@ -1,73 +1,4 @@
 {
-  "_commands.cmd.audit": [
-    "denetim kaydı",
-    "değişiklik geçmişi",
-    "denetim"
-  ],
-  "_commands.cmd.delete_database": [
-    "veritabanını sil",
-    "tümünü sil"
-  ],
-  "_commands.cmd.document_list": [
-    "belge listesi",
-    "doküman listesi"
-  ],
-  "_commands.cmd.download_allrecords": [
-    "tüm kayıtları indir",
-    "tüm kayıtları dışa aktar"
-  ],
-  "_commands.cmd.download_audit": [
-    "denetim indir",
-    "denetim dışa aktar"
-  ],
-  "_commands.cmd.download_doclist": [
-    "belge listesi indir",
-    "belge listesi dışa aktar"
-  ],
-  "_commands.cmd.download_file": [
-    "indir",
-    "dosya al"
-  ],
-  "_commands.cmd.download_regulatory": [
-    "mevzuat indir",
-    "mevzuat dışa aktar"
-  ],
-  "_commands.cmd.help": [
-    "yardım"
-  ],
-  "_commands.cmd.list": [
-    "liste",
-    "tüm belgeler"
-  ],
-  "_commands.cmd.obsolete": [
-    "geçersiz",
-    "geri çek"
-  ],
-  "_commands.cmd.regulatory": [
-    "mevzuat listesi",
-    "mevzuat",
-    "standartlar"
-  ],
-  "_commands.cmd.regulatory_update": [
-    "regulatory update",
-    "update regulatory"
-  ],
-  "_commands.cmd.search": [
-    "ara",
-    "arama"
-  ],
-  "_commands.cmd.status": [
-    "durum"
-  ],
-  "_commands.cmd.test_connection": [
-    "bağlantı testi",
-    "bağlantıyı test et"
-  ],
-  "_commands.cmd.web": [
-    "/web",
-    "web arama",
-    "çevrimiçi ara"
-  ],
   "allrecords.error": "Eira：Liste okunamıyor: {error}",
   "allrecords.export_excel": "Eira：📋 Tüm kayıtlar Excel raporu oluşturuldu ({count} belge).",
   "allrecords.export_hint": "Eira：📋 Desteklenen formatlar:\n- 'tüm kayıtları indir word'\n- 'tüm kayıtları indir excel'",
@@ -272,11 +203,80 @@
   "welcome.doc_control.formats": "Desteklenen formatlar: PDF, Word, Excel, PowerPoint, Görseller, Metin dosyaları",
   "welcome.doc_control.greeting": "Merhaba, ben Eira. Doküman kontrol sistemine hoş geldiniz. Eira, belge yükleme, OCR işleme, versiyon yönetimi, imza tespiti ve denetim izi yönetiminde size yardımcı olabilir.",
   "welcome.doc_control.instructions": "**Nasıl kullanılır:**\n• **Dosya yükle** → Sohbete sürükleyip bırakın veya yükle'ye tıklayın\n• **Belge listesi** → Mevcut resmi sürümler (Word/Excel dışa aktarma düğmeleriyle)\n• **Liste** → Tüm kayıtlar (güncellemeler, eskimiş dahil) (Word/Excel dışa aktarma düğmeleriyle)\n• **Ara anahtar kelime** → Belge içeriğinde ara\n• **İndir belge_id** → Orijinal dosyayı indir\n• **Eskimiş belge_id** → Belgeyi eskimiş olarak işaretle\n• **Denetim izi** → İşlem kayıtlarını görüntüle (Word/Excel dışa aktarma düğmeleriyle)\n• **İndir denetim word/excel** → Kayıtları dışa aktar\n• **Mevzuat listesi** → Referans standartlar (Word/Excel dışa aktarma düğmeleriyle)\n• **Mevzuat güncelleme** → Küresel mevzuat web sitelerini tara (Word/Excel dışa aktarma düğmeleriyle)\n• **Mevzuat güncelleme indir word/excel** → Raporu dışa aktar\n• **İndir mevzuat word/excel** → Standartları dışa aktar\n• **Veritabanını sil** → Tüm belgeleri sil (onay gerekli)\n• **Durum** → Sistem durumunu göster\n• **Yardım** → Tam kılavuzu göster",
-  "welcome.doc_control.title": "**Eira (TMBIA-Tmti) Doküman Kontrol**",
+  "welcome.doc_control.title": "📄 **TMBIA-Tmti AI-QMS Doküman Kontrol (Eira)**",
   "welcome.main.greeting": "Merhaba, ben Eira. Yapay zeka destekli kalite yönetim sistemine hoş geldiniz. Eira, kalite belgelerinin incelenmesi, tıbbi cihaz mevzuatına uygunluk değerlendirmesi ve düzenleyici standartların araştırılması ve analizinde size yardımcı olabilir.",
   "welcome.main.instructions": "**Alt Sistemler:**\n• 📄 **Belge Kontrolü** — Yükleme, OCR, sürüm yönetimi, imza algılama, denetim izi, dışa aktarma\n• 🔍 **Denetim Yönetimi** — CAPA, iç denetim, uygunsuzluk yönetimi (Phase 2 planlanıyor)\n\n**Genel:** Durum · /web arama · Yardım · Doğrudan sorun",
   "welcome.main.switch_hint": "💡 OCR işleme için dosya yüklemek üzere 'Belge Kontrolü' profiline geçin",
-  "welcome.main.title": "**Eira (TMBIA-Tmti)**",
+  "welcome.main.title": "🏥 **TMBIA-Tmti AI-QMS Mevzuat Asistanı (Eira)**",
   "web.fetching_content": "Eira: 📄 Tam sayfa içeriği getiriliyor...",
-  "web.fetched_content_count": "📄 {count} sayfanın tam içeriği getirildi"
+  "web.fetched_content_count": "📄 {count} sayfanın tam içeriği getirildi",
+  "_commands.cmd.audit": [
+    "denetim kaydı",
+    "değişiklik geçmişi",
+    "denetim"
+  ],
+  "_commands.cmd.delete_database": [
+    "veritabanını sil",
+    "tümünü sil"
+  ],
+  "_commands.cmd.document_list": [
+    "belge listesi",
+    "doküman listesi"
+  ],
+  "_commands.cmd.download_allrecords": [
+    "tüm kayıtları indir",
+    "tüm kayıtları dışa aktar"
+  ],
+  "_commands.cmd.download_audit": [
+    "denetim indir",
+    "denetim dışa aktar"
+  ],
+  "_commands.cmd.download_doclist": [
+    "belge listesi indir",
+    "belge listesi dışa aktar"
+  ],
+  "_commands.cmd.download_file": [
+    "indir",
+    "dosya al"
+  ],
+  "_commands.cmd.download_regulatory": [
+    "mevzuat indir",
+    "mevzuat dışa aktar"
+  ],
+  "_commands.cmd.help": [
+    "yardım"
+  ],
+  "_commands.cmd.list": [
+    "liste",
+    "tüm belgeler"
+  ],
+  "_commands.cmd.obsolete": [
+    "geçersiz",
+    "geri çek"
+  ],
+  "_commands.cmd.regulatory": [
+    "mevzuat listesi",
+    "mevzuat",
+    "standartlar"
+  ],
+  "_commands.cmd.regulatory_update": [
+    "regulatory update",
+    "update regulatory"
+  ],
+  "_commands.cmd.search": [
+    "ara",
+    "arama"
+  ],
+  "_commands.cmd.status": [
+    "durum"
+  ],
+  "_commands.cmd.test_connection": [
+    "bağlantı testi",
+    "bağlantıyı test et"
+  ],
+  "_commands.cmd.web": [
+    "/web",
+    "web arama",
+    "çevrimiçi ara"
+  ]
 }

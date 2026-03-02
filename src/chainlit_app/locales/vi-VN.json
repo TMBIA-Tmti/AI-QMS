@@ -1,73 +1,4 @@
 {
-  "_commands.cmd.audit": [
-    "nhật ký kiểm toán",
-    "lịch sử thay đổi",
-    "kiểm toán"
-  ],
-  "_commands.cmd.delete_database": [
-    "xóa cơ sở dữ liệu",
-    "xóa tất cả"
-  ],
-  "_commands.cmd.document_list": [
-    "danh sách tài liệu"
-  ],
-  "_commands.cmd.download_allrecords": [
-    "tải bản ghi",
-    "xuất bản ghi",
-    "tải tất cả bản ghi"
-  ],
-  "_commands.cmd.download_audit": [
-    "tải kiểm toán",
-    "xuất kiểm toán"
-  ],
-  "_commands.cmd.download_doclist": [
-    "tải danh sách tài liệu",
-    "xuất danh sách tài liệu"
-  ],
-  "_commands.cmd.download_file": [
-    "tải xuống",
-    "lấy tệp"
-  ],
-  "_commands.cmd.download_regulatory": [
-    "tải quy định",
-    "xuất quy định"
-  ],
-  "_commands.cmd.help": [
-    "trợ giúp",
-    "giúp đỡ"
-  ],
-  "_commands.cmd.list": [
-    "danh sách",
-    "tất cả tài liệu"
-  ],
-  "_commands.cmd.obsolete": [
-    "lỗi thời",
-    "thu hồi"
-  ],
-  "_commands.cmd.regulatory": [
-    "danh sách quy định",
-    "quy định",
-    "tiêu chuẩn"
-  ],
-  "_commands.cmd.regulatory_update": [
-    "regulatory update",
-    "update regulatory"
-  ],
-  "_commands.cmd.search": [
-    "tìm kiếm",
-    "tìm"
-  ],
-  "_commands.cmd.status": [
-    "trạng thái"
-  ],
-  "_commands.cmd.test_connection": [
-    "kiểm tra kết nối"
-  ],
-  "_commands.cmd.web": [
-    "/web",
-    "tìm kiếm web",
-    "tìm trên mạng"
-  ],
   "allrecords.error": "Eira：Không thể đọc danh sách: {error}",
   "allrecords.export_excel": "Eira：📋 Đã tạo báo cáo Excel toàn bộ bản ghi ({count} tài liệu).",
   "allrecords.export_hint": "Eira：📋 Định dạng hỗ trợ:\n- 'tải bản ghi word'\n- 'tải bản ghi excel'",
@@ -272,11 +203,80 @@
   "welcome.doc_control.formats": "Định dạng hỗ trợ: PDF, Word, Excel, PowerPoint, Hình ảnh, Tệp văn bản",
   "welcome.doc_control.greeting": "Xin chào, tôi là Eira. Chào mừng bạn đến với hệ thống quản lý tài liệu. Eira có thể hỗ trợ bạn tải lên tài liệu, xử lý OCR, quản lý phiên bản, phát hiện chữ ký và quản lý dấu vết kiểm toán.",
   "welcome.doc_control.instructions": "**Cách sử dụng:**\n• **Tải tệp lên** → Kéo thả hoặc nhấp tải lên trong chat\n• **Danh sách tài liệu** → Phiên bản chính thức hiện tại (kèm nút xuất Word/Excel)\n• **Danh sách** → Tất cả bản ghi (bao gồm cập nhật, lỗi thời) (kèm nút xuất Word/Excel)\n• **Tìm kiếm từ khóa** → Tìm nội dung tài liệu\n• **Tải xuống mã_tài_liệu** → Tải tệp gốc\n• **Lỗi thời mã_tài_liệu** → Đánh dấu tài liệu lỗi thời\n• **Nhật ký kiểm toán** → Xem bản ghi thao tác (kèm nút xuất Word/Excel)\n• **Tải xuống kiểm toán word/excel** → Xuất bản ghi\n• **Danh sách quy định** → Tiêu chuẩn tham chiếu (kèm nút xuất Word/Excel)\n• **Cập nhật quy định** → Quét các trang web quy định toàn cầu (kèm nút xuất Word/Excel)\n• **Tải xuống cập nhật quy định word/excel** → Xuất báo cáo\n• **Tải xuống quy định word/excel** → Xuất tiêu chuẩn\n• **Xóa cơ sở dữ liệu** → Xóa tất cả tài liệu (cần xác nhận)\n• **/web từ khóa** → Tìm kiếm web (ví dụ: /web phiên bản ISO 13485 mới nhất)\n• **Trạng thái** → Hiển thị trạng thái hệ thống\n• **Trợ giúp** → Hiển thị hướng dẫn đầy đủ",
-  "welcome.doc_control.title": "**Eira (TMBIA-Tmti) Quản lý Tài liệu**",
+  "welcome.doc_control.title": "📄 **TMBIA-Tmti AI-QMS Quản lý Tài liệu (Eira)**",
   "welcome.main.greeting": "Xin chào, tôi là Eira. Chào mừng bạn đến với hệ thống quản lý chất lượng hỗ trợ bởi AI. Eira có thể hỗ trợ bạn rà soát tài liệu chất lượng, đánh giá tuân thủ quy định thiết bị y tế, cũng như tra cứu và phân tích các tiêu chuẩn pháp quy.",
   "welcome.main.instructions": "**Hệ thống con:**\n• 📄 **Quản lý tài liệu** — Tải lên, OCR, quản lý phiên bản, phát hiện chữ ký, nhật ký kiểm toán, xuất\n• 🔍 **Quản lý kiểm toán** — CAPA, kiểm toán nội bộ, quản lý sự không phù hợp (Phase 2 dự kiến)\n\n**Chung:** Trạng thái · /web tìm kiếm · Trợ giúp · Hỏi trực tiếp",
   "welcome.main.switch_hint": "💡 Chuyển sang hồ sơ 'Quản lý tài liệu' để tải tệp lên cho xử lý OCR",
-  "welcome.main.title": "**Eira (TMBIA-Tmti)**",
+  "welcome.main.title": "🏥 **TMBIA-Tmti AI-QMS Trợ lý Pháp quy (Eira)**",
   "web.fetching_content": "Eira: 📄 Đang tải nội dung đầy đủ trang...",
-  "web.fetched_content_count": "📄 Đã tải nội dung đầy đủ từ {count} trang"
+  "web.fetched_content_count": "📄 Đã tải nội dung đầy đủ từ {count} trang",
+  "_commands.cmd.audit": [
+    "nhật ký kiểm toán",
+    "lịch sử thay đổi",
+    "kiểm toán"
+  ],
+  "_commands.cmd.delete_database": [
+    "xóa cơ sở dữ liệu",
+    "xóa tất cả"
+  ],
+  "_commands.cmd.document_list": [
+    "danh sách tài liệu"
+  ],
+  "_commands.cmd.download_allrecords": [
+    "tải bản ghi",
+    "xuất bản ghi",
+    "tải tất cả bản ghi"
+  ],
+  "_commands.cmd.download_audit": [
+    "tải kiểm toán",
+    "xuất kiểm toán"
+  ],
+  "_commands.cmd.download_doclist": [
+    "tải danh sách tài liệu",
+    "xuất danh sách tài liệu"
+  ],
+  "_commands.cmd.download_file": [
+    "tải xuống",
+    "lấy tệp"
+  ],
+  "_commands.cmd.download_regulatory": [
+    "tải quy định",
+    "xuất quy định"
+  ],
+  "_commands.cmd.help": [
+    "trợ giúp",
+    "giúp đỡ"
+  ],
+  "_commands.cmd.list": [
+    "danh sách",
+    "tất cả tài liệu"
+  ],
+  "_commands.cmd.obsolete": [
+    "lỗi thời",
+    "thu hồi"
+  ],
+  "_commands.cmd.regulatory": [
+    "danh sách quy định",
+    "quy định",
+    "tiêu chuẩn"
+  ],
+  "_commands.cmd.regulatory_update": [
+    "regulatory update",
+    "update regulatory"
+  ],
+  "_commands.cmd.search": [
+    "tìm kiếm",
+    "tìm"
+  ],
+  "_commands.cmd.status": [
+    "trạng thái"
+  ],
+  "_commands.cmd.test_connection": [
+    "kiểm tra kết nối"
+  ],
+  "_commands.cmd.web": [
+    "/web",
+    "tìm kiếm web",
+    "tìm trên mạng"
+  ]
 }

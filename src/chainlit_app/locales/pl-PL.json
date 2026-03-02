@@ -1,74 +1,4 @@
 {
-  "_commands.cmd.audit": [
-    "dziennik audytu",
-    "historia zmian",
-    "audyt"
-  ],
-  "_commands.cmd.delete_database": [
-    "usuń bazę danych",
-    "usuń wszystko"
-  ],
-  "_commands.cmd.document_list": [
-    "lista dokumentów"
-  ],
-  "_commands.cmd.download_allrecords": [
-    "pobierz rekordy",
-    "eksportuj rekordy",
-    "pobierz wszystkie rekordy"
-  ],
-  "_commands.cmd.download_audit": [
-    "pobierz audyt",
-    "eksportuj audyt"
-  ],
-  "_commands.cmd.download_doclist": [
-    "pobierz listę dokumentów",
-    "eksportuj listę dokumentów"
-  ],
-  "_commands.cmd.download_file": [
-    "pobierz",
-    "pobierz plik"
-  ],
-  "_commands.cmd.download_regulatory": [
-    "pobierz przepisy",
-    "eksportuj przepisy"
-  ],
-  "_commands.cmd.help": [
-    "pomoc"
-  ],
-  "_commands.cmd.list": [
-    "lista",
-    "wszystkie dokumenty"
-  ],
-  "_commands.cmd.obsolete": [
-    "wycofaj",
-    "przestarzały"
-  ],
-  "_commands.cmd.regulatory": [
-    "lista przepisów",
-    "przepisy",
-    "normy"
-  ],
-  "_commands.cmd.regulatory_update": [
-    "regulatory update",
-    "update regulatory"
-  ],
-  "_commands.cmd.search": [
-    "szukaj",
-    "wyszukaj"
-  ],
-  "_commands.cmd.status": [
-    "status",
-    "stan"
-  ],
-  "_commands.cmd.test_connection": [
-    "test połączenia",
-    "testuj połączenie"
-  ],
-  "_commands.cmd.web": [
-    "/web",
-    "wyszukiwanie web",
-    "szukaj online"
-  ],
   "allrecords.error": "Eira：Nie można odczytać listy: {error}",
   "allrecords.export_excel": "Eira：📋 Raport Excel wszystkich rekordów wygenerowany ({count} dokumentów).",
   "allrecords.export_hint": "Eira：📋 Obsługiwane formaty:\n- 'pobierz rekordy word'\n- 'pobierz rekordy excel'",
@@ -273,11 +203,81 @@
   "welcome.doc_control.formats": "Obsługiwane formaty: PDF, Word, Excel, PowerPoint, Obrazy, Pliki tekstowe",
   "welcome.doc_control.greeting": "Dzień dobry, jestem Eira. Witamy w systemie kontroli dokumentów. Eira może pomóc w przesyłaniu dokumentów, przetwarzaniu OCR, zarządzaniu wersjami, wykrywaniu podpisów i zarządzaniu śladami audytowymi.",
   "welcome.doc_control.instructions": "**Jak używać:**\n• **Prześlij pliki** → Przeciągnij i upuść lub kliknij prześlij na czacie\n• **Lista dokumentów** → Bieżące wersje formalne (z przyciskami eksportu Word/Excel)\n• **Lista** → Wszystkie rekordy (wł. aktualizacje, przestarzałe) (z przyciskami eksportu Word/Excel)\n• **Szukaj słowo kluczowe** → Szukaj w treści dokumentów\n• **Pobierz id_dok** → Pobierz oryginalny plik\n• **Przestarzałe id_dok** → Oznacz dokument jako przestarzały\n• **Ścieżka audytu** → Zobacz rekordy operacji (z przyciskami eksportu Word/Excel)\n• **Lista regulacyjna** → Standardy referencyjne (z przyciskami eksportu Word/Excel)\n• **Aktualizacja regulacji** → Skanuj globalne strony regulacyjne (z przyciskami eksportu Word/Excel)\n• **Pobierz aktualizację regulacji word/excel** → Eksportuj raport\n• **Usuń bazę danych** → Usuń wszystkie dokumenty (wymagane potwierdzenie)\n• **Status** → Pokaż status systemu\n• **Pomoc** → Pokaż pełny przewodnik",
-  "welcome.doc_control.title": "**Eira (TMBIA-Tmti) Kontrola Dokumentów**",
+  "welcome.doc_control.title": "📄 **TMBIA-Tmti AI-QMS Kontrola Dokumentów (Eira)**",
   "welcome.main.greeting": "Dzień dobry, jestem Eira. Witamy w systemie zarządzania jakością wspomaganym przez AI. Eira może pomóc w przeglądzie dokumentów jakościowych, ocenie zgodności z przepisami dotyczącymi wyrobów medycznych oraz wyszukiwaniu i analizie norm regulacyjnych.",
   "welcome.main.instructions": "**Podsystemy:**\n• 📄 **Kontrola dokumentów** — Upload, OCR, zarządzanie wersjami, wykrywanie podpisów, ścieżka audytu, eksport\n• 🔍 **Zarządzanie audytem** — CAPA, audyt wewnętrzny, zarządzanie niezgodnościami (Phase 2 planowany)\n\n**Ogólne:** Status · /web wyszukiwanie · Pomoc · Zapytaj bezpośrednio",
   "welcome.main.switch_hint": "💡 Przełącz na profil 'Kontrola dokumentów', aby przesłać pliki do przetwarzania OCR",
-  "welcome.main.title": "**Eira (TMBIA-Tmti)**",
+  "welcome.main.title": "🏥 **TMBIA-Tmti AI-QMS Asystent Regulacyjny (Eira)**",
   "web.fetching_content": "Eira: 📄 Pobieranie pełnej treści strony...",
-  "web.fetched_content_count": "📄 Pobrano pełną treść z {count} stron"
+  "web.fetched_content_count": "📄 Pobrano pełną treść z {count} stron",
+  "_commands.cmd.audit": [
+    "dziennik audytu",
+    "historia zmian",
+    "audyt"
+  ],
+  "_commands.cmd.delete_database": [
+    "usuń bazę danych",
+    "usuń wszystko"
+  ],
+  "_commands.cmd.document_list": [
+    "lista dokumentów"
+  ],
+  "_commands.cmd.download_allrecords": [
+    "pobierz rekordy",
+    "eksportuj rekordy",
+    "pobierz wszystkie rekordy"
+  ],
+  "_commands.cmd.download_audit": [
+    "pobierz audyt",
+    "eksportuj audyt"
+  ],
+  "_commands.cmd.download_doclist": [
+    "pobierz listę dokumentów",
+    "eksportuj listę dokumentów"
+  ],
+  "_commands.cmd.download_file": [
+    "pobierz",
+    "pobierz plik"
+  ],
+  "_commands.cmd.download_regulatory": [
+    "pobierz przepisy",
+    "eksportuj przepisy"
+  ],
+  "_commands.cmd.help": [
+    "pomoc"
+  ],
+  "_commands.cmd.list": [
+    "lista",
+    "wszystkie dokumenty"
+  ],
+  "_commands.cmd.obsolete": [
+    "wycofaj",
+    "przestarzały"
+  ],
+  "_commands.cmd.regulatory": [
+    "lista przepisów",
+    "przepisy",
+    "normy"
+  ],
+  "_commands.cmd.regulatory_update": [
+    "regulatory update",
+    "update regulatory"
+  ],
+  "_commands.cmd.search": [
+    "szukaj",
+    "wyszukaj"
+  ],
+  "_commands.cmd.status": [
+    "status",
+    "stan"
+  ],
+  "_commands.cmd.test_connection": [
+    "test połączenia",
+    "testuj połączenie"
+  ],
+  "_commands.cmd.web": [
+    "/web",
+    "wyszukiwanie web",
+    "szukaj online"
+  ]
 }
