@@ -278,5 +278,7 @@
   "welcome.main.greeting": "Hallo, ik ben Eira. Welkom bij het AI-ondersteunde kwaliteitsmanagementsysteem. Eira kan u helpen bij de beoordeling van kwaliteitsdocumenten, de evaluatie van de naleving van regelgeving voor medische hulpmiddelen en het onderzoek en de analyse van regelgevingsnormen.",
   "welcome.main.instructions": "**Subsystemen:**\n• 📄 **Documentbeheer** — Upload, OCR, versiebeheer, handtekeningdetectie, audit-trail, export\n• 🔍 **Auditbeheer** — CAPA, interne audit, afwijkingsbeheer (Phase 2 gepland)\n\n**Algemeen:** Status · /web zoeken · Help · Direct een vraag stellen",
   "welcome.main.switch_hint": "💡 Schakel over naar het profiel 'Documentbeheer' om bestanden te uploaden voor OCR-verwerking",
-  "welcome.main.title": "**Eira (TMBIA-Tmti)**"
+  "welcome.main.title": "**Eira (TMBIA-Tmti)**",
+  "web.fetching_content": "Eira: 📄 Volledige pagina-inhoud ophalen...",
+  "web.fetched_content_count": "📄 Volledige inhoud opgehaald van {count} pagina's"
 }

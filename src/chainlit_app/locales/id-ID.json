@@ -275,5 +275,7 @@
   "welcome.main.greeting": "Halo, saya Eira. Selamat datang di sistem manajemen mutu berbasis AI. Eira dapat membantu Anda dalam tinjauan dokumen mutu, penilaian kepatuhan regulasi perangkat medis, serta pencarian dan analisis standar regulasi.",
   "welcome.main.instructions": "**Sub-Sistem:**\n• 📄 **Kontrol Dokumen** — Unggah, OCR, manajemen versi, deteksi tanda tangan, jejak audit, ekspor\n• 🔍 **Manajemen Audit** — CAPA, audit internal, manajemen ketidaksesuaian (Phase 2 direncanakan)\n\n**Umum:** Status · /web pencarian · Bantuan · Tanya langsung",
   "welcome.main.switch_hint": "💡 Beralih ke profil 'Kontrol Dokumen' untuk mengunggah file untuk pemrosesan OCR",
-  "welcome.main.title": "**Eira (TMBIA-Tmti)**"
+  "welcome.main.title": "**Eira (TMBIA-Tmti)**",
+  "web.fetching_content": "Eira: 📄 Mengambil konten halaman lengkap...",
+  "web.fetched_content_count": "📄 Konten lengkap diambil dari {count} halaman"
 }

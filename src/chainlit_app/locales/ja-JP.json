@@ -281,5 +281,7 @@
   "welcome.main.greeting": "こんにちは、Eira です。AI 品質管理支援システムへようこそ。Eira は品質文書の審査、医療機器法規の適合性評価、各国の法規基準の照会と分析をお手伝いいたします。",
   "welcome.main.instructions": "**サブシステム：**\n• 📄 **文書管理** — アップロード、OCR、バージョン管理、署名検出、監査証跡、エクスポート\n• 🔍 **監査管理** — CAPA、内部監査、不適合管理（Phase 2 計画中）\n\n**共通機能：** ステータス · /web 検索 · ヘルプ · 直接質問",
   "welcome.main.switch_hint": "💡 「文書管理」プロファイルに切り替えてファイルをアップロードし OCR 処理を行えます",
-  "welcome.main.title": "**Eira (TMBIA-Tmti)**"
+  "welcome.main.title": "**Eira (TMBIA-Tmti)**",
+  "web.fetching_content": "Eira：📄 ページの全文を取得中...",
+  "web.fetched_content_count": "📄 {count} ページの全文を取得しました"
 }

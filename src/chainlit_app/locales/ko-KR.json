@@ -283,5 +283,7 @@
   "welcome.main.greeting": "안녕하세요, Eira입니다. AI 품질관리 지원 시스템에 오신 것을 환영합니다. Eira는 품질 문서 검토, 의료기기 법규 적합성 평가, 각국 법규 기준의 조회 및 분석을 지원합니다.",
   "welcome.main.instructions": "**서브시스템:**\n• 📄 **문서 관리** — 업로드, OCR, 버전 관리, 서명 감지, 감사 추적, 내보내기\n• 🔍 **감사 관리** — CAPA, 내부 감사, 부적합 관리 (Phase 2 계획 중)\n\n**일반 기능:** 상태 · /web 검색 · 도움말 · 직접 질문",
   "welcome.main.switch_hint": "💡 '문서 관리' 프로필로 전환하여 파일을 업로드하고 OCR 처리를 수행할 수 있습니다",
-  "welcome.main.title": "**Eira (TMBIA-Tmti)**"
+  "welcome.main.title": "**Eira (TMBIA-Tmti)**",
+  "web.fetching_content": "Eira: 📄 페이지 전체 내용을 가져오는 중...",
+  "web.fetched_content_count": "📄 {count}개 페이지의 전체 내용을 가져왔습니다"
 }

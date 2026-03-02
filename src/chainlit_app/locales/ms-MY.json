@@ -275,5 +275,7 @@
   "welcome.main.greeting": "Hai, saya Eira. Selamat datang ke sistem pengurusan kualiti berasaskan AI. Eira boleh membantu anda dalam semakan dokumen kualiti, penilaian pematuhan regulatori peranti perubatan, serta penyelidikan dan analisis standard regulatori.",
   "welcome.main.instructions": "**Sub-Sistem:**\n• 📄 **Kawalan Dokumen** — Muat naik, OCR, pengurusan versi, pengesanan tandatangan, jejak audit, eksport\n• 🔍 **Pengurusan Audit** — CAPA, audit dalaman, pengurusan ketidakpatuhan (Phase 2 dirancang)\n\n**Umum:** Status · /web carian · Bantuan · Tanya secara langsung",
   "welcome.main.switch_hint": "💡 Beralih ke profil 'Kawalan Dokumen' untuk memuat naik fail untuk pemprosesan OCR",
-  "welcome.main.title": "**Eira (TMBIA-Tmti)**"
+  "welcome.main.title": "**Eira (TMBIA-Tmti)**",
+  "web.fetching_content": "Eira: 📄 Mengambil kandungan penuh halaman...",
+  "web.fetched_content_count": "📄 Kandungan penuh diambil dari {count} halaman"
 }

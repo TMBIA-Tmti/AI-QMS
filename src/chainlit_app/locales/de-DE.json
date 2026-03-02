@@ -277,5 +277,7 @@
   "welcome.main.greeting": "Guten Tag, ich bin Eira. Willkommen im AI-gestützten Qualitätsmanagementsystem. Eira unterstützt Sie bei der Prüfung von Qualitätsdokumenten, der Bewertung der Konformität mit Medizinprodukte-Vorschriften sowie der Recherche und Analyse regulatorischer Standards.",
   "welcome.main.instructions": "**Subsysteme:**\n• 📄 **Dokumentenkontrolle** — Upload, OCR, Versionsverwaltung, Signaturerkennung, Prüfprotokoll, Export\n• 🔍 **Auditmanagement** — CAPA, internes Audit, Abweichungsmanagement (Phase 2 geplant)\n\n**Allgemein:** Status · /web Suche · Hilfe · Direkt fragen",
   "welcome.main.switch_hint": "💡 Wechseln Sie zum Profil 'Dokumentenkontrolle', um Dateien für die OCR-Verarbeitung hochzuladen",
-  "welcome.main.title": "**Eira (TMBIA-Tmti)**"
+  "welcome.main.title": "**Eira (TMBIA-Tmti)**",
+  "web.fetching_content": "Eira: 📄 Vollständigen Seiteninhalt abrufen...",
+  "web.fetched_content_count": "📄 Vollständiger Inhalt von {count} Seiten abgerufen"
 }

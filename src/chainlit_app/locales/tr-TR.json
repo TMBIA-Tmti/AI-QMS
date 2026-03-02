@@ -276,5 +276,7 @@
   "welcome.main.greeting": "Merhaba, ben Eira. Yapay zeka destekli kalite yönetim sistemine hoş geldiniz. Eira, kalite belgelerinin incelenmesi, tıbbi cihaz mevzuatına uygunluk değerlendirmesi ve düzenleyici standartların araştırılması ve analizinde size yardımcı olabilir.",
   "welcome.main.instructions": "**Alt Sistemler:**\n• 📄 **Belge Kontrolü** — Yükleme, OCR, sürüm yönetimi, imza algılama, denetim izi, dışa aktarma\n• 🔍 **Denetim Yönetimi** — CAPA, iç denetim, uygunsuzluk yönetimi (Phase 2 planlanıyor)\n\n**Genel:** Durum · /web arama · Yardım · Doğrudan sorun",
   "welcome.main.switch_hint": "💡 OCR işleme için dosya yüklemek üzere 'Belge Kontrolü' profiline geçin",
-  "welcome.main.title": "**Eira (TMBIA-Tmti)**"
+  "welcome.main.title": "**Eira (TMBIA-Tmti)**",
+  "web.fetching_content": "Eira: 📄 Tam sayfa içeriği getiriliyor...",
+  "web.fetched_content_count": "📄 {count} sayfanın tam içeriği getirildi"
 }

@@ -6416,6 +6416,165 @@ def _web_search_sync(query: str, max_results: int = 10) -> list:
         return []
 
 
+# ── Full-page content fetcher for /web search enhancement ──
+_WEB_FETCH_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9,zh-TW;q=0.8",
+}
+_WEB_FETCH_JINA_BASE = "https://r.jina.ai/"
+_WEB_FETCH_MAX_CONTENT = 8_000      # per-page char limit
+_WEB_FETCH_TOTAL_MAX   = 30_000     # total char limit across all pages
+_WEB_FETCH_SKIP_EXTS   = (".pdf", ".doc", ".docx", ".xls", ".xlsx",
+                          ".ppt", ".pptx", ".zip", ".gz", ".tar",
+                          ".png", ".jpg", ".jpeg", ".gif", ".svg",
+                          ".mp4", ".mp3", ".wav", ".avi")
+
+
+def _simple_html_to_text(html: str, url: str = "") -> str:
+    """Lightweight HTML → text extraction using BeautifulSoup."""
+    try:
+        from bs4 import BeautifulSoup as _BS
+        soup = _BS(html, "html.parser")
+        # Remove non-content tags
+        for tag in soup.find_all(
+            ["script", "style", "nav", "footer", "header", "aside", "noscript"]
+        ):
+            tag.decompose()
+        main = (
+            soup.find("main")
+            or soup.find("article")
+            or soup.find("div", {"role": "main"})
+            or soup.find("div", {"id": re.compile(r"content|main", re.I)})
+            or soup.find("div", {"class": re.compile(r"content|main", re.I)})
+        )
+        target = main if main else (soup.body if soup.body else soup)
+        lines: list[str] = []
+        title_tag = soup.find("title")
+        if title_tag and title_tag.string:
+            lines.append(f"# {title_tag.string.strip()}")
+            lines.append("")
+        for el in target.find_all(
+            ["h1", "h2", "h3", "h4", "p", "li", "pre", "blockquote"]
+        ):
+            text = el.get_text(strip=True)
+            if not text:
+                continue
+            tag_name = el.name
+            if tag_name == "h1":
+                lines.append(f"# {text}")
+            elif tag_name == "h2":
+                lines.append(f"## {text}")
+            elif tag_name == "h3":
+                lines.append(f"### {text}")
+            elif tag_name == "h4":
+                lines.append(f"#### {text}")
+            elif tag_name == "li":
+                lines.append(f"- {text}")
+            elif tag_name == "pre":
+                lines.append(f"```\n{text}\n```")
+            elif tag_name == "blockquote":
+                lines.append(f"> {text}")
+            else:
+                lines.append(text)
+            lines.append("")
+        return "\n".join(lines).strip()
+    except Exception:
+        return ""
+
+
+async def _fetch_single_url(url: str, timeout: float = 15.0) -> tuple[str, str]:
+    """Fetch a single URL: httpx first, Jina Reader fallback.
+
+    Returns (url, markdown_content). Content is empty string on failure.
+    """
+    import httpx as _httpx
+    from urllib.parse import urlparse
+
+    # Skip non-HTML resources
+    path = urlparse(url).path.lower()
+    if any(path.endswith(ext) for ext in _WEB_FETCH_SKIP_EXTS):
+        return (url, "")
+
+    _timeout = _httpx.Timeout(timeout, connect=8.0)
+
+    # --- Attempt 1: Direct httpx fetch ---
+    try:
+        async with _httpx.AsyncClient(
+            headers=_WEB_FETCH_HEADERS,
+            timeout=_timeout,
+            follow_redirects=True,
+            verify=True,
+        ) as client:
+            resp = await client.get(url)
+            if resp.status_code == 200:
+                content_type = resp.headers.get("content-type", "")
+                if "text/html" in content_type or "application/xhtml" in content_type:
+                    md = _simple_html_to_text(resp.text, url)
+                    if md and len(md.strip()) > 200:
+                        return (url, md[:_WEB_FETCH_MAX_CONTENT])
+    except Exception:
+        pass
+
+    # --- Attempt 2: Jina Reader fallback ---
+    try:
+        jina_url = f"{_WEB_FETCH_JINA_BASE}{url}"
+        async with _httpx.AsyncClient(
+            timeout=_httpx.Timeout(30.0, connect=10.0),
+            follow_redirects=True,
+        ) as client:
+            resp = await client.get(
+                jina_url, headers={"Accept": "text/markdown"}
+            )
+            if resp.status_code == 200:
+                content = resp.text.strip()
+                if content and len(content) > 100:
+                    return (url, content[:_WEB_FETCH_MAX_CONTENT])
+    except Exception:
+        pass
+
+    return (url, "")
+
+
+async def _fetch_web_full_content(
+    urls: list, max_urls: int = 3, timeout: float = 15.0
+) -> dict:
+    """Fetch full page content from top web search result URLs in parallel.
+
+    Uses httpx first, falls back to Jina Reader for JS-heavy / blocked sites.
+    Returns dict mapping URL → markdown content (successful fetches only).
+    """
+    selected = urls[:max_urls]
+    if not selected:
+        return {}
+
+    tasks = [
+        asyncio.wait_for(_fetch_single_url(u, timeout), timeout=timeout + 5)
+        for u in selected
+    ]
+    raw = await asyncio.gather(*tasks, return_exceptions=True)
+
+    results: dict[str, str] = {}
+    total_chars = 0
+    for item in raw:
+        if isinstance(item, Exception):
+            continue
+        url, content = item
+        if not content:
+            continue
+        # Enforce total char budget
+        remaining = _WEB_FETCH_TOTAL_MAX - total_chars
+        if remaining <= 0:
+            break
+        if len(content) > remaining:
+            content = content[:remaining] + "\n\n... (truncated)"
+        results[url] = content
+        total_chars += len(content)
+
+    return results
+
+
 async def chat_with_llm_web(message_text: str, profile: str):
     """Send message to LLM with web search results + Markdown DB context and stream response.
 
@@ -6515,6 +6674,59 @@ async def chat_with_llm_web(message_text: str, profile: str):
                 + "\n".join(web_sources)
             )
             await search_msg.update()
+
+            # --- Step 1b: Fetch full page content from top URLs ---
+            full_content_context = ""
+            try:
+                # Pick top URLs by credibility tier (lower = better)
+                _seen_fetch: set = set()
+                fetch_urls: list = []
+                for r in web_results:
+                    u = r.get("href", r.get("link", ""))
+                    if u and u not in _seen_fetch:
+                        _seen_fetch.add(u)
+                        fetch_urls.append(u)
+                    if len(fetch_urls) >= 5:
+                        break
+
+                if fetch_urls:
+                    search_msg.content += f"\n\n{t('web.fetching_content')}"
+                    await search_msg.update()
+
+                    with phoenix_span("web_full_content_fetch", profile=profile,
+                                      attributes={"fetch.url_count": len(fetch_urls)}) as fc_span:
+                        full_content_results = await _fetch_web_full_content(
+                            fetch_urls, max_urls=3, timeout=15.0
+                        )
+                        if fc_span is not None:
+                            fc_span.set_attribute("fetch.success_count", len(full_content_results))
+                            fc_span.set_attribute("fetch.urls", str(list(full_content_results.keys())))
+
+                    if full_content_results:
+                        fc_parts = ["\n\n--- 以下為搜尋結果的完整頁面內容 (Full Page Content) ---\n"]
+                        for fc_url, fc_content in full_content_results.items():
+                            # Find title from search results
+                            fc_title = next(
+                                (r.get("title", "") for r in web_results
+                                 if r.get("href", r.get("link", "")) == fc_url),
+                                fc_url,
+                            )
+                            fc_parts.append(
+                                f"### {fc_title}\nSource: {fc_url}\n\n{fc_content}\n"
+                            )
+                        full_content_context = "\n".join(fc_parts)
+                        web_context += full_content_context
+
+                        # Update UI with fetch count
+                        search_msg.content = (
+                            f"🌐 {t('web.source_label')}: {len(web_sources)} results\n"
+                            + "\n".join(web_sources)
+                            + f"\n\n{t('web.fetched_content_count', count=len(full_content_results))}"
+                        )
+                        await search_msg.update()
+            except Exception as e_fc:
+                print(f"[WARN] Full content fetch failed: {e_fc}")
+                # Non-fatal: continue with snippets only
         else:
             search_msg.content = t("web.no_results")
             await search_msg.update()

@@ -276,5 +276,7 @@
   "welcome.main.greeting": "Xin chào, tôi là Eira. Chào mừng bạn đến với hệ thống quản lý chất lượng hỗ trợ bởi AI. Eira có thể hỗ trợ bạn rà soát tài liệu chất lượng, đánh giá tuân thủ quy định thiết bị y tế, cũng như tra cứu và phân tích các tiêu chuẩn pháp quy.",
   "welcome.main.instructions": "**Hệ thống con:**\n• 📄 **Quản lý tài liệu** — Tải lên, OCR, quản lý phiên bản, phát hiện chữ ký, nhật ký kiểm toán, xuất\n• 🔍 **Quản lý kiểm toán** — CAPA, kiểm toán nội bộ, quản lý sự không phù hợp (Phase 2 dự kiến)\n\n**Chung:** Trạng thái · /web tìm kiếm · Trợ giúp · Hỏi trực tiếp",
   "welcome.main.switch_hint": "💡 Chuyển sang hồ sơ 'Quản lý tài liệu' để tải tệp lên cho xử lý OCR",
-  "welcome.main.title": "**Eira (TMBIA-Tmti)**"
+  "welcome.main.title": "**Eira (TMBIA-Tmti)**",
+  "web.fetching_content": "Eira: 📄 Đang tải nội dung đầy đủ trang...",
+  "web.fetched_content_count": "📄 Đã tải nội dung đầy đủ từ {count} trang"
 }

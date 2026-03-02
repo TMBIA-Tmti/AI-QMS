@@ -276,5 +276,7 @@
   "welcome.main.greeting": "Hola, soy Eira. Bienvenido al sistema de gestión de calidad asistido por IA. Eira puede ayudarle con la revisión de documentos de calidad, la evaluación del cumplimiento regulatorio de dispositivos médicos y la consulta y análisis de normas regulatorias.",
   "welcome.main.instructions": "**Subsistemas:**\n• 📄 **Control de documentos** — Carga, OCR, gestión de versiones, detección de firma, pista de auditoría, exportación\n• 🔍 **Gestión de auditoría** — CAPA, auditoría interna, gestión de no conformidades (Phase 2 planificado)\n\n**General:** Estado · /web búsqueda · Ayuda · Preguntar directamente",
   "welcome.main.switch_hint": "💡 Cambie al perfil 'Control de documentos' para cargar archivos para el procesamiento OCR",
-  "welcome.main.title": "**Eira (TMBIA-Tmti)**"
+  "welcome.main.title": "**Eira (TMBIA-Tmti)**",
+  "web.fetching_content": "Eira: 📄 Obteniendo contenido completo de la página...",
+  "web.fetched_content_count": "📄 Contenido completo obtenido de {count} páginas"
 }

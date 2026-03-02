@@ -279,5 +279,7 @@
   "welcome.main.greeting": "Hello, I am Eira. Welcome to the AI-assisted quality management system. Eira can help you with quality document review, medical device regulatory compliance assessment, and regulatory standards research and analysis across jurisdictions.",
   "welcome.main.instructions": "**Sub-Systems:**\n• 📄 **Document Control** — Upload, OCR, version management, signature detection, audit trail, export\n• 🔍 **Audit Management** — CAPA, internal audit, non-conformance management (Phase 2 Planned)\n\n**General:** Status · /web search · Help · Ask directly",
   "welcome.main.switch_hint": "💡 Switch to 'Doc Control' profile to upload files for OCR processing",
-  "welcome.main.title": "**Eira (TMBIA-Tmti)**"
+  "welcome.main.title": "**Eira (TMBIA-Tmti)**",
+  "web.fetching_content": "Eira: 📄 Fetching full page content...",
+  "web.fetched_content_count": "📄 Fetched full content from {count} pages"
 }

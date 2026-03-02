@@ -285,5 +285,7 @@
   "welcome.main.greeting": "您好，我是 Eira。欢迎使用本 AI 辅助系统，Eira 可协助您进行品质文件审查、医疗器材法规符合性评估，以及各国法规标准的查询与分析。",
   "welcome.main.instructions": "**子系统：**\n• 📄 **文件管控** — 文件上传、OCR、版本管理、签章检测、审计记录、导出\n• 🔍 **审计管理** — CAPA、内部审计、不符合事项管理（Phase 2 规划中）\n\n**通用功能：** 状态 · /web 搜索 · 帮助 · 直接提问",
   "welcome.main.switch_hint": "💡 切换到「文件管控」Profile 可上传文件进行 OCR 处理",
-  "welcome.main.title": "**Eira (TMBIA-Tmti)**"
+  "welcome.main.title": "**Eira (TMBIA-Tmti)**",
+  "web.fetching_content": "Eira：📄 正在读取完整页面内容...",
+  "web.fetched_content_count": "📄 已获取 {count} 个页面的完整内容"
 }
