@@ -1,0 +1,488 @@
+"""
+AI-QMS — Phase 5: Independent Verification (Cross-Examination)
+===============================================================
+
+LLM call #4 — Two LLM roles: Analyzer and Verifier.
+
+Cross-examination (交叉詰問):
+  1. Analyzer presents its evidence assessment
+  2. Verifier challenges the assessment with counter-questions
+  3. Analyzer responds to challenges
+  4. Max 3 rounds. All rounds recorded in backend + Phoenix.
+  5. If still disagreeing after 3 rounds → flagged_for_ra = True
+
+Questions come from compliance_rules.py audit questions.
+The Verifier role uses the regulation text as ground truth.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+import time
+
+from src.analysis.state import (
+    Phase,
+    PhaseStatus,
+    PhaseResult,
+    EvidenceItem,
+    RowState,
+    PipelineState,
+)
+
+
+__all__ = [
+    "run_verification_row",
+    "MAX_VERIFICATION_ROUNDS",
+]
+
+MAX_VERIFICATION_ROUNDS = 3
+
+
+# ============================================================
+# Analyzer role — defends the evidence assessment
+# ============================================================
+
+_ANALYZER_SYSTEM_PROMPT = """你是品質管理系統「分析者」角色。你在差距分析中已對品質文件進行評估。
+
+你的任務：
+1. 根據已找到的證據，說明為何你認為當前的合規判定是正確的。
+2. 當驗證者質疑時，你必須用具體的證據引用來回應。
+3. 如果驗證者的質疑有道理，你必須誠實承認可能的判定錯誤。
+4. 回答使用指定的 JSON 格式。"""
+
+_ANALYZER_INITIAL_TEMPLATE = """## 你的評估摘要
+
+**法規條款**: {clause_id} — {clause_title}
+**稽核問題**: {audit_question}
+**當前判定**: {current_verdict}
+**差距類型**: {gap_severity}
+
+### 證據項目
+{evidence_summary}
+
+請以 JSON 格式說明你的評估立場：
+
+```json
+{{
+  "position": "支持當前判定的完整論述",
+  "key_evidence": ["關鍵證據引用1", "關鍵證據引用2"],
+  "confidence": 0.0-1.0,
+  "acknowledged_weaknesses": ["已知的弱點（如有）"]
+}}
+```"""
+
+_ANALYZER_RESPONSE_TEMPLATE = """## 驗證者的質疑
+
+{verifier_challenge}
+
+請針對以上質疑進行回應，使用 JSON 格式：
+
+```json
+{{
+  "response": "針對質疑的回應",
+  "additional_evidence": ["補充證據（如有）"],
+  "concession": "承認質疑有理的部分（如有）",
+  "revised_confidence": 0.0-1.0
+}}
+```"""
+
+
+# ============================================================
+# Verifier role — challenges the assessment
+# ============================================================
+
+_VERIFIER_SYSTEM_PROMPT = """你是品質管理系統「驗證者」角色。你的任務是從法規合規的角度質疑分析者的評估。
+
+你的職責：
+1. 檢查分析者是否遺漏了重要的法規要求。
+2. 質疑證據引用是否真正涵蓋了稽核問題的所有面向。
+3. 指出「提到」vs「具體說明如何執行」的差異。
+4. 如果分析者的評估確實合理且有充足證據，你應當同意。
+5. 不要為了質疑而質疑 — 只提出有實質意義的挑戰。
+6. 回答使用指定的 JSON 格式。"""
+
+_VERIFIER_CHALLENGE_TEMPLATE = """## 分析者的評估
+
+{analyzer_position}
+
+## 法規原文參考
+
+{regulation_text}
+
+## 稽核問題
+
+{audit_question}
+
+請以 JSON 格式提出你的驗證意見：
+
+```json
+{{
+  "agreement_level": "agree" | "partial_agree" | "disagree",
+  "challenges": [
+    {{
+      "point": "質疑要點",
+      "regulation_basis": "法規依據",
+      "expected_evidence": "你認為應該有的證據"
+    }}
+  ],
+  "overall_assessment": "整體評語"
+}}
+```"""
+
+_VERIFIER_FOLLOWUP_TEMPLATE = """## 分析者的回應
+
+{analyzer_response}
+
+## 前一輪你的質疑
+
+{previous_challenge}
+
+請根據分析者的回應更新你的評估，使用 JSON 格式：
+
+```json
+{{
+  "agreement_level": "agree" | "partial_agree" | "disagree",
+  "remaining_concerns": ["仍未解決的疑慮"],
+  "resolved_concerns": ["已被合理回應的疑慮"],
+  "overall_assessment": "更新後的整體評語"
+}}
+```"""
+
+
+# ============================================================
+# Helper functions
+# ============================================================
+
+
+def _build_evidence_summary(evidence_items: list[EvidenceItem]) -> str:
+    """Build a summary of evidence for the analyzer."""
+    parts = []
+    for i, item in enumerate(evidence_items, 1):
+        status = "✅ 找到" if item.found else "❌ 未找到"
+        if item.is_inadequate:
+            status = "⚠️ 不充分"
+        if item.is_outdated:
+            status = "📅 版本過期"
+
+        line = f"{i}. [{status}] {item.evidence_name}"
+        if item.source_quote:
+            quote = item.source_quote[:100] + (
+                "..." if len(item.source_quote) > 100 else ""
+            )
+            line += f"\n   引用: 「{quote}」"
+        if item.llm_reasoning:
+            line += f"\n   原因: {item.llm_reasoning}"
+        parts.append(line)
+
+    return "\n".join(parts) if parts else "（無證據項目）"
+
+
+def _get_regulation_text(clause_id: str, standard: str) -> str:
+    """Try to retrieve regulation text from crawled data."""
+    try:
+        from src.storage.regulatory_markdown_storage import (
+            get_regulatory_markdown_store,
+        )
+
+        store = get_regulatory_markdown_store()
+        all_docs = store.list_documents(status="active")
+
+        for doc in all_docs:
+            title = doc.get("title", "").lower()
+            standard_name = standard.replace("_", " ").lower()
+            if standard_name in title or standard_name.replace(" ", "") in title:
+                full_doc = store.get_document(doc.get("doc_id", ""))
+                if full_doc and full_doc.get("content"):
+                    content = full_doc["content"]
+                    clause_pattern = re.compile(
+                        rf"(?:^|\n)(?:#+\s*)?{re.escape(clause_id)}[\s.、]",
+                        re.MULTILINE,
+                    )
+                    match = clause_pattern.search(content)
+                    if match:
+                        start = max(0, match.start() - 50)
+                        end = min(len(content), match.end() + 800)
+                        return content[start:end]
+
+        return "（系統中無此法規條文原文）"
+    except Exception:
+        return "（無法取得法規條文）"
+
+
+def _parse_json_response(response_text: str) -> dict:
+    """Parse LLM JSON response with code block handling."""
+    json_str = response_text.strip()
+
+    if "```json" in json_str:
+        start = json_str.index("```json") + 7
+        end = (
+            json_str.index("```", start) if "```" in json_str[start:] else len(json_str)
+        )
+        json_str = json_str[start:end].strip()
+    elif "```" in json_str:
+        start = json_str.index("```") + 3
+        end = (
+            json_str.index("```", start) if "```" in json_str[start:] else len(json_str)
+        )
+        json_str = json_str[start:end].strip()
+
+    try:
+        return json.loads(json_str)
+    except (json.JSONDecodeError, KeyError):
+        return {}
+
+
+def _call_llm(
+    llm_completion_fn: callable,
+    system_prompt: str,
+    user_prompt: str,
+    state: PipelineState,
+    model: str,
+    temperature: float,
+    max_tokens: int,
+) -> tuple[dict, dict]:
+    """Call LLM and return (parsed_response, usage). Checks budget first.
+
+    Returns:
+        (parsed_json, usage_dict)
+    Raises:
+        RuntimeError if budget exceeded.
+    """
+    budget = state.get_budget()
+    if budget.exceeded:
+        raise RuntimeError("LLM token 預算已用盡")
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
+
+    response = llm_completion_fn(
+        messages=messages,
+        model=model,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        stream=False,
+    )
+
+    response_text = response.get("content", "")
+    usage = response.get("usage", {})
+
+    budget.record_usage(usage)
+    state.update_budget(budget)
+
+    parsed = _parse_json_response(response_text)
+    return parsed, usage
+
+
+# ============================================================
+# Phase execution
+# ============================================================
+
+
+def run_verification_row(
+    row_state: RowState,
+    state: PipelineState,
+    llm_completion_fn: callable,
+    model: str = "default",
+    temperature: float = 0.2,
+    max_tokens: int = 4096,
+) -> PhaseResult:
+    """Execute Phase 5 cross-examination for a single row.
+
+    Process:
+        Round 1: Analyzer states position → Verifier challenges
+        Round 2: Analyzer responds → Verifier re-evaluates
+        Round 3: (if needed) Analyzer final → Verifier final
+        If still disagreeing after 3 rounds → flagged_for_ra
+
+    Args:
+        row_state: Row with Phase 1-4 results
+        state: Pipeline state
+        llm_completion_fn: LLM completion function
+        model: Model name
+        temperature: LLM temperature
+        max_tokens: Max response tokens
+
+    Returns:
+        PhaseResult with verification rounds and agreement status
+    """
+    phase_result = PhaseResult(
+        phase=Phase.VERIFICATION.value,
+        started_at=time.time(),
+    )
+
+    try:
+        evidence_items = [EvidenceItem.from_dict(e) for e in row_state.evidence_items]
+
+        if not evidence_items:
+            phase_result.status = PhaseStatus.SKIPPED.value
+            phase_result.output = {"reason": "No evidence items to verify"}
+            phase_result.completed_at = time.time()
+            return phase_result
+
+        evidence_summary = _build_evidence_summary(evidence_items)
+        regulation_text = _get_regulation_text(row_state.clause_id, row_state.standard)
+
+        # Import verdict display
+        from src.analysis.risk_matrix import VERDICT_DISPLAY
+
+        verdict_info = VERDICT_DISPLAY.get(row_state.verdict or "", {})
+        verdict_label = verdict_info.get("label_zh", row_state.verdict or "未判定")
+
+        rounds: list[dict] = []
+        total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+        agreed = False
+
+        # ---- Round 1: Analyzer initial position ----
+        analyzer_prompt = _ANALYZER_INITIAL_TEMPLATE.format(
+            clause_id=row_state.clause_id,
+            clause_title=row_state.clause_title,
+            audit_question=row_state.audit_question,
+            current_verdict=verdict_label,
+            gap_severity=row_state.gap_severity or "未評估",
+            evidence_summary=evidence_summary,
+        )
+
+        analyzer_response, usage = _call_llm(
+            llm_completion_fn,
+            _ANALYZER_SYSTEM_PROMPT,
+            analyzer_prompt,
+            state,
+            model,
+            temperature,
+            max_tokens,
+        )
+        _merge_usage(total_usage, usage)
+
+        # Verifier challenges
+        verifier_prompt = _VERIFIER_CHALLENGE_TEMPLATE.format(
+            analyzer_position=json.dumps(
+                analyzer_response, ensure_ascii=False, indent=2
+            ),
+            regulation_text=regulation_text,
+            audit_question=row_state.audit_question,
+        )
+
+        verifier_response, usage = _call_llm(
+            llm_completion_fn,
+            _VERIFIER_SYSTEM_PROMPT,
+            verifier_prompt,
+            state,
+            model,
+            temperature,
+            max_tokens,
+        )
+        _merge_usage(total_usage, usage)
+
+        rounds.append(
+            {
+                "round": 1,
+                "analyzer": analyzer_response,
+                "verifier": verifier_response,
+            }
+        )
+
+        agreement = verifier_response.get("agreement_level", "")
+        if agreement == "agree":
+            agreed = True
+
+        # ---- Rounds 2-3: Follow-up if not agreed ----
+        for round_num in range(2, MAX_VERIFICATION_ROUNDS + 1):
+            if agreed:
+                break
+
+            # Analyzer responds to verifier's challenge
+            analyzer_followup = _ANALYZER_RESPONSE_TEMPLATE.format(
+                verifier_challenge=json.dumps(
+                    verifier_response, ensure_ascii=False, indent=2
+                ),
+            )
+
+            analyzer_response, usage = _call_llm(
+                llm_completion_fn,
+                _ANALYZER_SYSTEM_PROMPT,
+                analyzer_followup,
+                state,
+                model,
+                temperature,
+                max_tokens,
+            )
+            _merge_usage(total_usage, usage)
+
+            # Verifier re-evaluates
+            verifier_followup = _VERIFIER_FOLLOWUP_TEMPLATE.format(
+                analyzer_response=json.dumps(
+                    analyzer_response, ensure_ascii=False, indent=2
+                ),
+                previous_challenge=json.dumps(
+                    verifier_response, ensure_ascii=False, indent=2
+                ),
+            )
+
+            verifier_response, usage = _call_llm(
+                llm_completion_fn,
+                _VERIFIER_SYSTEM_PROMPT,
+                verifier_followup,
+                state,
+                model,
+                temperature,
+                max_tokens,
+            )
+            _merge_usage(total_usage, usage)
+
+            rounds.append(
+                {
+                    "round": round_num,
+                    "analyzer": analyzer_response,
+                    "verifier": verifier_response,
+                }
+            )
+
+            agreement = verifier_response.get("agreement_level", "")
+            if agreement == "agree":
+                agreed = True
+
+        # ---- Store results ----
+        row_state.verification_rounds = rounds
+        row_state.verification_agreed = agreed
+        row_state.flagged_for_ra = not agreed
+
+        phase_result.status = PhaseStatus.COMPLETED.value
+        phase_result.output = {
+            "total_rounds": len(rounds),
+            "agreed": agreed,
+            "flagged_for_ra": not agreed,
+            "final_agreement_level": agreement,
+            "rounds": rounds,
+        }
+        phase_result.llm_usage = total_usage
+        phase_result.llm_model = model
+
+    except RuntimeError as e:
+        # Budget exceeded mid-verification
+        phase_result.status = PhaseStatus.FAILED.value
+        phase_result.error = str(e)
+        # Still save partial rounds
+        if rounds:
+            row_state.verification_rounds = rounds
+            phase_result.output = {
+                "total_rounds": len(rounds),
+                "partial": True,
+                "rounds": rounds,
+            }
+
+    except Exception as e:
+        phase_result.status = PhaseStatus.FAILED.value
+        phase_result.error = str(e)
+
+    phase_result.completed_at = time.time()
+    return phase_result
+
+
+def _merge_usage(total: dict, usage: dict) -> None:
+    """Accumulate LLM usage across multiple calls."""
+    total["prompt_tokens"] += usage.get("prompt_tokens", 0)
+    total["completion_tokens"] += usage.get("completion_tokens", 0)
+    total["total_tokens"] += usage.get("total_tokens", 0)

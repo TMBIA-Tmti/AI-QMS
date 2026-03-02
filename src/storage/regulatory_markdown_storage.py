@@ -347,6 +347,47 @@ class RegulatoryMarkdownStorage:
                 return entry
         return None
 
+    def get_document_by_url(self, url: str, status: str = "active") -> Optional[dict]:
+        """Get the most recent document matching a URL.
+
+        Used by the crawler to retrieve previous content on HTTP 304 Not Modified,
+        so the actual content can be preserved instead of a placeholder string.
+
+        Args:
+            url: Source URL to match
+            status: Filter by status ("active", "deleted", "all")
+
+        Returns:
+            dict with all metadata fields + 'content' key, or None
+        """
+        best_match: Optional[dict] = None
+        for doc in self.registry.get("documents", []):
+            if status != "all" and doc.get("status", "active") != status:
+                continue
+            if doc.get("url", "") != url:
+                continue
+            # Pick the most recent one by crawl_timestamp
+            if best_match is None or doc.get("crawl_timestamp", "") > best_match.get("crawl_timestamp", ""):
+                best_match = doc
+
+        if best_match is None:
+            return None
+
+        entry = dict(best_match)
+        md_path = best_match.get("markdown_path", "")
+        if md_path:
+            full_path = self.base_path / md_path
+            if full_path.exists():
+                try:
+                    entry["content"] = full_path.read_text(encoding="utf-8")
+                except Exception:
+                    entry["content"] = ""
+            else:
+                entry["content"] = ""
+        else:
+            entry["content"] = ""
+        return entry
+
     def search_documents(self, keyword: str, status: str = "active") -> list:
         """Search documents by keyword across region, agency, agency_name, title fields.
 

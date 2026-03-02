@@ -392,6 +392,9 @@ from src.storage.regulatory_markdown_storage import (
 from src.storage.regulatory_analysis_storage import (
     get_regulatory_analysis_store,
 )
+from src.storage.product_docs_storage import get_product_docs_store
+from src.analysis.pipeline_runner import run_pipeline_analysis, PipelineRunResult
+from src.analysis.report_api import report_router
 from src.utils.user_settings import save_user_settings, load_user_settings
 from src.utils.analysis_cache import (
     save_analysis_cache,
@@ -403,6 +406,15 @@ from src.utils.analysis_cache import (
 # This ensures cloud provider models appear immediately without
 # needing to re-enter API keys.
 load_cached_models()
+
+# ── Phase D: Mount report API on Chainlit's underlying FastAPI app ──
+try:
+    from chainlit.server import app as _chainlit_fastapi_app
+    _chainlit_fastapi_app.include_router(report_router)
+except Exception as _mount_err:
+    logging.getLogger(__name__).warning(
+        f"Failed to mount report API router: {_mount_err}"
+    )
 
 
 # ============================================================
@@ -3576,6 +3588,108 @@ async def _iter_stream_with_timeout(
 _STREAM_SENTINEL = object()  # sentinel for detecting generator exhaustion
 
 
+async def _ask_product_docs_upload() -> Optional[str]:
+    """Ask user if they want to upload product documents before analysis.
+
+    Returns:
+        session_id (str) if user uploaded documents, None if skipped.
+    """
+    try:
+        res = await cl.AskActionMessage(
+            content=(
+                "📦 **產品文件上傳（選填）**\n\n"
+                "您可以在分析前上傳產品相關文件，讓 LLM 更準確地評估法規符合性：\n"
+                "- 使用說明書 (IFU)\n"
+                "- 產品規格書\n"
+                "- 產品介紹\n"
+                "- 其他產品相關文件\n\n"
+                "📌 上傳的文件僅用於本次分析，報告產生後將自動刪除。"
+            ),
+            actions=[
+                cl.Action(name="upload_product_docs", payload={"value": "upload"}, label="📎 上傳產品文件"),
+                cl.Action(name="skip_product_docs", payload={"value": "skip"}, label="⏭️ 跳過，直接分析"),
+            ],
+            timeout=120,
+        ).send()
+    except Exception:
+        # Timeout or error — skip upload
+        return None
+
+    if not res or res.get("value") != "upload":
+        await cl.Message(content="⏭️ 跳過產品文件上傳，直接開始分析。").send()
+        return None
+
+    # User chose to upload — show file upload dialog
+    try:
+        files = await cl.AskFileMessage(
+            content=(
+                "📎 **請上傳產品文件**\n\n"
+                "支援格式：PDF、Word、Excel、PowerPoint、圖片、文字檔\n"
+                "不限數量，不需簽章。\n\n"
+                "上傳完成後點擊確認即可。"
+            ),
+            accept=["*/*"],
+            max_files=20,
+            max_size_mb=50,
+            timeout=300,
+        ).send()
+    except Exception:
+        await cl.Message(content="⏭️ 上傳逾時或取消，直接開始分析。").send()
+        return None
+
+    if not files:
+        await cl.Message(content="⏭️ 未上傳任何檔案，直接開始分析。").send()
+        return None
+
+    # Process uploaded files through OCR and save to temp storage
+    product_store = get_product_docs_store()
+    session_id = product_store.create_session()
+
+    await cl.Message(content=f"⏳ 正在處理 {len(files)} 份產品文件...").send()
+
+    success_count = 0
+    for f in files:
+        try:
+            result = process_document(f.path)
+            if result and result.get("success") and result.get("content"):
+                save_result = product_store.save_document(
+                    session_id=session_id,
+                    filename=f.name,
+                    content=result["content"],
+                    original_path=f.path,
+                )
+                if save_result.get("success"):
+                    success_count += 1
+            else:
+                # If OCR fails, try reading as plain text
+                try:
+                    raw_text = Path(f.path).read_text(encoding="utf-8", errors="ignore")
+                    if raw_text.strip():
+                        save_result = product_store.save_document(
+                            session_id=session_id,
+                            filename=f.name,
+                            content=raw_text,
+                            original_path=f.path,
+                        )
+                        if save_result.get("success"):
+                            success_count += 1
+                except Exception:
+                    pass
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Failed to process product doc {f.name}: {e}")
+
+    if success_count > 0:
+        await cl.Message(
+            content=f"✅ 已成功處理 {success_count}/{len(files)} 份產品文件，將納入本次分析。"
+        ).send()
+        return session_id
+    else:
+        product_store.cleanup_session(session_id)
+        await cl.Message(content="⚠️ 產品文件處理失敗，將不含產品文件進行分析。").send()
+        return None
+
+
 async def handle_regulatory_list():
     """Handle 法規清單 command — scan regulatory references, integrate crawl data, LLM assessment."""
     storage = get_markdown_store()
@@ -3759,6 +3873,14 @@ async def handle_regulatory_list():
             )
     sop_content_data = "\n\n".join(sop_parts) if sop_parts else "無可用的 SOP 內容"
 
+    # ── Step 0: Ask user for optional product documents ──
+    product_docs_session_id = await _ask_product_docs_upload()
+    product_docs_data = ""
+    if product_docs_session_id:
+        product_docs_data = get_product_docs_store().get_session_content_for_prompt(
+            product_docs_session_id, max_chars=8000
+        )
+
     # ── Step 1: Generate baseline Word/Excel BEFORE LLM (guaranteed report) ──
     _cache_id = f"regulatory_list_{datetime.now().strftime('%Y%m%d%H%M%S')}"
     baseline_word_path = ""
@@ -3786,147 +3908,65 @@ async def handle_regulatory_list():
             f"Baseline report generation failed: {baseline_err}"
         )
 
-    # Call LLM for assessment
+    # ── Run analysis pipeline (replaces one-shot LLM) ──
     provider_id = cl.user_session.get("provider_id", "ollama")
     model_name = cl.user_session.get("model_name", "default")
     api_key = cl.user_session.get("api_key", "").strip()
 
     assessment = ""
-    token_exhausted = False
+    pipeline_result = None
     try:
         setup_api_key(provider_id, api_key)
         manager = create_provider_manager(provider_id)
         if provider_id != "ollama":
             manager.disable_fallback = True
 
-        # Build selected regions string for prompt
-        selected_regions_str = (
-            "、".join(sorted(filter_regions)) if filter_regions else "未指定"
-        )
+        # Progress message callback for Chainlit
+        async def _send_pipeline_msg(text: str) -> None:
+            try:
+                await cl.Message(content=text).send()
+            except Exception:
+                pass
 
-        assessment_prompt = t(
-            "regulatory_update.assessment_prompt",
-            online_data=online_data[:8000],
-            local_data=local_data[:4000],
-            regulatory_db_data=regulatory_db_data[:6000],
-            uploaded_docs_data=uploaded_docs_data[:4000],
-            sop_content_data=sop_content_data[:20000],
-            selected_regions=selected_regions_str,
-        )
-
-        # Show progress
         await cl.Message(content=t("regulatory_update.assessment_analyzing")).send()
 
-        assess_msg = cl.Message(content="")
-        await assess_msg.send()
-
-        messages = [
-            {
-                "role": "system",
-                "content": "你是資深醫療器材品質管理系統 (Quality Management System, QMS) 法規合規性分析專家，具備以下專業能力：\n1. 熟悉 ISO 13485:2016、FDA 21 CFR Part 820 QMSR (Quality Management System Regulation)、EU MDR 2017/745、MDSAP 等全球主要醫療器材法規\n2. 具備法規修訂歷程分析能力，能解讀監管機構 (Regulatory Authority) 的立法意圖與查核重點\n3. 能進行品質文件間的交叉比對，識別流程矛盾、時限衝突與權責不一致\n4. 能從組織管理角度評估法規變更的衝擊範圍 (Change Impact)，提出分階段矯正策略 (Remediation Strategy)\n5. 擅長在不中斷現有運作的前提下，規劃品質文件的漸進式修改路徑\n\n⚠️ 嚴格禁止事項（最高優先級）：\n- 系統中僅有標記『📎 手動上傳的法規文件』的文件才有完整原文。\n- 在其他文件（如 ISO 13485）內被『引用/提及』的標準（如 EN ISO 9001:2015、IEC 62304、GHTF 等），系統中並無這些標準的完整條文。\n- 嚴禁將『被引用的標準』視為已上傳的獨立法規文件。\n- 嚴禁編造、杜撰任何未提供的標準條文內容。\n- 若需引用某標準但系統中無該標準原文，必須標示「⚠️ 系統中無此標準原文，以下為專業判斷」。\n\n分析原則：\n- 所有建議必須具體到文件編號、章節號碼與條文內容\n- 區分事實（來自提供的資料）與推論（你的專業判斷），推論處標示「💡 專業判斷」\n- 若資料不足以做出判斷，明確標示「⚠️ 資料不足」，不得編造\n- 優先考慮對公司運作衝擊最小的修改方案\n\n📝 用語規範：\n- 所有法規專業術語必須採用「中文 (English)」雙語格式，與 FDA QMSR、EU MDR、ISO 13485 國際主流用語一致\n- 例如：矯正措施 (Corrective Action)、不符合事項 (Non-conformity)、缺漏分析 (Gap Analysis)、風險管理 (Risk Management)\n- FDA 已於 2026 年施行 QMSR，以 ISO 13485:2016 取代舊版 QSR，報告中應使用 QMSR 而非 QSR",
+        # Run the structured analysis pipeline
+        with phoenix_span(
+            "analysis_pipeline",
+            profile="文件管制 (Doc Control)",
+            attributes={
+                "pipeline.command": "regulatory_list",
+                "pipeline.model": model_name,
+                "pipeline.standard": "ISO_13485",
             },
-            {"role": "user", "content": assessment_prompt},
-        ]
-
-        # Auto-continuation: if LLM output is truncated (finish_reason='length'),
-        # automatically send continuation requests to complete the report
-        continuation_count = 0
-        token_exhausted = False
-
-        while continuation_count <= MAX_CONTINUATIONS:
-            finish_reason = None
-
-            with phoenix_trace(
-                profile="文件管制 (Doc Control)", command="regulatory_list"
-            ):
-                response = manager.completion(
-                    messages=messages,
-                    model=model_name,
-                    temperature=0.3,
-                    max_tokens=128000,
-                    stream=True,
-                    timeout=300,
-                )
-
-            try:
-                async for chunk in _iter_stream_with_timeout(response):
-                    if hasattr(chunk, "choices") and chunk.choices:
-                        delta = chunk.choices[0].delta
-                        if hasattr(delta, "content") and delta.content:
-                            assessment += delta.content
-                            await assess_msg.stream_token(delta.content)
-                        # Capture finish_reason from the last chunk
-                        _fr = getattr(chunk.choices[0], "finish_reason", None)
-                        if _fr:
-                            finish_reason = _fr
-            except asyncio.TimeoutError:
-                import logging
-
-                logging.getLogger(__name__).warning(
-                    f"LLM streaming stalled (no chunk in {STREAMING_CHUNK_TIMEOUT}s). "
-                    f"Treating as token exhaustion. assessment_len={len(assessment)}"
-                )
-                token_exhausted = True
-                break
-            except Exception as stream_err:
-                import logging
-
-                logging.getLogger(__name__).warning(
-                    f"LLM streaming error: {stream_err}"
-                )
-                token_exhausted = True
-                break
-
-            # Log finish_reason for debugging truncation issues
-            import logging
-
-            _logger = logging.getLogger(__name__)
-            _logger.info(
-                f"LLM streaming finished: finish_reason={finish_reason}, continuation_count={continuation_count}, assessment_len={len(assessment)}"
+        ):
+            pipeline_result = await run_pipeline_analysis(
+                scan_result=scan_result,
+                llm_completion_fn=manager.completion,
+                model=model_name,
+                standard="ISO_13485",
+                source_command="regulatory_list",
+                send_message_fn=_send_pipeline_msg,
             )
 
-            # Check if output was truncated due to token limit
-            # Some providers return 'max_tokens' instead of 'length'
-            is_truncated = finish_reason in ("length", "max_tokens")
-            if is_truncated and continuation_count < MAX_CONTINUATIONS:
-                continuation_count += 1
-                # Notify user about continuation
-                cont_notice = f"\n\n---\n\U0001f504 \u5831\u544a\u56e0\u6a21\u578b\u8f38\u51fa\u9577\u5ea6\u9650\u5236\u88ab\u622a\u65b7\uff0c\u81ea\u52d5\u7e8c\u5beb\u4e2d ({continuation_count}/{MAX_CONTINUATIONS})...\n---\n\n"
-                assessment += cont_notice
-                await assess_msg.stream_token(cont_notice)
-                # Add assistant's partial response and continuation prompt to messages
-                messages.append({"role": "assistant", "content": assessment})
-                messages.append(
-                    {
-                        "role": "user",
-                        "content": "\u4f60\u7684\u56de\u7b54\u56e0\u70ba\u9577\u5ea6\u9650\u5236\u88ab\u622a\u65b7\u4e86\u3002\u8acb\u5f9e\u622a\u65b7\u8655\u7e7c\u7e8c\u5b8c\u6210\u5269\u9918\u7684\u5206\u6790\u5167\u5bb9\u3002\u4e0d\u8981\u91cd\u8907\u5df2\u7d93\u5beb\u904e\u7684\u90e8\u5206\uff0c\u76f4\u63a5\u5f9e\u4e0a\u6b21\u4e2d\u65b7\u7684\u5730\u65b9\u7e7c\u7e8c\u3002",
-                    }
-                )
-                # Save partial assessment to cache for resilience
-                save_analysis_cache(
-                    cache_id=_cache_id,
-                    command="regulatory_list",
-                    assessment=assessment,
-                    status="in_progress",
-                )
-            else:
-                # Max continuations reached but still truncated = token exhausted
-                if is_truncated:
-                    token_exhausted = True
-                break
+        if pipeline_result and pipeline_result.success:
+            assessment = pipeline_result.to_summary_markdown()
+            # Show pipeline summary
+            try:
+                await cl.Message(content=assessment).send()
+            except Exception:
+                pass
+        else:
+            err_msg = pipeline_result.error if pipeline_result else "未知錯誤"
+            assessment = f"⚠️ 分析管線執行失敗: {err_msg}"
+            try:
+                await cl.Message(content=assessment).send()
+            except Exception:
+                pass
 
-        # Finalize the streaming message
-        assess_msg.content = assessment
-        await assess_msg.update()
-
-        if not assessment:
-            assessment = "ℹ️ LLM 未提供評估內容。"
-            assess_msg.content = assessment
-            await assess_msg.update()
     except Exception as e:
-        token_exhausted = True
         assessment = (
-            f"\u26a0\ufe0f QMS 評估報告產生失敗: {str(e)[:200]}\n\n"
+            f"⚠️ QMS 評估報告產生失敗: {str(e)[:200]}\n\n"
             f"📋 **可能的阻塞原因：**\n"
             f"- 🔌 **連線中斷**：網路不穩定或 LLM 提供商服務異常\n"
             f"- 🔑 **API Key 無效或過期**：請檢查 API Key 是否正確\n"
@@ -3934,10 +3974,8 @@ async def handle_regulatory_list():
             f"- ⚙️ **模型不支援**：所選模型可能不支援此類長文分析\n\n"
             f"請確認 LLM 設定正確後重試。"
         )
-        # Update the streaming message with the error so user sees it
         try:
-            assess_msg.content = assessment
-            await assess_msg.update()
+            await cl.Message(content=assessment).send()
         except Exception:
             pass
 
@@ -3945,15 +3983,15 @@ async def handle_regulatory_list():
     try:
         cl.user_session.set("last_regulatory_assessment", assessment)
     except Exception:
-        pass  # Session disconnected — cache save below will persist the data
+        pass  # Session disconnected
 
-    # Update cache with final assessment (MUST always execute, even if session is dead)
+    # Update cache with final assessment
     try:
         save_analysis_cache(
             cache_id=_cache_id,
             command="regulatory_list",
             assessment=assessment,
-            status="completed" if not token_exhausted else "llm_failed",
+            status="completed" if (pipeline_result and pipeline_result.success) else "llm_failed",
             provider_id=provider_id,
             model_name=model_name,
         )
@@ -3962,9 +4000,8 @@ async def handle_regulatory_list():
 
         logging.getLogger(__name__).warning("Failed to save final analysis cache")
 
-    # Save analysis report to persistent markdown DB for Phase 2 audit sub-agent
-    # Always save when there's meaningful content, even if truncated
-    if assessment and not assessment.startswith("\u26a0\ufe0f"):
+    # Save analysis report to persistent markdown DB
+    if assessment and not assessment.startswith("⚠️"):
         try:
             analysis_store = get_regulatory_analysis_store()
             analysis_store.save_analysis_report(
@@ -3975,29 +4012,37 @@ async def handle_regulatory_list():
                 analyzed_documents=[d.get("doc_id", "") for d in by_doc[:30]],
                 provider=provider_id,
                 model=model_name,
-                is_truncated=token_exhausted,
+                is_truncated=False,
             )
         except Exception as e:
             import logging
 
             logging.getLogger(__name__).warning(f"Failed to save analysis report: {e}")
 
-    # If token was exhausted or LLM failed, auto-generate Word/Excel with truncated content
-    if token_exhausted and assessment:
-        truncation_notice = (
-            "\n\n---\n"
-            "⚠️ **LLM 文字生成已中斷，報告可能未完整。**\n\n"
-            "📋 **可能的阻塞原因：**\n"
-            "- 🔄 **Token 輸出上限**：模型單次回覆的 Token 數量已達上限（已自動嘗試續寫 {cont} 次）\n"
-            "- ⏱️ **連線逾時**：LLM 提供商回應時間過長（超過 {timeout} 秒無新內容）\n"
-            "- 🔌 **連線中斷**：網路不穩定或 LLM 提供商服務異常\n"
-            "- 💾 **提供商限流**：API 請求頻率或 Token 配額已達提供商限制\n\n"
-            "📥 正在自動產生截斷至目前為止的 Word 與 Excel 報告..."
-        ).format(cont=MAX_CONTINUATIONS, timeout=STREAMING_CHUNK_TIMEOUT)
+    # Save pipeline state file path for report page (Phase D)
+    if pipeline_result and pipeline_result.state_file_path:
         try:
-            await cl.Message(content=truncation_notice).send()
+            cl.user_session.set("last_pipeline_state_path", pipeline_result.state_file_path)
         except Exception:
-            pass  # WebSocket may be disconnected
+            pass
+
+        # Send report page link to user
+        try:
+            report_url = f"/api/report/page/{pipeline_result.run_id}"
+            await cl.Message(
+                content=f"\n\n📊 **[開啟互動式報告頁面]({report_url})**\n\n"
+                        f"在報告頁面中，您可以：\n"
+                        f"- 篩選和搜尋分析結果\n"
+                        f"- 覆寫判定結果（附原因記錄）\n"
+                        f"- 新增條款備註\n"
+                        f"- 查看版本歷史\n"
+                        f"- 匯出 Word/Excel 報告"
+            ).send()
+        except Exception:
+            pass
+
+    # Generate Word/Excel exports with pipeline assessment
+    if assessment and not assessment.startswith("⚠️"):
         try:
             scan_result_for_export = cl.user_session.get("last_regulatory_scan")
             if scan_result_for_export:
@@ -4007,7 +4052,6 @@ async def handle_regulatory_list():
                 excel_path = export_regulatory_to_excel(
                     scan_result_for_export, assessment=assessment
                 )
-                # Cache save FIRST (guaranteed), then UI notification (best-effort)
                 save_analysis_cache(
                     cache_id=_cache_id,
                     command="regulatory_list",
@@ -4028,82 +4072,31 @@ async def handle_regulatory_list():
                             cl.File(name=ename, path=excel_path, display="inline")
                         )
                     await cl.Message(
-                        content="✅ 報告已自動產生（內容截斷至 Token 耗盡處）：",
+                        content=base_response,
                         elements=elements,
                     ).send()
                 except Exception:
-                    pass  # WebSocket disconnected — report is on disk + in cache
-        except Exception as export_err:
-            import logging
-
-            logging.getLogger(__name__).warning(
-                f"Auto-export on token exhaustion failed: {export_err}"
-            )
-            try:
-                await cl.Message(
-                    content=f"⚠️ 自動產生報告失敗: {str(export_err)[:100]}"
-                ).send()
-            except Exception:
-                pass
-    else:
-        # Normal completion: auto-generate Word/Excel files directly
-        if assessment and not assessment.startswith("⚠️"):
-            try:
-                scan_result_for_export = cl.user_session.get("last_regulatory_scan")
-                if scan_result_for_export:
-                    word_path = export_regulatory_to_word(
-                        scan_result_for_export, assessment=assessment
-                    )
-                    excel_path = export_regulatory_to_excel(
-                        scan_result_for_export, assessment=assessment
-                    )
-                    # Cache save FIRST (guaranteed), then UI notification (best-effort)
-                    save_analysis_cache(
-                        cache_id=_cache_id,
-                        command="regulatory_list",
-                        final_word_path=word_path,
-                        final_excel_path=excel_path,
-                        status="completed",
-                    )
-                    try:
-                        elements = []
-                        if word_path and Path(word_path).exists():
-                            wname = re.sub(r"^\d{14}_", "", Path(word_path).name)
-                            elements.append(
-                                cl.File(name=wname, path=word_path, display="inline")
-                            )
-                        if excel_path and Path(excel_path).exists():
-                            ename = re.sub(r"^\d{14}_", "", Path(excel_path).name)
-                            elements.append(
-                                cl.File(name=ename, path=excel_path, display="inline")
-                            )
-                        await cl.Message(
-                            content=base_response,
-                            elements=elements,
-                        ).send()
-                    except Exception:
-                        pass  # WebSocket disconnected — report is on disk + in cache
-                else:
-                    try:
-                        await cl.Message(content=base_response).send()
-                    except Exception:
-                        pass
-            except Exception as export_err:
-                import logging
-
-                logging.getLogger(__name__).warning(
-                    f"Auto-export on normal completion failed: {export_err}"
-                )
-                # Fallback: show Action buttons if auto-export fails
+                    pass
+            else:
                 try:
                     await cl.Message(content=base_response).send()
                 except Exception:
                     pass
-        else:
+        except Exception as export_err:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                f"Auto-export on normal completion failed: {export_err}"
+            )
             try:
                 await cl.Message(content=base_response).send()
             except Exception:
                 pass
+    else:
+        try:
+            await cl.Message(content=base_response).send()
+        except Exception:
+            pass
 
     # Suggestion: update quality documents based on this analysis, then re-run
     if assessment and not assessment.startswith("⚠️"):
@@ -4115,6 +4108,13 @@ async def handle_regulatory_list():
             await cl.Message(content=suggestion).send()
         except Exception:
             pass  # WebSocket disconnected
+
+    # ── Cleanup: delete temporary product documents ──
+    if product_docs_session_id:
+        try:
+            get_product_docs_store().cleanup_session(product_docs_session_id)
+        except Exception:
+            pass
 
 
 async def handle_regulatory_export(format_type: str):
@@ -4489,14 +4489,23 @@ async def handle_regulatory_update_rescan(selected_regions: list):
             f"Baseline update report generation failed: {baseline_err}"
         )
 
-    # LLM analysis for regulatory update
+    # ── Ask user for optional product documents ──
+    product_docs_session_id = await _ask_product_docs_upload()
+    product_docs_data = ""
+    if product_docs_session_id:
+        product_docs_data = get_product_docs_store().get_session_content_for_prompt(
+            product_docs_session_id, max_chars=8000
+        )
+
+    # ── Run analysis pipeline (replaces one-shot LLM) ──
     storage = get_markdown_store()
+    scan_result_local = storage.scan_regulatory_references()
     assessment = ""
-    token_exhausted = False
+    pipeline_result = None
+    provider_id = cl.user_session.get("provider_id", "ollama")
+    model_name = cl.user_session.get("model_name", "default")
+    api_key = cl.user_session.get("api_key", "").strip()
     try:
-        provider_id = cl.user_session.get("provider_id", "ollama")
-        model_name = cl.user_session.get("model_name", "default")
-        api_key = cl.user_session.get("api_key", "").strip()
 
         if provider_id and model_name and (provider_id == "ollama" or api_key):
             setup_api_key(provider_id, api_key)
@@ -4504,321 +4513,83 @@ async def handle_regulatory_update_rescan(selected_regions: list):
             if provider_id != "ollama":
                 manager.disable_fallback = True
 
-            # Build online data for LLM (with source labels + PDF info)
-            online_parts = []
-            for r in crawl_results.get("results", []):
-                if r.get("crawl_status") == "success":
-                    content_preview = r.get("content_markdown", "")[:1500]
-                    pdf_info = ""
-                    if r.get("has_pdf") and r.get("pdf_urls"):
-                        pdf_info = f"\n  📥 PDF 可下載: {', '.join(r['pdf_urls'][:3])}"
-                    online_parts.append(
-                        f"### [來源: 🌐 網路爬取] {r['region']} — {r['agency']} ({r.get('agency_name', '')})\n"
-                        f"URL: {r['url']}\n"
-                        f"爬取日期: {r.get('crawl_timestamp', '未知')[:10]}\n"
-                        f"{content_preview}{pdf_info}"
-                    )
-            online_data = (
-                "\n\n".join(online_parts)[:8000] if online_parts else "無線上資料"
-            )
-
-            scan_result_local = storage.scan_regulatory_references()
-            aggregate_local = scan_result_local.get("aggregate", [])
-            local_parts = []
-            for ref in aggregate_local:
-                std = ref.get("standard", "")
-                docs = ref.get("referenced_by", [])
-                if isinstance(docs, list):
-                    doc_ids = (
-                        docs
-                        if all(isinstance(d, str) for d in docs)
-                        else [d.get("doc_id", "") for d in docs]
-                    )
-                else:
-                    doc_ids = []
-                local_parts.append(f"- {std} (引用於: {', '.join(doc_ids)})")
-            local_data = (
-                "\n".join(local_parts) if local_parts else "本地文件未引用任何法規標準"
-            )
-
-            # Build regulatory Markdown DB content for LLM
-            # IMPORTANT: Only include data from the selected regions,
-            # to prevent the LLM from citing data from other countries.
-            reg_md_store = get_regulatory_markdown_store()
-            reg_db_parts = []
-            for region in selected_regions:
-                region_docs = reg_md_store.list_documents(
-                    region=region, status="active"
-                )
-                for rd in region_docs[:10]:  # Limit per region to avoid token overflow
-                    doc_full = reg_md_store.get_document(rd.get("doc_id", ""))
-                    if doc_full:
-                        content = doc_full.get("content", "")[:800]
-                        reg_db_parts.append(
-                            f"### {rd.get('region', '')} \u2014 {rd.get('agency', '')} ({rd.get('title', '')[:60]})\n"
-                            f"\u5132\u5b58\u8def\u5f91: {rd.get('markdown_path', '')}\n"
-                            f"{content}"
-                        )
-            regulatory_db_data = (
-                "\n\n".join(reg_db_parts)
-                if reg_db_parts
-                else "\u6cd5\u898f Markdown DB \u4e2d\u7121\u5df2\u5132\u5b58\u6587\u4ef6"
-            )
-
-            # Classify and split by_document into QMS internal vs regulatory uploaded
-            qms_doc_parts = []
-            regulatory_doc_parts = []
-            by_doc_local = scan_result_local.get("by_document", [])
-            for doc_info in by_doc_local[:30]:
-                doc_id = doc_info.get("doc_id", "")
-                title = doc_info.get("title", "")
-                standards = doc_info.get("standards", [])
-                version = doc_info.get("current_version", "")
-                doc_type = doc_info.get("doc_type", "OTHER")
-                doc_result = storage.get_document(doc_id)
-                content_full = ""
-                content_preview = ""
-                upload_date = "未知"
-                original_file = "未知"
-                if doc_result and doc_result.get("success"):
-                    content_full = doc_result.get("content", "")
-                    content_preview = content_full[:600]
-                    upload_date = doc_result.get("created_at", "未知")[:10]
-                    original_file = doc_result.get("original_file", "未知")
-                classification = _classify_document(
-                    doc_id, title, content_full, doc_type
-                )
-                if classification == "regulatory_uploaded":
-                    # Distinguish: this document IS the uploaded regulation.
-                    # Standards listed in 'standards' are referenced WITHIN this document,
-                    # NOT independently uploaded. Clarify this for the LLM.
-                    referenced_standards_note = ""
-                    if standards:
-                        referenced_standards_note = (
-                            f"\n⚠️ 注意：以下標準僅在本文件內被引用/提及，系統中並無這些標準的完整原文："
-                            f"\n{', '.join(standards)}"
-                            f"\n（請勿將這些被引用的標準視為已上傳的法規文件，它們的條文內容不可用於分析）"
-                        )
-                    regulatory_doc_parts.append(
-                        f"### [來源: 📎 手動上傳的法規文件（獨立上傳的完整原文）] {doc_id} — {title}\n"
-                        f"版本: v{version} | 上傳日期: {upload_date} | 原始檔案: {original_file}\n"
-                        f"本文件為使用者直接上傳的法規/標準完整原文，可直接引用其條文內容。"
-                        f"{referenced_standards_note}\n"
-                        f"{content_preview}"
-                    )
-                else:
-                    qms_doc_parts.append(
-                        f"### [類型: 📄 公司品質文件] {doc_id} — {title}\n"
-                        f"版本: v{version} | 上傳日期: {upload_date} | 原始檔案: {original_file}\n"
-                        f"引用標準: {', '.join(standards)}\n"
-                        f"{content_preview}"
-                    )
-            all_doc_parts = []
-            if qms_doc_parts:
-                all_doc_parts.append(
-                    "## 公司品質文件（程序書/作業指導書/表單/品質手冊）"
-                )
-                all_doc_parts.extend(qms_doc_parts)
-            if regulatory_doc_parts:
-                all_doc_parts.append(
-                    "## 手動上傳的法規文件（獨立上傳至系統的法規/標準完整原文，非從其他文件內引用）"
-                )
-                all_doc_parts.extend(regulatory_doc_parts)
-            # Add summary note about document counts for LLM clarity
-            if regulatory_doc_parts or qms_doc_parts:
-                summary_note = (
-                    f"\n\n---\n"
-                    f"ℹ️ 文件統計：共 {len(regulatory_doc_parts)} 份獨立上傳的法規文件，{len(qms_doc_parts)} 份公司品質文件\n"
-                    f"❗ 重要：只有標記『📎 手動上傳的法規文件』的文件才有完整原文可供分析。"
-                    f"其他在文件內被引用/提及的標準（如 EN ISO 9001:2015、IEC 62304 等）"
-                    f"僅為引用關係，系統中並無這些標準的完整條文，請勿編造其內容。"
-                )
-                all_doc_parts.append(summary_note)
-            uploaded_docs_data = (
-                "\n\n".join(all_doc_parts) if all_doc_parts else "無上傳文件"
-            )
-
-            # Build SOP content data for before/after comparison
-            sop_parts = []
-            sop_doc_ids = set()
-            for ref in aggregate_local:
-                docs = ref.get("referenced_by", [])
-                if isinstance(docs, list):
-                    for d in docs:
-                        if isinstance(d, str):
-                            sop_doc_ids.add(d)
-                        elif isinstance(d, dict):
-                            sop_doc_ids.add(d.get("doc_id", ""))
-            for sid in list(sop_doc_ids)[:15]:
-                sop_result = storage.get_document(sid)
-                if sop_result and sop_result.get("success"):
-                    sop_content = sop_result.get("content", "")
-                    sop_title = sop_result.get("title", sid)
-                    sop_ver = sop_result.get("version", "")
-                    sop_parts.append(
-                        f"### {sid} — {sop_title} (v{sop_ver})\n{sop_content[:3000]}"
-                    )
-            sop_content_data = (
-                "\n\n".join(sop_parts) if sop_parts else "無可用的 SOP 內容"
-            )
-
-            # Build selected regions string for prompt
-            selected_regions_str = (
-                "、".join(selected_regions) if selected_regions else "未指定"
-            )
-
-            assessment_prompt = t(
-                "regulatory_update.assessment_prompt",
-                online_data=online_data[:8000],
-                local_data=local_data[:4000],
-                regulatory_db_data=regulatory_db_data[:6000],
-                uploaded_docs_data=uploaded_docs_data[:4000],
-                sop_content_data=sop_content_data[:20000],
-                selected_regions=selected_regions_str,
-            )
+            # Progress message callback for Chainlit
+            async def _send_pipeline_msg_update(text: str) -> None:
+                try:
+                    await cl.Message(content=text).send()
+                except Exception:
+                    pass
 
             await cl.Message(content=t("regulatory_update.assessment_analyzing")).send()
-            assess_msg = cl.Message(content="")
-            await assess_msg.send()
 
-            messages = [
-                {
-                    "role": "system",
-                    "content": "你是資深醫療器材品質管理系統 (Quality Management System, QMS) 法規合規性分析專家，具備以下專業能力：\n1. 熟悉 ISO 13485:2016、FDA 21 CFR Part 820 QMSR (Quality Management System Regulation)、EU MDR 2017/745、MDSAP 等全球主要醫療器材法規\n2. 具備法規修訂歷程分析能力，能解讀監管機構 (Regulatory Authority) 的立法意圖與查核重點\n3. 能進行品質文件間的交叉比對，識別流程矛盾、時限衝突與權責不一致\n4. 能從組織管理角度評估法規變更的衝擊範圍 (Change Impact)，提出分階段矯正策略 (Remediation Strategy)\n5. 擅長在不中斷現有運作的前提下，規劃品質文件的漸進式修改路徑\n\n⚠️ 嚴格禁止事項（最高優先級）：\n- 系統中僅有標記『📎 手動上傳的法規文件』的文件才有完整原文。\n- 在其他文件（如 ISO 13485）內被『引用/提及』的標準（如 EN ISO 9001:2015、IEC 62304、GHTF 等），系統中並無這些標準的完整條文。\n- 嚴禁將『被引用的標準』視為已上傳的獨立法規文件。\n- 嚴禁編造、杜撰任何未提供的標準條文內容。\n- 若需引用某標準但系統中無該標準原文，必須標示「⚠️ 系統中無此標準原文，以下為專業判斷」。\n\n分析原則：\n- 所有建議必須具體到文件編號、章節號碼與條文內容\n- 區分事實（來自提供的資料）與推論（你的專業判斷），推論處標示「💡 專業判斷」\n- 若資料不足以做出判斷，明確標示「⚠️ 資料不足」，不得編造\n- 優先考慮對公司運作衝擊最小的修改方案\n\n📝 用語規範：\n- 所有法規專業術語必須採用「中文 (English)」雙語格式，與 FDA QMSR、EU MDR、ISO 13485 國際主流用語一致\n- 例如：矯正措施 (Corrective Action)、不符合事項 (Non-conformity)、缺漏分析 (Gap Analysis)、風險管理 (Risk Management)\n- FDA 已於 2026 年施行 QMSR，以 ISO 13485:2016 取代舊版 QSR，報告中應使用 QMSR 而非 QSR",
+            # Run the structured analysis pipeline
+            with phoenix_span(
+                "analysis_pipeline",
+                profile="文件管制 (Doc Control)",
+                attributes={
+                    "pipeline.command": "regulatory_update",
+                    "pipeline.model": model_name,
+                    "pipeline.standard": "ISO_13485",
+                    "pipeline.regions": ", ".join(selected_regions),
                 },
-                {"role": "user", "content": assessment_prompt},
-            ]
-
-            # Auto-continuation: if LLM output is truncated (finish_reason='length'),
-            # automatically send continuation requests to complete the report
-            continuation_count = 0
-            token_exhausted = False
-
-            while continuation_count <= MAX_CONTINUATIONS:
-                finish_reason = None
-
-                with phoenix_trace(
-                    profile="文件管制 (Doc Control)", command="regulatory_update"
-                ):
-                    resp = manager.completion(
-                        messages=messages,
-                        model=model_name,
-                        temperature=0.3,
-                        max_tokens=128000,
-                        stream=True,
-                        timeout=300,
-                    )
-
-                try:
-                    async for chunk in _iter_stream_with_timeout(resp):
-                        if hasattr(chunk, "choices") and chunk.choices:
-                            delta = chunk.choices[0].delta
-                            if hasattr(delta, "content") and delta.content:
-                                assessment += delta.content
-                                await assess_msg.stream_token(delta.content)
-                            # Capture finish_reason from the last chunk
-                            _fr = getattr(chunk.choices[0], "finish_reason", None)
-                            if _fr:
-                                finish_reason = _fr
-                except asyncio.TimeoutError:
-                    import logging
-
-                    logging.getLogger(__name__).warning(
-                        f"LLM streaming stalled (no chunk in {STREAMING_CHUNK_TIMEOUT}s). "
-                        f"Treating as token exhaustion. assessment_len={len(assessment)}"
-                    )
-                    token_exhausted = True
-                    break
-                except Exception as stream_err:
-                    import logging
-
-                    logging.getLogger(__name__).warning(
-                        f"LLM streaming error: {stream_err}"
-                    )
-                    token_exhausted = True
-                    break
-
-                # Log finish_reason for debugging truncation issues
-                import logging
-
-                _logger = logging.getLogger(__name__)
-                _logger.info(
-                    f"LLM streaming finished: finish_reason={finish_reason}, continuation_count={continuation_count}, assessment_len={len(assessment)}"
+            ):
+                pipeline_result = await run_pipeline_analysis(
+                    scan_result=scan_result_local,
+                    llm_completion_fn=manager.completion,
+                    model=model_name,
+                    standard="ISO_13485",
+                    source_command="regulatory_update",
+                    send_message_fn=_send_pipeline_msg_update,
                 )
 
-                # Check if output was truncated due to token limit
-                # Some providers return 'max_tokens' instead of 'length'
-                is_truncated = finish_reason in ("length", "max_tokens")
-                if is_truncated and continuation_count < MAX_CONTINUATIONS:
-                    continuation_count += 1
-                    # Notify user about continuation
-                    cont_notice = f"\n\n---\n\U0001f504 \u5831\u544a\u56e0\u6a21\u578b\u8f38\u51fa\u9577\u5ea6\u9650\u5236\u88ab\u622a\u65b7\uff0c\u81ea\u52d5\u7e8c\u5beb\u4e2d ({continuation_count}/{MAX_CONTINUATIONS})...\n---\n\n"
-                    assessment += cont_notice
-                    await assess_msg.stream_token(cont_notice)
-                    # Add assistant's partial response and continuation prompt to messages
-                    messages.append({"role": "assistant", "content": assessment})
-                    messages.append(
-                        {
-                            "role": "user",
-                            "content": "\u4f60\u7684\u56de\u7b54\u56e0\u70ba\u9577\u5ea6\u9650\u5236\u88ab\u622a\u65b7\u4e86\u3002\u8acb\u5f9e\u622a\u65b7\u8655\u7e7c\u7e8c\u5b8c\u6210\u5269\u9918\u7684\u5206\u6790\u5167\u5bb9\u3002\u4e0d\u8981\u91cd\u8907\u5df2\u7d93\u5beb\u904e\u7684\u90e8\u5206\uff0c\u76f4\u63a5\u5f9e\u4e0a\u6b21\u4e2d\u65b7\u7684\u5730\u65b9\u7e7c\u7e8c\u3002",
-                        }
-                    )
-                    # Save partial assessment to cache for resilience
-                    save_analysis_cache(
-                        cache_id=_cache_id_update,
-                        command="regulatory_update",
-                        assessment=assessment,
-                        status="in_progress",
-                    )
-                else:
-                    # Max continuations reached but still truncated = token exhausted
-                    if is_truncated:
-                        token_exhausted = True
-                    break
+            if pipeline_result and pipeline_result.success:
+                assessment = pipeline_result.to_summary_markdown()
+                try:
+                    await cl.Message(content=assessment).send()
+                except Exception:
+                    pass
+            else:
+                err_msg = pipeline_result.error if pipeline_result else "未知錯誤"
+                assessment = f"⚠️ 分析管線執行失敗: {err_msg}"
+                try:
+                    await cl.Message(content=assessment).send()
+                except Exception:
+                    pass
+        else:
+            assessment = "⚠️ 未設定 LLM 提供商或 API Key，無法執行分析。"
+            try:
+                await cl.Message(content=assessment).send()
+            except Exception:
+                pass
 
-            # Finalize the streaming message
-            assess_msg.content = assessment
-            await assess_msg.update()
-
-            if not assessment:
-                assessment = "ℹ️ LLM 未提供評估內容。"
-                assess_msg.content = assessment
-                await assess_msg.update()
     except Exception as e:
-        token_exhausted = True
         assessment = (
-            f"\u26a0\ufe0f QMS 評估報告產生失敗: {str(e)[:200]}\n\n"
-            f"📋 **可能的阻塞原因：**\n"
-            f"- 🔌 **連線中斷**：網路不穩定或 LLM 提供商服務異常\n"
-            f"- 🔑 **API Key 無效或過期**：請檢查 API Key 是否正確\n"
-            f"- 💾 **提供商限流**：API 請求頻率或 Token 配額已達提供商限制\n"
-            f"- ⚙️ **模型不支援**：所選模型可能不支援此類長文分析\n\n"
+            f"⚠️ QMS 評估報告產生失敗: {str(e)[:200]}\n\n"
             f"請確認 LLM 設定正確後重試。"
         )
         import logging
 
         logging.getLogger(__name__).warning(
-            f"Regulatory update LLM assessment failed: {e}"
+            f"Regulatory update pipeline failed: {e}"
         )
-        # Update the streaming message with the error so user sees it
         try:
-            assess_msg.content = assessment
-            await assess_msg.update()
+            await cl.Message(content=assessment).send()
         except Exception:
-            pass  # assess_msg might not exist if error happened before it was created
+            pass
+
     # Store assessment for export (protected: session may be disconnected)
     try:
         cl.user_session.set("last_regulatory_update_assessment", assessment)
     except Exception:
-        pass  # Session disconnected — cache save below will persist the data
+        pass
 
-    # Update cache with final assessment (MUST always execute, even if session is dead)
+    # Update cache with final assessment
     try:
         save_analysis_cache(
             cache_id=_cache_id_update,
             command="regulatory_update",
             assessment=assessment,
-            status="completed" if not token_exhausted else "llm_failed",
+            status="completed" if (pipeline_result and pipeline_result.success) else "llm_failed",
             provider_id=provider_id,
             model_name=model_name,
         )
@@ -4829,14 +4600,14 @@ async def handle_regulatory_update_rescan(selected_regions: list):
             "Failed to save final analysis cache for regulatory update"
         )
 
-    # Save analysis report to persistent markdown DB for Phase 2 audit sub-agent
-    # Always save when there's meaningful content, even if truncated
+    # Save analysis report to persistent markdown DB
     if (
         assessment
-        and not assessment.startswith("\u26a0\ufe0f")
-        and not assessment.startswith("\u2139\ufe0f")
+        and not assessment.startswith("⚠️")
     ):
         try:
+            aggregate_local = scan_result_local.get("aggregate", [])
+            by_doc_local = scan_result_local.get("by_document", [])
             analysis_store = get_regulatory_analysis_store()
             crawl_summary = crawl_results.get("summary") if crawl_results else None
             analysis_store.save_analysis_report(
@@ -4847,32 +4618,40 @@ async def handle_regulatory_update_rescan(selected_regions: list):
                 analyzed_documents=[d.get("doc_id", "") for d in by_doc_local[:30]],
                 provider=provider_id,
                 model=model_name,
-                is_truncated=token_exhausted,
+                is_truncated=False,
             )
         except Exception as e:
             import logging
 
             logging.getLogger(__name__).warning(f"Failed to save analysis report: {e}")
 
-    # Format crawl summary (WITHOUT assessment, since it was already streamed via assess_msg)
+    # Save pipeline state file path for report page (Phase D)
+    if pipeline_result and pipeline_result.state_file_path:
+        try:
+            cl.user_session.set("last_pipeline_state_path", pipeline_result.state_file_path)
+        except Exception:
+            pass
+
+        # Send report page link to user
+        try:
+            report_url = f"/api/report/page/{pipeline_result.run_id}"
+            await cl.Message(
+                content=f"\n\n📊 **[開啟互動式報告頁面]({report_url})**\n\n"
+                        f"在報告頁面中，您可以：\n"
+                        f"- 篩選和搜尋分析結果\n"
+                        f"- 覆寫判定結果（附原因記錄）\n"
+                        f"- 新增條款備註\n"
+                        f"- 查看版本歷史\n"
+                        f"- 匯出 Word/Excel 報告"
+            ).send()
+        except Exception:
+            pass
+
+    # Format crawl summary
     response = format_regulatory_update_markdown(crawl_results, assessment=None)
 
-    # If token was exhausted, auto-generate Word/Excel with truncated content
-    if token_exhausted and assessment:
-        response += (
-            "\n\n---\n"
-            "⚠️ **LLM 文字生成已中斷，報告可能未完整。**\n\n"
-            "📋 **可能的阻塞原因：**\n"
-            "- 🔄 **Token 輸出上限**：模型單次回覆的 Token 數量已達上限（已自動嘗試續寫 {cont} 次）\n"
-            "- ⏱️ **連線逾時**：LLM 提供商回應時間過長（超過 {timeout} 秒無新內容）\n"
-            "- 🔌 **連線中斷**：網路不穩定或 LLM 提供商服務異常\n"
-            "- 💾 **提供商限流**：API 請求頻率或 Token 配額已達提供商限制\n\n"
-            "📥 正在自動產生截斷至目前為止的 Word 與 Excel 報告..."
-        ).format(cont=MAX_CONTINUATIONS, timeout=STREAMING_CHUNK_TIMEOUT)
-        try:
-            await cl.Message(content=response).send()
-        except Exception:
-            pass  # WebSocket may be disconnected
+    # Generate Word/Excel exports with pipeline assessment
+    if assessment and not assessment.startswith("⚠️"):
         try:
             word_path = export_regulatory_update_to_word(
                 crawl_results, assessment=assessment
@@ -4880,7 +4659,6 @@ async def handle_regulatory_update_rescan(selected_regions: list):
             excel_path = export_regulatory_update_to_excel(
                 crawl_results, assessment=assessment
             )
-            # Cache save FIRST (guaranteed), then UI notification (best-effort)
             save_analysis_cache(
                 cache_id=_cache_id_update,
                 command="regulatory_update",
@@ -4901,79 +4679,26 @@ async def handle_regulatory_update_rescan(selected_regions: list):
                         cl.File(name=ename, path=excel_path, display="inline")
                     )
                 await cl.Message(
-                    content="✅ 報告已自動產生（內容截斷至 Token 耗盡處）：",
+                    content=response,
                     elements=elements,
                 ).send()
             except Exception:
-                pass  # WebSocket disconnected — report is on disk + in cache
+                pass
         except Exception as export_err:
             import logging
 
             logging.getLogger(__name__).warning(
-                f"Auto-export on token exhaustion failed: {export_err}"
+                f"Auto-export on normal completion failed: {export_err}"
             )
-            try:
-                await cl.Message(
-                    content=f"⚠️ 自動產生報告失敗: {str(export_err)[:100]}"
-                ).send()
-            except Exception:
-                pass
-    else:
-        # Normal completion: auto-generate Word/Excel files directly
-        if (
-            assessment
-            and not assessment.startswith("⚠️")
-            and not assessment.startswith("ℹ️")
-        ):
-            try:
-                word_path = export_regulatory_update_to_word(
-                    crawl_results, assessment=assessment
-                )
-                excel_path = export_regulatory_update_to_excel(
-                    crawl_results, assessment=assessment
-                )
-                # Cache save FIRST (guaranteed), then UI notification (best-effort)
-                save_analysis_cache(
-                    cache_id=_cache_id_update,
-                    command="regulatory_update",
-                    final_word_path=word_path,
-                    final_excel_path=excel_path,
-                    status="completed",
-                )
-                try:
-                    elements = []
-                    if word_path and Path(word_path).exists():
-                        wname = re.sub(r"^\d{14}_", "", Path(word_path).name)
-                        elements.append(
-                            cl.File(name=wname, path=word_path, display="inline")
-                        )
-                    if excel_path and Path(excel_path).exists():
-                        ename = re.sub(r"^\d{14}_", "", Path(excel_path).name)
-                        elements.append(
-                            cl.File(name=ename, path=excel_path, display="inline")
-                        )
-                    await cl.Message(
-                        content=response,
-                        elements=elements,
-                    ).send()
-                except Exception:
-                    pass  # WebSocket disconnected — report is on disk + in cache
-            except Exception as export_err:
-                import logging
-
-                logging.getLogger(__name__).warning(
-                    f"Auto-export on normal completion failed: {export_err}"
-                )
-                # Fallback: show Action buttons if auto-export fails
-                try:
-                    await cl.Message(content=response).send()
-                except Exception:
-                    pass
-        else:
             try:
                 await cl.Message(content=response).send()
             except Exception:
                 pass
+    else:
+        try:
+            await cl.Message(content=response).send()
+        except Exception:
+            pass
 
     # Suggestion: update quality documents based on this analysis, then re-run
     if assessment and not assessment.startswith("⚠️"):
@@ -4985,6 +4710,13 @@ async def handle_regulatory_update_rescan(selected_regions: list):
             await cl.Message(content=suggestion).send()
         except Exception:
             pass  # WebSocket disconnected
+
+    # ── Cleanup: delete temporary product documents ──
+    if product_docs_session_id:
+        try:
+            get_product_docs_store().cleanup_session(product_docs_session_id)
+        except Exception:
+            pass
 
 
 async def _show_regulatory_update_export_buttons():

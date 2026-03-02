@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-QMS 合規性分析報告</title>
+    <link rel="stylesheet" href="/api/report/static/report.css">
+</head>
+<body>
+    <!-- Run ID injected by server -->
+    <script>window.__RUN_ID__ = "{{RUN_ID}}";</script>
+
+    <!-- ===== Header ===== -->
+    <header class="report-header">
+        <div class="header-left">
+            <h1>📊 合規性分析報告</h1>
+            <span class="run-id" id="headerRunId"></span>
+        </div>
+        <div class="header-right">
+            <span class="header-status" id="headerStatus"></span>
+            <span class="header-time" id="headerTime"></span>
+        </div>
+    </header>
+
+    <!-- ===== Summary Cards ===== -->
+    <section class="summary-section" id="summarySection">
+        <div class="summary-card card-total">
+            <div class="card-icon">📋</div>
+            <div class="card-body">
+                <div class="card-value" id="totalRows">—</div>
+                <div class="card-label">分析項目</div>
+            </div>
+        </div>
+        <div class="summary-card card-compliant">
+            <div class="card-icon">✅</div>
+            <div class="card-body">
+                <div class="card-value" id="fullCompliance">—</div>
+                <div class="card-label">完全符合</div>
+            </div>
+        </div>
+        <div class="summary-card card-partial">
+            <div class="card-icon">⚠️</div>
+            <div class="card-body">
+                <div class="card-value" id="partialCompliance">—</div>
+                <div class="card-label">部分符合</div>
+            </div>
+        </div>
+        <div class="summary-card card-non">
+            <div class="card-icon">❌</div>
+            <div class="card-body">
+                <div class="card-value" id="nonCompliance">—</div>
+                <div class="card-label">未符合</div>
+            </div>
+        </div>
+        <div class="summary-card card-flagged">
+            <div class="card-icon">🚩</div>
+            <div class="card-body">
+                <div class="card-value" id="flaggedCount">—</div>
+                <div class="card-label">需 RA 審查</div>
+            </div>
+        </div>
+        <div class="summary-card card-budget">
+            <div class="card-icon">📈</div>
+            <div class="card-body">
+                <div class="card-value" id="tokenUsage">—</div>
+                <div class="card-label">Token 用量</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== Filters & Actions Bar ===== -->
+    <section class="filters-bar">
+        <div class="filters-left">
+            <div class="filter-group">
+                <label for="filterDoc">文件</label>
+                <select id="filterDoc">
+                    <option value="">全部文件</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label for="filterVerdict">判定結果</label>
+                <select id="filterVerdict">
+                    <option value="">全部結果</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label for="filterRisk">風險等級</label>
+                <select id="filterRisk">
+                    <option value="">全部等級</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label for="filterFlagged">
+                    <input type="checkbox" id="filterFlagged"> 僅顯示需審查
+                </label>
+            </div>
+            <div class="filter-group search-group">
+                <input type="text" id="filterSearch" placeholder="搜尋條款 / 文件...">
+            </div>
+        </div>
+        <div class="filters-right">
+            <button class="btn btn-outline" id="btnExportWord" title="匯出 Word">
+                📄 Word
+            </button>
+            <button class="btn btn-outline" id="btnExportExcel" title="匯出 Excel">
+                📊 Excel
+            </button>
+            <button class="btn btn-primary" id="btnRefresh" title="重新整理">
+                🔄 重新整理
+            </button>
+        </div>
+    </section>
+
+    <!-- ===== Main Table ===== -->
+    <section class="table-section">
+        <div class="table-info">
+            <span id="tableCount">載入中...</span>
+        </div>
+        <div class="table-container">
+            <table class="report-table" id="reportTable">
+                <thead>
+                    <tr>
+                        <th class="col-clause">條款</th>
+                        <th class="col-doc">品質文件</th>
+                        <th class="col-question">稽核問題</th>
+                        <th class="col-evidence">證據</th>
+                        <th class="col-verdict">判定</th>
+                        <th class="col-risk">風險</th>
+                        <th class="col-flags">標記</th>
+                        <th class="col-actions">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="reportTableBody">
+                    <tr>
+                        <td colspan="8" class="loading-cell">載入中...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- ===== Row Detail Modal ===== -->
+    <div class="modal-overlay" id="detailModal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2 id="detailTitle">條款詳情</h2>
+                <button class="modal-close" id="detailClose">&times;</button>
+            </div>
+            <div class="modal-body" id="detailBody">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Override Verdict Modal ===== -->
+    <div class="modal-overlay" id="overrideModal">
+        <div class="modal-content modal-medium">
+            <div class="modal-header">
+                <h2>✏️ 覆寫判定結果</h2>
+                <button class="modal-close" id="overrideClose">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>目前判定</label>
+                    <div id="overrideCurrent" class="current-verdict"></div>
+                </div>
+                <div class="form-group">
+                    <label for="overrideVerdict">新判定結果</label>
+                    <select id="overrideVerdict" class="form-select">
+                        <option value="full_compliance">✅ 完全符合</option>
+                        <option value="partial_compliance">⚠️ 部分符合</option>
+                        <option value="non_compliance">❌ 未符合</option>
+                        <option value="insufficient_data">⬜ 資料不足</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="overrideReason">覆寫原因 <span class="required">*</span></label>
+                    <textarea id="overrideReason" class="form-textarea" rows="3"
+                              placeholder="請說明為何覆寫此判定結果..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-cancel" id="overrideCancelBtn">取消</button>
+                <button class="btn btn-primary" id="overrideSaveBtn">確認覆寫</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Add Note Modal ===== -->
+    <div class="modal-overlay" id="noteModal">
+        <div class="modal-content modal-medium">
+            <div class="modal-header">
+                <h2>📝 新增條款備註</h2>
+                <button class="modal-close" id="noteClose">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>條款</label>
+                    <div id="noteClauseInfo" class="clause-info"></div>
+                </div>
+                <div class="form-group">
+                    <label for="noteText">備註內容</label>
+                    <textarea id="noteText" class="form-textarea" rows="4"
+                              placeholder="此備註將永久附加在此條款，每次分析時都會被納入考量..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-cancel" id="noteCancelBtn">取消</button>
+                <button class="btn btn-primary" id="noteSaveBtn">儲存備註</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Version History Modal ===== -->
+    <div class="modal-overlay" id="historyModal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2>📜 版本歷史</h2>
+                <button class="modal-close" id="historyClose">&times;</button>
+            </div>
+            <div class="modal-body" id="historyBody">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Toast Notifications ===== -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="/api/report/static/report.js"></script>
+</body>
+</html>

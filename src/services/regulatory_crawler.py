@@ -1113,6 +1113,24 @@ def _make_result_template(site: dict, region: str) -> dict:
         "note": site.get("note", ""),
     }
 
+def _retrieve_cached_content(url: str) -> Optional[str]:
+    """Retrieve previously crawled content for a URL from regulatory markdown storage.
+
+    Used when HTTP 304 Not Modified is received — instead of storing a useless
+    '(Content unchanged)' placeholder, we restore the actual content from the
+    last successful crawl so downstream consumers (LLM analysis, reports) get
+    real regulatory text.
+    """
+    try:
+        from src.storage.regulatory_markdown_storage import get_regulatory_markdown_store
+        store = get_regulatory_markdown_store()
+        doc = store.get_document_by_url(url)
+        if doc and doc.get("content"):
+            return doc["content"]
+    except Exception:
+        pass
+    return None
+
 
 async def _crawl_tier1_api(
     client: httpx.AsyncClient,
@@ -1141,10 +1159,16 @@ async def _crawl_tier1_api(
         if response.status_code == 304:
             result["crawl_status"] = "success"
             result["title"] = f"{site['agency']} (cached — not modified)"
-            result["content_markdown"] = (
-                "(Content unchanged since last crawl — HTTP 304)"
-            )
-            result["note"] = "HTTP 304 Not Modified — using cached version"
+            previous_content = _retrieve_cached_content(url)
+            if previous_content:
+                result["content_markdown"] = previous_content
+                result["note"] = "HTTP 304 Not Modified — restored content from previous crawl"
+            else:
+                result["content_markdown"] = (
+                    "HTTP 304 Not Modified but no previous content found in storage — "
+                    "content may be empty until next full crawl"
+                )
+                result["note"] = "HTTP 304 Not Modified — no cached content available"
             result["crawl_duration_seconds"] = round(time.time() - start, 2)
             return result
 
@@ -1228,10 +1252,16 @@ async def _crawl_tier2_httpx(
         if response.status_code == 304:
             result["crawl_status"] = "success"
             result["title"] = f"{site['agency']} (cached — not modified)"
-            result["content_markdown"] = (
-                "(Content unchanged since last crawl — HTTP 304)"
-            )
-            result["note"] = "HTTP 304 Not Modified — using cached version"
+            previous_content = _retrieve_cached_content(url)
+            if previous_content:
+                result["content_markdown"] = previous_content
+                result["note"] = "HTTP 304 Not Modified — restored content from previous crawl"
+            else:
+                result["content_markdown"] = (
+                    "HTTP 304 Not Modified but no previous content found in storage — "
+                    "content may be empty until next full crawl"
+                )
+                result["note"] = "HTTP 304 Not Modified — no cached content available"
             result["crawl_duration_seconds"] = round(time.time() - start, 2)
             return result
 
