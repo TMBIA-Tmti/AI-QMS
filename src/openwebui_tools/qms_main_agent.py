@@ -824,8 +824,8 @@ class Tools:
             else:
                 result["instructions"] = [
                     "1. The sub-agent service is not running",
-                    "2. Start the service using: .\\start_gradio.bat",
-                    "3. Or run: python src/gradio_apps/doc_control.py",
+                    "2. Start the service using: start.bat",
+                    "3. Or run: start_chainlit.bat",
                     f"4. Then access: {agent['url']}",
                 ]
                 result["message"] = (
