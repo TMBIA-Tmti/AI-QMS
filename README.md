@@ -81,6 +81,7 @@ TMBIA-Tmti 深知醫療器材法規人員在品質管理實務中面對的挑戰
 │  │  Main Agent         │ │  Doc Control Sub-Agent  │  │
 │  └─────────────────────┘ └────────────────────────┘  │
 │  [ChatSettings: Provider | Model | API Key]          │
+│  [Report UI: /api/report/page/{run_id}]              │
 └──────────────────────┬──────────────────────────────┘
                        │
 ┌──────────────────────┴──────────────────────────────┐
@@ -101,6 +102,22 @@ TMBIA-Tmti 深知醫療器材法規人員在品質管理實務中面對的挑戰
 └──────────────────────┬──────────────────────────────┘
                        │
 ┌──────────────────────┴──────────────────────────────┐
+│         合規分析引擎 (Analysis Pipeline)               │
+│                                                     │
+│  Phase 0:   Data Quality Gate (code)                 │
+│  Phase 0.5: Reference Mapping (code)                 │
+│  Phase 1:   Gap Scan (LLM)                           │
+│  Phase 2:   Checklist Verification (LLM)             │
+│  Phase 3:   Risk Assessment (rule engine)            │
+│  Phase 4:   Remediation Suggestions (LLM)            │
+│  Phase 5:   Cross-Examination (LLM, parallel)        │
+│  Phase 6:   Source Verification (HTTP)               │
+│                                                     │
+│  [SSE Real-Time Events] [Pause/Resume/Inject]        │
+│  [Daily Audit] [Cross-Ref Validation]                │
+└──────────────────────┬──────────────────────────────┘
+                       │
+┌──────────────────────┴──────────────────────────────┐
 │              OCR 處理層                               │
 │  [MarkItDown (主)] ──→ [LLM Vision (備援)]            │
 └──────────────────────┬──────────────────────────────┘
@@ -108,6 +125,8 @@ TMBIA-Tmti 深知醫療器材法規人員在品質管理實務中面對的挑戰
 ┌──────────────────────┴──────────────────────────────┐
 │                   資料層                              │
 │  [JSON DB] [Markdown Storage] [Audit Log]            │
+│  [Interaction Log] [CrossExam Store]                  │
+│  [Regulatory Storage] [MDSAP Storage]                │
 └──────────────────────┬──────────────────────────────┘
                        │
 ┌──────────────────────┴──────────────────────────────┐
@@ -116,6 +135,7 @@ TMBIA-Tmti 深知醫療器材法規人員在品質管理實務中面對的挑戰
 │  [Baseline 報告] ──→ LLM 前生成 Word/Excel (保底)     │
 │  [Analysis Cache] ──→ 定期存檔 + 斷線自動儲存         │
 │  [User Settings] ──→ LLM 設定持久化 (自動重連)        │
+│  [Safe I/O]      ──→ 原子寫入 + PermissionError 重試  │
 │  [on_chat_end]   ──→ 斷線時自動存檔至 cache           │
 │  [Reconnect]     ──→ 重連時自動顯示待下載報告         │
 └─────────────────────────────────────────────────────┘
@@ -282,6 +302,11 @@ Phoenix Dashboard：http://localhost:6006
 | 追蹤框架 | OpenTelemetry + OpenInference |
 | 網路搜尋 | DuckDuckGo |
 | 本地 LLM | Ollama |
+| HTTP 用戶端 | httpx (HTTP/2) |
+| 印章/簽章偵測 | OpenCV + NumPy |
+| 網頁爬蟲 | BeautifulSoup4 + lxml |
+| PDF 生成 | reportlab |
+| 原子檔案 I/O | safe_io (PermissionError 重試) |
 
 ---
 
@@ -354,6 +379,7 @@ The system adopts a **Main Agent + Sub-Agent** architecture, where the Main Agen
 │  │  QMS Assistant      │ │  Document Management    │  │
 │  └─────────────────────┘ └────────────────────────┘  │
 │  [ChatSettings: Provider | Model | API Key]          │
+│  [Report UI: /api/report/page/{run_id}]              │
 └──────────────────────┬──────────────────────────────┘
                        │
 ┌──────────────────────┴──────────────────────────────┐
@@ -362,15 +388,31 @@ The system adopts a **Main Agent + Sub-Agent** architecture, where the Main Agen
 └──────────────┬───────────────────┬──────────────────┘
                │                   │
                │    ┌──────────────┴──────────────────┐
-               │    │  LLM Observability (Arize Phoenix)│
-               │    │  OpenTelemetry Auto-Instrument    │
-               │    │  Dashboard: http://localhost:6006 │
+               │    │ LLM Observability (Arize Phoenix) │
+               │    │ OpenTelemetry Auto-Instrument     │
+               │    │ Dashboard: http://localhost:6006  │
                │    └─────────────────────────────────┘
                │
 ┌──────────────┴──────────────────────────────────────┐
 │          Agent Orchestration (LangGraph)              │
 │  Main Agent ──→ Document Control Sub-Agent           │
 │                 (Phase 2: Audit Sub-Agent planned)    │
+└──────────────────────┬──────────────────────────────┘
+                       │
+┌──────────────────────┴──────────────────────────────┐
+│       Compliance Analysis Engine (Pipeline)           │
+│                                                     │
+│  Phase 0:   Data Quality Gate (code)                 │
+│  Phase 0.5: Reference Mapping (code)                 │
+│  Phase 1:   Gap Scan (LLM)                           │
+│  Phase 2:   Checklist Verification (LLM)             │
+│  Phase 3:   Risk Assessment (rule engine)            │
+│  Phase 4:   Remediation Suggestions (LLM)            │
+│  Phase 5:   Cross-Examination (LLM, parallel)        │
+│  Phase 6:   Source Verification (HTTP)               │
+│                                                     │
+│  [SSE Real-Time Events] [Pause/Resume/Inject]        │
+│  [Daily Audit] [Cross-Ref Validation]                │
 └──────────────────────┬──────────────────────────────┘
                        │
 ┌──────────────────────┴──────────────────────────────┐
@@ -381,6 +423,8 @@ The system adopts a **Main Agent + Sub-Agent** architecture, where the Main Agen
 ┌──────────────────────┴──────────────────────────────┐
 │                    Data Layer                         │
 │  [JSON DB] [Markdown Storage] [Audit Log]            │
+│  [Interaction Log] [CrossExam Store]                  │
+│  [Regulatory Storage] [MDSAP Storage]                │
 └──────────────────────┬──────────────────────────────┘
                        │
 ┌──────────────────────┴──────────────────────────────┐
@@ -389,6 +433,7 @@ The system adopts a **Main Agent + Sub-Agent** architecture, where the Main Agen
 │  [Baseline Report] ──→ Pre-LLM Word/Excel generation │
 │  [Analysis Cache]  ──→ Periodic save + auto-save     │
 │  [User Settings]   ──→ LLM config persistence        │
+│  [Safe I/O]        ──→ Atomic writes + retry logic    │
 │  [on_chat_end]     ──→ Auto-save on disconnect       │
 │  [Reconnect Check] ──→ Show pending reports on login │
 └─────────────────────────────────────────────────────┘
@@ -555,6 +600,11 @@ Phoenix Dashboard: http://localhost:6006
 | Tracing Framework | OpenTelemetry + OpenInference |
 | Web Search | DuckDuckGo |
 | Local LLM | Ollama |
+| HTTP Client | httpx (HTTP/2) |
+| Stamp/Seal Detection | OpenCV + NumPy |
+| Web Scraping | BeautifulSoup4 + lxml |
+| PDF Generation | reportlab |
+| Atomic File I/O | safe_io (PermissionError retry) |
 
 ---
 
@@ -627,6 +677,7 @@ TMBIA-Tmti は、医療機器の法規担当者が品質管理において直面
 │  │  QMS アシスタント    │ │  Document Control       │  │
 │  └─────────────────────┘ └────────────────────────┘  │
 │  [ChatSettings: プロバイダー | モデル | API Key]       │
+│  [Report UI: /api/report/page/{run_id}]              │
 └──────────────────────┬──────────────────────────────┘
                        │
 ┌──────────────────────┴──────────────────────────────┐
@@ -647,6 +698,22 @@ TMBIA-Tmti は、医療機器の法規担当者が品質管理において直面
 └──────────────────────┬──────────────────────────────┘
                        │
 ┌──────────────────────┴──────────────────────────────┐
+│       コンプライアンス分析エンジン (Pipeline)          │
+│                                                     │
+│  Phase 0:   Data Quality Gate (code)                 │
+│  Phase 0.5: Reference Mapping (code)                 │
+│  Phase 1:   Gap Scan (LLM)                           │
+│  Phase 2:   Checklist Verification (LLM)             │
+│  Phase 3:   Risk Assessment (rule engine)            │
+│  Phase 4:   Remediation Suggestions (LLM)            │
+│  Phase 5:   Cross-Examination (LLM, parallel)        │
+│  Phase 6:   Source Verification (HTTP)               │
+│                                                     │
+│  [SSE Real-Time Events] [Pause/Resume/Inject]        │
+│  [Daily Audit] [Cross-Ref Validation]                │
+└──────────────────────┬──────────────────────────────┘
+                       │
+┌──────────────────────┴──────────────────────────────┐
 │                OCR 処理層                             │
 │  [MarkItDown (主)] ──→ [LLM Vision (フォールバック)]   │
 └──────────────────────┬──────────────────────────────┘
@@ -654,6 +721,8 @@ TMBIA-Tmti は、医療機器の法規担当者が品質管理において直面
 ┌──────────────────────┴──────────────────────────────┐
 │                  データ層                             │
 │  [JSON DB] [Markdown Storage] [Audit Log]            │
+│  [Interaction Log] [CrossExam Store]                  │
+│  [Regulatory Storage] [MDSAP Storage]                │
 └──────────────────────┬──────────────────────────────┘
                        │
 ┌──────────────────────┴──────────────────────────────┐
@@ -662,6 +731,7 @@ TMBIA-Tmti は、医療機器の法規担当者が品質管理において直面
 │  [ベースラインレポート] ──→ LLM前 Word/Excel 生成      │
 │  [分析キャッシュ]      ──→ 定期保存 + 自動保存         │
 │  [ユーザー設定]        ──→ LLM設定の永続化             │
+│  [Safe I/O]           ──→ アトミック書込 + リトライ     │
 │  [on_chat_end]        ──→ 切断時に自動キャッシュ保存   │
 │  [再接続チェック]      ──→ ログイン時に保留レポート表示 │
 └─────────────────────────────────────────────────────┘
@@ -828,6 +898,11 @@ Phoenix ダッシュボード：http://localhost:6006
 | トレースフレームワーク | OpenTelemetry + OpenInference |
 | ウェブ検索 | DuckDuckGo |
 | ローカル LLM | Ollama |
+| HTTP クライアント | httpx (HTTP/2) |
+| 印鑑・署名検出 | OpenCV + NumPy |
+| ウェブスクレイピング | BeautifulSoup4 + lxml |
+| PDF 生成 | reportlab |
+| アトミックファイル I/O | safe_io (PermissionError リトライ) |
 
 ---
 
@@ -836,6 +911,7 @@ Phoenix ダッシュボード：http://localhost:6006
 ```
 AI-QMS/
 ├── README.md                    # This file (中文/English/日本語)
+├── LICENSE                      # Apache License 2.0
 ├── requirements.txt             # Python dependencies
 ├── start.bat                    # Main launcher / 主啟動腳本
 ├── start_chainlit.bat           # Chainlit direct launcher (+ Phoenix)
@@ -847,9 +923,16 @@ AI-QMS/
 ├── public/                      # Chainlit public assets
 │   ├── avatars/
 │   │   └── eira.svg             # Eira AI assistant icon
-│   ├── main_agent.svg
-│   └── doc_control.svg
+│   ├── logo_dark.svg            # Dark theme logo
+│   └── logo_light.svg           # Light theme logo
+├── report_ui/                   # Compliance report web viewer
+│   ├── report.html              # Report page template
+│   ├── report.js                # Report rendering logic + SSE client
+│   ├── report_i18n.js           # Report UI i18n (zh/en/ja)
+│   └── report.css               # Report styles
 ├── src/                         # Source code
+│   ├── config.py                # Global configuration
+│   ├── llm_providers.py         # 16 LLM provider manager
 │   ├── chainlit_app/            # Chainlit application
 │   │   ├── app.py               # Main app entry point (v3.5.0)
 │   │   ├── i18n.py              # 20-language translations (JSON loader)
@@ -859,35 +942,91 @@ AI-QMS/
 │   │   │   ├── ja-JP.json       # Japanese
 │   │   │   └── ... (20 locales) # 20 languages total
 │   │   └── handlers/
+│   │       └── common.py        # Shared request handlers
 │   ├── agents/                  # Agent modules
-│   │   └── tools/               # LangGraph tools
+│   │   └── tools/
+│   │       └── documents.py     # LangGraph document tools
 │   ├── workflows/               # LangGraph workflows
+│   │   └── doc_workflow.py      # Document control workflow
 │   ├── ocr/                     # OCR processing
 │   │   └── vision_ocr.py        # MarkItDown + Vision OCR
+│   ├── analysis/                # Compliance analysis pipeline
+│   │   ├── pipeline.py          # 8-phase analysis orchestrator
+│   │   ├── pipeline_runner.py   # Pipeline execution manager
+│   │   ├── state.py             # Pipeline state model
+│   │   ├── data_quality.py      # Phase 0: Data quality gate
+│   │   ├── reference_mapper.py  # Phase 0.5: Reference mapping
+│   │   ├── gap_scanner.py       # Phase 1: Gap scan (LLM)
+│   │   ├── checklist_verifier.py # Phase 2: Checklist verification (LLM)
+│   │   ├── risk_matrix.py       # Phase 3: Risk assessment (rule engine)
+│   │   ├── remediation.py       # Phase 4: Remediation suggestions (LLM)
+│   │   ├── crossexam_qa_agent.py # Phase 5: Cross-examination (LLM)
+│   │   ├── source_checker.py    # Phase 6: Source verification (HTTP)
+│   │   ├── verifier.py          # Result verification
+│   │   ├── comparison_table.py  # Version comparison tables
+│   │   ├── compliance_rules.py  # Regulatory compliance rule engine
+│   │   ├── report_api.py        # Report API endpoints + SSE
+│   │   ├── crossref_report.py   # Cross-reference validation report
+│   │   └── daily_audit.py       # Scheduled daily audit runner
 │   ├── database/                # Database modules
-│   │   ├── audit_log.py         # SHA-256 audit trail
-│   │   └── document_store.py
-│   ├── storage/                 # Markdown storage
-│   │   └── markdown_storage.py
-│   ├── services/
-│   ├── utils/
-│   │   ├── analysis_cache.py    # Resilient analysis caching (disconnect recovery)
-│   │   ├── user_settings.py     # User/LLM settings persistence
-│   │   ├── audit_export.py      # Audit log Word/Excel export
-│   │   ├── regulatory_export.py # Regulatory/Reference list export
-│   │   ├── regulatory_update_export.py  # Regulatory update export
-│   │   └── doclist_export.py    # Document list Word/Excel export
-│   ├── config.py
-│   └── llm_providers.py         # 16 LLM provider manager
+│   │   ├── audit_log.py         # SHA-256 hash chain audit trail
+│   │   ├── document_store.py    # JSON document store
+│   │   ├── interaction_log.py   # User interaction logging
+│   │   └── crossexam_store.py   # Cross-examination data store
+│   ├── storage/                 # Markdown & regulatory storage
+│   │   ├── markdown_storage.py  # Document markdown storage
+│   │   ├── regulatory_storage.py # Regulatory reference storage
+│   │   ├── regulatory_markdown_storage.py  # Regulatory markdown cache
+│   │   ├── regulatory_analysis_storage.py  # Analysis result storage
+│   │   ├── mdsap_markdown_storage.py       # MDSAP document storage
+│   │   └── product_docs_storage.py         # Product document storage
+│   ├── services/                # Business logic services
+│   │   ├── regulatory_crawler.py    # Regulatory website crawler
+│   │   ├── watermark_engine.py      # Watermark detection engine
+│   │   ├── watermark_service.py     # Watermark service layer
+│   │   ├── obsolete_detector.py     # Document obsolescence detector
+│   │   ├── doc_hierarchy.py         # Document hierarchy manager
+│   │   └── markdown_store_service.py # Markdown storage service
+│   └── utils/                   # Utility modules
+│       ├── safe_io.py           # Atomic file I/O + PermissionError retry
+│       ├── analysis_cache.py    # Resilient analysis caching (disconnect recovery)
+│       ├── user_settings.py     # User/LLM settings persistence
+│       ├── audit_export.py      # Audit log Word/Excel export
+│       ├── regulatory_export.py # Regulatory/Reference list export
+│       ├── regulatory_update_export.py  # Regulatory update export
+│       ├── doclist_export.py    # Document list Word/Excel export
+│       └── crossexam_export.py  # Cross-examination report export
 ├── scripts/                     # Utility scripts
-│   └── auto_translate.py        # AI-powered i18n translation
-├── data/                        # Runtime data (auto-generated)
+│   ├── auto_translate.py        # AI-powered i18n translation
+│   ├── inject_missing_translations.py  # Missing translation injector
+│   ├── add_i18n_keys.py         # Add new i18n keys
+│   ├── extract_i18n.py          # Extract i18n strings from code
+│   └── _update_titles.py        # Update locale title fields
+├── tests/                       # Test suite (18 files)
+│   ├── t2_import_chain.py       # Import chain validation
+│   ├── t3_state_serialization.py # State serialization tests
+│   ├── t4_comparison_table.py   # Comparison table tests
+│   ├── t5_risk_compliance.py    # Risk matrix + compliance rules
+│   ├── t6_report_api.py         # Report API endpoint tests
+│   ├── t7_stamp_ocr.py          # Stamp/OCR detection tests
+│   ├── t8_db_audit.py           # Database + audit trail tests
+│   ├── t9_t10_storage_crawler.py # Storage + crawler tests
+│   ├── t11_i18n.py              # i18n system tests
+│   ├── t12_t13_llm_exports.py   # LLM + export tests
+│   ├── t14_t15_storage_cache.py  # Storage + cache tests
+│   ├── t16_integration.py        # Integration tests
+│   ├── t17_t18_t19_t20_frontend_bat_env.py  # Frontend + env tests
+│   ├── t21_assessment_mode.py    # Assessment mode tests
+│   ├── t22_crossref_feedback.py  # Cross-ref + feedback tests
+│   ├── t23_crossexam_system.py   # Cross-examination tests
+│   ├── t24_html_api_integration.py # HTML API integration tests
+│   └── t25_extreme_edge_cases.py  # Extreme edge case tests
+├── data/                        # Runtime data (auto-generated, not in repo)
 │   ├── analysis_cache/          # Resilient report cache (JSON)
-│   ├── user_settings/           # Per-user settings (JSON, auto-generated)
-│   │   └── _last_user.json      # Last active user pointer
+│   ├── user_settings/           # Per-user settings (JSON)
 │   └── exports/                 # Generated Word/Excel reports
-├── uploads/                     # File upload staging
-└── markdown_storage/            # Converted Markdown documents
+├── uploads/                     # File upload staging (not in repo)
+└── markdown_storage/            # Converted Markdown documents (not in repo)
 ```
 
 ## Disclaimer / 免責聲明 / 免責事項

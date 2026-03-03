@@ -93,10 +93,10 @@ def _run_risk_assessment_row(row_state: RowState) -> None:
         outdated_count = sum(1 for e in evidence_items if e.is_outdated)
 
         gap_severity = determine_gap_severity(
-            total_expected=total_count,
-            found_adequate=found_count,
-            found_inadequate=inadequate_count,
-            found_outdated=outdated_count,
+            expected_count=total_count,
+            found_count=found_count,
+            has_inadequate=bool(inadequate_count),
+            has_outdated=bool(outdated_count),
         )
 
         # Lookup risk level from matrix
@@ -158,12 +158,14 @@ class AnalysisPipeline:
         model: str = "default",
         mode: ExecutionMode = ExecutionMode.AUTO_RUN,
         max_tokens_budget: int = 500_000,
+        max_time_seconds: int = 600,
         standard: str = "ISO_13485",
         state_dir: Path = Path("data/analysis_pipeline"),
         on_phase_complete: Optional[Callable] = None,
         on_pause: Optional[Callable] = None,
         on_row_complete: Optional[Callable] = None,
         selected_regulations: list[str] | None = None,
+        lang: str = "zh-TW",
     ):
         """Initialize the pipeline.
 
@@ -172,6 +174,7 @@ class AnalysisPipeline:
             model: LLM model name to use
             mode: Execution mode (step-by-step / auto-run / risk-only)
             max_tokens_budget: Maximum total LLM tokens allowed
+            max_time_seconds: Maximum time in seconds for LLM phases (default 600 = 10 min)
             standard: Regulatory standard to analyze against
             state_dir: Directory for state persistence
             on_phase_complete: Callback(phase, state) after each phase completes
@@ -186,6 +189,7 @@ class AnalysisPipeline:
         self._state_dir = state_dir
         self._state_dir.mkdir(parents=True, exist_ok=True)
         self._selected_regulations = selected_regulations
+        self._lang = lang
 
         # Callbacks
         self._on_phase_complete = on_phase_complete
@@ -197,7 +201,7 @@ class AnalysisPipeline:
             mode=mode.value,
             standard=standard,
         )
-        budget = LLMBudget(max_total_tokens=max_tokens_budget)
+        budget = LLMBudget(max_total_tokens=max_tokens_budget, max_time_seconds=max_time_seconds)
         self._state.update_budget(budget)
 
         # Comparison table wrapper
@@ -302,6 +306,18 @@ class AnalysisPipeline:
         self._state.status = PhaseStatus.RUNNING.value
         self._save_state()
 
+        # Emit pipeline start event for SSE
+        try:
+            from src.analysis.report_api import emit_cross_exam_event
+            emit_cross_exam_event(self._state.run_id, {
+                "type": "pipeline_started",
+                "run_id": self._state.run_id,
+                "mode": self._state.mode,
+                "total_rows": self._state.total_rows,
+            })
+        except ImportError:
+            pass
+
         try:
             # Phase 0: Data Quality Gate
             if not self._phase_already_done(Phase.DATA_QUALITY):
@@ -364,6 +380,18 @@ class AnalysisPipeline:
             # Complete
             self._state.status = PhaseStatus.COMPLETED.value
             self._state.completed_at = time.time()
+
+            # Emit pipeline complete event for SSE
+            try:
+                from src.analysis.report_api import emit_cross_exam_event
+                emit_cross_exam_event(self._state.run_id, {
+                    "type": "pipeline_complete",
+                    "run_id": self._state.run_id,
+                    "completed_rows": self._state.completed_rows,
+                    "total_rows": self._state.total_rows,
+                })
+            except ImportError:
+                pass
             self._save_state()
             logger.info(
                 f"Pipeline completed: {self._state.completed_rows}/{self._state.total_rows} rows"
@@ -478,6 +506,8 @@ class AnalysisPipeline:
         """Phase 1: Gap Scan (LLM) — per-document grouping."""
         logger.info("Executing Phase 1: Gap Scan (per-document)")
         self._state.current_phase = Phase.GAP_SCAN.value
+        # Start time budget timer at first LLM phase
+        self._state.get_budget().start_timer()
 
         doc_groups = self._state.group_rows_by_doc(Phase.GAP_SCAN)
         for doc_id, rows in doc_groups.items():
@@ -488,8 +518,8 @@ class AnalysisPipeline:
                 rows=rows,
                 state=self._state,
                 llm_completion_fn=self._llm_fn,
-                model=self._model,
                 run_id=self._state.run_id,
+                lang=self._lang,
             )
             for row in rows:
                 row.set_phase_result(Phase.GAP_SCAN, result)
@@ -517,8 +547,8 @@ class AnalysisPipeline:
                 rows=rows,
                 state=self._state,
                 llm_completion_fn=self._llm_fn,
-                model=self._model,
                 run_id=self._state.run_id,
+                lang=self._lang,
             )
             for row in rows:
                 row.set_phase_result(Phase.CHECKLIST_VERIFY, result)
@@ -564,8 +594,8 @@ class AnalysisPipeline:
                 rows=rows,
                 state=self._state,
                 llm_completion_fn=self._llm_fn,
-                model=self._model,
                 run_id=self._state.run_id,
+                lang=self._lang,
             )
             for row in rows:
                 row.set_phase_result(Phase.REMEDIATION, result)
@@ -580,14 +610,34 @@ class AnalysisPipeline:
         self._notify_phase_complete(Phase.REMEDIATION)
         self._advance_global_phase(Phase.VERIFICATION)
     def _execute_phase_5(self) -> None:
-        """Phase 5: Independent Verification / Cross-examination (LLM) — per-document grouping."""
-        logger.info("Executing Phase 5: Independent Verification (per-document)")
+        """Phase 5: Independent Verification / Cross-examination (LLM) — per-document grouping.
+
+        Parallelized: multiple document groups are processed concurrently via ThreadPoolExecutor.
+        """
+        logger.info("Executing Phase 5: Independent Verification (per-document, parallel)")
         self._state.current_phase = Phase.VERIFICATION.value
 
         doc_groups = self._state.group_rows_by_doc(Phase.VERIFICATION)
-        for doc_id, rows in doc_groups.items():
-            if self._budget_exceeded():
-                break
+
+        if not doc_groups:
+            self._notify_phase_complete(Phase.VERIFICATION)
+            self._advance_global_phase(Phase.SOURCE_CHECK)
+            return
+
+        # Pre-flight budget check
+        if self._budget_exceeded():
+            logger.info("Phase 5 skipped: budget exceeded before start")
+            self._notify_phase_complete(Phase.VERIFICATION)
+            self._advance_global_phase(Phase.SOURCE_CHECK)
+            return
+
+        import concurrent.futures
+
+        # Limit concurrency to avoid overwhelming LLM API
+        max_workers = min(4, len(doc_groups))
+
+        def _verify_single_doc(doc_id: str, rows: list) -> tuple:
+            """Process one document group. Returns (doc_id, rows, result)."""
             result = run_verification_document(
                 doc_id=doc_id,
                 rows=rows,
@@ -596,24 +646,39 @@ class AnalysisPipeline:
                 model=self._model,
                 selected_regulations=self._selected_regulations,
                 run_id=self._state.run_id,
+                lang=self._lang,
             )
-            for row in rows:
-                row.set_phase_result(Phase.VERIFICATION, result)
-                if result.status in (
-                    PhaseStatus.COMPLETED.value,
-                    PhaseStatus.SKIPPED.value,
-                ):
-                    row.advance_to_next_phase()
-                self._state.update_row(row)
-            self._save_state()
+            return (doc_id, rows, result)
 
-            # Notify per-row completion if callback set
-            for row in rows:
-                if (
-                    self._on_row_complete
-                    and row.overall_status == PhaseStatus.COMPLETED.value
-                ):
-                    self._on_row_complete(row, self._state)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(_verify_single_doc, doc_id, rows): doc_id
+                for doc_id, rows in doc_groups.items()
+            }
+
+            for future in concurrent.futures.as_completed(futures):
+                doc_id = futures[future]
+                try:
+                    _, rows, result = future.result()
+                    for row in rows:
+                        row.set_phase_result(Phase.VERIFICATION, result)
+                        if result.status in (
+                            PhaseStatus.COMPLETED.value,
+                            PhaseStatus.SKIPPED.value,
+                        ):
+                            row.advance_to_next_phase()
+                        self._state.update_row(row)
+                    self._save_state()
+
+                    # Notify per-row completion if callback set
+                    for row in rows:
+                        if (
+                            self._on_row_complete
+                            and row.overall_status == PhaseStatus.COMPLETED.value
+                        ):
+                            self._on_row_complete(row, self._state)
+                except Exception as e:
+                    logger.error(f"Phase 5 failed for doc {doc_id}: {e}")
 
         self._notify_phase_complete(Phase.VERIFICATION)
         self._advance_global_phase(Phase.SOURCE_CHECK)
@@ -696,14 +761,14 @@ class AnalysisPipeline:
                 row.advance_to_next_phase()
 
         elif phase == Phase.GAP_SCAN:
-            result = run_gap_scan_row(row, self._state, self._llm_fn, self._model)
+            result = run_gap_scan_row(row, self._state, self._llm_fn, self._model, lang=self._lang)
             row.set_phase_result(Phase.GAP_SCAN, result)
             if result.status == PhaseStatus.COMPLETED.value:
                 row.advance_to_next_phase()
 
         elif phase == Phase.CHECKLIST_VERIFY:
             result = run_checklist_verify_row(
-                row, self._state, self._llm_fn, self._model
+                row, self._state, self._llm_fn, self._model, lang=self._lang
             )
             row.set_phase_result(Phase.CHECKLIST_VERIFY, result)
             if result.status == PhaseStatus.COMPLETED.value:
@@ -716,7 +781,7 @@ class AnalysisPipeline:
                 row.advance_to_next_phase()
 
         elif phase == Phase.REMEDIATION:
-            result = run_remediation_row(row, self._state, self._llm_fn, self._model)
+            result = run_remediation_row(row, self._state, self._llm_fn, self._model, lang=self._lang)
             row.set_phase_result(Phase.REMEDIATION, result)
             if result.status in (
                 PhaseStatus.COMPLETED.value,
@@ -732,6 +797,7 @@ class AnalysisPipeline:
                 self._model,
                 selected_regulations=self._selected_regulations,
                 run_id=self._state.run_id,
+                lang=self._lang,
             )
             row.set_phase_result(Phase.VERIFICATION, result)
             if result.status in (
