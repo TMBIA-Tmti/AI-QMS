@@ -288,15 +288,16 @@ async def get_crossref_table(
             analysis = mods["get_overlap_analysis"](rid, clause_id)
             profile = all_regs[rid]
 
+            mapping = analysis.get("mapping") or {}
             reg_data = {
                 "status": analysis.get("status", "na"),
                 "is_delta": analysis.get("is_delta", False),
-                "regulation_ref": analysis.get("regulation_ref", ""),
-                "rationale_en": analysis.get("rationale_en", ""),
-                "rationale_zh": analysis.get("rationale_zh", ""),
-                "method": analysis.get("method", ""),
-                "confidence": analysis.get("confidence", 0.0),
-                "notes": analysis.get("notes", ""),
+                "regulation_ref": mapping.get("regulation_ref", ""),
+                "rationale_en": mapping.get("rationale_en", ""),
+                "rationale_zh": mapping.get("rationale_zh", ""),
+                "method": mapping.get("method", ""),
+                "confidence": mapping.get("confidence", 0.0),
+                "notes": mapping.get("notes", ""),
                 "delta_items": analysis.get("delta_items", []),
             }
             row["regulations"][rid] = reg_data
