@@ -253,12 +253,15 @@ async def list_regulations():
 @report_router.get("/crossref/table")
 async def get_crossref_table(
     regulations: str = Query(..., description="Comma-separated regulation IDs, e.g. QMSR,EU_MDR,TFDA"),
+    run_id: Optional[str] = Query(None, description="Pipeline run ID to attach document evidence"),
 ):
     """Get the full cross-reference comparison table.
 
     Returns ISO 13485 clauses as rows, with each selected regulation's
     mapping status, rationale, method, and confidence.
     Also returns unique requirements (delta items) per regulation.
+    If run_id is provided, attaches document evidence from the pipeline run.
+    If run_id is not provided, auto-selects the latest run (if any).
     """
     mods = _get_cross_ref_modules()
     reg_ids = [r.strip() for r in regulations.split(",") if r.strip()]
@@ -282,6 +285,7 @@ async def get_crossref_table(
             "clause_title": clause_info.get("title", ""),
             "audit_impact": clause_info.get("audit_impact", ""),
             "regulations": {},
+            "doc_evidence": [],  # populated from pipeline run
         }
 
         for rid in reg_ids:
@@ -304,6 +308,161 @@ async def get_crossref_table(
 
         rows.append(row)
 
+    # ── Attach document evidence from pipeline run ──
+    # Group pipeline rows by clause_id to find which docs match each clause
+    _attached_run_id = None
+    try:
+        # Auto-select latest run if not specified
+        if not run_id:
+            available_runs = ComparisonTable.list_runs(_PIPELINE_DIR)
+            if available_runs:
+                run_id = available_runs[0].get("run_id", "")
+
+        if run_id:
+            run_file = _PIPELINE_DIR / f"{run_id}.json"
+            if run_file.exists():
+                import json as _json
+                with open(run_file, "r", encoding="utf-8") as _f:
+                    run_data = _json.load(_f)
+
+                # Build clause_id → list of doc evidence
+                clause_evidence: dict[str, list[dict]] = {}
+                for _row_id, _row_data in run_data.get("rows", {}).items():
+                    _cid = _row_data.get("clause_id", "")
+                    _did = _row_data.get("doc_id", "")
+                    _dtitle = _row_data.get("doc_title", "")
+                    _evidence_items = _row_data.get("evidence_items", [])
+
+                    if not _cid or not _did:
+                        continue
+
+                    # Summarize evidence for this doc-clause pair
+                    found_items = []
+                    missing_items = []
+                    inadequate_items = []
+                    for ei in _evidence_items:
+                        name = ei.get("evidence_name", "")
+                        if ei.get("found"):
+                            item = {
+                                "name": name,
+                                "section": ei.get("source_section", ""),
+                                "quote": (ei.get("source_quote", "") or "")[:200],
+                                "relevance": ei.get("relevance_score", 0),
+                                "inadequate": ei.get("is_inadequate", False),
+                            }
+                            if ei.get("is_inadequate"):
+                                inadequate_items.append(item)
+                            else:
+                                found_items.append(item)
+                        else:
+                            missing_items.append(name)
+
+                    doc_entry = {
+                        "doc_id": _did,
+                        "doc_title": _dtitle,
+                        "found_count": len(found_items),
+                        "missing_count": len(missing_items),
+                        "inadequate_count": len(inadequate_items),
+                        "found": found_items,
+                        "inadequate": inadequate_items,
+                        "missing": missing_items,
+                    }
+
+                    if _cid not in clause_evidence:
+                        clause_evidence[_cid] = []
+                    clause_evidence[_cid].append(doc_entry)
+
+                # Attach evidence to rows
+                for row in rows:
+                    cid = row["clause_id"]
+                    row["doc_evidence"] = clause_evidence.get(cid, [])
+
+                _attached_run_id = run_id
+    except Exception as e:
+        logger.warning(f"Failed to attach doc evidence from pipeline run: {e}")
+
+    # ── Supplement: scan ALL quality docs to fill gaps ──
+    # Pipeline only matches docs to their "primary" clauses. Here we also
+    # include docs matched by regex / body scan that weren't in the pipeline.
+    try:
+        from src.services.markdown_store_service import MarkdownStoreService
+        _doc_svc = MarkdownStoreService()
+        _all_docs = _doc_svc.list_documents()  # all active docs
+
+        # Load clause IDs for matching
+        from src.analysis.compliance_rules import list_clauses
+        _clause_ids = list_clauses("ISO_13485")
+
+        # Collect doc_ids already present per clause from pipeline
+        _pipeline_doc_ids: dict[str, set[str]] = {}
+        for row in rows:
+            cid = row["clause_id"]
+            _pipeline_doc_ids[cid] = {
+                de["doc_id"] for de in row.get("doc_evidence", [])
+            }
+
+        # For each doc, determine which clauses it covers
+        for _doc_summary in _all_docs:
+            _did = _doc_summary.get("doc_id", "")
+            _dtitle = _doc_summary.get("title", "")
+            _doc_type = _doc_summary.get("doc_type", "")
+            _status = _doc_summary.get("status", "active")
+
+            # Skip non-active docs
+            if _status != "active":
+                continue
+
+            # Skip external standard / regulation documents
+            _doc_dict = {"doc_id": _did, "title": _dtitle, "doc_type": _doc_type}
+            if ComparisonTable._is_external_standard_doc(_doc_dict, "ISO_13485"):
+                continue
+
+            # Get doc content for body scanning
+            _doc_detail = _doc_svc.get_document(_did)
+            _doc_body = ""
+            if _doc_detail and isinstance(_doc_detail, dict):
+                _doc_body = _doc_detail.get("content", "")
+
+            _doc_tags = []
+            if isinstance(_doc_detail, dict):
+                _doc_tags = _doc_detail.get("tags", [])
+
+            # Match doc to clauses using regex strategies (no LLM here)
+            _matched = ComparisonTable._match_doc_to_clauses(
+                _did, _dtitle, _doc_tags, _clause_ids, _doc_body
+            )
+            if _matched is None:
+                # No regex match — skip (LLM fallback too expensive for API call)
+                continue
+
+            # Add to doc_evidence for each matched clause if not already present
+            for _cid in _matched:
+                existing_ids = _pipeline_doc_ids.get(_cid, set())
+                if _did in existing_ids:
+                    continue  # already from pipeline
+
+                # Create a supplemental doc entry (no evidence details,
+                # just shows which doc is mapped to this clause)
+                _supp_entry = {
+                    "doc_id": _did,
+                    "doc_title": _dtitle,
+                    "found_count": -1,  # -1 = not scanned by pipeline
+                    "missing_count": -1,
+                    "inadequate_count": -1,
+                    "found": [],
+                    "inadequate": [],
+                    "missing": [],
+                    "source": "regex_supplement",
+                }
+
+                # Find the row for this clause and append
+                for row in rows:
+                    if row["clause_id"] == _cid:
+                        row["doc_evidence"].append(_supp_entry)
+                        break
+
+    except Exception as e:
+        logger.warning(f"Failed to supplement doc evidence via scan: {e}")
     # Collect unique requirements (delta) per regulation
     unique_reqs = {}
     for rid in reg_ids:
@@ -348,6 +507,7 @@ async def get_crossref_table(
         "iso_clause_count": len(checklist),
         "rows": rows,
         "unique_requirements": unique_reqs,
+        "pipeline_run_id": _attached_run_id,
     })
 
 

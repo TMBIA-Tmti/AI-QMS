@@ -1284,6 +1284,58 @@
 
                 bodyHtml += `</div>`;  // end rationale-card
             }
+
+            // ── Document evidence for this clause (outside per-regulation loop) ──
+            const docs = row.doc_evidence || [];
+            const relevantDocs = docs.filter(d => d.found_count !== 0 || d.missing_count !== 0 || d.inadequate_count !== 0);
+            if (relevantDocs.length > 0) {
+                bodyHtml += `<div style="margin-top:12px;padding-top:10px;border-top:2px solid var(--primary)">
+                    <span class="rc-label" style="font-size:0.85rem">📄 對應品質文件 (${relevantDocs.length}):</span>`;
+                for (const doc of relevantDocs) {
+                    const isPipeline = doc.source !== 'regex_supplement';
+                    const sourceTag = isPipeline
+                        ? `<span style="font-size:0.65rem;padding:1px 5px;background:var(--compliant-bg);color:var(--compliant);border-radius:3px;margin-left:6px">Pipeline</span>`
+                        : `<span style="font-size:0.65rem;padding:1px 5px;background:var(--surface-alt);color:var(--text-secondary);border-radius:3px;margin-left:6px">對應</span>`;
+                    const countsHtml = isPipeline
+                        ? `<span style="margin-left:8px;font-size:0.75rem">✅${doc.found_count} ⚠️${doc.inadequate_count} ❌${doc.missing_count}</span>`
+                        : '';
+                    bodyHtml += `<div style="margin-top:4px;padding:6px 8px;background:var(--surface-alt);border-radius:4px;border-left:3px solid var(--primary)">
+                        <strong style="font-size:0.8rem">${escapeHtml(doc.doc_id)}</strong>
+                        <span style="font-size:0.75rem;color:var(--text-secondary);margin-left:4px">— ${escapeHtml(doc.doc_title)}</span>
+                        ${sourceTag}${countsHtml}
+                    </div>`;
+                    // Show found evidence details if available
+                    if (isPipeline && doc.found && doc.found.length > 0) {
+                        bodyHtml += `<div style="margin-left:16px;font-size:0.72rem;color:var(--text-secondary)">`;
+                        for (const f of doc.found.slice(0, 3)) {
+                            bodyHtml += `<div style="margin-top:2px">✅ ${escapeHtml(f.name)} — <em>${escapeHtml(f.section || '')}</em></div>`;
+                        }
+                        if (doc.found.length > 3) {
+                            bodyHtml += `<div style="margin-top:2px">...及 ${doc.found.length - 3} 項更多</div>`;
+                        }
+                        bodyHtml += `</div>`;
+                    }
+                    if (isPipeline && doc.inadequate && doc.inadequate.length > 0) {
+                        bodyHtml += `<div style="margin-left:16px;font-size:0.72rem;color:var(--warning-color,orange)">`;
+                        for (const f of doc.inadequate.slice(0, 3)) {
+                            bodyHtml += `<div style="margin-top:2px">⚠️ ${escapeHtml(f.name)} — <em>${escapeHtml(f.section || '')}</em></div>`;
+                        }
+                        bodyHtml += `</div>`;
+                    }
+                    if (isPipeline && doc.missing && doc.missing.length > 0) {
+                        bodyHtml += `<div style="margin-left:16px;font-size:0.72rem;color:var(--non-compliant,red)">`;
+                        for (const m of doc.missing.slice(0, 3)) {
+                            bodyHtml += `<div style="margin-top:2px">❌ ${escapeHtml(m)}</div>`;
+                        }
+                        if (doc.missing.length > 3) {
+                            bodyHtml += `<div style="margin-top:2px">...及 ${doc.missing.length - 3} 項更多</div>`;
+                        }
+                        bodyHtml += `</div>`;
+                    }
+                }
+                bodyHtml += `</div>`;
+            }
+
             bodyHtml += `</td></tr>`;
         }
 
