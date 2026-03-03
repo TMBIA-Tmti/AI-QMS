@@ -12,6 +12,8 @@ Each pipeline run gets its own comparison table file.
 from __future__ import annotations
 
 import json
+import logging
+import re
 import time
 from pathlib import Path
 from typing import Optional
@@ -25,6 +27,7 @@ from src.analysis.state import (
 from src.analysis.compliance_rules import get_checklist, list_clauses
 from src.analysis.risk_matrix import VERDICT_DISPLAY, RISK_LEVEL_DISPLAY
 
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "ComparisonTable",
@@ -57,6 +60,8 @@ class ComparisonTable:
         self,
         scan_result: dict,
         standard: str = "ISO_13485",
+        llm_completion_fn=None,
+        model: str = "default",
     ) -> int:
         """Build initial rows from scan_regulatory_references() output + checklist.
 
@@ -66,13 +71,16 @@ class ComparisonTable:
 
         Multi-strategy matching (all strategies used, results merged):
           1. Title clause extraction — "(ISO 13485 Clause 4.2.3)" in title
-          2. Title keyword mapping — keywords like "Document Control" → clause
+          2. Title keyword mapping — domain keywords → clause family (bonus, not relied upon)
           3. Tags / metadata clause hints
-          4. Fallback: if no strategy matches, include all clauses (generic docs)
+          4. Document body scanning — extract clause refs from doc content (NEW)
+          5. LLM classification fallback — if no strategy matches, LLM determines clauses (NEW)
 
         Args:
             scan_result: Output of MarkdownStoreService.scan_regulatory_references()
             standard: Standard identifier to analyze against
+            llm_completion_fn: LLM completion function for fallback classification
+            model: LLM model name for fallback classification
 
         Returns:
             Number of rows created
@@ -80,6 +88,13 @@ class ComparisonTable:
         checklist = get_checklist(standard)
         clause_ids = list_clauses(standard)
         by_doc = scan_result.get("by_document", [])
+
+        # Load doc content service for body scanning
+        try:
+            from src.services.markdown_store_service import MarkdownStoreService
+            doc_service = MarkdownStoreService()
+        except Exception:
+            doc_service = None
 
         # Find documents that reference this standard
         relevant_docs: list[dict] = []
@@ -91,16 +106,45 @@ class ComparisonTable:
                     relevant_docs.append(doc)
                     break
 
+        # ── Filter out external standard/regulation documents ──
+        # Documents that ARE the standard itself (e.g., "ISO 13485_2016.PDF")
+        # should be used as reference material, NOT analyzed as QMS documents.
+        relevant_docs = [
+            doc for doc in relevant_docs
+            if not self._is_external_standard_doc(doc, standard)
+        ]
+        # Pre-load doc content for body scanning (batch read, more efficient)
+        doc_contents: dict[str, str] = {}
+        if doc_service:
+            for doc in relevant_docs:
+                doc_id = doc.get("doc_id", "")
+                if doc_id:
+                    try:
+                        result = doc_service.get_document(doc_id)
+                        if result and result.get("success"):
+                            doc_contents[doc_id] = result.get("content", "")
+                    except Exception:
+                        pass
+
+        # Track docs that need LLM fallback
+        llm_fallback_docs: list[dict] = []
+
         row_count = 0
         for doc in relevant_docs:
             doc_id = doc.get("doc_id", "")
             doc_title = doc.get("title", "")
             doc_tags = doc.get("tags", [])
+            doc_body = doc_contents.get(doc_id, "")
 
             # Determine which clauses this document covers
             matched_clauses = self._match_doc_to_clauses(
-                doc_id, doc_title, doc_tags, clause_ids
+                doc_id, doc_title, doc_tags, clause_ids, doc_body
             )
+
+            if matched_clauses is None:
+                # No strategy matched — queue for LLM fallback
+                llm_fallback_docs.append(doc)
+                continue
 
             for clause_id in matched_clauses:
                 clause_info = checklist.get(clause_id, {})
@@ -117,7 +161,129 @@ class ComparisonTable:
                 self._state.add_row(row)
                 row_count += 1
 
+        # Process LLM fallback docs
+        if llm_fallback_docs and llm_completion_fn:
+            logger.info(
+                f"LLM fallback: classifying {len(llm_fallback_docs)} docs "
+                f"that no strategy could match"
+            )
+            for doc in llm_fallback_docs:
+                doc_id = doc.get("doc_id", "")
+                doc_title = doc.get("title", "")
+                doc_body = doc_contents.get(doc_id, "")
+                matched_clauses = self._llm_classify_doc(
+                    doc_id, doc_title, doc_body,
+                    clause_ids, checklist,
+                    llm_completion_fn, model,
+                )
+                for clause_id in matched_clauses:
+                    clause_info = checklist.get(clause_id, {})
+                    row = RowState(
+                        clause_id=clause_id,
+                        standard=standard,
+                        doc_id=doc_id,
+                        doc_title=doc_title,
+                        clause_title=clause_info.get("title", ""),
+                        audit_impact=clause_info.get("audit_impact", "minor"),
+                        audit_question=clause_info.get("audit_question", ""),
+                        expected_evidence=clause_info.get("expected_evidence", []),
+                    )
+                    self._state.add_row(row)
+                    row_count += 1
+        elif llm_fallback_docs:
+            # No LLM available — log warning, skip these docs
+            logger.warning(
+                f"No LLM available for fallback classification. "
+                f"Skipping {len(llm_fallback_docs)} unmatched docs: "
+                f"{[d.get('doc_id', '?') for d in llm_fallback_docs]}"
+            )
+
         return row_count
+
+    @staticmethod
+    def _is_external_standard_doc(doc: dict, standard: str) -> bool:
+        """Detect if a document IS an external standard/regulation file.
+
+        External standard documents (e.g., 'ISO 13485_2016.PDF', 'FDA 21 CFR 820.pdf')
+        should be used as reference material, not analyzed as internal QMS documents.
+
+        Heuristics:
+          1. doc_id or title looks like a standard name (ISO, IEC, FDA, EN, etc.)
+          2. doc_id or title contains the standard being analyzed
+          3. Filename patterns typical of downloaded standard PDFs
+
+        Returns:
+            True if the document appears to be an external standard file
+        """
+        doc_id = (doc.get("doc_id") or "").strip()
+        title = (doc.get("title") or "").strip()
+        doc_type = (doc.get("doc_type") or "").strip().lower()
+
+        # Combine for pattern matching
+        id_lower = doc_id.lower().replace("_", " ").replace("-", " ")
+        title_lower = title.lower().replace("_", " ").replace("-", " ")
+        std_lower = standard.lower().replace("_", " ")
+
+        # Known external standard prefixes
+        # These are international/national standard body identifiers
+        external_prefixes = (
+            "iso ", "iso/", "iec ", "iec/", "en ",
+            "astm ", "ansi ", "ansi/",
+            "fda ", "21 cfr", "cfr ",
+            "mdr ", "eu mdr", "ivdr",
+            "gmp ", "qsr ", "qmsr",
+            "jis ", "gb ", "gb/t", "cnt ", "cns ",
+        )
+
+        # 1. doc_id starts with a standard prefix
+        if any(id_lower.startswith(p) for p in external_prefixes):
+            logger.info(
+                f"Excluding external standard doc: {doc_id} "
+                f"(doc_id matches standard prefix)"
+            )
+            return True
+
+        # 2. Title starts with a standard prefix
+        if any(title_lower.startswith(p) for p in external_prefixes):
+            logger.info(
+                f"Excluding external standard doc: {doc_id} "
+                f"(title matches standard prefix: '{title}')"
+            )
+            return True
+
+        # 3. doc_id or title closely matches the standard being analyzed
+        #    e.g., standard='ISO_13485', doc_id='ISO 13485_2016'
+        if std_lower in id_lower or std_lower in title_lower:
+            logger.info(
+                f"Excluding external standard doc: {doc_id} "
+                f"(matches analyzed standard '{standard}')"
+            )
+            return True
+
+        # 4. Filename pattern: ends with version/year indicators typical of
+        #    downloaded standard PDFs (e.g., 'ISO_13485_2016', 'IEC_62304_2015')
+        import re
+        if re.match(
+            r'^(iso|iec|en|astm|ansi|fda|cfr|mdr|ivdr|jis|gb|cns)'
+            r'[\s_./-]'
+            r'.*\d{4}',
+            id_lower,
+        ):
+            logger.info(
+                f"Excluding external standard doc: {doc_id} "
+                f"(filename pattern matches external standard)"
+            )
+            return True
+
+        # 5. doc_type explicitly marked as external/reference
+        if doc_type in ("external", "reference", "standard", "regulation"):
+            logger.info(
+                f"Excluding external standard doc: {doc_id} "
+                f"(doc_type='{doc_type}')"
+            )
+            return True
+
+        return False
 
     @staticmethod
     def _match_doc_to_clauses(
@@ -125,32 +291,31 @@ class ComparisonTable:
         doc_title: str,
         doc_tags: list[str],
         all_clause_ids: list[str],
-    ) -> list[str]:
+        doc_body: str = "",
+    ) -> list[str] | None:
         """Determine which ISO 13485 clauses a document covers.
 
         Uses multiple strategies (all applied, results merged):
           1. Title clause reference — "ISO 13485 Clause X.Y.Z" or "條款 X.Y"
-          2. Title keyword mapping — domain keywords → known clause families
+          2. Title keyword mapping — domain keywords → known clause families (bonus)
           3. Tags with clause references
+          4. Document body scanning — extract clause refs from first ~2000 chars
 
         doc_id is NOT used for clause inference because the encoding
         convention varies across companies (some use clause-based numbering,
         some use sequential numbering, some use mixed approaches).
 
         Returns:
-            List of clause IDs this document should be analyzed against.
-            Includes the primary clause + all sub-clauses under it.
+            List of clause IDs this document should be analyzed against,
+            or None if no strategy could match (needs LLM fallback).
         """
-        import re
 
         found_clauses: set[str] = set()
 
+        # Normalize title: underscores → spaces (common OCR artifact)
+        title_normalized = doc_title.replace("_", " ")
+
         # ---- Strategy 1: Extract clause from title ----
-        # Patterns:
-        #   "Document Control (ISO 13485 Clause 4.2.3)"
-        #   "品質手冊 (ISO 13485 條款 4.1)"
-        #   "Clause 7.3.3 - Design and Development"
-        #   "4.2.3 Document Control"  (clause number at start)
         clause_patterns = [
             r"[Cc]lause\s+(\d+(?:\.\d+)*)",       # "Clause 4.2.3"
             r"條款\s*(\d+(?:\.\d+)*)",              # "條款 4.2.3"
@@ -158,118 +323,146 @@ class ComparisonTable:
             r"^\s*(\d+\.\d+(?:\.\d+)*)\s*[-—\s]+",  # "4.2.3 - Title" at start
         ]
         for pattern in clause_patterns:
-            for m in re.finditer(pattern, doc_title):
-                clause_ref = m.group(1)
-                # Always add — may be section prefix, expansion handles validation
-                found_clauses.add(clause_ref)
+            for m in re.finditer(pattern, title_normalized):
+                found_clauses.add(m.group(1))
 
-        # ---- Strategy 2: Title keyword → clause family mapping ----
-        # Maps common QMS document domain keywords to ISO 13485 clause families.
-        # Each keyword maps to a section prefix; all clauses under that prefix match.
-        _KEYWORD_CLAUSE_MAP: dict[str, list[str]] = {
-            # Section 4: QMS
-            "品質手冊": ["4.1", "4.2"],
-            "quality manual": ["4.2.2"],
-            "文件管制": ["4.2.3"],
-            "document control": ["4.2.3"],
-            "紀錄管制": ["4.2.4", "4.2.5"],
-            "record control": ["4.2.4", "4.2.5"],
-            # Section 5: Management
-            "管理責任": ["5"],
-            "management responsibility": ["5"],
-            "管理審查": ["5.6"],
-            "management review": ["5.6"],
-            # Section 6: Resource
-            "資源管理": ["6"],
-            "resource management": ["6"],
-            "人力資源": ["6.2"],
-            "human resources": ["6.2"],
-            "基礎設施": ["6.3"],
-            "infrastructure": ["6.3"],
-            "工作環境": ["6.4"],
-            "work environment": ["6.4"],
-            # Section 7: Product realization
-            "產品實現規劃": ["7.1"],
-            "product realization": ["7.1"],
-            "客戶要求": ["7.2"],
-            "customer requirement": ["7.2"],
-            "設計開發": ["7.3"],
-            "design and development": ["7.3"],
-            "design control": ["7.3"],
-            "採購": ["7.4"],
-            "purchasing": ["7.4"],
-            "生產與服務": ["7.5"],
-            "production and service": ["7.5"],
-            "清潔": ["7.5.2"],
-            "cleanliness": ["7.5.2"],
-            "滅菌": ["7.5.2"],
-            "sterilization": ["7.5.2", "7.5.7"],
-            "安裝確認": ["7.5.6"],
-            "installation": ["7.5.6"],
-            "服務": ["7.5.4"],
-            "servicing": ["7.5.4"],
-            "追溯": ["7.5.9"],
-            "traceability": ["7.5.9"],
-            "監控與測量": ["7.6"],
-            "monitoring and measurement": ["7.6"],
-            # Section 8: Measurement, analysis, improvement
-            "內部稽核": ["8.2.2"],
-            "internal audit": ["8.2.2"],
-            "矯正措施": ["8.5.2"],
-            "corrective action": ["8.5.2"],
-            "CAPA": ["8.5.2", "8.5.3"],
-            "預防措施": ["8.5.3"],
-            "preventive action": ["8.5.3"],
-            "不合格品": ["8.3"],
-            "nonconforming product": ["8.3"],
-            "客訴": ["8.2.2", "8.5.1"],
-            "complaint": ["8.2.2", "8.5.1"],
-            "回饋": ["8.2.1"],
-            "feedback": ["8.2.1"],
-            "資料分析": ["8.4"],
-            "data analysis": ["8.4"],
-            "風險管理": ["7.1"],
-            "risk management": ["7.1"],
-            "標示": ["7.5.1"],
-            "labeling": ["7.5.1"],
-        }
-
-        title_lower = doc_title.lower()
-        title_for_zh = doc_title  # Chinese matching is case-insensitive by nature
-        for keyword, clause_prefixes in _KEYWORD_CLAUSE_MAP.items():
-            if keyword.lower() in title_lower or keyword in title_for_zh:
-                for cp in clause_prefixes:
-                    # Always add — cp may be a section prefix (e.g., "7.3")
-                    # that's not itself a clause but has sub-clauses
-                    found_clauses.add(cp)
+        # (Strategy 2: keyword mapping REMOVED — fragile, breaks when
+        #  company uses different title conventions. Body scan is reliable.)
         # ---- Strategy 3: Tags with clause references ----
         for tag in doc_tags:
-            # Tags might be: "4.2.3", "document-control", "clause-7.3"
             tag_clause = re.search(r"(\d+\.\d+(?:\.\d+)*)", tag)
             if tag_clause:
-                clause_ref = tag_clause.group(1)
-                # Always add — may be section prefix, expansion handles validation
-                found_clauses.add(clause_ref)
+                found_clauses.add(tag_clause.group(1))
+
+        # ---- Strategy 4: Scan document body for clause references ----
+        # Look for patterns like "ISO 13485 Clause 7.5" or "條款 7.5"
+        # in the first ~3000 chars of the document body.
+        if doc_body:
+            body_preview = doc_body[:3000]
+            body_patterns = [
+                r"[Cc]lause\s+(\d+(?:\.\d+)*)",
+                r"條款\s*(\d+(?:\.\d+)*)",
+                r"\bISO\s*13485[^\n]*?(\d+\.\d+(?:\.\d+)*)",
+                # "Baseline domain focus: ... (ISO 13485 Clause X.Y)" pattern
+                r"[Bb]aseline\s+domain[^\n]*?(\d+\.\d+(?:\.\d+)*)",
+            ]
+            for pattern in body_patterns:
+                for m in re.finditer(pattern, body_preview):
+                    clause_ref = m.group(1)
+                    # Normalize X.0 → X (e.g., 8.0 → 8)
+                    if clause_ref.endswith(".0"):
+                        clause_ref = clause_ref[:-2]
+                    # Validate it looks like an ISO 13485 clause (4.x - 8.x)
+                    first_digit = clause_ref.split(".")[0]
+                    if first_digit in ("4", "5", "6", "7", "8"):
+                        found_clauses.add(clause_ref)
 
         # ---- Expand matched clauses to include sub-clauses ----
         expanded: set[str] = set()
         for clause in found_clauses:
-            # Only add the clause itself if it's a real checklist clause
             if clause in all_clause_ids:
                 expanded.add(clause)
-            # Always expand sub-clauses (e.g., "7.3" -> "7.3.1", "7.3.2"...)
             prefix = clause + "."
             for cid in all_clause_ids:
                 if cid.startswith(prefix):
                     expanded.add(cid)
 
-        # ---- Fallback: if no strategy matched, include all clauses ----
-        # This handles generic docs (Quality Manual, Quality Policy) that
-        # span the entire QMS.
+        # ---- No fallback to all 71 clauses ----
+        # If no strategy matched, return None to signal LLM fallback needed
         if not expanded:
-            return list(all_clause_ids)
+            return None
 
         return sorted(expanded)
+
+    @staticmethod
+    def _llm_classify_doc(
+        doc_id: str,
+        doc_title: str,
+        doc_body: str,
+        all_clause_ids: list[str],
+        checklist: dict,
+        llm_completion_fn,
+        model: str,
+    ) -> list[str]:
+        """Use LLM to determine which ISO 13485 clauses a document covers.
+
+        This is the fallback when no regex/keyword strategy could match.
+        Sends the doc title + first ~1500 chars of body to LLM with the
+        full clause list, and asks the LLM to return matching clause IDs.
+
+        Returns:
+            List of matched clause IDs (may be empty if LLM fails).
+        """
+        # Build clause reference for prompt
+        clause_ref_lines = []
+        for cid in sorted(all_clause_ids, key=lambda x: [int(n) for n in x.split(".")]):
+            info = checklist.get(cid, {})
+            clause_ref_lines.append(f"  {cid}: {info.get('title', '')}")
+        clause_ref_text = "\n".join(clause_ref_lines)
+
+        body_preview = doc_body[:1500] if doc_body else "(no content available)"
+        title_clean = doc_title.replace("_", " ")
+
+        prompt = (
+            f"You are an ISO 13485 QMS expert. Given a quality document, determine which "
+            f"ISO 13485 clauses it is designed to cover.\n\n"
+            f"Document ID: {doc_id}\n"
+            f"Document Title: {title_clean}\n\n"
+            f"Document Content (first ~1500 chars):\n{body_preview}\n\n"
+            f"Available ISO 13485 clauses:\n{clause_ref_text}\n\n"
+            f"Return ONLY a JSON array of clause IDs that this document covers. "
+            f"For example: [\"7.5.1\", \"7.5.2\", \"7.5.6\"]\n"
+            f"Be specific — only include clauses the document is actually about. "
+            f"Do NOT include all clauses. Typical documents cover 1-15 clauses.\n"
+            f"Return ONLY the JSON array, no other text."
+        )
+
+        try:
+            messages = [{"role": "user", "content": prompt}]
+            response = llm_completion_fn(
+                model=model,
+                messages=messages,
+                temperature=0.0,
+                max_tokens=500,
+            )
+            content = response.get("content", "").strip()
+
+            # Parse JSON array from response
+            # Handle cases where LLM wraps in ```json ... ```
+            if "```" in content:
+                content = content.split("```")[1]
+                if content.startswith("json"):
+                    content = content[4:]
+                content = content.strip()
+
+            import json as _json
+            clause_list = _json.loads(content)
+
+            if not isinstance(clause_list, list):
+                logger.warning(f"LLM returned non-list for {doc_id}: {content}")
+                return []
+
+            # Validate and expand
+            expanded: set[str] = set()
+            for clause in clause_list:
+                clause = str(clause).strip()
+                if clause in all_clause_ids:
+                    expanded.add(clause)
+                # Also expand sub-clauses
+                prefix = clause + "."
+                for cid in all_clause_ids:
+                    if cid.startswith(prefix):
+                        expanded.add(cid)
+
+            logger.info(
+                f"LLM classified {doc_id} ({title_clean[:40]}) -> "
+                f"{len(expanded)} clauses: {sorted(expanded)[:5]}..."
+            )
+            return sorted(expanded)
+
+        except Exception as e:
+            logger.warning(f"LLM classification failed for {doc_id}: {e}")
+            return []
 
     # ── Querying ──
 
@@ -591,6 +784,8 @@ def build_initial_rows(
     scan_result: dict,
     standard: str = "ISO_13485",
     storage_dir: Path = _DEFAULT_DIR,
+    llm_completion_fn=None,
+    model: str = "default",
 ) -> ComparisonTable:
     """Convenience: create a new PipelineState + ComparisonTable and populate rows.
 
@@ -598,11 +793,13 @@ def build_initial_rows(
         scan_result: Output of scan_regulatory_references()
         standard: Standard to analyze against
         storage_dir: Where to save pipeline state
+        llm_completion_fn: LLM function for fallback doc classification
+        model: LLM model name
 
     Returns:
         ComparisonTable ready for pipeline execution
     """
     state = PipelineState(standard=standard)
     table = ComparisonTable(state, storage_dir)
-    table.populate_from_scan(scan_result, standard)
+    table.populate_from_scan(scan_result, standard, llm_completion_fn, model)
     return table

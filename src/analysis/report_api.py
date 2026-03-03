@@ -190,6 +190,420 @@ async def redirect_to_latest_run():
     return RedirectResponse(url=f"/api/report/page/{latest_run_id}")
 
 
+# ============================================================
+# Cross-Reference Comparison API
+# ============================================================
+
+
+def _get_cross_ref_modules():
+    """Lazy import cross-reference modules to avoid circular imports."""
+    from src.analysis.compliance_rules import (
+        ISO_13485_CHECKLIST,
+        get_all_regulations,
+        get_regulation,
+        get_overlap_analysis,
+        generate_cross_exam_questions,
+        MappingStatus,
+    )
+    return {
+        "ISO_13485_CHECKLIST": ISO_13485_CHECKLIST,
+        "get_all_regulations": get_all_regulations,
+        "get_regulation": get_regulation,
+        "get_overlap_analysis": get_overlap_analysis,
+        "generate_cross_exam_questions": generate_cross_exam_questions,
+        "MappingStatus": MappingStatus,
+    }
+
+
+@report_router.get("/crossref/regulations")
+async def list_regulations():
+    """List all available regulations (predefined + crawled) for country selector."""
+    mods = _get_cross_ref_modules()
+    all_regs = mods["get_all_regulations"]()
+
+    regulations = []
+    for reg_id, profile in all_regs.items():
+        iso_mapped_count = len(profile.iso_mapped)
+        unique_count = len(profile.unique_requirements)
+
+        # Count statuses
+        status_counts = defaultdict(int)
+        for cm in profile.iso_mapped.values():
+            status_counts[cm.status.value] += 1
+
+        regulations.append({
+            "regulation_id": reg_id,
+            "name_en": profile.name_en,
+            "name_zh": profile.name_zh,
+            "country": profile.country,
+            "country_name_en": profile.country_name_en,
+            "country_name_zh": profile.country_name_zh,
+            "source": profile.source,
+            "source_url": profile.source_url,
+            "last_updated": profile.last_updated,
+            "effective_date": profile.effective_date,
+            "iso_mapped_count": iso_mapped_count,
+            "unique_requirements_count": unique_count,
+            "status_counts": dict(status_counts),
+        })
+
+    return JSONResponse(content={"regulations": regulations})
+
+
+@report_router.get("/crossref/table")
+async def get_crossref_table(
+    regulations: str = Query(..., description="Comma-separated regulation IDs, e.g. QMSR,EU_MDR,TFDA"),
+):
+    """Get the full cross-reference comparison table.
+
+    Returns ISO 13485 clauses as rows, with each selected regulation's
+    mapping status, rationale, method, and confidence.
+    Also returns unique requirements (delta items) per regulation.
+    """
+    mods = _get_cross_ref_modules()
+    reg_ids = [r.strip() for r in regulations.split(",") if r.strip()]
+
+    if not reg_ids:
+        raise HTTPException(status_code=400, detail="No regulations specified")
+
+    # Validate regulation IDs
+    all_regs = mods["get_all_regulations"]()
+    for rid in reg_ids:
+        if rid not in all_regs:
+            raise HTTPException(status_code=404, detail=f"Regulation '{rid}' not found")
+
+    # Build cross-reference rows from ISO 13485 checklist
+    checklist = mods["ISO_13485_CHECKLIST"]
+    rows = []
+
+    for clause_id, clause_info in checklist.items():
+        row = {
+            "clause_id": clause_id,
+            "clause_title": clause_info.get("title", ""),
+            "audit_impact": clause_info.get("audit_impact", ""),
+            "regulations": {},
+        }
+
+        for rid in reg_ids:
+            analysis = mods["get_overlap_analysis"](rid, clause_id)
+            profile = all_regs[rid]
+
+            reg_data = {
+                "status": analysis.get("status", "na"),
+                "is_delta": analysis.get("is_delta", False),
+                "regulation_ref": analysis.get("regulation_ref", ""),
+                "rationale_en": analysis.get("rationale_en", ""),
+                "rationale_zh": analysis.get("rationale_zh", ""),
+                "method": analysis.get("method", ""),
+                "confidence": analysis.get("confidence", 0.0),
+                "notes": analysis.get("notes", ""),
+                "delta_items": analysis.get("delta_items", []),
+            }
+            row["regulations"][rid] = reg_data
+
+        rows.append(row)
+
+    # Collect unique requirements (delta) per regulation
+    unique_reqs = {}
+    for rid in reg_ids:
+        profile = all_regs[rid]
+        reqs = []
+        for req in profile.unique_requirements:
+            reqs.append({
+                "req_id": req.req_id,
+                "regulation_ref": req.regulation_ref,
+                "title_en": req.title_en,
+                "title_zh": req.title_zh,
+                "requirement_en": req.requirement_en,
+                "requirement_zh": req.requirement_zh,
+                "related_iso_clauses": req.related_iso_clauses,
+                "audit_impact": req.audit_impact,
+                "audit_question_en": req.audit_question_en,
+                "audit_question_zh": req.audit_question_zh,
+                "expected_evidence": req.expected_evidence,
+                "rationale_en": req.rationale_en,
+                "rationale_zh": req.rationale_zh,
+                "method": req.method.value if hasattr(req.method, 'value') else str(req.method),
+                "confidence": req.confidence,
+            })
+        unique_reqs[rid] = reqs
+
+    # Regulation metadata for the header
+    reg_meta = {}
+    for rid in reg_ids:
+        p = all_regs[rid]
+        reg_meta[rid] = {
+            "name_en": p.name_en,
+            "name_zh": p.name_zh,
+            "country": p.country,
+            "country_name_zh": p.country_name_zh,
+            "source": p.source,
+            "effective_date": p.effective_date,
+        }
+
+    return JSONResponse(content={
+        "regulation_ids": reg_ids,
+        "regulation_meta": reg_meta,
+        "iso_clause_count": len(checklist),
+        "rows": rows,
+        "unique_requirements": unique_reqs,
+    })
+
+
+@report_router.get("/crossref/questions")
+async def get_crossref_questions(
+    doc_id: str = Query(..., description="Document ID, e.g. QP-852"),
+    doc_title: str = Query("", description="Document title"),
+    baseline_clause: str = Query("", description="Primary ISO 13485 clause, e.g. 8.5.2"),
+    regulations: str = Query(..., description="Comma-separated regulation IDs"),
+    doc_content_summary: str = Query("", description="Brief document content summary"),
+):
+    """Generate cross-examination questions for a specific document.
+
+    Returns prioritized questions: delta (highest) > exceeds > overlap.
+    """
+    mods = _get_cross_ref_modules()
+    reg_ids = [r.strip() for r in regulations.split(",") if r.strip()]
+
+    if not reg_ids:
+        raise HTTPException(status_code=400, detail="No regulations specified")
+
+    questions = mods["generate_cross_exam_questions"](
+        doc_id=doc_id,
+        doc_title=doc_title,
+        baseline_clause=baseline_clause,
+        selected_regulations=reg_ids,
+        doc_content_summary=doc_content_summary,
+    )
+
+    return JSONResponse(content={
+        "doc_id": doc_id,
+        "baseline_clause": baseline_clause,
+        "selected_regulations": reg_ids,
+        "total_questions": len(questions),
+        "questions": questions,
+    })
+
+
+# ============================================================
+# Supplemental Standards API Endpoints
+# ============================================================
+
+
+def _get_standards_modules():
+    """Lazy import supplemental standards to avoid circular imports."""
+    from src.analysis.compliance_rules import (
+        get_all_standards,
+        get_standard,
+        get_applicable_standards,
+        adjust_standard_clause_mapping,
+        ProductProfile,
+        StandardCategory,
+    )
+    return {
+        "get_all_standards": get_all_standards,
+        "get_standard": get_standard,
+        "get_applicable_standards": get_applicable_standards,
+        "adjust_standard_clause_mapping": adjust_standard_clause_mapping,
+        "ProductProfile": ProductProfile,
+        "StandardCategory": StandardCategory,
+    }
+
+
+@report_router.get("/standards/list")
+async def list_supplemental_standards():
+    """List all available supplemental standards.
+
+    Returns all predefined standards with their categories,
+    detection keywords, ISO 13485 clause links, and regulatory references.
+    """
+    mods = _get_standards_modules()
+    all_stds = mods["get_all_standards"]()
+
+    standards = []
+    for std_id, std in all_stds.items():
+        standards.append({
+            "standard_id": std.standard_id,
+            "name_en": std.name_en,
+            "name_zh": std.name_zh,
+            "category": std.category.value,
+            "version": std.version,
+            "is_universal": std.is_universal,
+            "primary_iso_clauses": std.primary_iso_clauses,
+            "clause_links": [
+                {
+                    "standard_clause": cl.standard_clause,
+                    "iso_13485_clause": cl.iso_13485_clause,
+                    "relationship": cl.relationship,
+                    "description_en": cl.description_en,
+                    "description_zh": cl.description_zh,
+                }
+                for cl in std.clause_links
+            ],
+            "regulatory_references": std.regulatory_references,
+            "audit_questions": std.audit_questions,
+            "detection_keywords_en": std.detection_keywords_en,
+            "detection_keywords_zh": std.detection_keywords_zh,
+        })
+
+    return JSONResponse(content={"standards": standards})
+
+
+@report_router.post("/standards/applicable")
+async def get_applicable_standards_endpoint(request: Request):
+    """Determine which supplemental standards apply based on product profile.
+
+    Accepts a JSON body with product characteristics:
+    {
+        "has_software": true/false,
+        "has_electrical": true/false,
+        "is_implantable": true/false,
+        "is_sterile": true/false,
+        "sterilization_method": "eo"/"radiation"/"steam"/"",
+        "has_biological_contact": true/false,
+        "user_confirmed_standards": ["ISO_14971", ...],
+        "user_rejected_standards": [...],
+        "detected_standard_refs": ["ISO 14971", "IEC 62304", ...],
+        "uploaded_standard_files": ["ISO_11135.pdf", ...]
+    }
+
+    Returns applicable standards list with ISO 13485 clause mappings.
+    """
+    mods = _get_standards_modules()
+    body = await request.json()
+
+    # Build ProductProfile from request body
+    ProfileCls = mods["ProductProfile"]
+    profile = ProfileCls(
+        has_software=(
+            body.get("has_software", False),
+            body.get("has_software_confidence", 0.5),
+            body.get("has_software_source", "user_manual"),
+        ),
+        has_electrical=(
+            body.get("has_electrical", False),
+            body.get("has_electrical_confidence", 0.5),
+            body.get("has_electrical_source", "user_manual"),
+        ),
+        is_implantable=(
+            body.get("is_implantable", False),
+            body.get("is_implantable_confidence", 0.5),
+            body.get("is_implantable_source", "user_manual"),
+        ),
+        is_sterile=(
+            body.get("is_sterile", False),
+            body.get("is_sterile_confidence", 0.5),
+            body.get("is_sterile_source", "user_manual"),
+        ),
+        sterilization_method=body.get("sterilization_method", ""),
+        has_biological_contact=(
+            body.get("has_biological_contact", False),
+            body.get("has_biological_contact_confidence", 0.5),
+            body.get("has_biological_contact_source", "user_manual"),
+        ),
+        is_ivd=(
+            body.get("is_ivd", False),
+            body.get("is_ivd_confidence", 0.5),
+            body.get("is_ivd_source", "user_manual"),
+        ),
+        has_clinical_investigation=(
+            body.get("has_clinical_investigation", False),
+            body.get("has_clinical_investigation_confidence", 0.5),
+            body.get("has_clinical_investigation_source", "user_manual"),
+        ),
+        user_confirmed_standards=body.get("user_confirmed_standards", []),
+        user_rejected_standards=body.get("user_rejected_standards", []),
+        detected_standard_refs=body.get("detected_standard_refs", []),
+        uploaded_standard_files=body.get("uploaded_standard_files", []),
+    )
+
+    applicable = mods["get_applicable_standards"](profile)
+
+    results = []
+    for std in applicable:
+        results.append({
+            "standard_id": std.standard_id,
+            "name_en": std.name_en,
+            "name_zh": std.name_zh,
+            "category": std.category.value,
+            "is_universal": std.is_universal,
+            "primary_iso_clauses": std.primary_iso_clauses,
+            "clause_links": [
+                {
+                    "standard_clause": cl.standard_clause,
+                    "iso_13485_clause": cl.iso_13485_clause,
+                    "relationship": cl.relationship,
+                    "description_en": cl.description_en,
+                    "description_zh": cl.description_zh,
+                }
+                for cl in std.clause_links
+            ],
+            "regulatory_references": std.regulatory_references,
+            "audit_questions": std.audit_questions,
+        })
+
+    return JSONResponse(content={
+        "product_profile": {
+            "has_software": body.get("has_software", False),
+            "has_electrical": body.get("has_electrical", False),
+            "is_implantable": body.get("is_implantable", False),
+            "is_sterile": body.get("is_sterile", False),
+            "sterilization_method": body.get("sterilization_method", ""),
+            "has_biological_contact": body.get("has_biological_contact", False),
+        },
+        "applicable_standards_count": len(results),
+        "applicable_standards": results,
+    })
+
+
+@report_router.post("/standards/adjust")
+async def adjust_standard_mapping(request: Request):
+    """Adjust a supplemental standard's clause-to-ISO-13485 mapping.
+
+    Accepts a JSON body:
+    {
+        "standard_id": "ISO_14971",
+        "standard_clause": "ISO 14971 Clause 4",
+        "old_iso_clause": "7.1",
+        "new_iso_clause": "7.3.3"
+    }
+
+    The old_iso_clause is optional but recommended for safety verification.
+    Changes persist for the server session duration.
+    """
+    mods = _get_standards_modules()
+    body = await request.json()
+
+    standard_id = body.get("standard_id", "")
+    standard_clause = body.get("standard_clause", "")
+    old_iso_clause = body.get("old_iso_clause", "")
+    new_iso_clause = body.get("new_iso_clause", "")
+
+    if not standard_id or not standard_clause or not new_iso_clause:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "success": False,
+                "message": "Required fields: standard_id, standard_clause, new_iso_clause",
+            },
+        )
+
+    result = mods["adjust_standard_clause_mapping"](
+        standard_id=standard_id,
+        standard_clause=standard_clause,
+        old_iso_clause=old_iso_clause,
+        new_iso_clause=new_iso_clause,
+    )
+
+    status_code = 200 if result["success"] else 400
+    return JSONResponse(status_code=status_code, content=result)
+
+
+# ============================================================
+# API Endpoints — Read (path-parameter routes MUST come AFTER
+# all static-path routes to avoid /{run_id} catching /crossref etc.)
+# ============================================================
+
 @report_router.get("/{run_id}")
 async def get_report(run_id: str):
     """Get full report data for a specific run."""
@@ -731,415 +1145,6 @@ def _build_export_assessment(flat_rows: list[dict], summary: dict) -> str:
 
     return "\n".join(lines)
 
-
-# ============================================================
-# Cross-Reference Comparison API
-# ============================================================
-
-
-def _get_cross_ref_modules():
-    """Lazy import cross-reference modules to avoid circular imports."""
-    from src.analysis.compliance_rules import (
-        ISO_13485_CHECKLIST,
-        get_all_regulations,
-        get_regulation,
-        get_overlap_analysis,
-        generate_cross_exam_questions,
-        MappingStatus,
-    )
-    return {
-        "ISO_13485_CHECKLIST": ISO_13485_CHECKLIST,
-        "get_all_regulations": get_all_regulations,
-        "get_regulation": get_regulation,
-        "get_overlap_analysis": get_overlap_analysis,
-        "generate_cross_exam_questions": generate_cross_exam_questions,
-        "MappingStatus": MappingStatus,
-    }
-
-
-@report_router.get("/crossref/regulations")
-async def list_regulations():
-    """List all available regulations (predefined + crawled) for country selector."""
-    mods = _get_cross_ref_modules()
-    all_regs = mods["get_all_regulations"]()
-
-    regulations = []
-    for reg_id, profile in all_regs.items():
-        iso_mapped_count = len(profile.iso_mapped)
-        unique_count = len(profile.unique_requirements)
-
-        # Count statuses
-        status_counts = defaultdict(int)
-        for cm in profile.iso_mapped.values():
-            status_counts[cm.status.value] += 1
-
-        regulations.append({
-            "regulation_id": reg_id,
-            "name_en": profile.name_en,
-            "name_zh": profile.name_zh,
-            "country": profile.country,
-            "country_name_en": profile.country_name_en,
-            "country_name_zh": profile.country_name_zh,
-            "source": profile.source,
-            "source_url": profile.source_url,
-            "last_updated": profile.last_updated,
-            "effective_date": profile.effective_date,
-            "iso_mapped_count": iso_mapped_count,
-            "unique_requirements_count": unique_count,
-            "status_counts": dict(status_counts),
-        })
-
-    return JSONResponse(content={"regulations": regulations})
-
-
-@report_router.get("/crossref/table")
-async def get_crossref_table(
-    regulations: str = Query(..., description="Comma-separated regulation IDs, e.g. QMSR,EU_MDR,TFDA"),
-):
-    """Get the full cross-reference comparison table.
-
-    Returns ISO 13485 clauses as rows, with each selected regulation's
-    mapping status, rationale, method, and confidence.
-    Also returns unique requirements (delta items) per regulation.
-    """
-    mods = _get_cross_ref_modules()
-    reg_ids = [r.strip() for r in regulations.split(",") if r.strip()]
-
-    if not reg_ids:
-        raise HTTPException(status_code=400, detail="No regulations specified")
-
-    # Validate regulation IDs
-    all_regs = mods["get_all_regulations"]()
-    for rid in reg_ids:
-        if rid not in all_regs:
-            raise HTTPException(status_code=404, detail=f"Regulation '{rid}' not found")
-
-    # Build cross-reference rows from ISO 13485 checklist
-    checklist = mods["ISO_13485_CHECKLIST"]
-    rows = []
-
-    for clause in checklist:
-        clause_id = clause["clause_id"]
-        row = {
-            "clause_id": clause_id,
-            "clause_title": clause.get("title", ""),
-            "audit_impact": clause.get("audit_impact", ""),
-            "regulations": {},
-        }
-
-        for rid in reg_ids:
-            analysis = mods["get_overlap_analysis"](rid, clause_id)
-            profile = all_regs[rid]
-
-            reg_data = {
-                "status": analysis.get("status", "na"),
-                "is_delta": analysis.get("is_delta", False),
-                "regulation_ref": analysis.get("regulation_ref", ""),
-                "rationale_en": analysis.get("rationale_en", ""),
-                "rationale_zh": analysis.get("rationale_zh", ""),
-                "method": analysis.get("method", ""),
-                "confidence": analysis.get("confidence", 0.0),
-                "notes": analysis.get("notes", ""),
-                "delta_items": analysis.get("delta_items", []),
-            }
-            row["regulations"][rid] = reg_data
-
-        rows.append(row)
-
-    # Collect unique requirements (delta) per regulation
-    unique_reqs = {}
-    for rid in reg_ids:
-        profile = all_regs[rid]
-        reqs = []
-        for req in profile.unique_requirements:
-            reqs.append({
-                "req_id": req.req_id,
-                "regulation_ref": req.regulation_ref,
-                "title_en": req.title_en,
-                "title_zh": req.title_zh,
-                "requirement_en": req.requirement_en,
-                "requirement_zh": req.requirement_zh,
-                "related_iso_clauses": req.related_iso_clauses,
-                "audit_impact": req.audit_impact,
-                "audit_question_en": req.audit_question_en,
-                "audit_question_zh": req.audit_question_zh,
-                "expected_evidence": req.expected_evidence,
-                "rationale_en": req.rationale_en,
-                "rationale_zh": req.rationale_zh,
-                "method": req.method.value if hasattr(req.method, 'value') else str(req.method),
-                "confidence": req.confidence,
-            })
-        unique_reqs[rid] = reqs
-
-    # Regulation metadata for the header
-    reg_meta = {}
-    for rid in reg_ids:
-        p = all_regs[rid]
-        reg_meta[rid] = {
-            "name_en": p.name_en,
-            "name_zh": p.name_zh,
-            "country": p.country,
-            "country_name_zh": p.country_name_zh,
-            "source": p.source,
-            "effective_date": p.effective_date,
-        }
-
-    return JSONResponse(content={
-        "regulation_ids": reg_ids,
-        "regulation_meta": reg_meta,
-        "iso_clause_count": len(checklist),
-        "rows": rows,
-        "unique_requirements": unique_reqs,
-    })
-
-
-@report_router.get("/crossref/questions")
-async def get_crossref_questions(
-    doc_id: str = Query(..., description="Document ID, e.g. QP-852"),
-    doc_title: str = Query("", description="Document title"),
-    baseline_clause: str = Query("", description="Primary ISO 13485 clause, e.g. 8.5.2"),
-    regulations: str = Query(..., description="Comma-separated regulation IDs"),
-    doc_content_summary: str = Query("", description="Brief document content summary"),
-):
-    """Generate cross-examination questions for a specific document.
-
-    Returns prioritized questions: delta (highest) > exceeds > overlap.
-    """
-    mods = _get_cross_ref_modules()
-    reg_ids = [r.strip() for r in regulations.split(",") if r.strip()]
-
-    if not reg_ids:
-        raise HTTPException(status_code=400, detail="No regulations specified")
-
-    questions = mods["generate_cross_exam_questions"](
-        doc_id=doc_id,
-        doc_title=doc_title,
-        baseline_clause=baseline_clause,
-        selected_regulations=reg_ids,
-        doc_content_summary=doc_content_summary,
-    )
-
-    return JSONResponse(content={
-        "doc_id": doc_id,
-        "baseline_clause": baseline_clause,
-        "selected_regulations": reg_ids,
-        "total_questions": len(questions),
-        "questions": questions,
-    })
-
-
-# ============================================================
-# Supplemental Standards API Endpoints
-# ============================================================
-
-
-def _get_standards_modules():
-    """Lazy import supplemental standards to avoid circular imports."""
-    from src.analysis.compliance_rules import (
-        get_all_standards,
-        get_standard,
-        get_applicable_standards,
-        adjust_standard_clause_mapping,
-        ProductProfile,
-        StandardCategory,
-    )
-    return {
-        "get_all_standards": get_all_standards,
-        "get_standard": get_standard,
-        "get_applicable_standards": get_applicable_standards,
-        "adjust_standard_clause_mapping": adjust_standard_clause_mapping,
-        "ProductProfile": ProductProfile,
-        "StandardCategory": StandardCategory,
-    }
-
-
-@report_router.get("/standards/list")
-async def list_supplemental_standards():
-    """List all available supplemental standards.
-
-    Returns all predefined standards with their categories,
-    detection keywords, ISO 13485 clause links, and regulatory references.
-    """
-    mods = _get_standards_modules()
-    all_stds = mods["get_all_standards"]()
-
-    standards = []
-    for std_id, std in all_stds.items():
-        standards.append({
-            "standard_id": std.standard_id,
-            "name_en": std.name_en,
-            "name_zh": std.name_zh,
-            "category": std.category.value,
-            "version": std.version,
-            "is_universal": std.is_universal,
-            "primary_iso_clauses": std.primary_iso_clauses,
-            "clause_links": [
-                {
-                    "standard_clause": cl.standard_clause,
-                    "iso_13485_clause": cl.iso_13485_clause,
-                    "relationship": cl.relationship,
-                    "description_en": cl.description_en,
-                    "description_zh": cl.description_zh,
-                }
-                for cl in std.clause_links
-            ],
-            "regulatory_references": std.regulatory_references,
-            "audit_questions": std.audit_questions,
-            "detection_keywords_en": std.detection_keywords_en,
-            "detection_keywords_zh": std.detection_keywords_zh,
-        })
-
-    return JSONResponse(content={"standards": standards})
-
-
-@report_router.post("/standards/applicable")
-async def get_applicable_standards_endpoint(request: Request):
-    """Determine which supplemental standards apply based on product profile.
-
-    Accepts a JSON body with product characteristics:
-    {
-        "has_software": true/false,
-        "has_electrical": true/false,
-        "is_implantable": true/false,
-        "is_sterile": true/false,
-        "sterilization_method": "eo"/"radiation"/"steam"/"",
-        "has_biological_contact": true/false,
-        "user_confirmed_standards": ["ISO_14971", ...],
-        "user_rejected_standards": [...],
-        "detected_standard_refs": ["ISO 14971", "IEC 62304", ...],
-        "uploaded_standard_files": ["ISO_11135.pdf", ...]
-    }
-
-    Returns applicable standards list with ISO 13485 clause mappings.
-    """
-    mods = _get_standards_modules()
-    body = await request.json()
-
-    # Build ProductProfile from request body
-    ProfileCls = mods["ProductProfile"]
-    profile = ProfileCls(
-        has_software=(
-            body.get("has_software", False),
-            body.get("has_software_confidence", 0.5),
-            body.get("has_software_source", "user_manual"),
-        ),
-        has_electrical=(
-            body.get("has_electrical", False),
-            body.get("has_electrical_confidence", 0.5),
-            body.get("has_electrical_source", "user_manual"),
-        ),
-        is_implantable=(
-            body.get("is_implantable", False),
-            body.get("is_implantable_confidence", 0.5),
-            body.get("is_implantable_source", "user_manual"),
-        ),
-        is_sterile=(
-            body.get("is_sterile", False),
-            body.get("is_sterile_confidence", 0.5),
-            body.get("is_sterile_source", "user_manual"),
-        ),
-        sterilization_method=body.get("sterilization_method", ""),
-        has_biological_contact=(
-            body.get("has_biological_contact", False),
-            body.get("has_biological_contact_confidence", 0.5),
-            body.get("has_biological_contact_source", "user_manual"),
-        ),
-        is_ivd=(
-            body.get("is_ivd", False),
-            body.get("is_ivd_confidence", 0.5),
-            body.get("is_ivd_source", "user_manual"),
-        ),
-        has_clinical_investigation=(
-            body.get("has_clinical_investigation", False),
-            body.get("has_clinical_investigation_confidence", 0.5),
-            body.get("has_clinical_investigation_source", "user_manual"),
-        ),
-        user_confirmed_standards=body.get("user_confirmed_standards", []),
-        user_rejected_standards=body.get("user_rejected_standards", []),
-        detected_standard_refs=body.get("detected_standard_refs", []),
-        uploaded_standard_files=body.get("uploaded_standard_files", []),
-    )
-
-    applicable = mods["get_applicable_standards"](profile)
-
-    results = []
-    for std in applicable:
-        results.append({
-            "standard_id": std.standard_id,
-            "name_en": std.name_en,
-            "name_zh": std.name_zh,
-            "category": std.category.value,
-            "is_universal": std.is_universal,
-            "primary_iso_clauses": std.primary_iso_clauses,
-            "clause_links": [
-                {
-                    "standard_clause": cl.standard_clause,
-                    "iso_13485_clause": cl.iso_13485_clause,
-                    "relationship": cl.relationship,
-                    "description_en": cl.description_en,
-                    "description_zh": cl.description_zh,
-                }
-                for cl in std.clause_links
-            ],
-            "regulatory_references": std.regulatory_references,
-            "audit_questions": std.audit_questions,
-        })
-
-    return JSONResponse(content={
-        "product_profile": {
-            "has_software": body.get("has_software", False),
-            "has_electrical": body.get("has_electrical", False),
-            "is_implantable": body.get("is_implantable", False),
-            "is_sterile": body.get("is_sterile", False),
-            "sterilization_method": body.get("sterilization_method", ""),
-            "has_biological_contact": body.get("has_biological_contact", False),
-        },
-        "applicable_standards_count": len(results),
-        "applicable_standards": results,
-    })
-
-
-@report_router.post("/standards/adjust")
-async def adjust_standard_mapping(request: Request):
-    """Adjust a supplemental standard's clause-to-ISO-13485 mapping.
-
-    Accepts a JSON body:
-    {
-        "standard_id": "ISO_14971",
-        "standard_clause": "ISO 14971 Clause 4",
-        "old_iso_clause": "7.1",
-        "new_iso_clause": "7.3.3"
-    }
-
-    The old_iso_clause is optional but recommended for safety verification.
-    Changes persist for the server session duration.
-    """
-    mods = _get_standards_modules()
-    body = await request.json()
-
-    standard_id = body.get("standard_id", "")
-    standard_clause = body.get("standard_clause", "")
-    old_iso_clause = body.get("old_iso_clause", "")
-    new_iso_clause = body.get("new_iso_clause", "")
-
-    if not standard_id or not standard_clause or not new_iso_clause:
-        return JSONResponse(
-            status_code=400,
-            content={
-                "success": False,
-                "message": "Required fields: standard_id, standard_clause, new_iso_clause",
-            },
-        )
-
-    result = mods["adjust_standard_clause_mapping"](
-        standard_id=standard_id,
-        standard_clause=standard_clause,
-        old_iso_clause=old_iso_clause,
-        new_iso_clause=new_iso_clause,
-    )
-
-    status_code = 200 if result["success"] else 400
-    return JSONResponse(status_code=status_code, content=result)
 
 
 # ============================================================
