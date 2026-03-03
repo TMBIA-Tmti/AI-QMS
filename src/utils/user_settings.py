@@ -24,9 +24,14 @@ Future Auth integration:
 import hashlib
 import json
 import base64
+import os
+import time
+import tempfile
+import logging
 from pathlib import Path
 from datetime import datetime, timedelta
 
+logger = logging.getLogger(__name__)
 _SETTINGS_DIR = Path(__file__).parent.parent.parent / "data" / "user_settings"
 _LAST_USER_PATH = _SETTINGS_DIR / "_last_user.json"
 
@@ -87,6 +92,38 @@ def _migrate_legacy() -> dict:
         return {}
 
 
+def _atomic_write_json(path: Path, data: dict, retries: int = 3) -> None:
+    """Write JSON atomically: write to temp file then rename. Retries on PermissionError."""
+    for attempt in range(retries):
+        try:
+            fd, tmp = tempfile.mkstemp(
+                dir=str(path.parent), suffix=".tmp", prefix=path.stem
+            )
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+                # os.replace is atomic on same filesystem
+                os.replace(tmp, str(path))
+                return
+            except BaseException:
+                # Clean up temp file on any failure
+                try:
+                    os.unlink(tmp)
+                except OSError:
+                    pass
+                raise
+        except PermissionError:
+            if attempt < retries - 1:
+                logger.warning(
+                    "PermissionError writing %s (attempt %d/%d), retrying...",
+                    path, attempt + 1, retries,
+                )
+                time.sleep(0.3 * (attempt + 1))
+            else:
+                logger.error("PermissionError writing %s after %d retries", path, retries)
+                raise
+
+
 def save_user_settings(
     user_name: str = "",
     provider_id: str = "",
@@ -116,12 +153,10 @@ def save_user_settings(
         "updated_at": datetime.now().isoformat(),
     }
     _SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
-    with open(_settings_path(user_id), "w", encoding="utf-8") as f:
-        json.dump(settings, f, ensure_ascii=False, indent=2)
+    _atomic_write_json(_settings_path(user_id), settings)
 
     # Update last active user pointer
-    with open(_LAST_USER_PATH, "w", encoding="utf-8") as f:
-        json.dump({"last_user_id": user_id, "user_name": user_name}, f)
+    _atomic_write_json(_LAST_USER_PATH, {"last_user_id": user_id, "user_name": user_name})
 
 
 def load_user_settings(user_id: str = "") -> dict:
