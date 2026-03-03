@@ -46,10 +46,10 @@ from src.analysis.state import (
 from src.analysis.comparison_table import ComparisonTable
 from src.analysis.data_quality import run_data_quality_gate
 from src.analysis.reference_mapper import run_reference_mapping
-from src.analysis.gap_scanner import run_gap_scan_row
-from src.analysis.checklist_verifier import run_checklist_verify_row
-from src.analysis.remediation import run_remediation_row
-from src.analysis.verifier import run_verification_row
+from src.analysis.gap_scanner import run_gap_scan_row, run_gap_scan_document
+from src.analysis.checklist_verifier import run_checklist_verify_row, run_checklist_verify_document
+from src.analysis.remediation import run_remediation_row, run_remediation_document
+from src.analysis.verifier import run_verification_row, run_verification_document
 from src.analysis.source_checker import run_source_check
 
 logger = logging.getLogger(__name__)
@@ -238,7 +238,11 @@ class AnalysisPipeline:
         Returns:
             Number of rows created
         """
-        row_count = self._table.populate_from_scan(scan_result, self._standard)
+        row_count = self._table.populate_from_scan(
+            scan_result, self._standard,
+            llm_completion_fn=self._llm_fn,
+            model=self._model,
+        )
         self._state.status = PhaseStatus.PENDING.value
         self._save_state()
         logger.info(f"Pipeline initialized: {row_count} rows for {self._standard}")
@@ -471,53 +475,63 @@ class AnalysisPipeline:
         )
 
     def _execute_phase_1(self) -> None:
-        """Phase 1: Gap Scan (LLM)."""
-        logger.info("Executing Phase 1: Gap Scan")
+        """Phase 1: Gap Scan (LLM) — per-document grouping."""
+        logger.info("Executing Phase 1: Gap Scan (per-document)")
         self._state.current_phase = Phase.GAP_SCAN.value
 
-        rows = self._state.get_rows_by_phase(Phase.GAP_SCAN)
-        for row in rows:
+        doc_groups = self._state.group_rows_by_doc(Phase.GAP_SCAN)
+        for doc_id, rows in doc_groups.items():
             if self._budget_exceeded():
                 break
-            result = run_gap_scan_row(
-                row,
-                self._state,
-                self._llm_fn,
-                self._model,
+            result = run_gap_scan_document(
+                doc_id=doc_id,
+                rows=rows,
+                state=self._state,
+                llm_completion_fn=self._llm_fn,
+                model=self._model,
+                run_id=self._state.run_id,
             )
-            row.set_phase_result(Phase.GAP_SCAN, result)
-            if result.status == PhaseStatus.COMPLETED.value:
-                row.advance_to_next_phase()
-            self._state.update_row(row)
-            self._save_state()  # Save after each row for crash recovery
+            for row in rows:
+                row.set_phase_result(Phase.GAP_SCAN, result)
+                if result.status in (
+                    PhaseStatus.COMPLETED.value,
+                    PhaseStatus.SKIPPED.value,
+                ):
+                    row.advance_to_next_phase()
+                self._state.update_row(row)
+            self._save_state()
 
         self._notify_phase_complete(Phase.GAP_SCAN)
         self._advance_global_phase(Phase.CHECKLIST_VERIFY)
-
     def _execute_phase_2(self) -> None:
-        """Phase 2: Checklist Verification (LLM)."""
-        logger.info("Executing Phase 2: Checklist Verification")
+        """Phase 2: Checklist Verification (LLM) — per-document grouping."""
+        logger.info("Executing Phase 2: Checklist Verification (per-document)")
         self._state.current_phase = Phase.CHECKLIST_VERIFY.value
 
-        rows = self._state.get_rows_by_phase(Phase.CHECKLIST_VERIFY)
-        for row in rows:
+        doc_groups = self._state.group_rows_by_doc(Phase.CHECKLIST_VERIFY)
+        for doc_id, rows in doc_groups.items():
             if self._budget_exceeded():
                 break
-            result = run_checklist_verify_row(
-                row,
-                self._state,
-                self._llm_fn,
-                self._model,
+            result = run_checklist_verify_document(
+                doc_id=doc_id,
+                rows=rows,
+                state=self._state,
+                llm_completion_fn=self._llm_fn,
+                model=self._model,
+                run_id=self._state.run_id,
             )
-            row.set_phase_result(Phase.CHECKLIST_VERIFY, result)
-            if result.status == PhaseStatus.COMPLETED.value:
-                row.advance_to_next_phase()
-            self._state.update_row(row)
+            for row in rows:
+                row.set_phase_result(Phase.CHECKLIST_VERIFY, result)
+                if result.status in (
+                    PhaseStatus.COMPLETED.value,
+                    PhaseStatus.SKIPPED.value,
+                ):
+                    row.advance_to_next_phase()
+                self._state.update_row(row)
             self._save_state()
 
         self._notify_phase_complete(Phase.CHECKLIST_VERIFY)
         self._advance_global_phase(Phase.RISK_ASSESSMENT)
-
     def _execute_phase_3(self) -> None:
         """Phase 3: Risk Assessment (rule engine, no LLM)."""
         logger.info("Executing Phase 3: Risk Assessment")
@@ -537,68 +551,72 @@ class AnalysisPipeline:
         self._save_state()
 
     def _execute_phase_4(self) -> None:
-        """Phase 4: Remediation Suggestions (LLM, only for gaps)."""
-        logger.info("Executing Phase 4: Remediation Suggestions")
+        """Phase 4: Remediation Suggestions (LLM) — per-document grouping."""
+        logger.info("Executing Phase 4: Remediation Suggestions (per-document)")
         self._state.current_phase = Phase.REMEDIATION.value
 
-        rows = self._state.get_rows_by_phase(Phase.REMEDIATION)
-        for row in rows:
+        doc_groups = self._state.group_rows_by_doc(Phase.REMEDIATION)
+        for doc_id, rows in doc_groups.items():
             if self._budget_exceeded():
                 break
-            result = run_remediation_row(
-                row,
-                self._state,
-                self._llm_fn,
-                self._model,
+            result = run_remediation_document(
+                doc_id=doc_id,
+                rows=rows,
+                state=self._state,
+                llm_completion_fn=self._llm_fn,
+                model=self._model,
+                run_id=self._state.run_id,
             )
-            row.set_phase_result(Phase.REMEDIATION, result)
-            if result.status in (
-                PhaseStatus.COMPLETED.value,
-                PhaseStatus.SKIPPED.value,
-            ):
-                row.advance_to_next_phase()
-            self._state.update_row(row)
+            for row in rows:
+                row.set_phase_result(Phase.REMEDIATION, result)
+                if result.status in (
+                    PhaseStatus.COMPLETED.value,
+                    PhaseStatus.SKIPPED.value,
+                ):
+                    row.advance_to_next_phase()
+                self._state.update_row(row)
             self._save_state()
 
         self._notify_phase_complete(Phase.REMEDIATION)
         self._advance_global_phase(Phase.VERIFICATION)
-
     def _execute_phase_5(self) -> None:
-        """Phase 5: Independent Verification / Cross-examination (LLM)."""
-        logger.info("Executing Phase 5: Independent Verification")
+        """Phase 5: Independent Verification / Cross-examination (LLM) — per-document grouping."""
+        logger.info("Executing Phase 5: Independent Verification (per-document)")
         self._state.current_phase = Phase.VERIFICATION.value
 
-        rows = self._state.get_rows_by_phase(Phase.VERIFICATION)
-        for row in rows:
+        doc_groups = self._state.group_rows_by_doc(Phase.VERIFICATION)
+        for doc_id, rows in doc_groups.items():
             if self._budget_exceeded():
                 break
-            result = run_verification_row(
-                row,
-                self._state,
-                self._llm_fn,
-                self._model,
+            result = run_verification_document(
+                doc_id=doc_id,
+                rows=rows,
+                state=self._state,
+                llm_completion_fn=self._llm_fn,
+                model=self._model,
                 selected_regulations=self._selected_regulations,
                 run_id=self._state.run_id,
             )
-            row.set_phase_result(Phase.VERIFICATION, result)
-            if result.status in (
-                PhaseStatus.COMPLETED.value,
-                PhaseStatus.SKIPPED.value,
-            ):
-                row.advance_to_next_phase()
-            self._state.update_row(row)
+            for row in rows:
+                row.set_phase_result(Phase.VERIFICATION, result)
+                if result.status in (
+                    PhaseStatus.COMPLETED.value,
+                    PhaseStatus.SKIPPED.value,
+                ):
+                    row.advance_to_next_phase()
+                self._state.update_row(row)
             self._save_state()
 
             # Notify per-row completion if callback set
-            if (
-                self._on_row_complete
-                and row.overall_status == PhaseStatus.COMPLETED.value
-            ):
-                self._on_row_complete(row, self._state)
+            for row in rows:
+                if (
+                    self._on_row_complete
+                    and row.overall_status == PhaseStatus.COMPLETED.value
+                ):
+                    self._on_row_complete(row, self._state)
 
         self._notify_phase_complete(Phase.VERIFICATION)
         self._advance_global_phase(Phase.SOURCE_CHECK)
-
     def _execute_phase_6(self) -> None:
         """Phase 6: Source Verification (HTTP batch)."""
         logger.info("Executing Phase 6: Source Verification")

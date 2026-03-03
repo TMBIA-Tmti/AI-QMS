@@ -170,6 +170,26 @@ async def list_runs():
     return JSONResponse(content={"runs": runs})
 
 
+@report_router.get("/latest")
+async def redirect_to_latest_run():
+    """Redirect to the most recent pipeline run's report page.
+
+    Finds the newest run_*.json file and redirects to /api/report/page/{run_id}.
+    Returns 404 if no runs exist.
+    """
+    runs = ComparisonTable.list_runs(_PIPELINE_DIR)
+    if not runs:
+        raise HTTPException(status_code=404, detail="No pipeline runs found")
+
+    # Runs are sorted by modified time (newest first) by list_runs()
+    latest_run_id = runs[0].get("run_id", "")
+    if not latest_run_id:
+        raise HTTPException(status_code=404, detail="No valid run_id found")
+
+    from starlette.responses import RedirectResponse
+    return RedirectResponse(url=f"/api/report/page/{latest_run_id}")
+
+
 @report_router.get("/{run_id}")
 async def get_report(run_id: str):
     """Get full report data for a specific run."""

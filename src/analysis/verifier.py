@@ -36,6 +36,7 @@ from src.analysis.state import (
 
 __all__ = [
     "run_verification_row",
+    "run_verification_document",
     "MAX_VERIFICATION_ROUNDS",
     "emit_verification_event",
 ]
@@ -632,3 +633,369 @@ def _merge_usage(total: dict, usage: dict) -> None:
     total["prompt_tokens"] += usage.get("prompt_tokens", 0)
     total["completion_tokens"] += usage.get("completion_tokens", 0)
     total["total_tokens"] += usage.get("total_tokens", 0)
+
+
+# ============================================================
+# SSE event emission (pipeline-level, all phases)
+# ============================================================
+
+
+def _emit_pipeline_event(run_id: str, event: dict) -> None:
+    """Emit pipeline event to SSE listeners for real-time HTML viewing."""
+    if not run_id:
+        return
+    try:
+        from src.analysis.report_api import emit_cross_exam_event
+        emit_cross_exam_event(run_id, event)
+    except ImportError:
+        pass
+
+
+# ============================================================
+# Per-document Phase execution (PRIMARY)
+# ============================================================
+
+
+def run_verification_document(
+    doc_id: str,
+    rows: list[RowState],
+    state: PipelineState,
+    llm_completion_fn: callable,
+    model: str = "default",
+    temperature: float = 0.2,
+    max_tokens: int = 8192,
+    selected_regulations: list[str] | None = None,
+    run_id: str = "",
+) -> PhaseResult:
+    """Execute Phase 5 cross-examination for ALL clauses of one document.
+
+    For each clause, runs the Analyzer/Verifier debate (up to 3 rounds).
+    All rounds emitted via SSE for real-time HTML viewing.
+
+    NOTE: Phase 5 is inherently per-clause (debate is clause-specific),
+    but we group by document for SSE emission and state management.
+
+    Args:
+        doc_id: Document ID
+        rows: All RowState objects for this document
+        state: Pipeline state
+        llm_completion_fn: LLM completion function (returns dict)
+        model: LLM model name
+        temperature: LLM temperature
+        max_tokens: Max tokens per LLM call
+        selected_regulations: Country regulation IDs
+        run_id: Pipeline run ID for SSE emission
+
+    Returns:
+        PhaseResult with aggregated verification results
+    """
+    phase_result = PhaseResult(
+        phase=Phase.VERIFICATION.value,
+        started_at=time.time(),
+    )
+
+    try:
+        rows_with_evidence = [
+            r for r in rows if r.evidence_items
+        ]
+
+        if not rows_with_evidence:
+            phase_result.status = PhaseStatus.SKIPPED.value
+            phase_result.output = {"reason": "No evidence items to verify"}
+            phase_result.completed_at = time.time()
+            return phase_result
+
+        total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+        total_agreed = 0
+        total_flagged = 0
+        doc_title = rows[0].doc_title if rows else doc_id
+
+        # SSE: document-level start
+        _emit_pipeline_event(run_id, {
+            "type": "phase_5_start",
+            "phase": "verification",
+            "doc_id": doc_id,
+            "doc_title": doc_title,
+            "clause_ids": [r.clause_id for r in rows_with_evidence],
+            "clause_count": len(rows_with_evidence),
+            "selected_regulations": selected_regulations or [],
+        })
+
+        # Process each clause's debate (per-clause within document)
+        for row in rows_with_evidence:
+            # Check budget before each clause
+            budget = state.get_budget()
+            if budget.exceeded:
+                row.verification_rounds = []
+                row.verification_agreed = False
+                row.flagged_for_ra = True
+                total_flagged += 1
+                continue
+
+            evidence_items = [EvidenceItem.from_dict(e) for e in row.evidence_items]
+            evidence_summary = _build_evidence_summary(evidence_items)
+            regulation_text = _get_regulation_text(row.clause_id, row.standard)
+
+            # Multi-regulation context
+            multi_reg_context = ""
+            if selected_regulations:
+                try:
+                    from src.analysis.compliance_rules import generate_cross_exam_questions
+                    reg_questions = generate_cross_exam_questions(
+                        doc_id=row.doc_id or "",
+                        doc_title=row.doc_title or "",
+                        baseline_clause=row.clause_id,
+                        selected_regulations=selected_regulations,
+                    )
+                    delta_items = [q for q in reg_questions if q["question_type"] == "delta"]
+                    exceeds_items = [q for q in reg_questions if q["question_type"] == "exceeds"]
+                    if delta_items or exceeds_items:
+                        parts = ["## 多國法規特殊要求（需額外驗證）\n"]
+                        for q in delta_items:
+                            parts.append(
+                                f"⚠️ [{q['country']}] {q['title_zh']}: {q['question_zh']}"
+                            )
+                        for q in exceeds_items:
+                            parts.append(
+                                f"📋 [{q['country']}] {q['title_zh']}: {q['question_zh']}"
+                            )
+                        multi_reg_context = "\n".join(parts)
+                except Exception:
+                    pass
+
+            from src.analysis.risk_matrix import VERDICT_DISPLAY
+            verdict_info = VERDICT_DISPLAY.get(row.verdict or "", {})
+            verdict_label = verdict_info.get("label_zh", row.verdict or "未判定")
+
+            rounds: list[dict] = []
+            agreed = False
+
+            # Emit SSE: verification start for this clause
+            if run_id:
+                emit_verification_event(run_id, {
+                    "type": "verification_start",
+                    "clause_id": row.clause_id,
+                    "clause_title": row.clause_title,
+                    "doc_id": doc_id,
+                    "selected_regulations": selected_regulations or [],
+                    "has_multi_reg_context": bool(multi_reg_context),
+                })
+
+            # Round 1: Analyzer initial position
+            analyzer_prompt = _ANALYZER_INITIAL_TEMPLATE.format(
+                clause_id=row.clause_id,
+                clause_title=row.clause_title,
+                audit_question=row.audit_question,
+                current_verdict=verdict_label,
+                gap_severity=row.gap_severity or "未評估",
+                evidence_summary=evidence_summary,
+            )
+
+            if run_id:
+                emit_verification_event(run_id, {
+                    "type": "round_start",
+                    "round": 1,
+                    "clause_id": row.clause_id,
+                })
+
+            analyzer_response, usage = _call_llm(
+                llm_completion_fn, _ANALYZER_SYSTEM_PROMPT, analyzer_prompt,
+                state, model, temperature, max_tokens,
+            )
+            _merge_usage(total_usage, usage)
+
+            if run_id:
+                emit_verification_event(run_id, {
+                    "type": "analyzer",
+                    "round": 1,
+                    "clause_id": row.clause_id,
+                    "content": json.dumps(analyzer_response, ensure_ascii=False),
+                })
+
+            # Verifier challenges
+            verifier_prompt = _VERIFIER_CHALLENGE_TEMPLATE.format(
+                analyzer_position=json.dumps(
+                    analyzer_response, ensure_ascii=False, indent=2
+                ),
+                regulation_text=regulation_text,
+                audit_question=row.audit_question,
+            )
+            if multi_reg_context:
+                verifier_prompt += f"\n\n{multi_reg_context}"
+
+            verifier_response, usage = _call_llm(
+                llm_completion_fn, _VERIFIER_SYSTEM_PROMPT, verifier_prompt,
+                state, model, temperature, max_tokens,
+            )
+            _merge_usage(total_usage, usage)
+
+            if run_id:
+                emit_verification_event(run_id, {
+                    "type": "verifier",
+                    "round": 1,
+                    "clause_id": row.clause_id,
+                    "content": json.dumps(verifier_response, ensure_ascii=False),
+                })
+
+            rounds.append({
+                "round": 1,
+                "analyzer": analyzer_response,
+                "verifier": verifier_response,
+            })
+
+            agreement = verifier_response.get("agreement_level", "")
+            if agreement == "agree":
+                agreed = True
+
+            if run_id:
+                emit_verification_event(run_id, {
+                    "type": "round_end",
+                    "round": 1,
+                    "clause_id": row.clause_id,
+                    "agreement_level": agreement,
+                    "agreed": agreed,
+                })
+
+            # Rounds 2-3
+            for round_num in range(2, MAX_VERIFICATION_ROUNDS + 1):
+                if agreed:
+                    break
+
+                budget = state.get_budget()
+                if budget.exceeded:
+                    break
+
+                if run_id:
+                    emit_verification_event(run_id, {
+                        "type": "round_start",
+                        "round": round_num,
+                        "clause_id": row.clause_id,
+                    })
+
+                analyzer_followup = _ANALYZER_RESPONSE_TEMPLATE.format(
+                    verifier_challenge=json.dumps(
+                        verifier_response, ensure_ascii=False, indent=2
+                    ),
+                )
+
+                analyzer_response, usage = _call_llm(
+                    llm_completion_fn, _ANALYZER_SYSTEM_PROMPT, analyzer_followup,
+                    state, model, temperature, max_tokens,
+                )
+                _merge_usage(total_usage, usage)
+
+                if run_id:
+                    emit_verification_event(run_id, {
+                        "type": "analyzer",
+                        "round": round_num,
+                        "clause_id": row.clause_id,
+                        "content": json.dumps(analyzer_response, ensure_ascii=False),
+                    })
+
+                verifier_followup = _VERIFIER_FOLLOWUP_TEMPLATE.format(
+                    analyzer_response=json.dumps(
+                        analyzer_response, ensure_ascii=False, indent=2
+                    ),
+                    previous_challenge=json.dumps(
+                        verifier_response, ensure_ascii=False, indent=2
+                    ),
+                )
+
+                verifier_response, usage = _call_llm(
+                    llm_completion_fn, _VERIFIER_SYSTEM_PROMPT, verifier_followup,
+                    state, model, temperature, max_tokens,
+                )
+                _merge_usage(total_usage, usage)
+
+                if run_id:
+                    emit_verification_event(run_id, {
+                        "type": "verifier",
+                        "round": round_num,
+                        "clause_id": row.clause_id,
+                        "content": json.dumps(verifier_response, ensure_ascii=False),
+                    })
+
+                rounds.append({
+                    "round": round_num,
+                    "analyzer": analyzer_response,
+                    "verifier": verifier_response,
+                })
+
+                agreement = verifier_response.get("agreement_level", "")
+                if agreement == "agree":
+                    agreed = True
+
+                if run_id:
+                    emit_verification_event(run_id, {
+                        "type": "round_end",
+                        "round": round_num,
+                        "clause_id": row.clause_id,
+                        "agreement_level": agreement,
+                        "agreed": agreed,
+                    })
+
+            # Store results for this row
+            row.verification_rounds = rounds
+            row.verification_agreed = agreed
+            row.flagged_for_ra = not agreed
+
+            if agreed:
+                total_agreed += 1
+            else:
+                total_flagged += 1
+
+            if run_id:
+                emit_verification_event(run_id, {
+                    "type": "verification_complete",
+                    "clause_id": row.clause_id,
+                    "total_rounds": len(rounds),
+                    "agreed": agreed,
+                    "flagged_for_ra": not agreed,
+                    "final_agreement_level": agreement,
+                })
+
+        phase_result.status = PhaseStatus.COMPLETED.value
+        phase_result.output = {
+            "doc_id": doc_id,
+            "clause_count": len(rows_with_evidence),
+            "total_agreed": total_agreed,
+            "total_flagged": total_flagged,
+            "selected_regulations": selected_regulations or [],
+        }
+        phase_result.llm_usage = total_usage
+        phase_result.llm_model = model
+
+        # SSE: document-level complete
+        _emit_pipeline_event(run_id, {
+            "type": "phase_5_result",
+            "phase": "verification",
+            "doc_id": doc_id,
+            "doc_title": doc_title,
+            "clause_ids": [r.clause_id for r in rows_with_evidence],
+            "total_agreed": total_agreed,
+            "total_flagged": total_flagged,
+            "usage": total_usage,
+        })
+
+    except RuntimeError as e:
+        phase_result.status = PhaseStatus.FAILED.value
+        phase_result.error = str(e)
+        _emit_pipeline_event(run_id, {
+            "type": "phase_5_error",
+            "phase": "verification",
+            "doc_id": doc_id,
+            "error": str(e)[:500],
+        })
+
+    except Exception as e:
+        phase_result.status = PhaseStatus.FAILED.value
+        phase_result.error = str(e)
+        _emit_pipeline_event(run_id, {
+            "type": "phase_5_error",
+            "phase": "verification",
+            "doc_id": doc_id,
+            "error": str(e)[:500],
+        })
+
+    phase_result.completed_at = time.time()
+    return phase_result

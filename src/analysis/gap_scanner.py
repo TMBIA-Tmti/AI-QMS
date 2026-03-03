@@ -2,20 +2,24 @@
 AI-QMS — Phase 1: Gap Scan
 ============================
 
-LLM call #1 — For each row (clause × doc), ask the LLM to search the
-company document for evidence of each expected_evidence item.
+LLM call #1 — For each DOCUMENT, ask the LLM to search for evidence
+of all expected_evidence items across all clauses the document covers.
+
+Per-document mode (primary): ONE LLM call per document, covers all clauses.
+Per-row mode (legacy): ONE LLM call per clause×doc pair, for single-row re-run.
 
 The LLM is a SEARCH ASSISTANT only — it finds relevant paragraphs and
 quotes them. It does NOT make compliance judgments.
 
 Output: EvidenceItem list per row (found/not found, source quote, section).
+All LLM interactions are emitted via SSE for real-time HTML viewing.
 """
 
 from __future__ import annotations
 
 import json
 import time
-from typing import Optional
+from typing import Optional, Callable
 
 from src.analysis.state import (
     Phase,
@@ -27,8 +31,13 @@ from src.analysis.state import (
 )
 
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 __all__ = [
     "run_gap_scan_row",
+    "run_gap_scan_document",
     "build_gap_scan_prompt",
 ]
 
@@ -329,6 +338,330 @@ def run_gap_scan_row(
     except Exception as e:
         phase_result.status = PhaseStatus.FAILED.value
         phase_result.error = str(e)
+
+    phase_result.completed_at = time.time()
+    return phase_result
+
+
+# ============================================================
+# SSE event emission
+# ============================================================
+
+
+def _emit_pipeline_event(run_id: str, event: dict) -> None:
+    """Emit pipeline event to SSE listeners for real-time HTML viewing."""
+    if not run_id:
+        return
+    try:
+        from src.analysis.report_api import emit_cross_exam_event
+        emit_cross_exam_event(run_id, event)
+    except ImportError:
+        pass
+
+
+# ============================================================
+# Per-document prompt construction
+# ============================================================
+
+_DOC_SYSTEM_PROMPT = """你是品質管理系統文件搜尋助手。你的任務是在一份公司品質文件中，針對多個法規條款搜尋對應的證據項目。
+
+嚴格規則：
+1. 你只負責「搜尋」和「引用」，不做合規性判斷。
+2. 找到相關段落時，必須精確引用原文（quote），標明出處段落位置。
+3. 找不到時，明確標示 found=false，不得編造或推測內容。
+4. 如果找到的內容不足以涵蓋要求，標示 is_inadequate=true 並說明原因。
+5. 回答必須使用指定的 JSON 格式，按條款編號分組。"""
+
+_DOC_USER_PROMPT_TEMPLATE = """## 搜尋任務
+
+你需要在以下品質文件中，針對 {clause_count} 個法規條款搜尋對應的證據項目。
+
+### 法規條款清單
+
+{clauses_section}
+
+## 公司文件內容
+
+**文件編號**: {doc_id}
+**文件標題**: {doc_title}
+
+{doc_content}
+
+## 回答格式
+
+請以 JSON 格式回答，按條款編號分組：
+
+```json
+{{
+  "clause_results": {{
+    "條款編號": {{
+      "evidence_results": [
+        {{
+          "evidence_name": "證據項目名稱（與上方列表完全一致）",
+          "found": true/false,
+          "source_section": "找到的段落所在章節標題",
+          "source_quote": "精確引用原文（最多200字）",
+          "relevance_score": 0.0-1.0,
+          "is_inadequate": true/false,
+          "is_outdated": true/false,
+          "reasoning": "簡述為何判定找到/未找到"
+        }}
+      ]
+    }}
+  }}
+}}
+```"""
+
+
+def _parse_doc_gap_scan_response(
+    response_text: str,
+    rows: list[RowState],
+) -> dict[str, list[EvidenceItem]]:
+    """Parse per-document LLM response into per-clause evidence items.
+
+    Returns:
+        Dict mapping clause_id -> list of EvidenceItem
+    """
+    json_str = response_text.strip()
+
+    # Handle markdown code blocks
+    if "```json" in json_str:
+        start = json_str.index("```json") + 7
+        end = (
+            json_str.index("```", start) if "```" in json_str[start:] else len(json_str)
+        )
+        json_str = json_str[start:end].strip()
+    elif "```" in json_str:
+        start = json_str.index("```") + 3
+        end = (
+            json_str.index("```", start) if "```" in json_str[start:] else len(json_str)
+        )
+        json_str = json_str[start:end].strip()
+
+    result: dict[str, list[EvidenceItem]] = {}
+
+    # Build expected evidence map for fallback
+    expected_map: dict[str, list[str]] = {}
+    for row in rows:
+        expected_map[row.clause_id] = row.expected_evidence
+
+    try:
+        data = json.loads(json_str)
+        clause_results = data.get("clause_results", {})
+
+        for clause_id, clause_data in clause_results.items():
+            evidence_list = clause_data.get("evidence_results", [])
+            items: list[EvidenceItem] = []
+            for r in evidence_list:
+                items.append(EvidenceItem(
+                    evidence_name=r.get("evidence_name", ""),
+                    found=bool(r.get("found", False)),
+                    source_section=r.get("source_section"),
+                    source_quote=r.get("source_quote"),
+                    relevance_score=r.get("relevance_score"),
+                    is_inadequate=bool(r.get("is_inadequate", False)),
+                    is_outdated=bool(r.get("is_outdated", False)),
+                    llm_reasoning=r.get("reasoning"),
+                ))
+            result[clause_id] = items
+
+    except (json.JSONDecodeError, KeyError, TypeError):
+        logger.warning("Per-document gap scan JSON parse failed")
+
+    # Ensure all clauses have entries, fill missing with 'not found'
+    for row in rows:
+        if row.clause_id not in result:
+            result[row.clause_id] = [
+                EvidenceItem(
+                    evidence_name=ev,
+                    found=False,
+                    llm_reasoning="LLM 回應中未包含此條款的結果",
+                )
+                for ev in row.expected_evidence
+            ]
+        else:
+            # Ensure all expected evidence items are accounted for
+            found_names = {item.evidence_name for item in result[row.clause_id]}
+            for ev in row.expected_evidence:
+                if ev not in found_names:
+                    result[row.clause_id].append(
+                        EvidenceItem(
+                            evidence_name=ev,
+                            found=False,
+                            llm_reasoning="LLM 回應中未包含此項目",
+                        )
+                    )
+
+    return result
+
+
+# ============================================================
+# Per-document Phase execution (PRIMARY)
+# ============================================================
+
+
+def run_gap_scan_document(
+    doc_id: str,
+    rows: list[RowState],
+    state: PipelineState,
+    llm_completion_fn: Callable,
+    model: str = "default",
+    temperature: float = 0.1,
+    max_tokens: int = 8192,
+    run_id: str = "",
+) -> PhaseResult:
+    """Execute Phase 1 gap scan for ALL clauses of one document in a single LLM call.
+
+    Args:
+        doc_id: Document ID
+        rows: All RowState objects for this document
+        state: Pipeline state (for budget tracking)
+        llm_completion_fn: LLM completion function (returns dict)
+        model: LLM model name
+        temperature: LLM temperature
+        max_tokens: Max tokens for response
+        run_id: Pipeline run ID for SSE emission
+
+    Returns:
+        PhaseResult with per-clause evidence breakdown
+    """
+    phase_result = PhaseResult(
+        phase=Phase.GAP_SCAN.value,
+        started_at=time.time(),
+    )
+
+    try:
+        # Get document content (once for all clauses)
+        from src.services.markdown_store_service import MarkdownStoreService
+
+        service = MarkdownStoreService()
+        doc_result = service.get_document(doc_id)
+
+        if not doc_result or not doc_result.get("success"):
+            phase_result.status = PhaseStatus.FAILED.value
+            phase_result.error = f"無法讀取文件 {doc_id}"
+            phase_result.completed_at = time.time()
+            return phase_result
+
+        doc_content = doc_result.get("content", "")
+        doc_title = rows[0].doc_title if rows else doc_id
+        max_content_chars = 15000
+        final_content = doc_content[:max_content_chars]
+
+        # Build clauses section
+        clauses_parts = []
+        for i, row in enumerate(rows, 1):
+            evidence_lines = []
+            for j, ev in enumerate(row.expected_evidence, 1):
+                evidence_lines.append(f"   {j}. {ev}")
+            ev_text = "\n".join(evidence_lines)
+            clauses_parts.append(
+                f"{i}. **{row.clause_id}** — {row.clause_title}\n"
+                f"   稽核問題: {row.audit_question}\n"
+                f"   待搜尋證據:\n{ev_text}"
+            )
+        clauses_section = "\n\n".join(clauses_parts)
+
+        user_prompt = _DOC_USER_PROMPT_TEMPLATE.format(
+            clause_count=len(rows),
+            clauses_section=clauses_section,
+            doc_id=doc_id,
+            doc_title=doc_title,
+            doc_content=final_content,
+        )
+
+        messages = [
+            {"role": "system", "content": _DOC_SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt},
+        ]
+
+        # Check budget
+        budget = state.get_budget()
+        if budget.exceeded:
+            phase_result.status = PhaseStatus.FAILED.value
+            phase_result.error = "LLM token 預算已用盡"
+            phase_result.completed_at = time.time()
+            return phase_result
+
+        # SSE: emit before LLM call
+        _emit_pipeline_event(run_id, {
+            "type": "phase_1_start",
+            "phase": "gap_scan",
+            "doc_id": doc_id,
+            "doc_title": doc_title,
+            "clause_ids": [r.clause_id for r in rows],
+            "clause_count": len(rows),
+            "prompt_preview": user_prompt[:500],
+        })
+
+        # Call LLM (non-streaming)
+        response = llm_completion_fn(
+            messages=messages,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            stream=False,
+        )
+
+        response_text = response.get("content", "")
+        usage = response.get("usage", {})
+        llm_model = response.get("model", model)
+
+        # Track budget
+        budget.record_usage(usage)
+        state.update_budget(budget)
+
+        # Parse per-clause results
+        clause_evidence = _parse_doc_gap_scan_response(response_text, rows)
+
+        # Distribute results back to individual rows
+        total_found = 0
+        total_not_found = 0
+        total_inadequate = 0
+        for row in rows:
+            items = clause_evidence.get(row.clause_id, [])
+            row.evidence_items = [item.to_dict() for item in items]
+            total_found += sum(1 for e in items if e.found)
+            total_not_found += sum(1 for e in items if not e.found)
+            total_inadequate += sum(1 for e in items if e.is_inadequate)
+
+        phase_result.status = PhaseStatus.COMPLETED.value
+        phase_result.output = {
+            "doc_id": doc_id,
+            "clause_count": len(rows),
+            "total_found": total_found,
+            "total_not_found": total_not_found,
+            "total_inadequate": total_inadequate,
+            "raw_response_length": len(response_text),
+        }
+        phase_result.llm_usage = usage
+        phase_result.llm_model = llm_model
+
+        # SSE: emit after LLM call
+        _emit_pipeline_event(run_id, {
+            "type": "phase_1_result",
+            "phase": "gap_scan",
+            "doc_id": doc_id,
+            "doc_title": doc_title,
+            "clause_ids": [r.clause_id for r in rows],
+            "llm_response": response_text[:2000],
+            "evidence_summary": {
+                "found": total_found,
+                "not_found": total_not_found,
+                "inadequate": total_inadequate,
+            },
+            "usage": usage,
+        })
+
+    except Exception as e:
+        phase_result.status = PhaseStatus.FAILED.value
+        phase_result.error = str(e)
+        _emit_pipeline_event(run_id, {
+            "type": "phase_1_error",
+            "phase": "gap_scan",
+            "doc_id": doc_id,
+            "error": str(e)[:500],
+        })
 
     phase_result.completed_at = time.time()
     return phase_result

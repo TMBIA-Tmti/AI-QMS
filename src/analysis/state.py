@@ -429,6 +429,31 @@ class PipelineState:
             if d.get("verdict") == verdict
         ]
 
+    def get_rows_by_doc(self, doc_id: str) -> list[RowState]:
+        """Return all rows for a specific document."""
+        return [
+            RowState.from_dict(d)
+            for d in self.rows.values()
+            if d.get("doc_id") == doc_id
+        ]
+
+    def get_unique_doc_ids(self) -> list[str]:
+        """Return unique doc_ids from all rows, preserving insertion order."""
+        seen: set[str] = set()
+        result: list[str] = []
+        for d in self.rows.values():
+            did = d.get("doc_id", "")
+            if did and did not in seen:
+                seen.add(did)
+                result.append(did)
+        return result
+
+    def group_rows_by_doc(self, phase: Phase) -> dict[str, list[RowState]]:
+        """Group rows at a specific phase by their doc_id."""
+        groups: dict[str, list[RowState]] = {}
+        for row in self.get_rows_by_phase(phase):
+            groups.setdefault(row.doc_id, []).append(row)
+        return groups
     # ---- Budget ----
 
     def get_budget(self) -> LLMBudget:

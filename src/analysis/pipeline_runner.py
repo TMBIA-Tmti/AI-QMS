@@ -200,6 +200,7 @@ async def run_pipeline_analysis(
     send_message_fn: Optional[Callable] = None,
     phoenix_trace_ctx: Optional[Callable] = None,
     selected_regulations: list[str] | None = None,
+    on_run_id_ready: Optional[Callable] = None,
 ) -> PipelineRunResult:
     """Run the full analysis pipeline with async progress reporting.
 
@@ -218,6 +219,8 @@ async def run_pipeline_analysis(
         phoenix_trace_ctx: Phoenix trace context manager (optional)
         selected_regulations: Country regulation IDs for multi-regulation cross-exam
                                (e.g., ['QMSR', 'EU_MDR', 'TFDA'])
+        on_run_id_ready: Async callback(run_id) called as soon as run_id is available,
+                          BEFORE pipeline starts. Used to send report URL early.
 
     Returns:
         PipelineRunResult with all analysis data
@@ -297,6 +300,13 @@ async def run_pipeline_analysis(
             send_message_fn, Phase.DATA_QUALITY, "start", "初始化分析管線..."
         )
         row_count = pipeline.initialize(scan_result)
+
+        # Notify run_id is ready — send report URL BEFORE pipeline runs
+        if on_run_id_ready:
+            try:
+                await on_run_id_ready(pipeline.state.run_id)
+            except Exception as e:
+                logger.warning(f"on_run_id_ready callback failed: {e}")
 
         if row_count == 0:
             result.error = "無可分析的項目（未找到引用法規標準的品質文件）"

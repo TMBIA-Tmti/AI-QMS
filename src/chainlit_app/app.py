@@ -408,14 +408,30 @@ from src.utils.analysis_cache import (
 load_cached_models()
 
 # ── Phase D: Mount report API on Chainlit's underlying FastAPI app ──
+# Chainlit registers a catch-all SPA route /{full_path:path} that intercepts
+# all unmatched paths. We must move it to the end AFTER mounting our router.
 try:
     from chainlit.server import app as _chainlit_fastapi_app
     _chainlit_fastapi_app.include_router(report_router)
+
+    # Move Chainlit's catch-all SPA route to the very end so our
+    # /api/report/* routes are matched first.
+    _catch_all = None
+    for _i, _route in enumerate(_chainlit_fastapi_app.routes):
+        if hasattr(_route, 'path') and getattr(_route, 'path', '') == '/{full_path:path}':
+            _catch_all = _chainlit_fastapi_app.routes.pop(_i)
+            break
+    if _catch_all:
+        _chainlit_fastapi_app.routes.append(_catch_all)
+        logging.getLogger(__name__).info(
+            "Report API mounted + Chainlit catch-all route moved to end"
+        )
+    else:
+        logging.getLogger(__name__).info("Report API mounted")
 except Exception as _mount_err:
     logging.getLogger(__name__).warning(
         f"Failed to mount report API router: {_mount_err}"
     )
-
 
 # ============================================================
 # Internationalization (i18n) - v3.2.0 (20 languages)
@@ -3940,6 +3956,13 @@ async def handle_regulatory_list():
                 "pipeline.standard": "ISO_13485",
             },
         ):
+            async def _on_run_id_ready(run_id: str):
+                report_url = f"/api/report/page/{run_id}"
+                await cl.Message(
+                    content=f"\n\n📊 **[開啟即時互動報告]({report_url})**\n\n"
+                            f"報告頁面已上線，您可以即時觀看 LLM 互動過程並介入。"
+                ).send()
+
             pipeline_result = await run_pipeline_analysis(
                 scan_result=scan_result,
                 llm_completion_fn=manager.completion,
@@ -3947,6 +3970,7 @@ async def handle_regulatory_list():
                 standard="ISO_13485",
                 source_command="regulatory_list",
                 send_message_fn=_send_pipeline_msg,
+                on_run_id_ready=_on_run_id_ready,
             )
 
         if pipeline_result and pipeline_result.success:
@@ -4533,6 +4557,13 @@ async def handle_regulatory_update_rescan(selected_regions: list):
                     "pipeline.regions": ", ".join(selected_regions),
                 },
             ):
+                async def _on_run_id_ready_update(run_id: str):
+                    report_url = f"/api/report/page/{run_id}"
+                    await cl.Message(
+                        content=f"\n\n📊 **[開啟即時互動報告]({report_url})**\n\n"
+                                f"報告頁面已上線，您可以即時觀看 LLM 互動過程並介入。"
+                    ).send()
+
                 pipeline_result = await run_pipeline_analysis(
                     scan_result=scan_result_local,
                     llm_completion_fn=manager.completion,
@@ -4540,6 +4571,7 @@ async def handle_regulatory_update_rescan(selected_regions: list):
                     standard="ISO_13485",
                     source_command="regulatory_update",
                     send_message_fn=_send_pipeline_msg_update,
+                    on_run_id_ready=_on_run_id_ready_update,
                 )
 
             if pipeline_result and pipeline_result.success:

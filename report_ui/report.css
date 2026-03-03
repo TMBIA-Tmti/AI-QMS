@@ -1634,3 +1634,188 @@ body {
     border-radius: 3px;
     font-size: 0.85em;
 }
+
+
+/* ============================================================
+   Phase Filter Bar & Phase Badges
+   ============================================================ */
+
+.phase-filter-bar {
+    display: flex;
+    gap: 8px;
+    padding: 12px 16px;
+    background: #f8f9fa;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+.phase-filter-btn {
+    padding: 6px 14px;
+    border: 1px solid #d1d5db;
+    border-radius: 20px;
+    background: white;
+    color: #4a5568;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.phase-filter-btn:hover {
+    border-color: #3182ce;
+    color: #3182ce;
+}
+
+.phase-filter-btn.active {
+    background: #3182ce;
+    color: white;
+    border-color: #3182ce;
+}
+
+.phase-filter-btn.active .phase-badge {
+    background: rgba(255, 255, 255, 0.3);
+    color: white;
+}
+
+/* Phase Badges */
+.phase-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.phase-badge.phase-1 {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.phase-badge.phase-2 {
+    background: #ede9fe;
+    color: #6b21a8;
+}
+
+.phase-badge.phase-4 {
+    background: #ffedd5;
+    color: #c2410c;
+}
+
+.phase-badge.phase-5 {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+/* Phase cards in the SSE feed */
+.crossexam-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 10px;
+    background: white;
+    transition: border-color 0.2s;
+}
+
+.crossexam-card.phase-1 {
+    border-left: 4px solid #3b82f6;
+}
+
+.crossexam-card.phase-2 {
+    border-left: 4px solid #8b5cf6;
+}
+
+.crossexam-card.phase-4 {
+    border-left: 4px solid #f97316;
+}
+
+.crossexam-card.phase-5 {
+    border-left: 4px solid #ef4444;
+}
+
+.crossexam-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.crossexam-card-header .phase-badge {
+    flex-shrink: 0;
+}
+
+.crossexam-card-header .card-doc-info {
+    font-size: 0.85rem;
+    color: #64748b;
+}
+
+.crossexam-card-header .card-timestamp {
+    margin-left: auto;
+    font-size: 0.75rem;
+    color: #94a3b8;
+}
+
+.crossexam-card-body {
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+.crossexam-card-body .llm-prompt-preview,
+.crossexam-card-body .llm-response-preview {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    padding: 8px 12px;
+    margin-top: 6px;
+    font-size: 0.85rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.crossexam-card-body .collapsible-toggle {
+    cursor: pointer;
+    color: #3182ce;
+    font-size: 0.8rem;
+    user-select: none;
+}
+
+.crossexam-card-body .collapsible-toggle:hover {
+    text-decoration: underline;
+}
+
+.crossexam-card-body .collapsible-content {
+    display: none;
+}
+
+.crossexam-card-body .collapsible-content.expanded {
+    display: block;
+}
+
+/* Error cards */
+.crossexam-card.error {
+    border-left: 4px solid #dc2626;
+    background: #fef2f2;
+}
+
+/* Loading spinner for SSE */
+.crossexam-card.loading {
+    opacity: 0.7;
+}
+
+.crossexam-card.loading .phase-badge::after {
+    content: ' …';
+    animation: dots 1.5s infinite;
+}
+
+@keyframes dots {
+    0%, 20% { content: ' .'; }
+    40% { content: ' ..'; }
+    60% { content: ' ...'; }
+    80%, 100% { content: ' .'; }
+}

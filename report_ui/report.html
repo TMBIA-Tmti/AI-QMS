@@ -26,7 +26,7 @@
     <nav class="tab-nav" id="tabNav">
         <button class="tab-btn active" data-tab="analysis">📊 合規分析結果</button>
         <button class="tab-btn" data-tab="crossref">🔗 跨國法規交叉比對表</button>
-        <button class="tab-btn" data-tab="crossexam">💬 即時交叉詰問</button>
+        <button class="tab-btn" data-tab="crossexam">💬 即時 LLM 互動</button>
     </nav>
 
     <!-- ===== TAB: Analysis Results ===== -->
@@ -213,15 +213,23 @@
             <!-- Cross-Examination Controls -->
             <div class="crossexam-controls">
                 <div class="crossexam-info">
-                    <h3>💬 即時交叉詰問查看器</h3>
-                    <p>觀看 LLM 分析者與驗證者之間的即時對話，必要時可介入修正。</p>
-                </div>
+                    <h3>💬 即時 LLM 互動查看器</h3>
+                    <p>觀看所有 Phase 的 LLM 互動過程（Gap Scan、驗證、改善建議、交叉詰問），必要時可介入修正。</p>
                 <div class="crossexam-actions">
                     <span class="crossexam-status" id="crossexamStatus">⏹ 未連線</span>
                     <button class="btn btn-primary" id="btnConnectSSE">🔌 連線</button>
                     <button class="btn btn-outline" id="btnPauseExam" disabled>⏸ 暫停</button>
                     <button class="btn btn-outline" id="btnResumeExam" disabled>▶️ 繼續</button>
                 </div>
+            </div>
+
+            <!-- Phase Filter Bar -->
+            <div class="phase-filter-bar" id="phaseFilterBar">
+                <button class="phase-filter-btn active" data-phase="all">全部</button>
+                <button class="phase-filter-btn" data-phase="1"><span class="phase-badge phase-1">P1</span> Gap Scan</button>
+                <button class="phase-filter-btn" data-phase="2"><span class="phase-badge phase-2">P2</span> 驗證</button>
+                <button class="phase-filter-btn" data-phase="4"><span class="phase-badge phase-4">P4</span> 改善建議</button>
+                <button class="phase-filter-btn" data-phase="5"><span class="phase-badge phase-5">P5</span> 交叉詰問</button>
             </div>
 
             <!-- Run ID Input for SSE connection -->

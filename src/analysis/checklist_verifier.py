@@ -34,6 +34,7 @@ from src.analysis.state import (
 
 __all__ = [
     "run_checklist_verify_row",
+    "run_checklist_verify_document",
     "run_keyword_crossmatch",
 ]
 
@@ -367,3 +368,283 @@ def _parse_verification_response(response_text: str) -> list[dict]:
         return data.get("verification_results", [])
     except (json.JSONDecodeError, KeyError):
         return []
+
+
+# ============================================================
+# SSE event emission
+# ============================================================
+
+
+def _emit_pipeline_event(run_id: str, event: dict) -> None:
+    """Emit pipeline event to SSE listeners for real-time HTML viewing."""
+    if not run_id:
+        return
+    try:
+        from src.analysis.report_api import emit_cross_exam_event
+        emit_cross_exam_event(run_id, event)
+    except ImportError:
+        pass
+
+
+# ============================================================
+# Per-document prompt construction
+# ============================================================
+
+_DOC_VERIFY_SYSTEM_PROMPT = """你是品質管理系統稽核驗證助手。你的任務是驗證已找到的證據是否真正回答了各個稽核問題。
+
+嚴格規則：
+1. 你只做「語意比對驗證」，不做合規性最終判定。
+2. 針對每個證據項目，判斷引用的原文是否真正涵蓋該稽核要求。
+3. 如果原文只是「提到」但沒有「具體說明如何執行」，標示 adequacy="partial"。
+4. 如果原文完全沒有相關內容（錯誤引用），標示 adequacy="irrelevant"。
+5. 回答必須使用指定的 JSON 格式，按條款編號分組。"""
+
+_DOC_VERIFY_USER_TEMPLATE = """## 驗證任務
+
+你需要驗證以下 {clause_count} 個法規條款的已找到證據是否充分。
+
+### 各條款的證據
+
+{clauses_evidence_section}
+
+## 回答格式
+
+請以 JSON 格式回答，按條款編號分組：
+
+```json
+{{
+  "clause_results": {{
+    "條款編號": {{
+      "verification_results": [
+        {{
+          "evidence_name": "證據名稱",
+          "adequacy": "full" | "partial" | "irrelevant" | "not_found",
+          "semantic_score": 0.0-1.0,
+          "explanation": "說明為何判定此等級"
+        }}
+      ]
+    }}
+  }}
+}}
+```"""
+
+
+def _parse_doc_verify_response(
+    response_text: str,
+    rows: list,
+) -> dict[str, list[dict]]:
+    """Parse per-document verification LLM response into per-clause results.
+
+    Returns:
+        Dict mapping clause_id -> list of verification result dicts
+    """
+    json_str = response_text.strip()
+
+    # Handle markdown code blocks
+    if "```json" in json_str:
+        start = json_str.index("```json") + 7
+        end = (
+            json_str.index("```", start) if "```" in json_str[start:] else len(json_str)
+        )
+        json_str = json_str[start:end].strip()
+    elif "```" in json_str:
+        start = json_str.index("```") + 3
+        end = (
+            json_str.index("```", start) if "```" in json_str[start:] else len(json_str)
+        )
+        json_str = json_str[start:end].strip()
+
+    result: dict[str, list[dict]] = {}
+
+    try:
+        data = json.loads(json_str)
+        clause_results = data.get("clause_results", {})
+
+        for clause_id, clause_data in clause_results.items():
+            result[clause_id] = clause_data.get("verification_results", [])
+
+    except (json.JSONDecodeError, KeyError, TypeError):
+        pass
+
+    # Ensure all clauses have entries
+    for row in rows:
+        if row.clause_id not in result:
+            result[row.clause_id] = []
+
+    return result
+
+
+# ============================================================
+# Per-document Phase execution (PRIMARY)
+# ============================================================
+
+
+def run_checklist_verify_document(
+    doc_id: str,
+    rows: list[RowState],
+    state: PipelineState,
+    llm_completion_fn: callable,
+    model: str = "default",
+    temperature: float = 0.1,
+    max_tokens: int = 8192,
+    run_id: str = "",
+) -> PhaseResult:
+    """Execute Phase 2 checklist verification for ALL clauses of one document.
+
+    ONE LLM call covers all clauses this document maps to.
+
+    Args:
+        doc_id: Document ID
+        rows: All RowState objects for this document (with Phase 1 evidence)
+        state: Pipeline state (for budget tracking)
+        llm_completion_fn: LLM completion function (returns dict)
+        model: LLM model name
+        temperature: LLM temperature
+        max_tokens: Max tokens for response
+        run_id: Pipeline run ID for SSE emission
+
+    Returns:
+        PhaseResult with per-clause verification breakdown
+    """
+    phase_result = PhaseResult(
+        phase=Phase.CHECKLIST_VERIFY.value,
+        started_at=time.time(),
+    )
+
+    try:
+        # Build per-clause evidence sections
+        clauses_parts = []
+        has_evidence = False
+        for i, row in enumerate(rows, 1):
+            evidence_items = [EvidenceItem.from_dict(e) for e in row.evidence_items]
+            if not evidence_items:
+                continue
+            has_evidence = True
+
+            # L1: keyword cross-match per clause
+            l1_results = run_keyword_crossmatch(evidence_items, row.audit_question)
+
+            evidence_section = _build_evidence_section(evidence_items)
+            regulation_text = _get_regulation_text(row.clause_id, row.standard)
+
+            clauses_parts.append(
+                f"### {i}. 條款 {row.clause_id} — {row.clause_title}\n"
+                f"**稽核問題**: {row.audit_question}\n\n"
+                f"**法規參考**: {regulation_text[:300]}\n\n"
+                f"**已找到證據**:\n{evidence_section}"
+            )
+
+        if not has_evidence:
+            phase_result.status = PhaseStatus.SKIPPED.value
+            phase_result.output = {"reason": "No evidence items from Phase 1"}
+            phase_result.completed_at = time.time()
+            return phase_result
+
+        clauses_evidence_section = "\n\n".join(clauses_parts)
+
+        user_prompt = _DOC_VERIFY_USER_TEMPLATE.format(
+            clause_count=len(rows),
+            clauses_evidence_section=clauses_evidence_section,
+        )
+
+        messages = [
+            {"role": "system", "content": _DOC_VERIFY_SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt},
+        ]
+
+        # Check budget
+        budget = state.get_budget()
+        if budget.exceeded:
+            phase_result.status = PhaseStatus.FAILED.value
+            phase_result.error = "LLM token 預算已用盡"
+            phase_result.completed_at = time.time()
+            return phase_result
+
+        doc_title = rows[0].doc_title if rows else doc_id
+
+        # SSE: emit before LLM call
+        _emit_pipeline_event(run_id, {
+            "type": "phase_2_start",
+            "phase": "checklist_verify",
+            "doc_id": doc_id,
+            "doc_title": doc_title,
+            "clause_ids": [r.clause_id for r in rows],
+            "clause_count": len(rows),
+            "prompt_preview": user_prompt[:500],
+        })
+
+        # Call LLM
+        response = llm_completion_fn(
+            messages=messages,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            stream=False,
+        )
+
+        response_text = response.get("content", "")
+        usage = response.get("usage", {})
+
+        # Track budget
+        budget.record_usage(usage)
+        state.update_budget(budget)
+
+        # Parse per-clause verification results
+        clause_verify = _parse_doc_verify_response(response_text, rows)
+
+        # Distribute verification results back to individual rows
+        for row in rows:
+            l2_results = clause_verify.get(row.clause_id, [])
+            evidence_items = [EvidenceItem.from_dict(e) for e in row.evidence_items]
+
+            for item in evidence_items:
+                l2_match = next(
+                    (r for r in l2_results if r.get("evidence_name") == item.evidence_name),
+                    None,
+                )
+                if l2_match:
+                    adequacy = l2_match.get("adequacy", "")
+                    if adequacy == "irrelevant":
+                        item.found = False
+                        item.llm_reasoning = l2_match.get("explanation", "")
+                    elif adequacy == "partial":
+                        item.is_inadequate = True
+                        item.relevance_score = l2_match.get("semantic_score", 0.5)
+                        item.llm_reasoning = l2_match.get("explanation", "")
+                    elif adequacy == "full":
+                        item.relevance_score = l2_match.get("semantic_score", 1.0)
+
+            row.evidence_items = [item.to_dict() for item in evidence_items]
+
+        phase_result.status = PhaseStatus.COMPLETED.value
+        phase_result.output = {
+            "doc_id": doc_id,
+            "clause_count": len(rows),
+            "evidence_updated": True,
+        }
+        phase_result.llm_usage = usage
+        phase_result.llm_model = response.get("model", model)
+
+        # SSE: emit after LLM call
+        _emit_pipeline_event(run_id, {
+            "type": "phase_2_result",
+            "phase": "checklist_verify",
+            "doc_id": doc_id,
+            "doc_title": doc_title,
+            "clause_ids": [r.clause_id for r in rows],
+            "llm_response": response_text[:2000],
+            "usage": usage,
+        })
+
+    except Exception as e:
+        phase_result.status = PhaseStatus.FAILED.value
+        phase_result.error = str(e)
+        _emit_pipeline_event(run_id, {
+            "type": "phase_2_error",
+            "phase": "checklist_verify",
+            "doc_id": doc_id,
+            "error": str(e)[:500],
+        })
+
+    phase_result.completed_at = time.time()
+    return phase_result

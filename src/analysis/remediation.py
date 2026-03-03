@@ -33,6 +33,7 @@ from src.analysis.state import (
 
 __all__ = [
     "run_remediation_row",
+    "run_remediation_document",
 ]
 
 
@@ -332,6 +333,293 @@ def run_remediation_row(
     except Exception as e:
         phase_result.status = PhaseStatus.FAILED.value
         phase_result.error = str(e)
+
+    phase_result.completed_at = time.time()
+    return phase_result
+
+
+# ============================================================
+# SSE event emission
+# ============================================================
+
+
+def _emit_pipeline_event(run_id: str, event: dict) -> None:
+    """Emit pipeline event to SSE listeners for real-time HTML viewing."""
+    if not run_id:
+        return
+    try:
+        from src.analysis.report_api import emit_cross_exam_event
+        emit_cross_exam_event(run_id, event)
+    except ImportError:
+        pass
+
+
+# ============================================================
+# Per-document prompt construction
+# ============================================================
+
+_DOC_REMEDIATION_SYSTEM_PROMPT = """你是品質管理系統改善建議助手。你的任務是根據差距分析結果，針對一份文件的多個法規條款提供具體的改善建議。
+
+嚴格規則：
+1. 每項建議必須引用對應的法規條文原文作為依據。
+2. 建議必須具體可執行，包含「修改哪個段落」「建議修改方向」。
+3. 不提供模糊的方向性建議。
+4. 如果法規條文不可用，以稽核問題本身作為改善依據。
+5. 回答必須使用指定的 JSON 格式，按條款編號分組。"""
+
+_DOC_REMEDIATION_USER_TEMPLATE = """## 改善建議任務
+
+你需要針對以下 {clause_count} 個法規條款的差距提供改善建議。
+
+**文件編號**: {doc_id}
+**文件標題**: {doc_title}
+
+### 各條款的差距分析
+
+{clauses_gap_section}
+
+## 回答格式
+
+請以 JSON 格式回答，按條款編號分組：
+
+```json
+{{
+  "clause_results": {{
+    "條款編號": {{
+      "remediation": {{
+        "summary": "改善方向總述（一句話）",
+        "priority": "high" | "medium" | "low",
+        "suggestions": [
+          {{
+            "action": "具體修改動作",
+            "target_section": "建議修改的文件段落",
+            "regulation_basis": "法規依據",
+            "example_content": "建議內容範例"
+          }}
+        ],
+        "regulation_citation": "最相關的法規條文完整引用"
+      }}
+    }}
+  }}
+}}
+```"""
+
+
+def _parse_doc_remediation_response(
+    response_text: str,
+    rows: list,
+) -> dict[str, dict]:
+    """Parse per-document remediation LLM response into per-clause results.
+
+    Returns:
+        Dict mapping clause_id -> remediation dict
+    """
+    json_str = response_text.strip()
+
+    # Handle markdown code blocks
+    if "```json" in json_str:
+        start = json_str.index("```json") + 7
+        end = (
+            json_str.index("```", start) if "```" in json_str[start:] else len(json_str)
+        )
+        json_str = json_str[start:end].strip()
+    elif "```" in json_str:
+        start = json_str.index("```") + 3
+        end = (
+            json_str.index("```", start) if "```" in json_str[start:] else len(json_str)
+        )
+        json_str = json_str[start:end].strip()
+
+    result: dict[str, dict] = {}
+
+    try:
+        data = json.loads(json_str)
+        clause_results = data.get("clause_results", {})
+
+        for clause_id, clause_data in clause_results.items():
+            result[clause_id] = clause_data.get("remediation", {})
+
+    except (json.JSONDecodeError, KeyError, TypeError):
+        pass
+
+    # Ensure all clauses have entries
+    for row in rows:
+        if row.clause_id not in result:
+            result[row.clause_id] = {}
+
+    return result
+
+
+# ============================================================
+# Per-document Phase execution (PRIMARY)
+# ============================================================
+
+
+def run_remediation_document(
+    doc_id: str,
+    rows: list[RowState],
+    state: PipelineState,
+    llm_completion_fn: callable,
+    model: str = "default",
+    temperature: float = 0.3,
+    max_tokens: int = 8192,
+    run_id: str = "",
+) -> PhaseResult:
+    """Execute Phase 4 remediation for ALL clauses of one document.
+
+    ONE LLM call covers all clauses this document maps to.
+    SKIPPED for rows where verdict == 'full_compliance'.
+
+    Args:
+        doc_id: Document ID
+        rows: All RowState objects for this document
+        state: Pipeline state (for budget tracking)
+        llm_completion_fn: LLM completion function (returns dict)
+        model: LLM model name
+        temperature: LLM temperature (slightly higher for creative suggestions)
+        max_tokens: Max tokens for response
+        run_id: Pipeline run ID for SSE emission
+
+    Returns:
+        PhaseResult with per-clause remediation breakdown
+    """
+    phase_result = PhaseResult(
+        phase=Phase.REMEDIATION.value,
+        started_at=time.time(),
+    )
+
+    try:
+        # Filter rows that need remediation (not fully compliant)
+        rows_needing_remediation = [
+            r for r in rows if r.verdict != "full_compliance"
+        ]
+
+        if not rows_needing_remediation:
+            phase_result.status = PhaseStatus.SKIPPED.value
+            phase_result.output = {"reason": "所有條款完全符合，無需改善建議"}
+            phase_result.completed_at = time.time()
+            return phase_result
+
+        # Import risk display for context
+        from src.analysis.risk_matrix import RISK_LEVEL_DISPLAY
+
+        # Build per-clause gap sections
+        clauses_parts = []
+        for i, row in enumerate(rows_needing_remediation, 1):
+            evidence_items = [EvidenceItem.from_dict(e) for e in row.evidence_items]
+            gap_section = _build_gap_analysis_section(
+                evidence_items, row.verdict or ""
+            )
+            regulation_text = _get_regulation_text(row.clause_id, row.standard)
+            risk_display = RISK_LEVEL_DISPLAY.get(row.risk_level or "", {})
+            risk_label = risk_display.get("label_zh", row.risk_level or "未評估")
+
+            clauses_parts.append(
+                f"### {i}. 條款 {row.clause_id} — {row.clause_title}\n"
+                f"**稽核問題**: {row.audit_question}\n"
+                f"**風險等級**: {risk_label}\n"
+                f"**差距類型**: {row.gap_severity or '未評估'}\n\n"
+                f"**差距分析**:\n{gap_section}\n\n"
+                f"**法規參考**: {regulation_text[:400]}"
+            )
+
+        clauses_gap_section = "\n\n".join(clauses_parts)
+        doc_title = rows[0].doc_title if rows else doc_id
+
+        user_prompt = _DOC_REMEDIATION_USER_TEMPLATE.format(
+            clause_count=len(rows_needing_remediation),
+            doc_id=doc_id,
+            doc_title=doc_title,
+            clauses_gap_section=clauses_gap_section,
+        )
+
+        messages = [
+            {"role": "system", "content": _DOC_REMEDIATION_SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt},
+        ]
+
+        # Check budget
+        budget = state.get_budget()
+        if budget.exceeded:
+            phase_result.status = PhaseStatus.FAILED.value
+            phase_result.error = "LLM token 預算已用盡"
+            phase_result.completed_at = time.time()
+            return phase_result
+
+        # SSE: emit before LLM call
+        _emit_pipeline_event(run_id, {
+            "type": "phase_4_start",
+            "phase": "remediation",
+            "doc_id": doc_id,
+            "doc_title": doc_title,
+            "clause_ids": [r.clause_id for r in rows_needing_remediation],
+            "clause_count": len(rows_needing_remediation),
+            "prompt_preview": user_prompt[:500],
+        })
+
+        # Call LLM
+        response = llm_completion_fn(
+            messages=messages,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            stream=False,
+        )
+
+        response_text = response.get("content", "")
+        usage = response.get("usage", {})
+
+        # Track budget
+        budget.record_usage(usage)
+        state.update_budget(budget)
+
+        # Parse per-clause remediation results
+        clause_remediation = _parse_doc_remediation_response(
+            response_text, rows_needing_remediation
+        )
+
+        # Distribute remediation results back to individual rows
+        total_suggestions = 0
+        for row in rows_needing_remediation:
+            remediation = clause_remediation.get(row.clause_id, {})
+            if remediation:
+                row.remediation_suggestion = remediation.get("summary", "")
+                row.remediation_regulation_cite = remediation.get(
+                    "regulation_citation", ""
+                )
+                total_suggestions += len(remediation.get("suggestions", []))
+
+        phase_result.status = PhaseStatus.COMPLETED.value
+        phase_result.output = {
+            "doc_id": doc_id,
+            "clause_count": len(rows_needing_remediation),
+            "skipped_count": len(rows) - len(rows_needing_remediation),
+            "total_suggestions": total_suggestions,
+        }
+        phase_result.llm_usage = usage
+        phase_result.llm_model = response.get("model", model)
+
+        # SSE: emit after LLM call
+        _emit_pipeline_event(run_id, {
+            "type": "phase_4_result",
+            "phase": "remediation",
+            "doc_id": doc_id,
+            "doc_title": doc_title,
+            "clause_ids": [r.clause_id for r in rows_needing_remediation],
+            "llm_response": response_text[:2000],
+            "total_suggestions": total_suggestions,
+            "usage": usage,
+        })
+
+    except Exception as e:
+        phase_result.status = PhaseStatus.FAILED.value
+        phase_result.error = str(e)
+        _emit_pipeline_event(run_id, {
+            "type": "phase_4_error",
+            "phase": "remediation",
+            "doc_id": doc_id,
+            "error": str(e)[:500],
+        })
 
     phase_result.completed_at = time.time()
     return phase_result

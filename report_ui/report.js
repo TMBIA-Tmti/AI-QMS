@@ -93,6 +93,7 @@
         crossexamFeed: $("crossexamFeed"),
         humanMessageInput: $("humanMessageInput"),
         btnSendHuman: $("btnSendHuman"),
+        phaseFilterBar: $('phaseFilterBar'),
     };
 
 
@@ -982,6 +983,19 @@
         if (els.btnSendHuman) {
             els.btnSendHuman.addEventListener("click", sendHumanMessage);
         }
+
+        // Phase filter buttons
+        const phaseFilterBar = document.getElementById('phaseFilterBar');
+        if (phaseFilterBar) {
+            phaseFilterBar.addEventListener('click', function(e) {
+                const btn = e.target.closest('.phase-filter-btn');
+                if (!btn) return;
+                phaseFilterBar.querySelectorAll('.phase-filter-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                const phase = btn.dataset.phase;
+                filterSSEFeedByPhase(phase);
+            });
+        }
         if (els.humanMessageInput) {
             els.humanMessageInput.addEventListener("keydown", (e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
@@ -1534,99 +1548,275 @@
         els.btnSendHuman.disabled = true;
     }
 
+    // Active phase filter
+    let activePhaseFilter = 'all';
+
+    function filterSSEFeedByPhase(phase) {
+        activePhaseFilter = phase;
+        const cards = els.crossexamFeed.querySelectorAll('.crossexam-card, .exam-message, .msg-round-divider');
+        cards.forEach(card => {
+            if (phase === 'all') {
+                card.style.display = '';
+            } else {
+                const cardPhase = card.dataset.phase || '';
+                card.style.display = (cardPhase === phase) ? '' : 'none';
+            }
+        });
+    }
+
     function handleSSEEvent(data) {
         const type = data.type;
 
         switch (type) {
-            case "connected":
-                addSystemMessage("✅ 已連線至即時交叉詰問串流");
-                updateSSEStatus("streaming", "🟢 串流中");
+            // ── Pipeline lifecycle ──
+            case 'connected':
+                addSystemMessage('✅ 已連線至即時 LLM 互動串流');
+                updateSSEStatus('streaming', '🟢 串流中');
                 break;
 
-            case "round_start":
-                addRoundDivider(data.round);
+            case 'pipeline_started':
+                addSystemMessage('🚀 分析管線已啟動');
                 break;
 
-            case "analyzer":
-                addExamMessage("analyzer", "🔍 分析者", data.content, data.regulation, data.timestamp);
+            case 'pipeline_complete':
+                addSystemMessage('🏁 分析管線已完成');
+                updateSSEStatus('connected', '✅ 完成');
                 break;
 
-            case "verifier":
-                addExamMessage("verifier", "🛡️ 驗證者", data.content, data.regulation, data.timestamp);
+            // ── Phase 1: Gap Scan ──
+            case 'phase_1_start':
+                addPhaseCard('1', 'Gap Scan', data, 'start');
+                break;
+            case 'phase_1_result':
+                addPhaseCard('1', 'Gap Scan', data, 'result');
+                break;
+            case 'phase_1_error':
+                addPhaseCard('1', 'Gap Scan', data, 'error');
                 break;
 
-            case "human_injection":
-                addExamMessage("human", `🙋 ${data.user_id || "人工"}`, data.message, null, data.timestamp);
+            // ── Phase 2: Checklist Verify ──
+            case 'phase_2_start':
+                addPhaseCard('2', '驗證', data, 'start');
+                break;
+            case 'phase_2_result':
+                addPhaseCard('2', '驗證', data, 'result');
+                break;
+            case 'phase_2_error':
+                addPhaseCard('2', '驗證', data, 'error');
                 break;
 
-            case "round_end":
-                const resultText = data.agreed ? "✅ 本輪結果：一致" : "❌ 本輪結果：不一致";
-                addSystemMessage(resultText);
+            // ── Phase 4: Remediation ──
+            case 'phase_4_start':
+                addPhaseCard('4', '改善建議', data, 'start');
+                break;
+            case 'phase_4_result':
+                addPhaseCard('4', '改善建議', data, 'result');
+                break;
+            case 'phase_4_error':
+                addPhaseCard('4', '改善建議', data, 'error');
                 break;
 
-            case "complete":
-                addSystemMessage(`🏁 交叉詰問完成 — 判定: ${data.verdict || "—"} ${data.flagged ? "🚩需RA審查" : ""}`);
-                updateSSEStatus("connected", "✅ 完成");
+            // ── Phase 5: Cross-Examination ──
+            case 'phase_5_start':
+                addPhaseCard('5', '交叉詰問', data, 'start');
+                break;
+            case 'phase_5_result':
+                addPhaseCard('5', '交叉詰問', data, 'result');
+                break;
+            case 'phase_5_error':
+                addPhaseCard('5', '交叉詰問', data, 'error');
                 break;
 
-            case "error":
-                addSystemMessage(`❌ 錯誤: ${data.message || "未知錯誤"}`);
+            // ── Phase 5 sub-events (Analyzer/Verifier debate) ──
+            case 'verification_start':
+                addSystemMessage(`🔄 開始交叉詰問: ${data.clause_id} — ${data.clause_title || ''}`, '5');
+                break;
+            case 'round_start':
+                addRoundDivider(data.round, '5');
+                break;
+            case 'analyzer':
+                addExamMessage('analyzer', '🔍 分析者', data.content, data.clause_id, null, '5');
+                break;
+            case 'verifier':
+                addExamMessage('verifier', '🛡️ 驗證者', data.content, data.clause_id, null, '5');
+                break;
+            case 'round_end': {
+                const resultText = data.agreed ? '✅ 本輪結果：一致' : '❌ 本輪結果：不一致';
+                addSystemMessage(`${resultText} (${data.clause_id})`, '5');
+                break;
+            }
+            case 'verification_complete':
+                addSystemMessage(`🏁 條款 ${data.clause_id} 交叉詰問完成 — ${data.agreed ? '✅ 一致' : '🚩 需 RA 審查'}`, '5');
                 break;
 
-            case "pause":
-                addSystemMessage("⏸ 已暫停");
-                updateSSEStatus("connected", "⏸ 已暫停");
+            // ── Human intervention ──
+            case 'human_injection':
+                addExamMessage('human', `🙋 ${data.user_id || '人工'}`, data.message, null, data.timestamp);
+                break;
+
+            // ── Control events ──
+            case 'complete':
+                addSystemMessage(`🏁 完成 — 判定: ${data.verdict || '—'} ${data.flagged ? '🚩需RA審查' : ''}`);
+                updateSSEStatus('connected', '✅ 完成');
+                break;
+            case 'error':
+                addSystemMessage(`❌ 錯誤: ${data.message || data.error || '未知錯誤'}`);
+                break;
+            case 'pause':
+                addSystemMessage('⏸ 已暫停');
+                updateSSEStatus('connected', '⏸ 已暫停');
                 els.btnPauseExam.disabled = true;
                 els.btnResumeExam.disabled = false;
                 break;
-
-            case "resume":
-                addSystemMessage("▶️ 已繼續");
-                updateSSEStatus("streaming", "🟢 串流中");
+            case 'resume':
+                addSystemMessage('▶️ 已繼續');
+                updateSSEStatus('streaming', '🟢 串流中');
                 els.btnPauseExam.disabled = false;
                 els.btnResumeExam.disabled = true;
                 break;
-
-            case "heartbeat":
-                // Silent keepalive
+            case 'heartbeat':
                 break;
-
             default:
-                console.log("Unknown SSE event type:", type, data);
+                console.log('Unknown SSE event type:', type, data);
         }
 
         // Auto-scroll to bottom
         els.crossexamFeed.scrollTop = els.crossexamFeed.scrollHeight;
     }
 
-    function addExamMessage(type, role, content, regulation, timestamp) {
-        const msgDiv = document.createElement("div");
-        msgDiv.className = `exam-message msg-${type}`;
+    /**
+     * Add a phase card to the SSE feed.
+     * @param {string} phaseNum - '1', '2', '4', '5'
+     * @param {string} phaseName - Display name
+     * @param {object} data - SSE event data
+     * @param {string} status - 'start', 'result', 'error'
+     */
+    function addPhaseCard(phaseNum, phaseName, data, status) {
+        const card = document.createElement('div');
+        const isError = status === 'error';
+        card.className = `crossexam-card phase-${phaseNum}${isError ? ' error' : ''}${status === 'start' ? ' loading' : ''}`;
+        card.dataset.phase = phaseNum;
 
-        const timeStr = timestamp ? new Date(timestamp * 1000).toLocaleTimeString() : "";
-        const regBadge = regulation ? `<span class="msg-regulation">${escapeHtml(regulation)}</span>` : "";
+        // Respect active filter
+        if (activePhaseFilter !== 'all' && activePhaseFilter !== phaseNum) {
+            card.style.display = 'none';
+        }
+
+        const now = new Date().toLocaleTimeString();
+        const docInfo = data.doc_id ? `${data.doc_id}${data.doc_title ? ' — ' + data.doc_title : ''}` : '';
+        const clauseIds = (data.clause_ids || []).join(', ');
+
+        let statusIcon = '🔄';
+        let statusText = '執行中...';
+        if (status === 'result') {
+            statusIcon = '✅';
+            statusText = '完成';
+        } else if (status === 'error') {
+            statusIcon = '❌';
+            statusText = '錯誤';
+        }
+
+        let bodyHtml = '';
+        if (status === 'start' && data.prompt_preview) {
+            bodyHtml = `
+                <span class="collapsible-toggle" onclick="this.nextElementSibling.classList.toggle('expanded')">📄 查看 Prompt 預覽</span>
+                <div class="collapsible-content">
+                    <div class="llm-prompt-preview">${escapeHtml(data.prompt_preview)}</div>
+                </div>`;
+        } else if (status === 'result') {
+            const summary = [];
+            if (data.evidence_summary) {
+                summary.push(`找到: ${data.evidence_summary.found || 0} | 未找到: ${data.evidence_summary.not_found || 0} | 不充分: ${data.evidence_summary.inadequate || 0}`);
+            }
+            if (data.total_suggestions !== undefined) {
+                summary.push(`建議數: ${data.total_suggestions}`);
+            }
+            if (data.total_agreed !== undefined) {
+                summary.push(`一致: ${data.total_agreed} | 標記: ${data.total_flagged || 0}`);
+            }
+            if (data.usage) {
+                summary.push(`Token: ${(data.usage.total_tokens || 0).toLocaleString()}`);
+            }
+            bodyHtml = summary.length > 0 ? `<div style="margin-bottom:6px">${summary.join(' | ')}</div>` : '';
+            if (data.llm_response) {
+                bodyHtml += `
+                    <span class="collapsible-toggle" onclick="this.nextElementSibling.classList.toggle('expanded')">📄 查看 LLM 回應</span>
+                    <div class="collapsible-content">
+                        <div class="llm-response-preview">${escapeHtml(data.llm_response)}</div>
+                    </div>`;
+            }
+        } else if (status === 'error') {
+            bodyHtml = `<div style="color:#dc2626">${escapeHtml(data.error || '未知錯誤')}</div>`;
+        }
+
+        card.innerHTML = `
+            <div class="crossexam-card-header">
+                <span class="phase-badge phase-${phaseNum}">P${phaseNum}</span>
+                <span style="font-weight:600">${statusIcon} ${phaseName}</span>
+                <span class="card-doc-info">${escapeHtml(docInfo)}</span>
+                <span class="card-timestamp">${now}</span>
+            </div>
+            ${clauseIds ? `<div style="font-size:0.8rem;color:#64748b;margin-bottom:4px">條款: ${escapeHtml(clauseIds)}</div>` : ''}
+            <div class="crossexam-card-body">${bodyHtml}</div>`;
+
+        // If it's a 'start' event, mark previous start card for same doc as done
+        if (status === 'start') {
+            const prevLoading = els.crossexamFeed.querySelectorAll(`.crossexam-card.loading.phase-${phaseNum}[data-doc="${data.doc_id}"]`);
+            prevLoading.forEach(el => el.classList.remove('loading'));
+        }
+        if (data.doc_id) card.dataset.doc = data.doc_id;
+
+        els.crossexamFeed.appendChild(card);
+    }
+
+    function addExamMessage(type, role, content, regulation, timestamp, phase) {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `exam-message msg-${type}`;
+        if (phase) msgDiv.dataset.phase = phase;
+
+        // Respect active filter
+        if (phase && activePhaseFilter !== 'all' && activePhaseFilter !== phase) {
+            msgDiv.style.display = 'none';
+        }
+
+        const timeStr = timestamp ? new Date(timestamp * 1000).toLocaleTimeString() : new Date().toLocaleTimeString();
+        const regBadge = regulation ? `<span class="msg-regulation">${escapeHtml(regulation)}</span>` : '';
 
         msgDiv.innerHTML = `
             <div class="msg-header">
                 <span class="msg-role role-${type}">${role}</span>
                 <span>${regBadge} <span class="msg-time">${timeStr}</span></span>
             </div>
-            <div class="msg-body">${escapeHtml(content || "")}</div>`;
+            <div class="msg-body">${escapeHtml(content || '')}</div>`;
 
         els.crossexamFeed.appendChild(msgDiv);
     }
 
-    function addSystemMessage(text) {
-        const msgDiv = document.createElement("div");
-        msgDiv.className = "exam-message msg-system";
+    function addSystemMessage(text, phase) {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = 'exam-message msg-system';
+        if (phase) msgDiv.dataset.phase = phase;
         msgDiv.textContent = text;
+
+        // Respect active filter
+        if (phase && activePhaseFilter !== 'all' && activePhaseFilter !== phase) {
+            msgDiv.style.display = 'none';
+        }
+
         els.crossexamFeed.appendChild(msgDiv);
     }
 
-    function addRoundDivider(round) {
-        const div = document.createElement("div");
-        div.className = "msg-round-divider";
+    function addRoundDivider(round, phase) {
+        const div = document.createElement('div');
+        div.className = 'msg-round-divider';
+        if (phase) div.dataset.phase = phase;
         div.textContent = `─── 第 ${round} 輪 ───`;
+
+        // Respect active filter
+        if (phase && activePhaseFilter !== 'all' && activePhaseFilter !== phase) {
+            div.style.display = 'none';
+        }
+
         els.crossexamFeed.appendChild(div);
     }
 
