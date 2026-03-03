@@ -38,6 +38,7 @@ import time
 from collections import defaultdict
 from pathlib import Path
 from typing import Optional
+import os
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, FileResponse, HTMLResponse, StreamingResponse
@@ -64,6 +65,29 @@ _PIPELINE_DIR = Path("data/analysis_pipeline")
 
 # FastAPI router
 report_router = APIRouter(prefix="/api/report", tags=["report"])
+
+# ── i18n helper ──
+
+def _t(key: str, lang: str = "zh-TW", **kwargs) -> str:
+    """Translate a key using locale JSON files."""
+    _cache = getattr(_t, '_cache', {})
+    if lang not in _cache:
+        locale_path = os.path.join(
+            os.path.dirname(__file__), '..', 'chainlit_app', 'locales', f'{lang}.json'
+        )
+        try:
+            with open(locale_path, 'r', encoding='utf-8') as f:
+                _cache[lang] = json.load(f)
+        except Exception:
+            _cache[lang] = {}
+        _t._cache = _cache
+    text = _cache.get(lang, {}).get(key, key)
+    if kwargs:
+        try:
+            text = text.format(**kwargs)
+        except (KeyError, IndexError):
+            pass
+    return text
 
 
 # ============================================================
@@ -117,8 +141,13 @@ def _row_to_api(row_dict: dict) -> dict:
 
 
 @report_router.get("/page/{run_id}", response_class=HTMLResponse)
-async def serve_report_page(run_id: str):
-    """Serve the report HTML page for a specific run."""
+async def serve_report_page(run_id: str, lang: str = Query(default="zh-TW")):
+    """Serve the report HTML page for a specific run.
+
+    Args:
+        run_id: Pipeline run identifier.
+        lang: UI language code (e.g. zh-TW, en-US, ja-JP). Injected into JS.
+    """
     html_path = REPORT_STATIC_DIR / "report.html"
     if not html_path.exists():
         raise HTTPException(status_code=404, detail="Report page not found")
@@ -128,9 +157,10 @@ async def serve_report_page(run_id: str):
     if not filepath.exists():
         raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
 
-    # Read and inject run_id into the HTML template
+    # Read and inject run_id + language into the HTML template
     html_content = html_path.read_text(encoding="utf-8")
     html_content = html_content.replace("{{RUN_ID}}", run_id)
+    html_content = html_content.replace("{{LANG}}", lang)
     return HTMLResponse(content=html_content)
 
 
@@ -157,6 +187,21 @@ async def serve_report_static(filename: str):
         filepath, media_type=content_types.get(ext, "application/octet-stream")
     )
 
+
+@report_router.get("/locales/{lang_code}.json")
+async def serve_report_locale(lang_code: str):
+    """Serve locale JSON for the report UI.
+
+    Falls back to zh-TW if requested language file is not found.
+    """
+    locales_dir = REPORT_STATIC_DIR / "locales"
+    filepath = locales_dir / f"{lang_code}.json"
+    if not filepath.exists():
+        # Fallback to zh-TW
+        filepath = locales_dir / "zh-TW.json"
+    if not filepath.exists():
+        raise HTTPException(status_code=404, detail="Locale file not found")
+    return FileResponse(filepath, media_type="application/json; charset=utf-8")
 
 # ============================================================
 # API Endpoints — Read
@@ -761,6 +806,60 @@ async def adjust_standard_mapping(request: Request):
 
 
 # ============================================================
+# Verification API Endpoints
+# ============================================================
+
+
+@report_router.get("/verification/summary")
+async def get_verification_summary_endpoint():
+    """Quick verification summary (pass/warn/fail counts)."""
+    try:
+        from src.services.regulatory_verifier import get_verification_summary as _get_ver_summary
+        summary = _get_ver_summary()
+        return JSONResponse(content=summary)
+    except Exception as e:
+        logger.error(f"Verification summary failed: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Verification failed: {e}"},
+        )
+
+
+@report_router.get("/verification/full")
+async def get_full_verification():
+    """Full verification report with all document details."""
+    try:
+        from src.services.regulatory_verifier import verify_all
+        report = verify_all()
+        return JSONResponse(content=report.to_dict())
+    except Exception as e:
+        logger.error(f"Full verification failed: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Verification failed: {e}"},
+        )
+
+
+@report_router.get("/verification/document/{doc_id}")
+async def get_document_verification(doc_id: str):
+    """Verify a single document by doc_id."""
+    try:
+        from src.services.regulatory_verifier import verify_document
+        result = verify_document(doc_id)
+        if result is None:
+            raise HTTPException(status_code=404, detail=f"Document '{doc_id}' not found")
+        return JSONResponse(content=result.to_dict())
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Document verification failed: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Verification failed: {e}"},
+        )
+
+
+# ============================================================
 # API Endpoints — Read (path-parameter routes MUST come AFTER
 # all static-path routes to avoid /{run_id} catching /crossref etc.)
 # ============================================================
@@ -992,7 +1091,7 @@ async def restore_original(run_id: str, row_id: str):
 
 
 @report_router.post("/{run_id}/row/{row_id}/rerun")
-async def reset_for_rerun(run_id: str, row_id: str, body: dict = None):
+async def reset_for_rerun(run_id: str, row_id: str, body: dict = None, lang: str = Query("zh-TW")):
     """Reset a row to re-run from Phase 1 (Gap Scan).
 
     Body (optional):
@@ -1015,12 +1114,21 @@ async def reset_for_rerun(run_id: str, row_id: str, body: dict = None):
     _save_table(table)
 
     row_dict = _row_to_api(updated.to_dict())
+
+    # Emit SSE event so the cross-exam viewer shows the reset
+    emit_cross_exam_event(run_id, {
+        "type": "row_reset",
+        "row_id": row_id,
+        "clause_id": updated.clause_id if hasattr(updated, 'clause_id') else row_id,
+        "from_phase": from_phase.value,
+        "message": _t("report_api.rerun_sse_msg", lang, row_id=row_id, phase=from_phase.display_name),
+    })
+
     return JSONResponse(
         content={
             "success": True,
             "row": row_dict,
-            "message": f"Row reset to {from_phase.display_name}. "
-            f"Re-run the pipeline from Chainlit to execute the pending phases.",
+            "message": _t("report_api.rerun_success_msg", lang),
         }
     )
 
@@ -1031,7 +1139,7 @@ async def reset_for_rerun(run_id: str, row_id: str, body: dict = None):
 
 
 @report_router.get("/{run_id}/export/{fmt}")
-async def export_report(run_id: str, fmt: str):
+async def export_report(run_id: str, fmt: str, lang: str = Query("zh-TW")):
     """Export the report as Word or Excel.
 
     fmt: "word" or "excel"
@@ -1054,27 +1162,27 @@ async def export_report(run_id: str, fmt: str):
             from docx.enum.text import WD_ALIGN_PARAGRAPH
 
             filepath = export_dir / f"compliance_report_{run_id}.docx"
-            assessment = _build_export_assessment(flat_rows, summary)
+            assessment = _build_export_assessment(flat_rows, summary, lang)
 
             doc = Document()
-            title = doc.add_heading("AI-QMS 合規性分析報告", level=1)
+            title = doc.add_heading(_t("report_api.title", lang), level=1)
             title.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
             from datetime import datetime
             meta = doc.add_paragraph()
             meta.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-            run = meta.add_run(f"分析 ID: {run_id}  |  匯出時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            run = meta.add_run(_t("report_api.meta", lang, run_id=run_id, time=datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
             run.font.size = Pt(9)
             run.font.color.rgb = RGBColor(128, 128, 128)
 
             # Summary section
-            doc.add_heading("摘要", level=2)
+            doc.add_heading(_t("report_api.summary_heading", lang), level=2)
             doc.add_paragraph(assessment)
 
             # Detail table
-            doc.add_heading("詳細分析結果", level=2)
+            doc.add_heading(_t("report_api.detail_heading", lang), level=2)
             if flat_rows:
-                headers = ["條款", "文件", "稽核影響", "判定", "風險", "差距", "RA 標記"]
+                headers = [_t("report_api.col_clause", lang), _t("report_api.col_doc", lang), _t("report_api.col_audit_impact", lang), _t("report_api.col_verdict", lang), _t("report_api.col_risk", lang), _t("report_api.col_gap", lang), _t("report_api.col_ra_flag", lang)]
                 tbl = doc.add_table(rows=1 + len(flat_rows), cols=len(headers))
                 tbl.style = "Table Grid"
                 for i, h in enumerate(headers):
@@ -1095,16 +1203,16 @@ async def export_report(run_id: str, fmt: str):
             from openpyxl.styles import Font, Alignment, PatternFill
 
             filepath = export_dir / f"compliance_report_{run_id}.xlsx"
-            assessment = _build_export_assessment(flat_rows, summary)
+            assessment = _build_export_assessment(flat_rows, summary, lang)
 
             wb = Workbook()
             ws = wb.active
-            ws.title = "合規分析"
+            ws.title = _t("report_api.sheet_name", lang)
 
             # Headers
-            headers = ["條款 ID", "條款名稱", "文件 ID", "文件標題", "稽核影響",
-                       "稽核問題", "判定", "風險等級", "差距嚴重度",
-                       "證據 (找到/總計)", "RA 標記", "RA 覆寫", "RA 備註"]
+            headers = [_t("report_api.col_clause_id", lang), _t("report_api.col_clause_name", lang), _t("report_api.col_doc_id", lang), _t("report_api.col_doc_title", lang), _t("report_api.col_audit_impact", lang),
+                       _t("report_api.col_audit_question", lang), _t("report_api.col_verdict", lang), _t("report_api.col_risk_level", lang), _t("report_api.col_gap_severity", lang),
+                       _t("report_api.col_evidence", lang), _t("report_api.col_ra_flag", lang), _t("report_api.col_ra_override", lang), _t("report_api.col_ra_notes", lang)]
             header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
             header_font = Font(bold=True, color="FFFFFF", size=10)
             for ci, h in enumerate(headers, 1):
@@ -1243,64 +1351,64 @@ def _verdict_to_risk(verdict: str, audit_impact: str) -> Optional[str]:
     return result  # assess_risk returns risk level string directly
 
 
-def _build_export_assessment(flat_rows: list[dict], summary: dict) -> str:
+def _build_export_assessment(flat_rows: list[dict], summary: dict, lang: str = "zh-TW") -> str:
     """Build a markdown assessment text from flat rows for Word/Excel export."""
     lines = [
-        "# 合規性分析報告",
+        f"# {_t('report_api.md_title', lang)}",
         "",
-        f"**分析項目數**: {summary.get('total_rows', 0)}",
-        f"**文件數**: {summary.get('documents_analyzed', 0)}",
-        f"**需 RA 審查**: {summary.get('flagged_for_ra', 0)} 項",
+        f"**{_t('report_api.md_total_items', lang)}**: {summary.get('total_rows', 0)}",
+        f"**{_t('report_api.md_total_docs', lang)}**: {summary.get('documents_analyzed', 0)}",
+        f"**{_t('report_api.md_ra_review', lang)}**: {summary.get('flagged_for_ra', 0)} {_t('report_api.md_items', lang)}",
         "",
-        "## 判定結果分布",
+        f"## {_t('report_api.md_verdict_dist', lang)}",
         "",
     ]
 
     vd = summary.get("verdict_distribution", {})
     for v, count in vd.items():
         disp = VERDICT_DISPLAY.get(v, {})
-        lines.append(f"- {disp.get('icon', '')} {disp.get('label_zh', v)}: {count} 項")
+        lines.append(f"- {disp.get('icon', '')} {disp.get('label_zh', v)}: {count} {_t('report_api.md_items', lang)}")
 
     lines.append("")
-    lines.append("## 風險等級分布")
+    lines.append(f"## {_t('report_api.md_risk_dist', lang)}")
     lines.append("")
 
     rd = summary.get("risk_distribution", {})
     for r, count in rd.items():
         disp = RISK_LEVEL_DISPLAY.get(r, {})
-        lines.append(f"- {disp.get('icon', '')} {disp.get('label_zh', r)}: {count} 項")
+        lines.append(f"- {disp.get('icon', '')} {disp.get('label_zh', r)}: {count} {_t('report_api.md_items', lang)}")
 
     lines.append("")
-    lines.append("## 詳細結果")
+    lines.append(f"## {_t('report_api.md_detail', lang)}")
     lines.append("")
 
     for row in flat_rows:
         lines.append(f"### {row.get('clause_id', '')} — {row.get('clause_title', '')}")
         lines.append(
-            f"- **文件**: {row.get('doc_title', '')} ({row.get('doc_id', '')})"
+            f"- **{_t('report_api.md_doc_label', lang)}**: {row.get('doc_title', '')} ({row.get('doc_id', '')})"
         )
         lines.append(
-            f"- **判定**: {row.get('verdict_icon', '')} {row.get('verdict_label', '')}"
+            f"- **{_t('report_api.md_verdict_label', lang)}**: {row.get('verdict_icon', '')} {row.get('verdict_label', '')}"
         )
         lines.append(
-            f"- **風險**: {row.get('risk_icon', '')} {row.get('risk_label', '')}"
+            f"- **{_t('report_api.md_risk_label', lang)}**: {row.get('risk_icon', '')} {row.get('risk_label', '')}"
         )
-        lines.append(f"- **稽核影響**: {row.get('audit_impact', '')}")
+        lines.append(f"- **{_t('report_api.md_audit_impact_label', lang)}**: {row.get('audit_impact', '')}")
         ev_found = row.get("evidence_found", 0)
         ev_total = row.get("evidence_total", 0)
-        lines.append(f"- **證據**: {ev_found}/{ev_total} 項找到")
+        lines.append(f"- **{_t('report_api.md_evidence_label', lang)}**: {_t('report_api.md_evidence_found', lang, found=ev_found, total=ev_total)}")
 
         if row.get("remediation"):
-            lines.append(f"- **改善建議**: {row['remediation']}")
+            lines.append(f"- **{_t('report_api.md_remediation_label', lang)}**: {row['remediation']}")
 
         if row.get("ra_override"):
             override = row["ra_override"]
             lines.append(
-                f"- **RA 覆寫**: {override.get('verdict', '')} — {override.get('reason', '')}"
+                f"- **{_t('report_api.md_ra_override_label', lang)}**: {override.get('verdict', '')} — {override.get('reason', '')}"
             )
 
         if row.get("ra_notes"):
-            lines.append(f"- **RA 備註**: {row['ra_notes']}")
+            lines.append(f"- **{_t('report_api.md_ra_notes_label', lang)}**: {row['ra_notes']}")
 
         lines.append("")
 

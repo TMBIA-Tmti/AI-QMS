@@ -401,6 +401,12 @@ from src.utils.analysis_cache import (
     get_pending_reports,
     mark_cache_delivered,
 )
+from src.utils.watermark import (
+    add_watermark_to_pdf,
+    generate_watermark_preview,
+    convert_to_pdf_for_viewing,
+    get_document_level,
+)
 
 # v3.1.0: Load cached model lists from previous sessions on startup.
 # This ensures cloud provider models appear immediately without
@@ -790,7 +796,7 @@ def get_system_prompt(profile: str, lang: str = None) -> str:
 - 「列表」- 所有文件紀錄（含進版、作廢）
 - 「搜尋 關鍵字」- 搜尋文件
 - 「作廢 文件編號」- 作廢文件
-- 「下載 文件編號」- 下載原始文件
+- 「下載 文件編號」- 下載原始文件（僅限 4 階表單可下載，1-3 階及外來文件為線上觀看）
 - 「文件更動紀錄」- 查看文件更動紀錄
 - 「下載文件更動紀錄 word/excel」- 匯出文件更動紀錄
 - 「法規清單」- 列出所有文件引用的法規標準
@@ -799,6 +805,7 @@ def get_system_prompt(profile: str, lang: str = None) -> str:
 - 「/web 關鍵字」- 搜尋網路（如：/web 最新 ISO 13485 版本）
 - 「狀態」- 系統狀態
 - 「刪除資料庫」- 刪除所有文件（需確認）
+- 「重設浮水印」- 重設浮水印設定，下次上傳時重新詢問
 
 上傳文件：直接在對話框拖放或上傳文件即可開始 OCR 處理。
 
@@ -2804,6 +2811,26 @@ async def on_chat_start():
     cl.user_session.set("current_file_path", None)
     cl.user_session.set("awaiting_delete_confirm", False)
 
+    # Watermark state
+    cl.user_session.set("watermark_image_path", None)
+    cl.user_session.set("watermark_opacity", 0.15)
+    cl.user_session.set("watermark_angle", 45)
+    cl.user_session.set("watermark_tile_count", 3)
+    cl.user_session.set("awaiting_watermark_decision", False)
+    cl.user_session.set("awaiting_watermark_image", False)
+    cl.user_session.set("awaiting_watermark_opacity", False)
+    cl.user_session.set("awaiting_watermark_angle", False)
+    cl.user_session.set("awaiting_watermark_tiles", False)
+    cl.user_session.set("watermark_confirmed", False)
+
+    # Signature detection toggle state
+    cl.user_session.set("signature_detection_enabled", True)  # Default: enabled
+    cl.user_session.set("sig_detection_asked", False)
+
+    # Document level range state
+    cl.user_session.set("controlled_levels", ["1", "2", "3"])  # Default: 1-3
+    cl.user_session.set("level_range_asked", False)
+
     # If we have saved settings with API key, set it up
     if restored_api_key and default_provider_id != "ollama":
         setup_api_key(default_provider_id, restored_api_key)
@@ -2908,10 +2935,14 @@ async def on_chat_start():
 async def _send_eira_introduction(
     user_name: str, profile: str, doc_count: int, doc_limit: int
 ):
-    """Send Eira introduction only (welcome/instructions already shown in on_chat_start)."""
+    """Send Eira introduction, then ask signature detection & level range questions."""
     intro = t("eira.introduction", name=user_name)
     await cl.Message(content=intro, author="Eira").send()
 
+    # Only ask setup questions for Doc Control profile
+    if profile == "文件管制 (Doc Control)":
+        # Step 1: Ask signature detection toggle
+        await _ask_sig_detection_toggle(user_name)
 
 @cl.on_chat_end
 async def on_chat_end():
@@ -3957,10 +3988,11 @@ async def handle_regulatory_list():
             },
         ):
             async def _on_run_id_ready(run_id: str):
-                report_url = f"/api/report/page/{run_id}"
+                _lang = cl.user_session.get("language", "zh-TW")
+                report_url = f"/api/report/page/{run_id}?lang={_lang}"
                 await cl.Message(
-                    content=f"\n\n📊 **[開啟即時互動報告]({report_url})**\n\n"
-                            f"報告頁面已上線，您可以即時觀看 LLM 互動過程並介入。"
+                    content=f"\n\n📊 **[{t('report.open_realtime')}]({report_url})**\n\n"
+                            f"{t('report.page_online')}"
                 ).send()
 
             pipeline_result = await run_pipeline_analysis(
@@ -4052,15 +4084,11 @@ async def handle_regulatory_list():
 
         # Send report page link to user
         try:
-            report_url = f"/api/report/page/{pipeline_result.run_id}"
+            _lang = cl.user_session.get("language", "zh-TW")
+            report_url = f"/api/report/page/{pipeline_result.run_id}?lang={_lang}"
             await cl.Message(
-                content=f"\n\n📊 **[開啟互動式報告頁面]({report_url})**\n\n"
-                        f"在報告頁面中，您可以：\n"
-                        f"- 篩選和搜尋分析結果\n"
-                        f"- 覆寫判定結果（附原因記錄）\n"
-                        f"- 新增條款備註\n"
-                        f"- 查看版本歷史\n"
-                        f"- 匯出 Word/Excel 報告"
+                content=f"\n\n📊 **[{t('report.open_interactive')}]({report_url})**\n\n"
+                        f"{t('report.page_features')}"
             ).send()
         except Exception:
             pass
@@ -4558,10 +4586,11 @@ async def handle_regulatory_update_rescan(selected_regions: list):
                 },
             ):
                 async def _on_run_id_ready_update(run_id: str):
-                    report_url = f"/api/report/page/{run_id}"
+                    _lang = cl.user_session.get("language", "zh-TW")
+                    report_url = f"/api/report/page/{run_id}?lang={_lang}"
                     await cl.Message(
-                        content=f"\n\n📊 **[開啟即時互動報告]({report_url})**\n\n"
-                                f"報告頁面已上線，您可以即時觀看 LLM 互動過程並介入。"
+                        content=f"\n\n📊 **[{t('report.open_realtime')}]({report_url})**\n\n"
+                                f"{t('report.page_online')}"
                     ).send()
 
                 pipeline_result = await run_pipeline_analysis(
@@ -4666,15 +4695,11 @@ async def handle_regulatory_update_rescan(selected_regions: list):
 
         # Send report page link to user
         try:
-            report_url = f"/api/report/page/{pipeline_result.run_id}"
+            _lang = cl.user_session.get("language", "zh-TW")
+            report_url = f"/api/report/page/{pipeline_result.run_id}?lang={_lang}"
             await cl.Message(
-                content=f"\n\n📊 **[開啟互動式報告頁面]({report_url})**\n\n"
-                        f"在報告頁面中，您可以：\n"
-                        f"- 篩選和搜尋分析結果\n"
-                        f"- 覆寫判定結果（附原因記錄）\n"
-                        f"- 新增條款備註\n"
-                        f"- 查看版本歷史\n"
-                        f"- 匯出 Word/Excel 報告"
+                content=f"\n\n📊 **[{t('report.open_interactive')}]({report_url})**\n\n"
+                        f"{t('report.page_features')}"
             ).send()
         except Exception:
             pass
@@ -5140,6 +5165,59 @@ async def _send_file_download(filepath: str, msg_text: str):
     await cl.Message(content=msg_text, elements=elements).send()
 
 
+async def _send_inline_view(filepath: str, doc_id: str, level: str):
+    """Helper: send a document for inline viewing (no download)."""
+    suffix = Path(filepath).suffix.lower()
+
+    # For PDF files, show inline as PDF element
+    if suffix == ".pdf":
+        display_name = re.sub(r"^\d{14}_", "", Path(filepath).name)
+        elements = [cl.Pdf(name=display_name, path=filepath, display="inline")]
+        if level == "external":
+            hint = t("view.external_hint")
+        else:
+            level_label = {"1": "1階", "2": "2階", "3": "3階", "4": "4階"}.get(level, level)
+            hint = t("view.inline_hint", level=level_label)
+        msg_text = t("view.inline_title", doc_id=doc_id) + "\n" + hint
+        await cl.Message(content=msg_text, elements=elements).send()
+        return
+
+    # For non-PDF files, try converting to PDF for inline view
+    pdf_path = convert_to_pdf_for_viewing(filepath)
+    if pdf_path and pdf_path != filepath:
+        display_name = Path(pdf_path).name
+        elements = [cl.Pdf(name=display_name, path=pdf_path, display="inline")]
+        if level == "external":
+            hint = t("view.external_hint")
+        else:
+            level_label = {"1": "1階", "2": "2階", "3": "3階", "4": "4階"}.get(level, level)
+            hint = t("view.inline_hint", level=level_label)
+        msg_text = t("view.inline_title", doc_id=doc_id) + "\n" + hint
+        await cl.Message(content=msg_text, elements=elements).send()
+        return
+
+    # Fallback: show markdown content from storage
+    storage = get_markdown_store()
+    doc_data = storage.get_document(doc_id)
+    if doc_data and doc_data.get("success"):
+        md_content = doc_data.get("content", "")
+        if len(md_content) > 4000:
+            md_content = md_content[:4000] + "\n\n... (內容截斷)"
+        if level == "external":
+            hint = t("view.external_hint")
+        else:
+            level_label = {"1": "1階", "2": "2階", "3": "3階", "4": "4階"}.get(level, level)
+            hint = t("view.inline_hint", level=level_label)
+        msg_text = (
+            t("view.inline_title", doc_id=doc_id) + "\n" + hint
+            + "\n\n" + t("view.no_pdf")
+            + "\n\n---\n\n" + md_content
+        )
+        await cl.Message(content=msg_text).send()
+    else:
+        await cl.Message(content=t("view.no_pdf")).send()
+
+
 @cl.action_callback("download_audit_word")
 async def on_download_audit_word(action):
     """Download audit records as Word."""
@@ -5323,7 +5401,12 @@ async def on_cancel_regulatory_delete(action):
 
 @cl.action_callback("download_original_file")
 async def on_download_original_file(action):
-    """Download original uploaded file by doc_id."""
+    """Download or view original uploaded file by doc_id.
+
+    Rules:
+        - Level 4 (表單/Form): Allow download
+        - Levels 1-3 + External: Inline PDF view only
+    """
     doc_id = action.payload.get("doc_id", "")
     if not doc_id:
         await cl.Message(content=t("download.no_doc_id")).send()
@@ -5332,15 +5415,350 @@ async def on_download_original_file(action):
 
     storage = get_markdown_store()
     file_path = storage.get_original_file_path(doc_id)
-    if file_path:
-        fname = re.sub(r"^\d{14}_", "", Path(file_path).name)
+    if not file_path:
+        await cl.Message(content=t("download.file_error", doc_id=doc_id)).send()
+        await action.remove()
+        return
+
+    fname = re.sub(r"^\d{14}_", "", Path(file_path).name)
+
+    # Get document metadata to determine level
+    doc_data = storage.get_document(doc_id)
+    doc_type = "OTHER"
+    title = ""
+    content = ""
+    if doc_data and doc_data.get("success"):
+        meta = doc_data.get("metadata", {})
+        doc_type = meta.get("doc_type", "OTHER")
+        title = meta.get("title", "")
+        content = doc_data.get("content", "")[:3000]
+
+    # Determine document level and check against controlled_levels
+    level = get_document_level(doc_id, doc_type, title, content)
+    controlled = cl.user_session.get("controlled_levels", ["1", "2", "3"])
+    # External docs are ALWAYS view-only
+    # Documents in controlled levels are view-only
+    # Only documents OUTSIDE controlled levels can be downloaded
+    is_download_allowed = (
+        level not in controlled
+        and level != "external"
+        and level != "other"
+    )
+
+    if is_download_allowed:
+        # Outside controlled range (e.g., Level 4 when controlled is 1-3) — allow download
         await _send_file_download(
-            file_path, t("download.found", doc_id=doc_id, filename=fname)
+            file_path, t("view.download_title", doc_id=doc_id) + "\n" + t("view.download_hint")
         )
     else:
-        await cl.Message(content=t("download.file_error", doc_id=doc_id)).send()
+        # Controlled levels + External — inline view only
+        await _send_inline_view(file_path, doc_id, level)
+
     await action.remove()
 
+
+
+# ============================================================
+# Signature Detection Toggle & Level Range Callbacks
+# ============================================================
+
+
+async def _ask_sig_detection_toggle(user_name: str):
+    """Ask user whether to enable or disable signature detection."""
+    actions = [
+        cl.Action(
+            name="sig_detection_enable",
+            payload={"value": "enable"},
+            label=t("sig_toggle.btn_enable"),
+        ),
+        cl.Action(
+            name="sig_detection_disable",
+            payload={"value": "disable"},
+            label=t("sig_toggle.btn_disable"),
+        ),
+    ]
+    await cl.Message(
+        content=t("sig_toggle.ask", name=user_name),
+        author="Eira",
+        actions=actions,
+    ).send()
+
+
+async def _ask_level_range():
+    """Ask user to select document control level range."""
+    actions = [
+        cl.Action(
+            name="level_range_1_4",
+            payload={"value": "1-4"},
+            label=t("level_range.btn_1_4"),
+        ),
+        cl.Action(
+            name="level_range_1_3",
+            payload={"value": "1-3"},
+            label=t("level_range.btn_1_3"),
+        ),
+    ]
+    await cl.Message(
+        content=t("level_range.ask"),
+        author="Eira",
+        actions=actions,
+    ).send()
+
+async def _ask_post_upload_setup():
+    """After all files uploaded, ask level range then watermark if not yet asked."""
+    if not cl.user_session.get("level_range_asked"):
+        await _ask_level_range()
+        return  # level_range callback will chain to watermark
+    if not cl.user_session.get("watermark_confirmed"):
+        await _ask_watermark_before_upload()
+        return
+
+
+@cl.action_callback("sig_detection_enable")
+async def on_sig_detection_enable(action):
+    """User chose to enable signature detection."""
+    await action.remove()
+    cl.user_session.set("signature_detection_enabled", True)
+    cl.user_session.set("sig_detection_asked", True)
+    await cl.Message(content=t("sig_toggle.enabled"), author="Eira").send()
+    # Proceed to ask level range
+    await _ask_level_range()
+
+
+@cl.action_callback("sig_detection_disable")
+async def on_sig_detection_disable(action):
+    """User chose to disable signature detection."""
+    await action.remove()
+    cl.user_session.set("signature_detection_enabled", False)
+    cl.user_session.set("sig_detection_asked", True)
+    await cl.Message(content=t("sig_toggle.disabled"), author="Eira").send()
+    # Proceed to ask level range
+    await _ask_level_range()
+
+
+@cl.action_callback("level_range_1_4")
+async def on_level_range_1_4(action):
+    """User selected 1-4 level range (all controlled)."""
+    await action.remove()
+    cl.user_session.set("controlled_levels", ["1", "2", "3", "4"])
+    cl.user_session.set("level_range_asked", True)
+    await cl.Message(content=t("level_range.selected_1_4"), author="Eira").send()
+    # After level range, ask watermark
+    if not cl.user_session.get("watermark_confirmed"):
+        await _ask_watermark_before_upload()
+
+
+@cl.action_callback("level_range_1_3")
+async def on_level_range_1_3(action):
+    """User selected 1-3 level range (level 4 downloadable)."""
+    await action.remove()
+    cl.user_session.set("controlled_levels", ["1", "2", "3"])
+    cl.user_session.set("level_range_asked", True)
+    await cl.Message(content=t("level_range.selected_1_3"), author="Eira").send()
+    # After level range, ask watermark
+    if not cl.user_session.get("watermark_confirmed"):
+        await _ask_watermark_before_upload()
+
+# ============================================================
+# Watermark Action Callbacks & Flow
+# ============================================================
+
+
+async def _apply_watermark_to_existing_docs():
+    """Apply watermark to already-uploaded documents based on controlled_levels.
+
+    Called AFTER both level_range and watermark are confirmed.
+    Scans all documents in the DB, applies watermark to PDFs that are
+    within the controlled_levels or are external docs.
+    """
+    wm_path = cl.user_session.get("watermark_image_path")
+    if not wm_path:
+        return  # No watermark image provided (user skipped)
+
+    controlled = cl.user_session.get("controlled_levels", ["1", "2", "3"])
+    opacity = cl.user_session.get("watermark_opacity", 0.15)
+    angle = cl.user_session.get("watermark_angle", 45)
+    tile_count = cl.user_session.get("watermark_tile_count", 3)
+
+    storage = get_markdown_store()
+    docs = storage.list_documents()
+    if not docs:
+        return
+
+    applied_count = 0
+    skipped_count = 0
+    progress_msg = await cl.Message(content="⏳ 正在對管控範圍內的文件套用浮水印...").send()
+
+    for doc in docs:
+        doc_id = doc.get("doc_id", "")
+        doc_type = doc.get("doc_type", "OTHER")
+        title = doc.get("title", "")
+        status = doc.get("status", "")
+
+        # Skip obsolete/superseded docs
+        if status in ("obsolete", "superseded"):
+            continue
+
+        # Get file path
+        file_path = storage.get_original_file_path(doc_id)
+        if not file_path or not Path(file_path).exists():
+            continue
+
+        # Only process PDF files
+        if Path(file_path).suffix.lower() != ".pdf":
+            continue
+
+        # Determine level
+        doc_data = storage.get_document(doc_id)
+        content = ""
+        if doc_data and doc_data.get("success"):
+            content = doc_data.get("content", "")[:3000]
+
+        level = get_document_level(doc_id, doc_type, title, content)
+
+        # Apply watermark only to controlled levels + external
+        should_watermark = level in controlled or level == "external"
+        if not should_watermark:
+            skipped_count += 1
+            continue
+
+        try:
+            await asyncio.to_thread(
+                add_watermark_to_pdf,
+                file_path, wm_path,
+                opacity=opacity, angle=angle, tile_count=tile_count,
+            )
+            applied_count += 1
+        except Exception as e:
+            logging.getLogger(__name__).warning(f"Watermark failed for {doc_id}: {e}")
+
+    progress_msg.content = t(
+        "watermark.applied_summary",
+        applied=applied_count,
+        skipped=skipped_count,
+    )
+    await progress_msg.update()
+
+@cl.action_callback("watermark_provide")
+async def on_watermark_provide(action):
+    """User chose to provide a watermark image."""
+    await action.remove()
+    cl.user_session.set("awaiting_watermark_decision", False)
+    cl.user_session.set("awaiting_watermark_image", True)
+    await cl.Message(content=t("watermark.upload_prompt")).send()
+
+
+@cl.action_callback("watermark_skip")
+async def on_watermark_skip(action):
+    """User chose to skip watermark."""
+    await action.remove()
+    cl.user_session.set("awaiting_watermark_decision", False)
+    cl.user_session.set("watermark_confirmed", True)  # Mark as decided (no watermark)
+    cl.user_session.set("watermark_image_path", None)
+    await cl.Message(content=t("watermark.skipped")).send()
+    # Auto-process any pending files
+    await _process_pending_upload_files()
+
+
+@cl.action_callback("watermark_confirm")
+async def on_watermark_confirm(action):
+    """User confirmed watermark settings."""
+    await action.remove()
+    cl.user_session.set("watermark_confirmed", True)
+    await cl.Message(content=t("watermark.confirmed")).send()
+    # Auto-process any pending files
+    await _process_pending_upload_files()
+
+
+@cl.action_callback("watermark_adjust_opacity")
+async def on_watermark_adjust_opacity(action):
+    """User wants to adjust opacity."""
+    await action.remove()
+    cl.user_session.set("awaiting_watermark_opacity", True)
+    await cl.Message(content=t("watermark.enter_opacity")).send()
+
+
+@cl.action_callback("watermark_adjust_angle")
+async def on_watermark_adjust_angle(action):
+    """User wants to adjust angle."""
+    await action.remove()
+    cl.user_session.set("awaiting_watermark_angle", True)
+    await cl.Message(content=t("watermark.enter_angle")).send()
+
+
+@cl.action_callback("watermark_adjust_tiles")
+async def on_watermark_adjust_tiles(action):
+    """User wants to adjust tile count."""
+    await action.remove()
+    cl.user_session.set("awaiting_watermark_tiles", True)
+    await cl.Message(content=t("watermark.enter_tiles")).send()
+
+
+async def _send_watermark_preview():
+    """Generate and send watermark preview with adjustment buttons."""
+    wm_path = cl.user_session.get("watermark_image_path")
+    if not wm_path:
+        return
+
+    opacity = cl.user_session.get("watermark_opacity", 0.15)
+    angle = cl.user_session.get("watermark_angle", 45)
+    tile_count = cl.user_session.get("watermark_tile_count", 3)
+
+    preview_msg = cl.Message(content=t("watermark.preview_generating"))
+    await preview_msg.send()
+
+    try:
+        preview_path = await asyncio.to_thread(
+            generate_watermark_preview,
+            wm_path, opacity=opacity, angle=angle, tile_count=tile_count,
+        )
+
+        params_text = t(
+            "watermark.preview_params",
+            opacity=opacity, angle=angle, tile_count=tile_count,
+        )
+        elements = [cl.Pdf(name="watermark_preview.pdf", path=preview_path, display="inline")]
+        actions = [
+            cl.Action(name="watermark_confirm", payload={"value": "confirm"}, label=t("watermark.confirm")),
+            cl.Action(name="watermark_adjust_opacity", payload={"value": "opacity"}, label=t("watermark.adjust_opacity")),
+            cl.Action(name="watermark_adjust_angle", payload={"value": "angle"}, label=t("watermark.adjust_angle")),
+            cl.Action(name="watermark_adjust_tiles", payload={"value": "tiles"}, label=t("watermark.adjust_tiles")),
+        ]
+        preview_msg.content = (
+            t("watermark.preview_title") + "\n\n" + params_text
+            + "\n\n" + t("watermark.preview_adjust")
+        )
+        preview_msg.elements = elements
+        preview_msg.actions = actions
+        await preview_msg.update()
+    except Exception as e:
+        preview_msg.content = t("watermark.error", error=str(e))
+        await preview_msg.update()
+
+
+async def _ask_watermark_before_upload():
+    """Ask user if they want to provide a watermark image before uploading files."""
+    user_name = cl.user_session.get("user_name", "")
+    if not user_name:
+        user_name = "使用者"
+
+    actions = [
+        cl.Action(
+            name="watermark_provide",
+            payload={"value": "provide"},
+            label=t("watermark.ask_provide_btn_yes"),
+        ),
+        cl.Action(
+            name="watermark_skip",
+            payload={"value": "skip"},
+            label=t("watermark.ask_provide_btn_no"),
+        ),
+    ]
+    cl.user_session.set("awaiting_watermark_decision", True)
+    await cl.Message(
+        content=t("watermark.ask_provide", name=user_name),
+        actions=actions,
+    ).send()
     # ============================================================
     # Doc Control: File Upload Processing
     # ============================================================
@@ -5476,8 +5894,11 @@ async def handle_file_upload(files):
         await progress_msg.update()
 
         lang = cl.user_session.get("language", "zh-TW")
+        # Get signature detection setting from session
+        sig_enabled = cl.user_session.get("signature_detection_enabled", True)
         result = await asyncio.to_thread(
-            process_uploaded_file_sync, file_el, provider_id, api_key, model_name, lang
+            process_uploaded_file_sync, file_el, provider_id, api_key, model_name, lang,
+            sig_enabled,
         )
 
         if result["success"]:
@@ -5578,6 +5999,12 @@ async def handle_file_upload(files):
 
     progress_msg.content = "\n".join(lines)
     await progress_msg.update()
+
+    # --- Post-upload: ask level range & watermark if not yet asked ---
+    # Only ask if there's no version update pending (version update has its own flow)
+    has_version_update = succeeded and succeeded[-1].get("is_duplicate")
+    if not has_version_update:
+        await _ask_post_upload_setup()
 
     # If there's a version update candidate, run diff analysis BEFORE confirm
     if succeeded and succeeded[-1].get("is_duplicate"):
@@ -5699,6 +6126,7 @@ def process_uploaded_file_sync(
     api_key: str = "",
     model_name: str = "",
     lang: str = "zh-TW",
+    signature_detection_enabled: bool = True,
 ):
     """Synchronous wrapper for file processing (runs in thread).
 
@@ -5734,36 +6162,47 @@ def process_uploaded_file_sync(
     dest_path = UPLOAD_FOLDER / f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
     shutil.copy(file_path, dest_path)
 
+
     # Signature detection BEFORE OCR — fail fast for unsigned documents.
     # detect_signature checks PDF structure, annotations, and embedded
     # images directly — no OCR text needed for scanned PDFs.
     # This avoids wasting 10-30 min on OCR for a document that will be
     # rejected anyway due to missing signature/stamp.
-    empty_ocr_for_sig = {
-        "markdown_content": "",
-        "text_content": "",
-        "detected_elements": {
+    sig_result = None
+    if signature_detection_enabled:
+        empty_ocr_for_sig = {
+            "markdown_content": "",
+            "text_content": "",
+            "detected_elements": {
+                "stamps": [],
+                "signatures": [],
+                "tables": [],
+                "headers": [],
+                "metadata": {},
+            },
+        }
+        sig_result = detect_signature(
+            empty_ocr_for_sig, file_path=str(dest_path), lang=lang
+        )
+
+        if not sig_result["detected"]:
+            try:
+                dest_path.unlink()
+            except Exception:
+                pass
+            return {
+                "success": False,
+                "filename": filename,
+                "error": _t("upload.no_sig_error", reason=sig_result["reason"]),
+                "sig_result": sig_result,
+            }
+    else:
+        # Signature detection disabled — create a dummy result
+        sig_result = {
+            "detected": False,
+            "reason": "Signature detection disabled",
             "stamps": [],
             "signatures": [],
-            "tables": [],
-            "headers": [],
-            "metadata": {},
-        },
-    }
-    sig_result = detect_signature(
-        empty_ocr_for_sig, file_path=str(dest_path), lang=lang
-    )
-
-    if not sig_result["detected"]:
-        try:
-            dest_path.unlink()
-        except Exception:
-            pass
-        return {
-            "success": False,
-            "filename": filename,
-            "error": _t("upload.no_sig_error", reason=sig_result["reason"]),
-            "sig_result": sig_result,
         }
 
     setup_api_key(provider_id, api_key)
@@ -7228,6 +7667,36 @@ async def on_message(message: cl.Message):
     if message.elements and profile == "文件管制 (Doc Control)":
         file_elements = [el for el in message.elements if hasattr(el, "path")]
         if file_elements:
+            # Check if we're awaiting a watermark image upload
+            if cl.user_session.get("awaiting_watermark_image"):
+                cl.user_session.set("awaiting_watermark_image", False)
+                # Take the first image file as watermark
+                wm_file = file_elements[0]
+                wm_suffix = Path(wm_file.name).suffix.lower()
+                image_exts = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".tiff", ".tif", ".bmp"}
+                if wm_suffix in image_exts:
+                    # Copy watermark image to uploads
+                    ensure_upload_folder()
+                    wm_dest = UPLOAD_FOLDER / f"watermark_{datetime.now().strftime('%Y%m%d%H%M%S')}{wm_suffix}"
+                    shutil.copy(wm_file.path, wm_dest)
+                    cl.user_session.set("watermark_image_path", str(wm_dest))
+                    # Generate and show preview
+                    await _send_watermark_preview()
+                else:
+                    await cl.Message(content=t("watermark.invalid_value") + " (PNG/JPG)").send()
+                    cl.user_session.set("awaiting_watermark_image", True)
+                return
+
+            # Only block upload if sig detection hasn't been asked yet
+            if not cl.user_session.get("sig_detection_asked"):
+                # Store pending files and ask sig detection first
+                cl.user_session.set("pending_upload_files", [(el.name, el.path) for el in file_elements])
+                user_name = cl.user_session.get("user_name", "")
+                await _ask_sig_detection_toggle(user_name or "使用者")
+                return
+
+            # Level range and watermark are asked AFTER upload completes
+            # Just proceed with upload directly
             await handle_file_upload(file_elements)
             return
 
@@ -7262,6 +7731,54 @@ async def on_message(message: cl.Message):
         profile = cl.user_session.get("chat_profile")
         doc_count, doc_limit = get_document_count()
         await _send_eira_introduction(user_name, profile, doc_count, doc_limit)
+        return
+
+    # ============================================================
+    # Intercept: awaiting watermark parameter inputs
+    # ============================================================
+    if cl.user_session.get("awaiting_watermark_opacity"):
+        cl.user_session.set("awaiting_watermark_opacity", False)
+        try:
+            val = float(text.strip())
+            if 0.01 <= val <= 1.0:
+                cl.user_session.set("watermark_opacity", val)
+                await _send_watermark_preview()
+            else:
+                await cl.Message(content=t("watermark.invalid_value")).send()
+                cl.user_session.set("awaiting_watermark_opacity", True)
+        except ValueError:
+            await cl.Message(content=t("watermark.invalid_value")).send()
+            cl.user_session.set("awaiting_watermark_opacity", True)
+        return
+
+    if cl.user_session.get("awaiting_watermark_angle"):
+        cl.user_session.set("awaiting_watermark_angle", False)
+        try:
+            val = float(text.strip())
+            if 0 <= val <= 360:
+                cl.user_session.set("watermark_angle", val)
+                await _send_watermark_preview()
+            else:
+                await cl.Message(content=t("watermark.invalid_value")).send()
+                cl.user_session.set("awaiting_watermark_angle", True)
+        except ValueError:
+            await cl.Message(content=t("watermark.invalid_value")).send()
+            cl.user_session.set("awaiting_watermark_angle", True)
+        return
+
+    if cl.user_session.get("awaiting_watermark_tiles"):
+        cl.user_session.set("awaiting_watermark_tiles", False)
+        try:
+            val = int(text.strip())
+            if 1 <= val <= 10:
+                cl.user_session.set("watermark_tile_count", val)
+                await _send_watermark_preview()
+            else:
+                await cl.Message(content=t("watermark.invalid_value")).send()
+                cl.user_session.set("awaiting_watermark_tiles", True)
+        except ValueError:
+            await cl.Message(content=t("watermark.invalid_value")).send()
+            cl.user_session.set("awaiting_watermark_tiles", True)
         return
 
     # ============================================================
@@ -7736,17 +8253,33 @@ async def on_message(message: cl.Message):
                     r"([A-Z]{2,4}-\d{2,4}(?:-\d{1,2})?)", text, re.IGNORECASE
                 )
                 doc_id = doc_id_match.group(1).upper() if doc_id_match else ""
-                actions = [
-                    cl.Action(
-                        name="download_original_file",
-                        payload={"doc_id": doc_id},
-                        label=f"📥 {fname}",
-                    ),
-                ]
-                elements = [cl.File(name=fname, path=filepath, display="inline")]
-                await cl.Message(
-                    content=msg_text, elements=elements, actions=actions
-                ).send()
+
+                # Determine document level for view/download decision
+                level = get_document_level(doc_id, doc_type, title_str, content_str)
+                controlled = cl.user_session.get("controlled_levels", ["1", "2", "3"])
+                is_dl_allowed = (
+                    level not in controlled
+                    and level != "external"
+                    and level != "other"
+                )
+
+                if is_dl_allowed:
+                    # Outside controlled range — allow download
+                    actions = [
+                        cl.Action(
+                            name="download_original_file",
+                            payload={"doc_id": doc_id},
+                            label=f"📥 {fname}",
+                        ),
+                    ]
+                    elements = [cl.File(name=fname, path=filepath, display="inline")]
+                    download_msg = t("view.download_title", doc_id=doc_id) + "\n" + t("view.download_hint")
+                    await cl.Message(
+                        content=download_msg, elements=elements, actions=actions
+                    ).send()
+                else:
+                    # Controlled levels + External — inline view only
+                    await _send_inline_view(filepath, doc_id, level)
             else:
                 await cl.Message(content=msg_text).send()
             return
@@ -7756,6 +8289,31 @@ async def on_message(message: cl.Message):
             await handle_delete_db()
             return
 
+        # Reset watermark settings
+        if _match_cmd(text, "cmd.reset_watermark"):
+            cl.user_session.set("watermark_confirmed", False)
+            cl.user_session.set("watermark_image_path", None)
+            cl.user_session.set("watermark_opacity", 0.15)
+            cl.user_session.set("watermark_angle", 45)
+            cl.user_session.set("watermark_tile_count", 3)
+            cl.user_session.set("awaiting_watermark_decision", False)
+            cl.user_session.set("awaiting_watermark_image", False)
+            await cl.Message(content=t("watermark.reset_done")).send()
+            return
+
+        # Reset signature detection settings
+        if _match_cmd(text, "cmd.reset_sig_detection"):
+            cl.user_session.set("sig_detection_asked", False)
+            cl.user_session.set("signature_detection_enabled", True)  # Reset to default
+            await cl.Message(content=t("sig_toggle.reset_done")).send()
+            return
+
+        # Reset document level range settings
+        if _match_cmd(text, "cmd.reset_level_range"):
+            cl.user_session.set("level_range_asked", False)
+            cl.user_session.set("controlled_levels", ["1", "2", "3"])  # Reset to default
+            await cl.Message(content=t("level_range.reset_done")).send()
+            return
         # LLM test connection
         if _match_cmd(text, "cmd.test_connection"):
             provider_id = cl.user_session.get("provider_id", "ollama")

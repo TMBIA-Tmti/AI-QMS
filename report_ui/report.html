@@ -1,19 +1,19 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="{{LANG}}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI-QMS 合規性分析報告</title>
+    <title data-i18n="page.title">AI-QMS 合規性分析報告</title>
     <link rel="stylesheet" href="/api/report/static/report.css">
 </head>
 <body>
     <!-- Run ID injected by server -->
-    <script>window.__RUN_ID__ = "{{RUN_ID}}";</script>
+    <script>window.__RUN_ID__ = "{{RUN_ID}}"; window.__LANG__ = "{{LANG}}";</script>
 
     <!-- ===== Header ===== -->
     <header class="report-header">
         <div class="header-left">
-            <h1>📊 合規性分析報告</h1>
+            <h1 data-i18n="page.header">📊 合規性分析報告</h1>
             <span class="run-id" id="headerRunId"></span>
         </div>
         <div class="header-right">
@@ -24,9 +24,10 @@
 
     <!-- ===== Tab Navigation ===== -->
     <nav class="tab-nav" id="tabNav">
-        <button class="tab-btn active" data-tab="analysis">📊 合規分析結果</button>
-        <button class="tab-btn" data-tab="crossref">🔗 跨國法規交叉比對表</button>
-        <button class="tab-btn" data-tab="crossexam">💬 即時 LLM 互動</button>
+        <button class="tab-btn active" data-tab="analysis" data-i18n="tabs.analysis">📊 合規分析結果</button>
+        <button class="tab-btn" data-tab="crossref" data-i18n="tabs.crossref">🔗 跨國法規交叉比對表</button>
+        <button class="tab-btn" data-tab="crossexam" data-i18n="tabs.crossexam">💬 即時 LLM 互動</button>
+        <button class="tab-btn" data-tab="verification" data-i18n="tabs.verification">🔍 資料驗證</button>
     </nav>
 
     <!-- ===== TAB: Analysis Results ===== -->
@@ -36,42 +37,42 @@
             <div class="card-icon">📋</div>
             <div class="card-body">
                 <div class="card-value" id="totalRows">—</div>
-                <div class="card-label">分析項目</div>
+                <div class="card-label" data-i18n="summary.total_rows">分析項目</div>
             </div>
         </div>
         <div class="summary-card card-compliant">
             <div class="card-icon">✅</div>
             <div class="card-body">
                 <div class="card-value" id="fullCompliance">—</div>
-                <div class="card-label">完全符合</div>
+                <div class="card-label" data-i18n="summary.full_compliance">完全符合</div>
             </div>
         </div>
         <div class="summary-card card-partial">
             <div class="card-icon">⚠️</div>
             <div class="card-body">
                 <div class="card-value" id="partialCompliance">—</div>
-                <div class="card-label">部分符合</div>
+                <div class="card-label" data-i18n="summary.partial_compliance">部分符合</div>
             </div>
         </div>
         <div class="summary-card card-non">
             <div class="card-icon">❌</div>
             <div class="card-body">
                 <div class="card-value" id="nonCompliance">—</div>
-                <div class="card-label">未符合</div>
+                <div class="card-label" data-i18n="summary.non_compliance">未符合</div>
             </div>
         </div>
         <div class="summary-card card-flagged">
             <div class="card-icon">🚩</div>
             <div class="card-body">
                 <div class="card-value" id="flaggedCount">—</div>
-                <div class="card-label">需 RA 審查</div>
+                <div class="card-label" data-i18n="summary.flagged_count">需 RA 審查</div>
             </div>
         </div>
         <div class="summary-card card-budget">
             <div class="card-icon">📈</div>
             <div class="card-body">
                 <div class="card-value" id="tokenUsage">—</div>
-                <div class="card-label">Token 用量</div>
+                <div class="card-label" data-i18n="summary.token_usage">Token 用量</div>
             </div>
         </div>
     </section>
@@ -80,40 +81,40 @@
     <section class="filters-bar">
         <div class="filters-left">
             <div class="filter-group">
-                <label for="filterDoc">文件</label>
+                <label for="filterDoc" data-i18n="filters.document">文件</label>
                 <select id="filterDoc">
-                    <option value="">全部文件</option>
+                    <option value="" data-i18n="filters.all_documents">全部文件</option>
                 </select>
             </div>
             <div class="filter-group">
-                <label for="filterVerdict">判定結果</label>
+                <label for="filterVerdict" data-i18n="filters.verdict">判定結果</label>
                 <select id="filterVerdict">
-                    <option value="">全部結果</option>
+                    <option value="" data-i18n="filters.all_verdicts">全部結果</option>
                 </select>
             </div>
             <div class="filter-group">
-                <label for="filterRisk">風險等級</label>
+                <label for="filterRisk" data-i18n="filters.risk_level">風險等級</label>
                 <select id="filterRisk">
-                    <option value="">全部等級</option>
+                    <option value="" data-i18n="filters.all_risk_levels">全部等級</option>
                 </select>
             </div>
             <div class="filter-group">
                 <label for="filterFlagged">
-                    <input type="checkbox" id="filterFlagged"> 僅顯示需審查
+                    <input type="checkbox" id="filterFlagged"> <span data-i18n="filters.flagged_only">僅顯示需審查</span>
                 </label>
             </div>
             <div class="filter-group search-group">
-                <input type="text" id="filterSearch" placeholder="搜尋條款 / 文件...">
+                <input type="text" id="filterSearch" data-i18n-placeholder="filters.search_placeholder" placeholder="搜尋條款 / 文件...">
             </div>
         </div>
         <div class="filters-right">
-            <button class="btn btn-outline" id="btnExportWord" title="匯出 Word">
+            <button class="btn btn-outline" id="btnExportWord" data-i18n-title="actions.export_word" title="匯出 Word">
                 📄 Word
             </button>
-            <button class="btn btn-outline" id="btnExportExcel" title="匯出 Excel">
+            <button class="btn btn-outline" id="btnExportExcel" data-i18n-title="actions.export_excel" title="匯出 Excel">
                 📊 Excel
             </button>
-            <button class="btn btn-primary" id="btnRefresh" title="重新整理">
+            <button class="btn btn-primary" id="btnRefresh" data-i18n="actions.refresh" title="重新整理">
                 🔄 重新整理
             </button>
         </div>
@@ -122,25 +123,25 @@
     <!-- ===== Main Table ===== -->
     <section class="table-section">
         <div class="table-info">
-            <span id="tableCount">載入中...</span>
+            <span id="tableCount" data-i18n="table.loading">載入中...</span>
         </div>
         <div class="table-container">
             <table class="report-table" id="reportTable">
                 <thead>
                     <tr>
-                        <th class="col-clause">條款</th>
-                        <th class="col-doc">品質文件</th>
-                        <th class="col-question">稽核問題</th>
-                        <th class="col-evidence">證據</th>
-                        <th class="col-verdict">判定</th>
-                        <th class="col-risk">風險</th>
-                        <th class="col-flags">標記</th>
-                        <th class="col-actions">操作</th>
+                        <th class="col-clause" data-i18n="table.clause">條款</th>
+                        <th class="col-doc" data-i18n="table.document">品質文件</th>
+                        <th class="col-question" data-i18n="table.audit_question">稽核問題</th>
+                        <th class="col-evidence" data-i18n="table.evidence">證據</th>
+                        <th class="col-verdict" data-i18n="table.verdict">判定</th>
+                        <th class="col-risk" data-i18n="table.risk">風險</th>
+                        <th class="col-flags" data-i18n="table.flags">標記</th>
+                        <th class="col-actions" data-i18n="table.actions">操作</th>
                     </tr>
                 </thead>
                 <tbody id="reportTableBody">
                     <tr>
-                        <td colspan="8" class="loading-cell">載入中...</td>
+                        <td colspan="8" class="loading-cell" data-i18n="table.loading">載入中...</td>
                     </tr>
                 </tbody>
             </table>
@@ -154,12 +155,12 @@
             <!-- Country Selector -->
             <div class="crossref-controls">
                 <div class="country-selector">
-                    <h3>🌍 選擇法規國家</h3>
+                    <h3 data-i18n="crossref.select_countries">🌍 選擇法規國家</h3>
                     <div class="country-checkboxes" id="countryCheckboxes">
                         <!-- Populated by JS -->
-                        <div class="loading-cell">載入法規清單中...</div>
+                        <div class="loading-cell" data-i18n="crossref.loading_regulations">載入法規清單中...</div>
                     </div>
-                    <button class="btn btn-primary" id="btnLoadCrossref">📊 產生交叉比對表</button>
+                    <button class="btn btn-primary" id="btnLoadCrossref" data-i18n="crossref.generate_btn">📊 產生交叉比對表</button>
                 </div>
             </div>
 
@@ -173,10 +174,10 @@
                 <div class="table-info">
                     <span id="crossrefTableCount"></span>
                     <div class="crossref-legend">
-                        <span class="legend-item"><span class="legend-dot dot-full"></span>完全採用 (Full)</span>
-                        <span class="legend-item"><span class="legend-dot dot-partial"></span>部分採用 (Partial)</span>
-                        <span class="legend-item"><span class="legend-dot dot-exceeds"></span>超越 ISO (Exceeds)</span>
-                        <span class="legend-item"><span class="legend-dot dot-na"></span>不適用 (N/A)</span>
+                        <span class="legend-item"><span class="legend-dot dot-full"></span><span data-i18n="crossref.legend_full">完全採用 (Full)</span></span>
+                        <span class="legend-item"><span class="legend-dot dot-partial"></span><span data-i18n="crossref.legend_partial">部分採用 (Partial)</span></span>
+                        <span class="legend-item"><span class="legend-dot dot-exceeds"></span><span data-i18n="crossref.legend_exceeds">超越 ISO (Exceeds)</span></span>
+                        <span class="legend-item"><span class="legend-dot dot-na"></span><span data-i18n="crossref.legend_na">不適用 (N/A)</span></span>
                     </div>
                 </div>
                 <div class="table-container">
@@ -193,15 +194,15 @@
 
             <!-- Inter-Country Differences -->
             <div class="intercountry-section" id="intercountrySection" style="display:none">
-                <h3>🔀 國家間差異分析</h3>
-                <p class="delta-desc">以下顯示各國法規之間的差異 — 某國有但其他國家沒有的獨特要求。</p>
+                <h3 data-i18n="intercountry.title">🔀 國家間差異分析</h3>
+                <p class="delta-desc" data-i18n="intercountry.desc">以下顯示各國法規之間的差異 — 某國有但其他國家沒有的獨特要求。</p>
                 <div id="intercountryContainer"></div>
             </div>
 
             <!-- Unique Requirements (Delta Items) -->
             <div class="delta-section" id="deltaSection" style="display:none">
-                <h3>🚨 國家獨有要求 (Delta Items) — 最高優先級</h3>
-                <p class="delta-desc">以下為各國法規中超出 ISO 13485 的獨有要求，品質文件必須額外涵蓋這些內容。</p>
+                <h3 data-i18n="delta.title">🚨 國家獨有要求 (Delta Items) — 最高優先級</h3>
+                <p class="delta-desc" data-i18n="delta.desc">以下為各國法規中超出 ISO 13485 的獨有要求，品質文件必須額外涵蓋這些內容。</p>
                 <div id="deltaItemsContainer"></div>
             </div>
         </section>
@@ -213,31 +214,31 @@
             <!-- Cross-Examination Controls -->
             <div class="crossexam-controls">
                 <div class="crossexam-info">
-                    <h3>💬 即時 LLM 互動查看器</h3>
-                    <p>觀看所有 Phase 的 LLM 互動過程（Gap Scan、驗證、改善建議、交叉詰問），必要時可介入修正。</p>
+                    <h3 data-i18n="crossexam.title">💬 即時 LLM 互動查看器</h3>
+                    <p data-i18n="crossexam.desc">觀看所有 Phase 的 LLM 互動過程（Gap Scan、驗證、改善建議、交叉詰問），必要時可介入修正。</p>
                 <div class="crossexam-actions">
-                    <span class="crossexam-status" id="crossexamStatus">⏹ 未連線</span>
-                    <button class="btn btn-primary" id="btnConnectSSE">🔌 連線</button>
-                    <button class="btn btn-outline" id="btnPauseExam" disabled>⏸ 暫停</button>
-                    <button class="btn btn-outline" id="btnResumeExam" disabled>▶️ 繼續</button>
+                    <span class="crossexam-status" id="crossexamStatus" data-i18n="crossexam.disconnected">⏹ 未連線</span>
+                    <button class="btn btn-primary" id="btnConnectSSE" data-i18n="crossexam.connect">🔌 連線</button>
+                    <button class="btn btn-outline" id="btnPauseExam" data-i18n="crossexam.pause" disabled>⏸ 暫停</button>
+                    <button class="btn btn-outline" id="btnResumeExam" data-i18n="crossexam.resume" disabled>▶️ 繼續</button>
                 </div>
             </div>
 
             <!-- Phase Filter Bar -->
             <div class="phase-filter-bar" id="phaseFilterBar">
-                <button class="phase-filter-btn active" data-phase="all">全部</button>
+                <button class="phase-filter-btn active" data-phase="all" data-i18n="crossexam.phase_all">全部</button>
                 <button class="phase-filter-btn" data-phase="1"><span class="phase-badge phase-1">P1</span> Gap Scan</button>
-                <button class="phase-filter-btn" data-phase="2"><span class="phase-badge phase-2">P2</span> 驗證</button>
-                <button class="phase-filter-btn" data-phase="4"><span class="phase-badge phase-4">P4</span> 改善建議</button>
-                <button class="phase-filter-btn" data-phase="5"><span class="phase-badge phase-5">P5</span> 交叉詰問</button>
+                <button class="phase-filter-btn" data-phase="2"><span class="phase-badge phase-2">P2</span> <span data-i18n="crossexam.phase_verify">驗證</span></button>
+                <button class="phase-filter-btn" data-phase="4"><span class="phase-badge phase-4">P4</span> <span data-i18n="crossexam.phase_remediation">改善建議</span></button>
+                <button class="phase-filter-btn" data-phase="5"><span class="phase-badge phase-5">P5</span> <span data-i18n="crossexam.phase_crossexam">交叉詰問</span></button>
             </div>
 
             <!-- Run ID Input for SSE connection -->
             <div class="crossexam-connect" id="crossexamConnect">
                 <div class="form-group" style="margin-bottom:0;display:flex;gap:8px;align-items:center">
-                    <label style="white-space:nowrap;margin-bottom:0">分析 Run ID：</label>
+                    <label style="white-space:nowrap;margin-bottom:0" data-i18n="crossexam.run_id_label">分析 Run ID：</label>
                     <input type="text" id="sseRunIdInput" class="form-select" style="flex:1;max-width:400px"
-                           placeholder="輸入 Run ID 或使用目前的 Run ID">
+                           data-i18n-placeholder="crossexam.run_id_placeholder" placeholder="輸入 Run ID 或使用目前的 Run ID">
                 </div>
             </div>
 
@@ -245,29 +246,122 @@
             <div class="crossexam-feed" id="crossexamFeed">
                 <div class="crossexam-empty">
                     <div class="empty-state-icon">💬</div>
-                    <div class="empty-state-text">連線後將顯示即時交叉詰問內容</div>
+                    <div class="empty-state-text" data-i18n="crossexam.empty_feed">連線後將顯示即時交叉詰問內容</div>
                 </div>
             </div>
 
             <!-- Human Intervention Input -->
             <div class="crossexam-input" id="crossexamInput">
                 <div class="intervention-bar">
-                    <span class="intervention-label">🙋 人工介入：</span>
-                    <input type="text" id="humanMessageInput" class="form-select" style="flex:1"
-                           placeholder="輸入修正訊息，例如：你問錯了，應該問..." disabled>
-                    <button class="btn btn-danger" id="btnSendHuman" disabled>
-                        發送介入
-                    </button>
+                    <div class="intervention-header">
+                        <span class="intervention-label" data-i18n="crossexam.intervention_label">🙋 人工介入：</span>
+                        <button class="btn btn-danger" id="btnSendHuman" data-i18n="crossexam.send_btn" disabled>
+                            發送介入
+                        </button>
+                    </div>
+                    <textarea id="humanMessageInput" class="form-textarea" rows="3"
+                              data-i18n-placeholder="crossexam.input_placeholder" placeholder="輸入修正訊息，例如：這個條款的判定有誤，正確的判定應該是..." disabled></textarea>
+                </div>
+                <div class="intervention-examples">
+                    <div class="intervention-examples-title" data-i18n="crossexam.examples_title">📝 範例訊息：</div>
+                    <ul>
+                        <li data-i18n="crossexam.example_1">「這個條款的判定有誤，正確的判定應該是部分符合，因為我們的 SOP-001 文件中有提到相關程序。」</li>
+                        <li data-i18n="crossexam.example_2">「請重新分析條款 4.2.4，我們已經更新了品質手冊，新增了文件審查程序。」</li>
+                        <li data-i18n="crossexam.example_3">「此證據項目不正確，我們的校驗紀錄保存在 QR-015 中，請重新查找。」</li>
+                        <li><code>/help</code> <span data-i18n="crossexam.example_4_prefix">— 查看可用指令</span></li>
+                    </ul>
                 </div>
             </div>
         </section>
     </div><!-- end tabCrossexam -->
 
+    <!-- ===== TAB: Data Verification ===== -->
+    <div class="tab-content" id="tabVerification" data-tab="verification">
+        <section class="crossref-section">
+            <!-- Verification Summary Cards -->
+            <div class="summary-section" id="verificationSummary">
+                <div class="summary-card card-compliant">
+                    <div class="card-icon">🟢</div>
+                    <div class="card-body">
+                        <div class="card-value" id="verPassCount">—</div>
+                        <div class="card-label" data-i18n="verification.pass">通過</div>
+                    </div>
+                </div>
+                <div class="summary-card card-partial">
+                    <div class="card-icon">🟡</div>
+                    <div class="card-body">
+                        <div class="card-value" id="verWarnCount">—</div>
+                        <div class="card-label" data-i18n="verification.warning">警告</div>
+                    </div>
+                </div>
+                <div class="summary-card card-non">
+                    <div class="card-icon">🔴</div>
+                    <div class="card-body">
+                        <div class="card-value" id="verFailCount">—</div>
+                        <div class="card-label" data-i18n="verification.fail">失敗</div>
+                    </div>
+                </div>
+                <div class="summary-card card-total">
+                    <div class="card-icon">📝</div>
+                    <div class="card-body">
+                        <div class="card-value" id="verTotalCount">—</div>
+                        <div class="card-label" data-i18n="verification.total_docs">總文件數</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Verification Actions -->
+            <div class="filters-bar">
+                <div class="filters-left">
+                    <span id="verTimestamp" style="color:#888;font-size:0.85em"></span>
+                </div>
+                <div class="filters-right">
+                    <button class="btn btn-primary" id="btnReVerify" data-i18n="verification.re_verify">🔄 重新驗證</button>
+                </div>
+            </div>
+
+            <!-- No Data Empty State -->
+            <div id="verNoData" style="display:none">
+                <div class="crossexam-empty" style="padding:60px 20px">
+                    <div class="empty-state-icon">🔍</div>
+                    <div class="empty-state-text" id="verNoDataMsg"></div>
+                </div>
+            </div>
+
+            <!-- Cross Checks Section -->
+            <div id="verCrossChecks" style="display:none">
+                <h3 style="margin:16px 0 8px" data-i18n="verification.cross_checks_title">🔗 交叉比對檢查</h3>
+                <div id="verCrossChecksList"></div>
+            </div>
+
+            <!-- Document Verification Table -->
+            <div id="verTableWrapper" style="display:none">
+                <h3 style="margin:16px 0 8px" data-i18n="verification.doc_results_title">📄 各文件驗證結果</h3>
+                <div class="table-container">
+                    <table class="report-table" id="verTable">
+                        <thead>
+                            <tr>
+                                <th data-i18n="verification.th_region">地區</th>
+                                <th data-i18n="verification.th_agency">機構</th>
+                                <th data-i18n="verification.th_url">URL</th>
+                                <th data-i18n="verification.th_status">狀態</th>
+                                <th data-i18n="verification.th_checks">檢查項目</th>
+                                <th data-i18n="verification.th_issues">問題</th>
+                            </tr>
+                        </thead>
+                        <tbody id="verTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </div><!-- end tabVerification -->
+
     <!-- ===== Row Detail Modal ===== -->
     <div class="modal-overlay" id="detailModal">
         <div class="modal-content modal-large">
             <div class="modal-header">
-                <h2 id="detailTitle">條款詳情</h2>
+                <h2 id="detailTitle" data-i18n="detail.title">條款詳情</h2>
                 <button class="modal-close" id="detailClose">&times;</button>
             </div>
             <div class="modal-body" id="detailBody">
@@ -280,32 +374,32 @@
     <div class="modal-overlay" id="overrideModal">
         <div class="modal-content modal-medium">
             <div class="modal-header">
-                <h2>✏️ 覆寫判定結果</h2>
+                <h2 data-i18n="override.title">✏️ 覆寫判定結果</h2>
                 <button class="modal-close" id="overrideClose">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label>目前判定</label>
+                    <label data-i18n="override.current_verdict">目前判定</label>
                     <div id="overrideCurrent" class="current-verdict"></div>
                 </div>
                 <div class="form-group">
-                    <label for="overrideVerdict">新判定結果</label>
+                    <label for="overrideVerdict" data-i18n="override.new_verdict">新判定結果</label>
                     <select id="overrideVerdict" class="form-select">
-                        <option value="full_compliance">✅ 完全符合</option>
-                        <option value="partial_compliance">⚠️ 部分符合</option>
-                        <option value="non_compliance">❌ 未符合</option>
-                        <option value="insufficient_data">⬜ 資料不足</option>
+                        <option value="full_compliance" data-i18n="override.full_compliance">✅ 完全符合</option>
+                        <option value="partial_compliance" data-i18n="override.partial_compliance">⚠️ 部分符合</option>
+                        <option value="non_compliance" data-i18n="override.non_compliance">❌ 未符合</option>
+                        <option value="insufficient_data" data-i18n="override.insufficient_data">⬜ 資料不足</option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label for="overrideReason">覆寫原因 <span class="required">*</span></label>
+                    <label for="overrideReason" data-i18n="override.reason_label">覆寫原因 <span class="required">*</span></label>
                     <textarea id="overrideReason" class="form-textarea" rows="3"
-                              placeholder="請說明為何覆寫此判定結果..."></textarea>
+                              data-i18n-placeholder="override.reason_placeholder" placeholder="請說明為何覆寫此判定結果..."></textarea>
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-cancel" id="overrideCancelBtn">取消</button>
-                <button class="btn btn-primary" id="overrideSaveBtn">確認覆寫</button>
+                <button class="btn btn-cancel" id="overrideCancelBtn" data-i18n="override.cancel">取消</button>
+                <button class="btn btn-primary" id="overrideSaveBtn" data-i18n="override.confirm">確認覆寫</button>
             </div>
         </div>
     </div>
@@ -314,23 +408,23 @@
     <div class="modal-overlay" id="noteModal">
         <div class="modal-content modal-medium">
             <div class="modal-header">
-                <h2>📝 新增條款備註</h2>
+                <h2 data-i18n="note.title">📝 新增條款備註</h2>
                 <button class="modal-close" id="noteClose">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label>條款</label>
+                    <label data-i18n="note.clause_label">條款</label>
                     <div id="noteClauseInfo" class="clause-info"></div>
                 </div>
                 <div class="form-group">
-                    <label for="noteText">備註內容</label>
+                    <label for="noteText" data-i18n="note.content_label">備註內容</label>
                     <textarea id="noteText" class="form-textarea" rows="4"
-                              placeholder="此備註將永久附加在此條款，每次分析時都會被納入考量..."></textarea>
+                              data-i18n-placeholder="note.placeholder" placeholder="此備註將永久附加在此條款，每次分析時都會被納入考量..."></textarea>
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-cancel" id="noteCancelBtn">取消</button>
-                <button class="btn btn-primary" id="noteSaveBtn">儲存備註</button>
+                <button class="btn btn-cancel" id="noteCancelBtn" data-i18n="note.cancel">取消</button>
+                <button class="btn btn-primary" id="noteSaveBtn" data-i18n="note.save">儲存備註</button>
             </div>
         </div>
     </div>
@@ -339,7 +433,7 @@
     <div class="modal-overlay" id="historyModal">
         <div class="modal-content modal-large">
             <div class="modal-header">
-                <h2>📜 版本歷史</h2>
+                <h2 data-i18n="history.title">📜 版本歷史</h2>
                 <button class="modal-close" id="historyClose">&times;</button>
             </div>
             <div class="modal-body" id="historyBody">

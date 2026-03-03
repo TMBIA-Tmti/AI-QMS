@@ -3,6 +3,9 @@ AI-QMS Phase 1 - 法規清單與引用清單匯出模組
 Export regulatory standards list and document reference list to Word/Excel formats.
 """
 
+import json
+import os
+
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
@@ -13,6 +16,41 @@ from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+
+
+# ── i18n helpers ──
+
+
+def _t(key: str, lang: str = "zh-TW", **kwargs) -> str:
+    """Translate a key using locale JSON files."""
+    _cache = getattr(_t, "_cache", {})
+    if lang not in _cache:
+        locale_path = os.path.join(
+            os.path.dirname(__file__), "..", "chainlit_app", "locales", f"{lang}.json"
+        )
+        try:
+            with open(locale_path, "r", encoding="utf-8") as f:
+                _cache[lang] = json.load(f)
+        except Exception:
+            _cache[lang] = {}
+        _t._cache = _cache
+    text = _cache.get(lang, {}).get(key, key)
+    if kwargs:
+        try:
+            text = text.format(**kwargs)
+        except (KeyError, IndexError):
+            pass
+    return text
+
+
+def _tl(key: str, lang: str = "zh-TW") -> list:
+    """Translate a key that returns a list (e.g. table headers)."""
+    _cache = getattr(_t, "_cache", {})
+    if lang not in _cache:
+        _t(key, lang)  # populate cache
+        _cache = getattr(_t, "_cache", {})
+    val = _cache.get(lang, {}).get(key)
+    return val if isinstance(val, list) else [key]
 
 
 # Output directory for generated files
@@ -30,6 +68,10 @@ THIN_BORDER = Border(
     bottom=Side(style="thin"),
 )
 
+# Status colors for Excel
+SUCCESS_FILL = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+FAIL_FILL = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+
 
 # ============================================================
 # 法規清單 (Regulatory Standards List)
@@ -37,19 +79,27 @@ THIN_BORDER = Border(
 
 
 def format_regulatory_table_markdown(
-    scan_result: dict, assessment: Optional[str] = None
+    scan_result: dict,
+    assessment: Optional[str] = None,
+    lang: str = "zh-TW",
 ) -> str:
     """Format regulatory scan result as Markdown for chat display."""
     by_doc = scan_result.get("by_document", [])
     aggregate = scan_result.get("aggregate", [])
 
     if not aggregate:
-        return "📋 資料庫中的文件未引用任何法規或標準。"
+        return _t("regulatory_export.no_refs", lang)
 
     lines = [
-        f"📋 **法規清單** (共 {len(aggregate)} 項標準，涵蓋 {len(by_doc)} 份文件)\n",
-        "### 標準彙總\n",
-        "| 標準 | 引用文件數 |",
+        _t(
+            "regulatory_export.aggregate_title",
+            lang,
+            std_count=len(aggregate),
+            doc_count=len(by_doc),
+        )
+        + "\n",
+        f"### {_t('regulatory_export.std_summary', lang)}\n",
+        f"| {_tl('regulatory_export.std_headers', lang)[0]} | {_tl('regulatory_export.std_headers', lang)[1]} |",
         "|------|-----------|",
     ]
 
@@ -61,15 +111,15 @@ def format_regulatory_table_markdown(
     # Assessment section
     if assessment:
         lines.append("\n---\n")
-        lines.append("### 📊 QMS 評估報告\n")
+        lines.append(f"### {_t('regulatory_export.assessment_report', lang)}\n")
         lines.append(assessment)
 
     return "\n".join(lines)
 
 
-def _render_assessment_to_word(doc, assessment: str):
+def _render_assessment_to_word(doc, assessment: str, lang: str = "zh-TW"):
     """Render assessment markdown text into Word document paragraphs."""
-    doc.add_heading("三、QMS 評估報告", level=2)
+    doc.add_heading(_t("regulatory_export.assessment_heading", lang), level=2)
     for para_text in assessment.split("\n"):
         stripped = para_text.strip()
         if not stripped:
@@ -95,13 +145,13 @@ def _render_assessment_to_word(doc, assessment: str):
                 run.font.size = Pt(9)
 
 
-def _render_assessment_to_excel(wb, assessment: str):
+def _render_assessment_to_excel(wb, assessment: str, lang: str = "zh-TW"):
     """Render assessment text into a new Excel sheet."""
-    ws = wb.create_sheet("評估報告")
+    ws = wb.create_sheet(_t("regulatory_export.assessment_sheet", lang))
 
     ws.merge_cells("A1:B1")
     title_cell = ws.cell(row=1, column=1)
-    title_cell.value = "QMS 評估報告"
+    title_cell.value = _t("regulatory_export.assessment_report", lang)
     title_cell.font = Font(name="Microsoft JhengHei", size=14, bold=True)
     title_cell.alignment = Alignment(horizontal="center")
 
@@ -117,8 +167,166 @@ def _render_assessment_to_excel(wb, assessment: str):
     ws.column_dimensions["A"].width = 100
 
 
+def _render_verification_to_word(doc, verification_report: dict, lang: str = "zh-TW"):
+    """Render verification report section into Word document."""
+    doc.add_paragraph()
+    doc.add_heading(_t("regulatory_export.verification_heading", lang), level=2)
+    ver_passed = verification_report.get("passed_count", 0)
+    ver_warn = verification_report.get("warning_count", 0)
+    ver_fail = verification_report.get("failed_count", 0)
+    ver_total = verification_report.get("total_documents", 0)
+    p = doc.add_paragraph(
+        _t(
+            "regulatory_export.verification_meta",
+            lang,
+            time=verification_report.get("verified_at", ""),
+            passed=ver_passed,
+            warning=ver_warn,
+            failed=ver_fail,
+            total=ver_total,
+        )
+    )
+    for r in p.runs:
+        r.font.size = Pt(9)
+
+    # Cross checks
+    cross_checks = verification_report.get("cross_checks", [])
+    if cross_checks:
+        doc.add_heading(_t("regulatory_export.cross_check_heading", lang), level=3)
+        for cc in cross_checks:
+            icon = "✓" if cc.get("passed") else "✗"
+            p = doc.add_paragraph(
+                f"{icon} {cc.get('check_name', '')}: {cc.get('message', '')}",
+                style="List Bullet",
+            )
+            for r in p.runs:
+                r.font.size = Pt(8)
+
+    # Per-document verification table
+    ver_docs = verification_report.get("documents", [])
+    if ver_docs:
+        doc.add_heading(_t("regulatory_export.per_doc_verification", lang), level=3)
+        vtable = doc.add_table(rows=1, cols=5)
+        vtable.style = "Table Grid"
+        vtable.alignment = WD_TABLE_ALIGNMENT.CENTER
+        vheaders = _tl("regulatory_export.verification_headers", lang)
+        for i, h in enumerate(vheaders):
+            cell = vtable.rows[0].cells[i]
+            cell.text = h
+            for paragraph in cell.paragraphs:
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                for r in paragraph.runs:
+                    r.font.bold = True
+                    r.font.size = Pt(9)
+        for vd in ver_docs:
+            vrow = vtable.add_row()
+            checks = vd.get("checks", [])
+            passed_n = sum(1 for c in checks if c.get("passed"))
+            issues = "; ".join(
+                c.get("message", "") for c in checks if not c.get("passed")
+            )
+            status_map = {
+                "pass": _t("regulatory_export.status_pass", lang),
+                "warning": _t("regulatory_export.status_warning", lang),
+                "fail": _t("regulatory_export.status_fail", lang),
+            }
+            vals = [
+                vd.get("region", ""),
+                vd.get("agency", ""),
+                status_map.get(vd.get("overall_status"), vd.get("overall_status", "")),
+                f"{passed_n}/{len(checks)}",
+                issues or _t("regulatory_export.no_issues", lang),
+            ]
+            for i, val in enumerate(vals):
+                cell = vrow.cells[i]
+                cell.text = val
+                for paragraph in cell.paragraphs:
+                    for r in paragraph.runs:
+                        r.font.size = Pt(8)
+        vwidths = [Cm(2), Cm(2), Cm(1.5), Cm(2), Cm(8)]
+        for row in vtable.rows:
+            for i, w in enumerate(vwidths):
+                row.cells[i].width = w
+        doc.add_paragraph()
+
+
+def _render_verification_to_excel(wb, verification_report: dict, lang: str = "zh-TW"):
+    """Render verification report into a new Excel sheet."""
+    ws_ver = wb.create_sheet(_t("regulatory_export.verification_sheet", lang))
+
+    ws_ver.merge_cells("A1:E1")
+    vtitle = ws_ver.cell(row=1, column=1)
+    vtitle.value = _t("regulatory_export.verification_heading", lang)
+    vtitle.font = Font(name="Microsoft JhengHei", size=14, bold=True)
+    vtitle.alignment = Alignment(horizontal="center")
+
+    ver_passed = verification_report.get("passed_count", 0)
+    ver_warn = verification_report.get("warning_count", 0)
+    ver_fail = verification_report.get("failed_count", 0)
+    ver_total = verification_report.get("total_documents", 0)
+    ws_ver.merge_cells("A2:E2")
+    vmeta = ws_ver.cell(row=2, column=1)
+    vmeta.value = _t(
+        "regulatory_export.verification_meta",
+        lang,
+        time=verification_report.get("verified_at", ""),
+        passed=ver_passed,
+        warning=ver_warn,
+        failed=ver_fail,
+        total=ver_total,
+    )
+    vmeta.font = Font(name="Microsoft JhengHei", size=9, italic=True, color="808080")
+
+    vheaders = _tl("regulatory_export.verification_headers", lang)
+    for col, h in enumerate(vheaders, 1):
+        cell = ws_ver.cell(row=4, column=col)
+        cell.value = h
+        cell.font = HEADER_FONT
+        cell.fill = HEADER_FILL
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = THIN_BORDER
+
+    status_map = {
+        "pass": _t("regulatory_export.status_pass", lang),
+        "warning": _t("regulatory_export.status_warning", lang),
+        "fail": _t("regulatory_export.status_fail", lang),
+    }
+    ver_docs = verification_report.get("documents", [])
+    for row_idx, vd in enumerate(ver_docs, 5):
+        checks = vd.get("checks", [])
+        passed_n = sum(1 for c in checks if c.get("passed"))
+        issues = "; ".join(c.get("message", "") for c in checks if not c.get("passed"))
+        vals = [
+            vd.get("region", ""),
+            vd.get("agency", ""),
+            status_map.get(vd.get("overall_status"), vd.get("overall_status", "")),
+            f"{passed_n}/{len(checks)}",
+            issues or _t("regulatory_export.no_issues", lang),
+        ]
+        for col, val in enumerate(vals, 1):
+            cell = ws_ver.cell(row=row_idx, column=col)
+            cell.value = val
+            cell.font = CELL_FONT
+            cell.border = THIN_BORDER
+        st_cell = ws_ver.cell(row=row_idx, column=3)
+        if vd.get("overall_status") == "pass":
+            st_cell.fill = SUCCESS_FILL
+        elif vd.get("overall_status") == "fail":
+            st_cell.fill = FAIL_FILL
+
+    ws_ver.column_dimensions["A"].width = 15
+    ws_ver.column_dimensions["B"].width = 15
+    ws_ver.column_dimensions["C"].width = 10
+    ws_ver.column_dimensions["D"].width = 12
+    ws_ver.column_dimensions["E"].width = 60
+    ws_ver.freeze_panes = "A5"
+
+
 def export_regulatory_to_word(
-    scan_result: dict, assessment: Optional[str] = None
+    scan_result: dict,
+    assessment: Optional[str] = None,
+    verification_report: Optional[dict] = None,
+    lang: str = "zh-TW",
 ) -> str:
     """
     Export regulatory standards list to Word (.docx).
@@ -132,35 +340,40 @@ def export_regulatory_to_word(
     doc = Document()
 
     # Title
-    title = doc.add_heading("AI-QMS 法規標準引用清單", level=1)
+    title = doc.add_heading(_t("regulatory_export.title_regulatory", lang), level=1)
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     # Metadata
     meta = doc.add_paragraph()
     meta.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    run = meta.add_run(f"匯出時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    run = meta.add_run(
+        f"{_t('regulatory_export.export_time', lang)}: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    )
     run.font.size = Pt(9)
     run.font.color.rgb = RGBColor(128, 128, 128)
 
     meta2 = doc.add_paragraph()
     meta2.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    run2 = meta2.add_run(f"標準總數: {len(aggregate)} 項 | 涵蓋文件: {len(by_doc)} 份")
+    run2 = meta2.add_run(
+        f"{_t('regulatory_export.std_count', lang, count=len(aggregate))} | "
+        f"{_t('regulatory_export.std_coverage', lang, count=len(by_doc))}"
+    )
     run2.font.size = Pt(9)
     run2.font.color.rgb = RGBColor(128, 128, 128)
 
     doc.add_paragraph()
 
     if not aggregate:
-        doc.add_paragraph("資料庫中的文件未引用任何法規或標準。")
+        doc.add_paragraph(_t("regulatory_export.no_refs", lang))
     else:
         # Section 1: Aggregate standards
-        doc.add_heading("一、標準彙總", level=2)
+        doc.add_heading(_t("regulatory_export.std_summary_heading", lang), level=2)
 
         table1 = doc.add_table(rows=1, cols=3)
         table1.style = "Table Grid"
         table1.alignment = WD_TABLE_ALIGNMENT.CENTER
 
-        headers = ["標準", "引用文件數", "引用文件"]
+        headers = _tl("regulatory_export.std_headers", lang)
         for i, header in enumerate(headers):
             cell = table1.rows[0].cells[i]
             cell.text = header
@@ -192,13 +405,13 @@ def export_regulatory_to_word(
         doc.add_paragraph()
 
         # Section 2: Per-document detail
-        doc.add_heading("二、各文件引用明細", level=2)
+        doc.add_heading(_t("regulatory_export.detail_heading", lang), level=2)
 
         table2 = doc.add_table(rows=1, cols=5)
         table2.style = "Table Grid"
         table2.alignment = WD_TABLE_ALIGNMENT.CENTER
 
-        headers2 = ["文件編號", "文件名稱", "類型", "版本", "引用標準"]
+        headers2 = _tl("regulatory_export.doc_headers", lang)
         for i, header in enumerate(headers2):
             cell = table2.rows[0].cells[i]
             cell.text = header
@@ -232,14 +445,16 @@ def export_regulatory_to_word(
     # Section 3: Assessment Report
     if assessment:
         doc.add_paragraph()
-        _render_assessment_to_word(doc, assessment)
+        _render_assessment_to_word(doc, assessment, lang)
+
+    # Section: Verification Report (if provided)
+    if verification_report and verification_report.get("has_data"):
+        _render_verification_to_word(doc, verification_report, lang)
 
     # Footer
     doc.add_paragraph()
     footer = doc.add_paragraph()
-    run = footer.add_run(
-        "本報告由 AI-QMS 品質管理系統自動產生。法規標準資訊擷取自文件 OCR 內容，僅供參考。"
-    )
+    run = footer.add_run(_t("regulatory_export.footer_regulatory", lang))
     run.font.size = Pt(8)
     run.font.italic = True
     run.font.color.rgb = RGBColor(128, 128, 128)
@@ -253,7 +468,10 @@ def export_regulatory_to_word(
 
 
 def export_regulatory_to_excel(
-    scan_result: dict, assessment: Optional[str] = None
+    scan_result: dict,
+    assessment: Optional[str] = None,
+    verification_report: Optional[dict] = None,
+    lang: str = "zh-TW",
 ) -> str:
     """
     Export regulatory standards list to Excel (.xlsx).
@@ -268,12 +486,12 @@ def export_regulatory_to_excel(
 
     # Sheet 1: Aggregate
     ws1 = wb.active
-    ws1.title = "標準彙總"
+    ws1.title = _t("regulatory_export.std_summary", lang)
 
     # Title
     ws1.merge_cells("A1:C1")
     title_cell = ws1.cell(row=1, column=1)
-    title_cell.value = "AI-QMS 法規標準引用清單"
+    title_cell.value = _t("regulatory_export.title_regulatory", lang)
     title_cell.font = Font(name="Microsoft JhengHei", size=14, bold=True)
     title_cell.alignment = Alignment(horizontal="center")
 
@@ -281,15 +499,16 @@ def export_regulatory_to_excel(
     ws1.merge_cells("A2:C2")
     meta_cell = ws1.cell(row=2, column=1)
     meta_cell.value = (
-        f"匯出時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | "
-        f"標準總數: {len(aggregate)} 項 | 涵蓋文件: {len(by_doc)} 份"
+        f"{_t('regulatory_export.export_time', lang)}: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | "
+        f"{_t('regulatory_export.std_count', lang, count=len(aggregate))} | "
+        f"{_t('regulatory_export.std_coverage', lang, count=len(by_doc))}"
     )
     meta_cell.font = Font(
         name="Microsoft JhengHei", size=9, italic=True, color="808080"
     )
 
     # Headers
-    headers = ["標準", "引用文件數", "引用文件"]
+    headers = _tl("regulatory_export.std_headers", lang)
     for col, header in enumerate(headers, 1):
         cell = ws1.cell(row=4, column=col)
         cell.value = header
@@ -317,17 +536,17 @@ def export_regulatory_to_excel(
     ws1.freeze_panes = "A5"
 
     # Sheet 2: Per-document detail
-    ws2 = wb.create_sheet("文件引用明細")
+    ws2 = wb.create_sheet(_t("regulatory_export.detail_sheet", lang))
 
     # Title
     ws2.merge_cells("A1:E1")
     title_cell2 = ws2.cell(row=1, column=1)
-    title_cell2.value = "各文件引用法規標準明細"
+    title_cell2.value = _t("regulatory_export.detail_title", lang)
     title_cell2.font = Font(name="Microsoft JhengHei", size=14, bold=True)
     title_cell2.alignment = Alignment(horizontal="center")
 
     # Headers
-    headers2 = ["文件編號", "文件名稱", "類型", "版本", "引用標準"]
+    headers2 = _tl("regulatory_export.doc_headers", lang)
     for col, header in enumerate(headers2, 1):
         cell = ws2.cell(row=3, column=col)
         cell.value = header
@@ -361,14 +580,18 @@ def export_regulatory_to_excel(
     note_row = len(by_doc) + 5
     ws2.merge_cells(f"A{note_row}:E{note_row}")
     note_cell = ws2.cell(row=note_row, column=1)
-    note_cell.value = "本報告由 AI-QMS 品質管理系統自動產生。法規標準資訊擷取自文件 OCR 內容，僅供參考。"
+    note_cell.value = _t("regulatory_export.footer_regulatory", lang)
     note_cell.font = Font(
         name="Microsoft JhengHei", size=8, italic=True, color="808080"
     )
 
     # Sheet 3: Assessment Report (if provided)
     if assessment:
-        _render_assessment_to_excel(wb, assessment)
+        _render_assessment_to_excel(wb, assessment, lang)
+
+    # Sheet: Verification Report (if provided)
+    if verification_report and verification_report.get("has_data"):
+        _render_verification_to_excel(wb, verification_report, lang)
 
     # Save
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -383,19 +606,34 @@ def export_regulatory_to_excel(
 # ============================================================
 
 
-def format_reference_table_markdown(doc_id: str, ref_docs: List[dict]) -> str:
+def format_reference_table_markdown(
+    doc_id: str,
+    ref_docs: List[dict],
+    lang: str = "zh-TW",
+) -> str:
     """Format document reference list as Markdown for chat display."""
     if not ref_docs:
-        return f"📋 沒有其他文件引用 {doc_id}。"
+        return _t("regulatory_export.no_refs_doc", lang, doc_id=doc_id)
 
+    ref_headers = _tl("regulatory_export.ref_table_headers", lang)
     lines = [
-        f"📋 **文件引用清單** — {doc_id} 被以下 {len(ref_docs)} 份文件引用\n",
-        "| 文件編號 | 文件名稱 | 類型 | 版本 | 引用方式 |",
-        "|---------|---------|------|------|---------|",
+        _t(
+            "regulatory_export.ref_table_title",
+            lang,
+            doc_id=doc_id,
+            count=len(ref_docs),
+        )
+        + "\n",
+        f"| {' | '.join(ref_headers)} |",
+        f"|{'|'.join(['------' for _ in ref_headers])}|",
     ]
 
     for r in ref_docs:
-        ref_type = "明確引用" if r.get("reference_type") == "explicit" else "內容引用"
+        ref_type = (
+            _t("regulatory_export.explicit_ref", lang)
+            if r.get("reference_type") == "explicit"
+            else _t("regulatory_export.implicit_ref", lang)
+        )
         lines.append(
             f"| {r['doc_id']} | {r['title'][:30]} | {r['doc_type']} | v{r['current_version']} | {ref_type} |"
         )
@@ -403,7 +641,11 @@ def format_reference_table_markdown(doc_id: str, ref_docs: List[dict]) -> str:
     return "\n".join(lines)
 
 
-def export_reference_to_word(doc_id: str, ref_docs: List[dict]) -> str:
+def export_reference_to_word(
+    doc_id: str,
+    ref_docs: List[dict],
+    lang: str = "zh-TW",
+) -> str:
     """
     Export document reference list to Word (.docx).
 
@@ -413,32 +655,38 @@ def export_reference_to_word(doc_id: str, ref_docs: List[dict]) -> str:
     doc = Document()
 
     # Title
-    title = doc.add_heading(f"AI-QMS 文件引用清單 — {doc_id}", level=1)
+    title = doc.add_heading(
+        _t("regulatory_export.title_reference", lang, doc_id=doc_id), level=1
+    )
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     # Metadata
     meta = doc.add_paragraph()
     meta.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    run = meta.add_run(f"匯出時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    run = meta.add_run(
+        f"{_t('regulatory_export.export_time', lang)}: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    )
     run.font.size = Pt(9)
     run.font.color.rgb = RGBColor(128, 128, 128)
 
     meta2 = doc.add_paragraph()
     meta2.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    run2 = meta2.add_run(f"引用 {doc_id} 的文件共 {len(ref_docs)} 份")
+    run2 = meta2.add_run(
+        _t("regulatory_export.ref_count", lang, doc_id=doc_id, count=len(ref_docs))
+    )
     run2.font.size = Pt(9)
     run2.font.color.rgb = RGBColor(128, 128, 128)
 
     doc.add_paragraph()
 
     if not ref_docs:
-        doc.add_paragraph(f"沒有其他文件引用 {doc_id}。")
+        doc.add_paragraph(_t("regulatory_export.no_refs_doc_word", lang, doc_id=doc_id))
     else:
         table = doc.add_table(rows=1, cols=5)
         table.style = "Table Grid"
         table.alignment = WD_TABLE_ALIGNMENT.CENTER
 
-        headers = ["#", "文件編號", "文件名稱", "版本", "引用方式"]
+        headers = _tl("regulatory_export.ref_headers", lang)
         for i, header in enumerate(headers):
             cell = table.rows[0].cells[i]
             cell.text = header
@@ -451,7 +699,9 @@ def export_reference_to_word(doc_id: str, ref_docs: List[dict]) -> str:
         for idx, r in enumerate(ref_docs, 1):
             row = table.add_row()
             ref_type = (
-                "明確引用" if r.get("reference_type") == "explicit" else "內容引用"
+                _t("regulatory_export.explicit_ref", lang)
+                if r.get("reference_type") == "explicit"
+                else _t("regulatory_export.implicit_ref", lang)
             )
             values = [
                 str(idx),
@@ -475,9 +725,7 @@ def export_reference_to_word(doc_id: str, ref_docs: List[dict]) -> str:
     # Footer
     doc.add_paragraph()
     footer = doc.add_paragraph()
-    run = footer.add_run(
-        f"本報告由 AI-QMS 品質管理系統自動產生。列出所有引用 {doc_id} 的文件，建議確認是否需要同步更新。"
-    )
+    run = footer.add_run(_t("regulatory_export.footer_reference", lang, doc_id=doc_id))
     run.font.size = Pt(8)
     run.font.italic = True
     run.font.color.rgb = RGBColor(128, 128, 128)
@@ -490,7 +738,11 @@ def export_reference_to_word(doc_id: str, ref_docs: List[dict]) -> str:
     return str(filepath)
 
 
-def export_reference_to_excel(doc_id: str, ref_docs: List[dict]) -> str:
+def export_reference_to_excel(
+    doc_id: str,
+    ref_docs: List[dict],
+    lang: str = "zh-TW",
+) -> str:
     """
     Export document reference list to Excel (.xlsx).
 
@@ -499,12 +751,12 @@ def export_reference_to_excel(doc_id: str, ref_docs: List[dict]) -> str:
     """
     wb = Workbook()
     ws = wb.active
-    ws.title = "引用清單"
+    ws.title = _t("regulatory_export.ref_sheet", lang)
 
     # Title
     ws.merge_cells("A1:E1")
     title_cell = ws.cell(row=1, column=1)
-    title_cell.value = f"AI-QMS 文件引用清單 — {doc_id}"
+    title_cell.value = _t("regulatory_export.title_reference", lang, doc_id=doc_id)
     title_cell.font = Font(name="Microsoft JhengHei", size=14, bold=True)
     title_cell.alignment = Alignment(horizontal="center")
 
@@ -512,15 +764,15 @@ def export_reference_to_excel(doc_id: str, ref_docs: List[dict]) -> str:
     ws.merge_cells("A2:E2")
     meta_cell = ws.cell(row=2, column=1)
     meta_cell.value = (
-        f"匯出時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | "
-        f"引用 {doc_id} 的文件共 {len(ref_docs)} 份"
+        f"{_t('regulatory_export.export_time', lang)}: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | "
+        f"{_t('regulatory_export.ref_count', lang, doc_id=doc_id, count=len(ref_docs))}"
     )
     meta_cell.font = Font(
         name="Microsoft JhengHei", size=9, italic=True, color="808080"
     )
 
     # Headers
-    headers = ["#", "文件編號", "文件名稱", "版本", "引用方式"]
+    headers = _tl("regulatory_export.ref_headers", lang)
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=4, column=col)
         cell.value = header
@@ -531,7 +783,11 @@ def export_reference_to_excel(doc_id: str, ref_docs: List[dict]) -> str:
 
     # Data
     for row_idx, r in enumerate(ref_docs, 5):
-        ref_type = "明確引用" if r.get("reference_type") == "explicit" else "內容引用"
+        ref_type = (
+            _t("regulatory_export.explicit_ref", lang)
+            if r.get("reference_type") == "explicit"
+            else _t("regulatory_export.implicit_ref", lang)
+        )
         values = [
             row_idx - 4,
             r["doc_id"],
@@ -556,7 +812,7 @@ def export_reference_to_excel(doc_id: str, ref_docs: List[dict]) -> str:
     note_row = len(ref_docs) + 6
     ws.merge_cells(f"A{note_row}:E{note_row}")
     note_cell = ws.cell(row=note_row, column=1)
-    note_cell.value = f"本報告由 AI-QMS 品質管理系統自動產生。列出所有引用 {doc_id} 的文件，建議確認是否需要同步更新。"
+    note_cell.value = _t("regulatory_export.footer_reference", lang, doc_id=doc_id)
     note_cell.font = Font(
         name="Microsoft JhengHei", size=8, italic=True, color="808080"
     )

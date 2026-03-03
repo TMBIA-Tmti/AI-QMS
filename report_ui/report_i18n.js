@@ -1,0 +1,887 @@
+/**
+ * AI-QMS Report — Internationalization (i18n)
+ * =============================================
+ *
+ * Provides translation support for the report UI.
+ * Language is auto-detected from Chainlit user settings via /api/report/user/language.
+ *
+ * Usage:
+ *   window.__i18n.t('key')        — get translated string
+ *   window.__i18n.t('key', {n:5}) — with interpolation: "共 {n} 筆" → "共 5 筆"
+ *   window.__i18n.applyAll()      — apply translations to all [data-i18n] elements
+ *   window.__i18n.lang            — current language code
+ */
+
+(function () {
+    "use strict";
+
+    // ── Translation Dictionaries ──
+    // Keys follow dot-notation: section.subsection.name
+    const TRANSLATIONS = {
+        "zh-TW": {
+            // ── Page header ──
+            "header.title": "📊 合規性分析報告",
+            "page.title": "AI-QMS 合規性分析報告",
+
+            // ── Tab navigation ──
+            "tab.analysis": "📊 合規分析結果",
+            "tab.crossref": "🔗 跨國法規交叉比對表",
+            "tab.crossexam": "💬 即時 LLM 互動",
+            "tab.history": "📜 交叉詰問歷史",
+            "tab.dailyaudit": "🔍 每日稽核",
+
+            // ── Summary cards ──
+            "card.analysisItems": "分析項目",
+            "card.fullCompliance": "完全符合",
+            "card.partialCompliance": "部分符合",
+            "card.nonCompliance": "未符合",
+            "card.raReview": "需 RA 審查",
+            "card.tokenUsage": "Token 用量",
+            "card.overallScore": "總分",
+            "card.dimA": "法規準確度 (Dim A)",
+            "card.dimB": "交叉詰問品質 (Dim B)",
+
+            // ── Filter bar ──
+            "filter.document": "文件",
+            "filter.allDocs": "全部文件",
+            "filter.verdict": "判定結果",
+            "filter.allVerdicts": "全部結果",
+            "filter.risk": "風險等級",
+            "filter.allRisks": "全部等級",
+            "filter.flaggedOnly": "僅顯示需審查",
+            "filter.searchPlaceholder": "搜尋條款 / 文件...",
+            "filter.exportWord": "Word",
+            "filter.exportExcel": "Excel",
+            "filter.deepReport": "📋 深度報告",
+            "filter.deepExcel": "📊 深度 Excel",
+            "filter.refresh": "🔄 重新整理",
+
+            // ── Table headers ──
+            "table.clause": "條款",
+            "table.document": "品質文件",
+            "table.question": "稽核問題",
+            "table.evidence": "證據",
+            "table.verdict": "判定",
+            "table.risk": "風險",
+            "table.flags": "標記",
+            "table.actions": "操作",
+            "table.loading": "載入中...",
+            "table.count": "載入中...",
+
+            // ── Crossref tab ──
+            "crossref.selectCountries": "🌍 選擇法規國家",
+            "crossref.loadingRegs": "載入法規清單中...",
+            "crossref.generateTable": "📊 產生交叉比對表",
+            "crossref.showOriginal": "顯示法規原文",
+            "crossref.showOriginalDesc": "Show original regulatory text in native language",
+            "crossref.mdsapVerify": "MDSAP 交叉詰問驗證",
+            "crossref.mdsapVerifyDesc": "Enable MDSAP cross-examination verification",
+            "crossref.uploadTitle": "部分國家法規原文尚未上傳",
+            "crossref.gotIt": "知道了",
+            "crossref.legendFull": "完全採用 (Full)",
+            "crossref.legendPartial": "部分採用 (Partial)",
+            "crossref.legendExceeds": "超越 ISO (Exceeds)",
+            "crossref.legendNA": "不適用 (N/A)",
+            "crossref.interCountry": "🔀 國家間差異分析",
+            "crossref.interCountryDesc": "以下顯示各國法規之間的差異 — 某國有但其他國家沒有的獨特要求。",
+            "crossref.deltaTitle": "🚨 國家獨有要求 (Delta Items) — 最高優先級",
+            "crossref.deltaDesc": "以下為各國法規中超出 ISO 13485 的獨有要求，品質文件必須額外涵蓋這些內容。",
+
+            // ── Command bars ──
+            "cmd.feedbackRecords": "📝 意見紀錄",
+            "cmd.close": "✕ 關閉",
+            "cmd.helpTitle": "📖 使用說明與範例",
+            "cmd.downloadCatalogTitle": "📥 可下載資料目錄",
+            "cmd.inputPlaceholder": "輸入指令或意見... (輸入 /help 查看所有指令)",
+            "cmd.send": "發送",
+            "cmd.helpBtn": "使用說明",
+            "cmd.downloadBtn": "下載目錄",
+
+            // ── Crossref help sections ──
+            "help.cr.downloadTitle": "📥 下載指令",
+            "help.cr.dl1": "/download audit word — 下載最新每日稽核報告 (Word)",
+            "help.cr.dl2": "/download audit excel — 下載最新每日稽核報告 (Excel)",
+            "help.cr.dl3": "/download meta word — 下載 10日總檢報告 (Word)",
+            "help.cr.dl4": "/download meta excel — 下載 10日總檢報告 (Excel)",
+            "help.cr.dl5": "/download report word — 下載合規分析報告 (Word)",
+            "help.cr.dl6": "/download report excel — 下載合規分析報告 (Excel)",
+            "help.cr.dl7": "/download deep word — 下載深度分析報告 (Word)",
+            "help.cr.dl8": "/download deep excel — 下載深度分析報告 (Excel)",
+            "help.cr.feedbackTitle": "💬 意見指令",
+            "help.cr.fb1": '/feedback daily "Dim A分數偏低，建議..." — 提供每日稽核意見並觸發重新評估',
+            "help.cr.fb2": '/feedback meta "建議加強..." — 提供 10日總檢意見',
+            "help.cr.fb3": "/feedback history — 查看所有意見紀錄（可編輯/刪除）",
+            "help.cr.opsTitle": "🔧 操作指令",
+            "help.cr.op1": "/run audit — 執行每日稽核",
+            "help.cr.op2": "/run meta — 執行 10日總檢",
+            "help.cr.op3": "/downloads — 顯示可下載資料目錄",
+            "help.cr.op4": "/help — 顯示此幫助訊息",
+
+            // ── Crossexam help sections ──
+            "help.ce.interventionTitle": "🙋 人工介入",
+            "help.ce.int1": "直接輸入任意文字 — 將作為人工介入訊息發送至 LLM 對話",
+            "help.ce.int2": "例：「你問錯了，應該問...」",
+            "help.ce.downloadTitle": "📥 下載指令",
+            "help.ce.dl1": "/download crossexam word — 下載交叉詰問記錄 (Word)",
+            "help.ce.dl2": "/download crossexam excel — 下載交叉詰問記錄 (Excel)",
+            "help.ce.dl3": "/download quality word — 下載品質分析報告 (Word)",
+            "help.ce.dl4": "/download quality excel — 下載品質分析報告 (Excel)",
+            "help.ce.feedbackTitle": "💬 意見指令",
+            "help.ce.fb1": '/feedback daily "意見內容..." — 提供每日稽核意見並觸發重新評估',
+            "help.ce.fb2": '/feedback meta "意見內容..." — 提供 10日總檢意見',
+            "help.ce.fb3": "/feedback history — 查看意見紀錄",
+            "help.ce.opsTitle": "🔧 其他指令",
+            "help.ce.op1": '/adjust <standard_id> "<clause>" <old> -> <new> — 調整補充標準條款對應',
+            "help.ce.op2": "/standards — 列出所有補充標準及其條款對應",
+            "help.ce.op3": "/downloads — 顯示可下載資料目錄",
+            "help.ce.op4": "/help — 顯示此幫助訊息",
+
+            // ── Crossexam tab ──
+            "crossexam.title": "💬 即時 LLM 互動查看器",
+            "crossexam.desc": "觀看所有 Phase 的 LLM 互動過程（Gap Scan、驗證、改善建議、交叉詰問），必要時可介入修正。",
+            "crossexam.notConnected": "⏹ 未連線",
+            "crossexam.connect": "🔌 連線",
+            "crossexam.pause": "⏸ 暫停",
+            "crossexam.resume": "▶️ 繼續",
+            "crossexam.phaseAll": "全部",
+            "crossexam.phaseVerify": "驗證",
+            "crossexam.phaseImprove": "改善建議",
+            "crossexam.phaseCrossExam": "交叉詰問",
+            "crossexam.runIdLabel": "分析 Run ID：",
+            "crossexam.runIdPlaceholder": "輸入 Run ID 或使用目前的 Run ID",
+            "crossexam.emptyFeed": "連線後將顯示即時交叉詰問內容",
+            "crossexam.inputPlaceholder": "輸入介入訊息或指令... (輸入 /help 查看所有指令)",
+
+            // ── History tab ──
+            "history.title": "📜 交叉詰問歷史記錄",
+            "history.desc": "查看所有的交叉詰問歷史記錄，每筆記錄都可以單獨下載。當記錄達 10 筆時，可啟動品質分析。",
+            "history.count": "0 筆記錄",
+            "history.load": "🔄 載入歷史",
+            "history.qualityAnalysis": "🧠 品質分析",
+            "history.qualityNeed10": "需要10筆以上記錄",
+            "history.empty": "點擊「載入歷史」查看交叉詰問記錄",
+            "history.metaTitle": "🧠 交叉詰問品質分析",
+            "history.exportMetaWord": "📄 匯出品質分析 Word",
+            "history.exportMetaExcel": "📊 匯出品質分析 Excel",
+
+            // ── Daily audit tab ──
+            "audit.deviationTitle": "稽核分數差異警告",
+            "audit.title": "🔍 每日稽核評分",
+            "audit.desc": "第三方 LLM 每日對交叉詰問結果進行評分，包含法規準確度（Dim A）與交叉詰問品質（Dim B）兩個維度。每 10 天進行總檢。",
+            "audit.count": "0 筆紀錄",
+            "audit.run": "▶️ 執行每日稽核",
+            "audit.metaReview": "🧠 10日總檢",
+            "audit.metaNeed10": "需要 10 筆以上紀錄",
+            "audit.loadHistory": "🔄 載入歷史",
+            "audit.empty": "點擊「載入歷史」查看每日稽核紀錄",
+            "audit.metaReviewTitle": "🧠 10日總檢報告",
+            "audit.exportAuditWord": "📄 匯出稽核報告 Word",
+            "audit.exportAuditExcel": "📊 匯出稽核報告 Excel",
+            "audit.exportMetaWord": "📄 匯出總檢報告 Word",
+            "audit.exportMetaExcel": "📊 匯出總檢報告 Excel",
+
+            // ── Modals ──
+            "modal.detailTitle": "條款詳情",
+            "modal.overrideTitle": "✏️ 覆寫判定結果",
+            "modal.overrideCurrent": "目前判定",
+            "modal.overrideNew": "新判定結果",
+            "modal.overrideReason": "覆寫原因",
+            "modal.overrideReasonPlaceholder": "請說明為何覆寫此判定結果...",
+            "modal.cancel": "取消",
+            "modal.confirmOverride": "確認覆寫",
+            "modal.noteTitle": "📝 新增條款備註",
+            "modal.noteClause": "條款",
+            "modal.noteText": "備註內容",
+            "modal.notePlaceholder": "此備註將永久附加在此條款，每次分析時都會被納入考量...",
+            "modal.saveNote": "儲存備註",
+            "modal.historyTitle": "📜 版本歷史",
+
+            // ── Verdict options ──
+            "verdict.full": "✅ 完全符合",
+            "verdict.partial": "⚠️ 部分符合",
+            "verdict.non": "❌ 未符合",
+            "verdict.insufficient": "⬜ 資料不足",
+
+            // ── Toast messages (JS dynamic) ──
+            "toast.loadFailed": "載入失敗: {msg}",
+            "toast.detailFailed": "載入詳情失敗: {msg}",
+            "toast.overrideNoReason": "請填寫覆寫原因",
+            "toast.overrideSuccess": "判定已覆寫",
+            "toast.overrideFailed": "覆寫失敗: {msg}",
+            "toast.noteEmpty": "請填寫備註內容",
+            "toast.noteSuccess": "備註已儲存",
+            "toast.noteFailed": "儲存失敗: {msg}",
+            "toast.historyFailed": "載入歷史失敗: {msg}",
+            "toast.restoreSuccess": "已還原 LLM 原始判定",
+            "toast.restoreFailed": "還原失敗: {msg}",
+            "toast.rerunSuccess": "已重設此行，請從 Chainlit 重新執行分析管線",
+            "toast.rerunFailed": "重設失敗: {msg}",
+            "toast.exporting": "正在匯出 {fmt} 報告...",
+            "toast.mdsapEnabled": "MDSAP 交叉詰問驗證已啟用",
+            "toast.mdsapDisabled": "MDSAP 交叉詰問驗證已停用",
+            "toast.mdsapFailed": "MDSAP 設定失敗: {msg}",
+            "toast.selectCountry": "請至少選擇一個國家法規",
+            "toast.crossrefGenerated": "交叉比對表已產生（{rows} 條款 × {cols} 國家）",
+            "toast.crossrefFailed": "產生失敗: {msg}",
+            "toast.enterRunId": "請輸入 Run ID",
+            "toast.sseFailed": "SSE 連線失敗: {msg}",
+            "toast.pauseFailed": "暫停失敗: {msg}",
+            "toast.resumeFailed": "繼續失敗: {msg}",
+            "toast.sendFailed": "發送失敗: {msg}",
+            "toast.standardsFailed": "無法載入標準清單: {msg}",
+            "toast.adjustFailed": "調整失敗: {msg}",
+            "toast.exportingDeep": "正在匯出深度分析報告 ({fmt})...",
+            "toast.exportingCrossexam": "正在匯出交叉詰問記錄 ({fmt})...",
+            "toast.exportingQuality": "正在匯出品質分析報告 ({fmt})...",
+            "toast.auditRunning": "正在執行每日稽核...",
+            "toast.auditDone": "每日稽核完成！總分: {score}/100",
+            "toast.auditFailed": "每日稽核失敗: {msg}",
+            "toast.metaRunning": "正在執行 10日總檢...",
+            "toast.metaDone": "總檢完成！",
+            "toast.metaFailed": "10日總檢失敗: {msg}",
+            "toast.exportingAudit": "正在匯出稽核報告 ({fmt})...",
+            "toast.exportingMetaReview": "正在匯出總檢報告 ({fmt})...",
+            "toast.exportingAuditRecord": "正在匯出稽核紀錄 ({fmt})...",
+            "toast.unknownTarget": "未知目標。用法: /run audit 或 /run meta",
+            "toast.unknownCommand": "未知指令: {cmd}。輸入 /help 查看可用指令",
+            "toast.feedbackHint": "請使用 /feedback daily \"意見內容\" 提交意見，或輸入 /help 查看所有指令",
+            "toast.formatError": "格式必須是 word 或 excel",
+            "toast.unknownDownloadType": "未知下載類型: {type}。可用: report, deep, audit, meta, crossexam, quality",
+            "toast.downloading": "正在下載 {label}...",
+            "toast.feedbackFormat": "格式: /feedback daily|meta \"意見內容...\"",
+            "toast.feedbackSubmitting": "正在提交意見並觸發重新評估...",
+            "toast.feedbackSaved": "意見已儲存（重新評估未執行）",
+            "toast.feedbackFailed": "意見提交失敗: {msg}",
+            "toast.feedbackUsage": "用法: /feedback daily|meta \"意見\" 或 /feedback history",
+            "toast.feedbackUpdated": "意見已更新",
+            "toast.feedbackUpdateFailed": "更新失敗: {msg}",
+            "toast.feedbackDeleted": "意見已刪除",
+            "toast.feedbackDeleteFailed": "刪除失敗: {msg}",
+            "toast.feedbackReEvalSuccess": "意見已儲存，重新評估完成！新分數: {score}/100",
+
+            // ── Download catalog ──
+            "dl.complianceReport": "📄 合規分析報告",
+            "dl.complianceDesc": "當次分析的完整合規報告",
+            "dl.deepReport": "📋 深度分析報告",
+            "dl.deepDesc": "包含詳細的差距掃描、驗證與改善建議",
+            "dl.auditReport": "📜 每日稽核報告",
+            "dl.auditDesc": "最新的每日稽核評分結果",
+            "dl.metaReport": "🧠 10日總檢報告",
+            "dl.metaDesc": "聚合 10 天稽核資料的趨勢分析與建議",
+            "dl.qualityReport": "💬 交叉詰問品質分析",
+            "dl.qualityDesc": "交叉詰問紀錄的品質分析報告",
+            "dl.feedbackReport": "📝 使用者意見紀錄",
+            "dl.feedbackDesc": "所有提交的意見與重新評估結果",
+
+            // ── Action button titles (in rendered HTML) ──
+            "btn.detail": "詳情",
+            "btn.override": "覆寫判定",
+            "btn.note": "備註",
+            "btn.history": "歷史",
+            "btn.rerun": "重新分析此行",
+            "btn.restore": "還原 LLM 原始判定",
+            "btn.edit": "✂ 編輯",
+            "btn.delete": "🗑 刪除",
+
+            // ── Table display ──
+            "table.showing": "顯示 {shown} / {total} 項",
+            "table.emptyState": "載入中...",
+        },
+
+        "en-US": {
+            "header.title": "📊 Compliance Analysis Report",
+            "page.title": "AI-QMS Compliance Analysis Report",
+
+            "tab.analysis": "📊 Compliance Results",
+            "tab.crossref": "🔗 Cross-Country Regulation Comparison",
+            "tab.crossexam": "💬 Real-Time LLM Interaction",
+            "tab.history": "📜 Cross-Examination History",
+            "tab.dailyaudit": "🔍 Daily Audit",
+
+            "card.analysisItems": "Analysis Items",
+            "card.fullCompliance": "Full Compliance",
+            "card.partialCompliance": "Partial Compliance",
+            "card.nonCompliance": "Non-Compliance",
+            "card.raReview": "RA Review Required",
+            "card.tokenUsage": "Token Usage",
+            "card.overallScore": "Overall Score",
+            "card.dimA": "Regulation Accuracy (Dim A)",
+            "card.dimB": "Cross-Exam Quality (Dim B)",
+
+            "filter.document": "Document",
+            "filter.allDocs": "All Documents",
+            "filter.verdict": "Verdict",
+            "filter.allVerdicts": "All Verdicts",
+            "filter.risk": "Risk Level",
+            "filter.allRisks": "All Levels",
+            "filter.flaggedOnly": "Show Flagged Only",
+            "filter.searchPlaceholder": "Search clause / document...",
+            "filter.exportWord": "Word",
+            "filter.exportExcel": "Excel",
+            "filter.deepReport": "📋 Deep Report",
+            "filter.deepExcel": "📊 Deep Excel",
+            "filter.refresh": "🔄 Refresh",
+
+            "table.clause": "Clause",
+            "table.document": "Quality Document",
+            "table.question": "Audit Question",
+            "table.evidence": "Evidence",
+            "table.verdict": "Verdict",
+            "table.risk": "Risk",
+            "table.flags": "Flags",
+            "table.actions": "Actions",
+            "table.loading": "Loading...",
+            "table.count": "Loading...",
+
+            "crossref.selectCountries": "🌍 Select Regulatory Countries",
+            "crossref.loadingRegs": "Loading regulations...",
+            "crossref.generateTable": "📊 Generate Comparison Table",
+            "crossref.showOriginal": "Show Original Text",
+            "crossref.showOriginalDesc": "Show original regulatory text in native language",
+            "crossref.mdsapVerify": "MDSAP Cross-Exam Verification",
+            "crossref.mdsapVerifyDesc": "Enable MDSAP cross-examination verification",
+            "crossref.uploadTitle": "Some countries' regulation texts have not been uploaded",
+            "crossref.gotIt": "Got it",
+            "crossref.legendFull": "Full Adoption",
+            "crossref.legendPartial": "Partial Adoption",
+            "crossref.legendExceeds": "Exceeds ISO",
+            "crossref.legendNA": "Not Applicable",
+            "crossref.interCountry": "🔀 Inter-Country Difference Analysis",
+            "crossref.interCountryDesc": "Differences between countries' regulations — unique requirements that one country has but others don't.",
+            "crossref.deltaTitle": "🚨 Country-Specific Requirements (Delta Items) — Highest Priority",
+            "crossref.deltaDesc": "Unique requirements beyond ISO 13485. Quality documents must additionally cover these items.",
+
+            "cmd.feedbackRecords": "📝 Feedback Records",
+            "cmd.close": "✕ Close",
+            "cmd.helpTitle": "📖 Help & Examples",
+            "cmd.downloadCatalogTitle": "📥 Download Catalog",
+            "cmd.inputPlaceholder": "Enter command or feedback... (type /help for all commands)",
+            "cmd.send": "Send",
+            "cmd.helpBtn": "Help",
+            "cmd.downloadBtn": "Downloads",
+
+            "help.cr.downloadTitle": "📥 Download Commands",
+            "help.cr.dl1": "/download audit word — Download latest daily audit report (Word)",
+            "help.cr.dl2": "/download audit excel — Download latest daily audit report (Excel)",
+            "help.cr.dl3": "/download meta word — Download 10-day meta review report (Word)",
+            "help.cr.dl4": "/download meta excel — Download 10-day meta review report (Excel)",
+            "help.cr.dl5": "/download report word — Download compliance report (Word)",
+            "help.cr.dl6": "/download report excel — Download compliance report (Excel)",
+            "help.cr.dl7": "/download deep word — Download deep analysis report (Word)",
+            "help.cr.dl8": "/download deep excel — Download deep analysis report (Excel)",
+            "help.cr.feedbackTitle": "💬 Feedback Commands",
+            "help.cr.fb1": '/feedback daily "Dim A score too low, suggest..." — Submit daily audit feedback and trigger re-evaluation',
+            "help.cr.fb2": '/feedback meta "Suggest improvement..." — Submit 10-day review feedback',
+            "help.cr.fb3": "/feedback history — View all feedback records (editable/deletable)",
+            "help.cr.opsTitle": "🔧 Operation Commands",
+            "help.cr.op1": "/run audit — Run daily audit",
+            "help.cr.op2": "/run meta — Run 10-day meta review",
+            "help.cr.op3": "/downloads — Show download catalog",
+            "help.cr.op4": "/help — Show this help message",
+
+            "help.ce.interventionTitle": "🙋 Human Intervention",
+            "help.ce.int1": "Type any text — sent as human intervention message to LLM conversation",
+            "help.ce.int2": 'Example: "You asked the wrong question, you should ask..."',
+            "help.ce.downloadTitle": "📥 Download Commands",
+            "help.ce.dl1": "/download crossexam word — Download cross-examination record (Word)",
+            "help.ce.dl2": "/download crossexam excel — Download cross-examination record (Excel)",
+            "help.ce.dl3": "/download quality word — Download quality analysis report (Word)",
+            "help.ce.dl4": "/download quality excel — Download quality analysis report (Excel)",
+            "help.ce.feedbackTitle": "💬 Feedback Commands",
+            "help.ce.fb1": '/feedback daily "feedback..." — Submit daily audit feedback and trigger re-evaluation',
+            "help.ce.fb2": '/feedback meta "feedback..." — Submit 10-day review feedback',
+            "help.ce.fb3": "/feedback history — View feedback records",
+            "help.ce.opsTitle": "🔧 Other Commands",
+            "help.ce.op1": '/adjust <standard_id> "<clause>" <old> -> <new> — Adjust supplementary standard clause mapping',
+            "help.ce.op2": "/standards — List all supplementary standards and their clause mappings",
+            "help.ce.op3": "/downloads — Show download catalog",
+            "help.ce.op4": "/help — Show this help message",
+
+            "crossexam.title": "💬 Real-Time LLM Interaction Viewer",
+            "crossexam.desc": "Watch all Phase LLM interactions (Gap Scan, Verification, Improvement Suggestions, Cross-Examination). Intervene when necessary.",
+            "crossexam.notConnected": "⏹ Not Connected",
+            "crossexam.connect": "🔌 Connect",
+            "crossexam.pause": "⏸ Pause",
+            "crossexam.resume": "▶️ Resume",
+            "crossexam.phaseAll": "All",
+            "crossexam.phaseVerify": "Verify",
+            "crossexam.phaseImprove": "Improve",
+            "crossexam.phaseCrossExam": "Cross-Exam",
+            "crossexam.runIdLabel": "Analysis Run ID:",
+            "crossexam.runIdPlaceholder": "Enter Run ID or use current Run ID",
+            "crossexam.emptyFeed": "Real-time cross-examination will appear after connection",
+            "crossexam.inputPlaceholder": "Enter intervention message or command... (type /help for all commands)",
+
+            "history.title": "📜 Cross-Examination History",
+            "history.desc": "View all cross-examination history records. Each record can be downloaded individually. Quality analysis is available when 10+ records exist.",
+            "history.count": "0 records",
+            "history.load": "🔄 Load History",
+            "history.qualityAnalysis": "🧠 Quality Analysis",
+            "history.qualityNeed10": "Requires 10+ records",
+            "history.empty": 'Click "Load History" to view cross-examination records',
+            "history.metaTitle": "🧠 Cross-Examination Quality Analysis",
+            "history.exportMetaWord": "📄 Export Quality Analysis Word",
+            "history.exportMetaExcel": "📊 Export Quality Analysis Excel",
+
+            "audit.deviationTitle": "Audit Score Deviation Alert",
+            "audit.title": "🔍 Daily Audit Scoring",
+            "audit.desc": "Third-party LLM scores cross-examination results daily across two dimensions: Regulation Accuracy (Dim A) and Cross-Exam Quality (Dim B). Meta review every 10 days.",
+            "audit.count": "0 records",
+            "audit.run": "▶️ Run Daily Audit",
+            "audit.metaReview": "🧠 10-Day Review",
+            "audit.metaNeed10": "Requires 10+ records",
+            "audit.loadHistory": "🔄 Load History",
+            "audit.empty": 'Click "Load History" to view daily audit records',
+            "audit.metaReviewTitle": "🧠 10-Day Meta Review Report",
+            "audit.exportAuditWord": "📄 Export Audit Report Word",
+            "audit.exportAuditExcel": "📊 Export Audit Report Excel",
+            "audit.exportMetaWord": "📄 Export Meta Review Word",
+            "audit.exportMetaExcel": "📊 Export Meta Review Excel",
+
+            "modal.detailTitle": "Clause Details",
+            "modal.overrideTitle": "✏️ Override Verdict",
+            "modal.overrideCurrent": "Current Verdict",
+            "modal.overrideNew": "New Verdict",
+            "modal.overrideReason": "Override Reason",
+            "modal.overrideReasonPlaceholder": "Please explain why you are overriding this verdict...",
+            "modal.cancel": "Cancel",
+            "modal.confirmOverride": "Confirm Override",
+            "modal.noteTitle": "📝 Add Clause Note",
+            "modal.noteClause": "Clause",
+            "modal.noteText": "Note Content",
+            "modal.notePlaceholder": "This note will be permanently attached to this clause and considered in every analysis...",
+            "modal.saveNote": "Save Note",
+            "modal.historyTitle": "📜 Version History",
+
+            "verdict.full": "✅ Full Compliance",
+            "verdict.partial": "⚠️ Partial Compliance",
+            "verdict.non": "❌ Non-Compliance",
+            "verdict.insufficient": "⬜ Insufficient Data",
+
+            "toast.loadFailed": "Load failed: {msg}",
+            "toast.detailFailed": "Failed to load details: {msg}",
+            "toast.overrideNoReason": "Please provide an override reason",
+            "toast.overrideSuccess": "Verdict overridden",
+            "toast.overrideFailed": "Override failed: {msg}",
+            "toast.noteEmpty": "Please enter note content",
+            "toast.noteSuccess": "Note saved",
+            "toast.noteFailed": "Save failed: {msg}",
+            "toast.historyFailed": "Failed to load history: {msg}",
+            "toast.restoreSuccess": "Restored to original LLM verdict",
+            "toast.restoreFailed": "Restore failed: {msg}",
+            "toast.rerunSuccess": "Row reset. Please re-run analysis pipeline from Chainlit.",
+            "toast.rerunFailed": "Reset failed: {msg}",
+            "toast.exporting": "Exporting {fmt} report...",
+            "toast.mdsapEnabled": "MDSAP cross-examination verification enabled",
+            "toast.mdsapDisabled": "MDSAP cross-examination verification disabled",
+            "toast.mdsapFailed": "MDSAP setting failed: {msg}",
+            "toast.selectCountry": "Please select at least one country",
+            "toast.crossrefGenerated": "Cross-reference table generated ({rows} clauses × {cols} countries)",
+            "toast.crossrefFailed": "Generation failed: {msg}",
+            "toast.enterRunId": "Please enter a Run ID",
+            "toast.sseFailed": "SSE connection failed: {msg}",
+            "toast.pauseFailed": "Pause failed: {msg}",
+            "toast.resumeFailed": "Resume failed: {msg}",
+            "toast.sendFailed": "Send failed: {msg}",
+            "toast.standardsFailed": "Cannot load standards list: {msg}",
+            "toast.adjustFailed": "Adjustment failed: {msg}",
+            "toast.exportingDeep": "Exporting deep analysis report ({fmt})...",
+            "toast.exportingCrossexam": "Exporting cross-examination record ({fmt})...",
+            "toast.exportingQuality": "Exporting quality analysis report ({fmt})...",
+            "toast.auditRunning": "Running daily audit...",
+            "toast.auditDone": "Daily audit complete! Score: {score}/100",
+            "toast.auditFailed": "Daily audit failed: {msg}",
+            "toast.metaRunning": "Running 10-day meta review...",
+            "toast.metaDone": "Meta review complete!",
+            "toast.metaFailed": "10-day meta review failed: {msg}",
+            "toast.exportingAudit": "Exporting audit report ({fmt})...",
+            "toast.exportingMetaReview": "Exporting meta review report ({fmt})...",
+            "toast.exportingAuditRecord": "Exporting audit record ({fmt})...",
+            "toast.unknownTarget": "Unknown target. Usage: /run audit or /run meta",
+            "toast.unknownCommand": "Unknown command: {cmd}. Type /help for available commands",
+            "toast.feedbackHint": 'Use /feedback daily "content" to submit feedback, or type /help for all commands',
+            "toast.formatError": "Format must be word or excel",
+            "toast.unknownDownloadType": "Unknown download type: {type}. Available: report, deep, audit, meta, crossexam, quality",
+            "toast.downloading": "Downloading {label}...",
+            "toast.feedbackFormat": 'Format: /feedback daily|meta "feedback content..."',
+            "toast.feedbackSubmitting": "Submitting feedback and triggering re-evaluation...",
+            "toast.feedbackSaved": "Feedback saved (re-evaluation not executed)",
+            "toast.feedbackFailed": "Feedback submission failed: {msg}",
+            "toast.feedbackUsage": 'Usage: /feedback daily|meta "feedback" or /feedback history',
+            "toast.feedbackUpdated": "Feedback updated",
+            "toast.feedbackUpdateFailed": "Update failed: {msg}",
+            "toast.feedbackDeleted": "Feedback deleted",
+            "toast.feedbackDeleteFailed": "Delete failed: {msg}",
+            "toast.feedbackReEvalSuccess": "Feedback saved, re-evaluation complete! New score: {score}/100",
+
+            "dl.complianceReport": "📄 Compliance Analysis Report",
+            "dl.complianceDesc": "Complete compliance report for this analysis",
+            "dl.deepReport": "📋 Deep Analysis Report",
+            "dl.deepDesc": "Includes detailed gap scan, verification, and improvement suggestions",
+            "dl.auditReport": "📜 Daily Audit Report",
+            "dl.auditDesc": "Latest daily audit scoring results",
+            "dl.metaReport": "🧠 10-Day Meta Review Report",
+            "dl.metaDesc": "Aggregated 10-day audit data with trend analysis and recommendations",
+            "dl.qualityReport": "💬 Cross-Examination Quality Analysis",
+            "dl.qualityDesc": "Quality analysis report of cross-examination records",
+            "dl.feedbackReport": "📝 User Feedback Records",
+            "dl.feedbackDesc": "All submitted feedback and re-evaluation results",
+
+            "btn.detail": "Details",
+            "btn.override": "Override Verdict",
+            "btn.note": "Note",
+            "btn.history": "History",
+            "btn.rerun": "Re-analyze this row",
+            "btn.restore": "Restore original LLM verdict",
+            "btn.edit": "✂ Edit",
+            "btn.delete": "🗑 Delete",
+
+            "table.showing": "Showing {shown} / {total} items",
+            "table.emptyState": "Loading...",
+        },
+
+        "ja-JP": {
+            "header.title": "📊 コンプライアンス分析レポート",
+            "page.title": "AI-QMS コンプライアンス分析レポート",
+
+            "tab.analysis": "📊 コンプライアンス分析結果",
+            "tab.crossref": "🔗 各国規制クロスリファレンス",
+            "tab.crossexam": "💬 リアルタイム LLM インタラクション",
+            "tab.history": "📜 クロス検証履歴",
+            "tab.dailyaudit": "🔍 毎日監査",
+
+            "card.analysisItems": "分析項目",
+            "card.fullCompliance": "完全準拠",
+            "card.partialCompliance": "部分準拠",
+            "card.nonCompliance": "不適合",
+            "card.raReview": "RA レビュー必要",
+            "card.tokenUsage": "トークン使用量",
+            "card.overallScore": "総合スコア",
+            "card.dimA": "規制精度 (Dim A)",
+            "card.dimB": "クロス検証品質 (Dim B)",
+
+            "filter.document": "文書",
+            "filter.allDocs": "すべての文書",
+            "filter.verdict": "判定結果",
+            "filter.allVerdicts": "すべての結果",
+            "filter.risk": "リスクレベル",
+            "filter.allRisks": "すべてのレベル",
+            "filter.flaggedOnly": "要レビューのみ表示",
+            "filter.searchPlaceholder": "条項 / 文書を検索...",
+            "filter.exportWord": "Word",
+            "filter.exportExcel": "Excel",
+            "filter.deepReport": "📋 深度レポート",
+            "filter.deepExcel": "📊 深度 Excel",
+            "filter.refresh": "🔄 更新",
+
+            "table.clause": "条項",
+            "table.document": "品質文書",
+            "table.question": "監査質問",
+            "table.evidence": "証拠",
+            "table.verdict": "判定",
+            "table.risk": "リスク",
+            "table.flags": "フラグ",
+            "table.actions": "操作",
+            "table.loading": "読み込み中...",
+            "table.count": "読み込み中...",
+
+            "crossref.selectCountries": "🌍 規制国を選択",
+            "crossref.loadingRegs": "規制一覧を読み込み中...",
+            "crossref.generateTable": "📊 比較表を生成",
+            "crossref.showOriginal": "原文を表示",
+            "crossref.showOriginalDesc": "各国の規制原文を表示",
+            "crossref.mdsapVerify": "MDSAP クロス検証",
+            "crossref.mdsapVerifyDesc": "MDSAPクロス検証の有効/無効",
+            "crossref.uploadTitle": "一部の国の規制原文がアップロードされていません",
+            "crossref.gotIt": "了解",
+            "crossref.legendFull": "完全採用",
+            "crossref.legendPartial": "部分採用",
+            "crossref.legendExceeds": "ISO 超過",
+            "crossref.legendNA": "該当なし",
+            "crossref.interCountry": "🔀 国間差異分析",
+            "crossref.interCountryDesc": "各国規制間の差異 — ある国にあり他国にない固有の要件。",
+            "crossref.deltaTitle": "🚨 国固有の要件 (Delta Items) — 最優先",
+            "crossref.deltaDesc": "ISO 13485 を超える各国固有の要件。品質文書でこれらを追加カバーする必要があります。",
+
+            "cmd.feedbackRecords": "📝 フィードバック記録",
+            "cmd.close": "✕ 閉じる",
+            "cmd.helpTitle": "📖 ヘルプと例",
+            "cmd.downloadCatalogTitle": "📥 ダウンロードカタログ",
+            "cmd.inputPlaceholder": "コマンドまたはフィードバックを入力... (/help で全コマンド表示)",
+            "cmd.send": "送信",
+            "cmd.helpBtn": "ヘルプ",
+            "cmd.downloadBtn": "ダウンロード",
+
+            "help.cr.downloadTitle": "📥 ダウンロードコマンド",
+            "help.cr.dl1": "/download audit word — 最新の毎日監査レポートをダウンロード (Word)",
+            "help.cr.dl2": "/download audit excel — 最新の毎日監査レポートをダウンロード (Excel)",
+            "help.cr.dl3": "/download meta word — 10日総合レビューレポートをダウンロード (Word)",
+            "help.cr.dl4": "/download meta excel — 10日総合レビューレポートをダウンロード (Excel)",
+            "help.cr.dl5": "/download report word — コンプライアンスレポートをダウンロード (Word)",
+            "help.cr.dl6": "/download report excel — コンプライアンスレポートをダウンロード (Excel)",
+            "help.cr.dl7": "/download deep word — 深度分析レポートをダウンロード (Word)",
+            "help.cr.dl8": "/download deep excel — 深度分析レポートをダウンロード (Excel)",
+            "help.cr.feedbackTitle": "💬 フィードバックコマンド",
+            "help.cr.fb1": '/feedback daily "Dim Aスコアが低い..." — 毎日監査フィードバックを送信し再評価を実行',
+            "help.cr.fb2": '/feedback meta "改善を提案..." — 10日総合レビューフィードバック',
+            "help.cr.fb3": "/feedback history — 全フィードバック記録を表示（編集/削除可能）",
+            "help.cr.opsTitle": "🔧 操作コマンド",
+            "help.cr.op1": "/run audit — 毎日監査を実行",
+            "help.cr.op2": "/run meta — 10日総合レビューを実行",
+            "help.cr.op3": "/downloads — ダウンロードカタログを表示",
+            "help.cr.op4": "/help — このヘルプメッセージを表示",
+
+            "help.ce.interventionTitle": "🙋 人間介入",
+            "help.ce.int1": "任意のテキストを入力 — LLM対話への人間介入メッセージとして送信",
+            "help.ce.int2": "例：「質問が間違っています。こう聞くべき...」",
+            "help.ce.downloadTitle": "📥 ダウンロードコマンド",
+            "help.ce.dl1": "/download crossexam word — クロス検証記録をダウンロード (Word)",
+            "help.ce.dl2": "/download crossexam excel — クロス検証記録をダウンロード (Excel)",
+            "help.ce.dl3": "/download quality word — 品質分析レポートをダウンロード (Word)",
+            "help.ce.dl4": "/download quality excel — 品質分析レポートをダウンロード (Excel)",
+            "help.ce.feedbackTitle": "💬 フィードバックコマンド",
+            "help.ce.fb1": '/feedback daily "フィードバック..." — 毎日監査フィードバックを送信し再評価を実行',
+            "help.ce.fb2": '/feedback meta "フィードバック..." — 10日総合レビューフィードバック',
+            "help.ce.fb3": "/feedback history — フィードバック記録を表示",
+            "help.ce.opsTitle": "🔧 その他のコマンド",
+            "help.ce.op1": '/adjust <standard_id> "<clause>" <old> -> <new> — 補足規格条項マッピングを調整',
+            "help.ce.op2": "/standards — 全補足規格と条項マッピングを一覧",
+            "help.ce.op3": "/downloads — ダウンロードカタログを表示",
+            "help.ce.op4": "/help — このヘルプメッセージを表示",
+
+            "crossexam.title": "💬 リアルタイム LLM インタラクションビューア",
+            "crossexam.desc": "全フェーズの LLM インタラクション（Gap Scan、検証、改善提案、クロス検証）を監視。必要に応じて介入可能。",
+            "crossexam.notConnected": "⏹ 未接続",
+            "crossexam.connect": "🔌 接続",
+            "crossexam.pause": "⏸ 一時停止",
+            "crossexam.resume": "▶️ 再開",
+            "crossexam.phaseAll": "全部",
+            "crossexam.phaseVerify": "検証",
+            "crossexam.phaseImprove": "改善提案",
+            "crossexam.phaseCrossExam": "クロス検証",
+            "crossexam.runIdLabel": "分析 Run ID：",
+            "crossexam.runIdPlaceholder": "Run ID を入力または現在の Run ID を使用",
+            "crossexam.emptyFeed": "接続後にリアルタイムクロス検証内容が表示されます",
+            "crossexam.inputPlaceholder": "介入メッセージまたはコマンドを入力... (/help で全コマンド表示)",
+
+            "history.title": "📜 クロス検証履歴記録",
+            "history.desc": "全クロス検証履歴を表示。各記録は個別にダウンロード可能。10件以上で品質分析が利用可能。",
+            "history.count": "0 件の記録",
+            "history.load": "🔄 履歴を読込",
+            "history.qualityAnalysis": "🧠 品質分析",
+            "history.qualityNeed10": "10件以上の記録が必要",
+            "history.empty": "「履歴を読込」をクリックしてクロス検証記録を表示",
+            "history.metaTitle": "🧠 クロス検証品質分析",
+            "history.exportMetaWord": "📄 品質分析 Word エクスポート",
+            "history.exportMetaExcel": "📊 品質分析 Excel エクスポート",
+
+            "audit.deviationTitle": "監査スコア偏差警告",
+            "audit.title": "🔍 毎日監査スコアリング",
+            "audit.desc": "第三者 LLM がクロス検証結果を毎日スコアリング。規制精度（Dim A）とクロス検証品質（Dim B）の2次元。10日ごとに総合レビュー。",
+            "audit.count": "0 件の記録",
+            "audit.run": "▶️ 毎日監査を実行",
+            "audit.metaReview": "🧠 10日総合レビュー",
+            "audit.metaNeed10": "10件以上の記録が必要",
+            "audit.loadHistory": "🔄 履歴を読込",
+            "audit.empty": "「履歴を読込」をクリックして毎日監査記録を表示",
+            "audit.metaReviewTitle": "🧠 10日総合レビューレポート",
+            "audit.exportAuditWord": "📄 監査レポート Word エクスポート",
+            "audit.exportAuditExcel": "📊 監査レポート Excel エクスポート",
+            "audit.exportMetaWord": "📄 総合レビュー Word エクスポート",
+            "audit.exportMetaExcel": "📊 総合レビュー Excel エクスポート",
+
+            "modal.detailTitle": "条項詳細",
+            "modal.overrideTitle": "✏️ 判定結果の上書き",
+            "modal.overrideCurrent": "現在の判定",
+            "modal.overrideNew": "新しい判定結果",
+            "modal.overrideReason": "上書き理由",
+            "modal.overrideReasonPlaceholder": "この判定を上書きする理由を説明してください...",
+            "modal.cancel": "キャンセル",
+            "modal.confirmOverride": "上書き確認",
+            "modal.noteTitle": "📝 条項メモの追加",
+            "modal.noteClause": "条項",
+            "modal.noteText": "メモ内容",
+            "modal.notePlaceholder": "このメモは条項に永久に添付され、毎回の分析で考慮されます...",
+            "modal.saveNote": "メモを保存",
+            "modal.historyTitle": "📜 バージョン履歴",
+
+            "verdict.full": "✅ 完全準拠",
+            "verdict.partial": "⚠️ 部分準拠",
+            "verdict.non": "❌ 不適合",
+            "verdict.insufficient": "⬜ データ不足",
+
+            "toast.loadFailed": "読み込み失敗: {msg}",
+            "toast.detailFailed": "詳細の読み込み失敗: {msg}",
+            "toast.overrideNoReason": "上書き理由を入力してください",
+            "toast.overrideSuccess": "判定を上書きしました",
+            "toast.overrideFailed": "上書き失敗: {msg}",
+            "toast.noteEmpty": "メモ内容を入力してください",
+            "toast.noteSuccess": "メモを保存しました",
+            "toast.noteFailed": "保存失敗: {msg}",
+            "toast.historyFailed": "履歴の読み込み失敗: {msg}",
+            "toast.restoreSuccess": "LLM 元の判定に復元しました",
+            "toast.restoreFailed": "復元失敗: {msg}",
+            "toast.rerunSuccess": "行をリセットしました。Chainlit から分析パイプラインを再実行してください。",
+            "toast.rerunFailed": "リセット失敗: {msg}",
+            "toast.exporting": "{fmt} レポートをエクスポート中...",
+            "toast.mdsapEnabled": "MDSAP クロス検証が有効になりました",
+            "toast.mdsapDisabled": "MDSAP クロス検証が無効になりました",
+            "toast.mdsapFailed": "MDSAP 設定失敗: {msg}",
+            "toast.selectCountry": "少なくとも1つの国を選択してください",
+            "toast.crossrefGenerated": "クロスリファレンス表が生成されました（{rows} 条項 × {cols} 国）",
+            "toast.crossrefFailed": "生成失敗: {msg}",
+            "toast.enterRunId": "Run ID を入力してください",
+            "toast.sseFailed": "SSE 接続失敗: {msg}",
+            "toast.pauseFailed": "一時停止失敗: {msg}",
+            "toast.resumeFailed": "再開失敗: {msg}",
+            "toast.sendFailed": "送信失敗: {msg}",
+            "toast.standardsFailed": "規格一覧の読み込み失敗: {msg}",
+            "toast.adjustFailed": "調整失敗: {msg}",
+            "toast.exportingDeep": "深度分析レポートをエクスポート中 ({fmt})...",
+            "toast.exportingCrossexam": "クロス検証記録をエクスポート中 ({fmt})...",
+            "toast.exportingQuality": "品質分析レポートをエクスポート中 ({fmt})...",
+            "toast.auditRunning": "毎日監査を実行中...",
+            "toast.auditDone": "毎日監査完了！スコア: {score}/100",
+            "toast.auditFailed": "毎日監査失敗: {msg}",
+            "toast.metaRunning": "10日総合レビューを実行中...",
+            "toast.metaDone": "総合レビュー完了！",
+            "toast.metaFailed": "10日総合レビュー失敗: {msg}",
+            "toast.exportingAudit": "監査レポートをエクスポート中 ({fmt})...",
+            "toast.exportingMetaReview": "総合レビューレポートをエクスポート中 ({fmt})...",
+            "toast.exportingAuditRecord": "監査記録をエクスポート中 ({fmt})...",
+            "toast.unknownTarget": "不明なターゲット。使い方: /run audit または /run meta",
+            "toast.unknownCommand": "不明なコマンド: {cmd}。/help で利用可能なコマンドを表示",
+            "toast.feedbackHint": '/feedback daily "内容" でフィードバックを送信、または /help で全コマンドを表示',
+            "toast.formatError": "フォーマットは word または excel でなければなりません",
+            "toast.unknownDownloadType": "不明なダウンロードタイプ: {type}。利用可能: report, deep, audit, meta, crossexam, quality",
+            "toast.downloading": "{label} をダウンロード中...",
+            "toast.feedbackFormat": 'フォーマット: /feedback daily|meta "フィードバック内容..."',
+            "toast.feedbackSubmitting": "フィードバックを送信し再評価を実行中...",
+            "toast.feedbackSaved": "フィードバックを保存しました（再評価は未実行）",
+            "toast.feedbackFailed": "フィードバック送信失敗: {msg}",
+            "toast.feedbackUsage": '使い方: /feedback daily|meta "フィードバック" または /feedback history',
+            "toast.feedbackUpdated": "フィードバックを更新しました",
+            "toast.feedbackUpdateFailed": "更新失敗: {msg}",
+            "toast.feedbackDeleted": "フィードバックを削除しました",
+            "toast.feedbackDeleteFailed": "削除失敗: {msg}",
+            "toast.feedbackReEvalSuccess": "フィードバック保存済み、再評価完了！新スコア: {score}/100",
+
+            "dl.complianceReport": "📄 コンプライアンス分析レポート",
+            "dl.complianceDesc": "今回の分析の完全なコンプライアンスレポート",
+            "dl.deepReport": "📋 深度分析レポート",
+            "dl.deepDesc": "詳細なギャップスキャン、検証、改善提案を含む",
+            "dl.auditReport": "📜 毎日監査レポート",
+            "dl.auditDesc": "最新の毎日監査スコアリング結果",
+            "dl.metaReport": "🧠 10日総合レビューレポート",
+            "dl.metaDesc": "10日間の監査データの傾向分析と提案",
+            "dl.qualityReport": "💬 クロス検証品質分析",
+            "dl.qualityDesc": "クロス検証記録の品質分析レポート",
+            "dl.feedbackReport": "📝 ユーザーフィードバック記録",
+            "dl.feedbackDesc": "すべてのフィードバックと再評価結果",
+
+            "btn.detail": "詳細",
+            "btn.override": "判定上書き",
+            "btn.note": "メモ",
+            "btn.history": "履歴",
+            "btn.rerun": "この行を再分析",
+            "btn.restore": "LLM 元の判定に復元",
+            "btn.edit": "✂ 編集",
+            "btn.delete": "🗑 削除",
+
+            "table.showing": "{shown} / {total} 件を表示",
+            "table.emptyState": "読み込み中...",
+        },
+    };
+
+    // ── State ──
+    let currentLang = "zh-TW";
+
+    // ── Core API ──
+
+    /**
+     * Translate a key with optional interpolation.
+     * @param {string} key — dot-notation key like 'toast.loadFailed'
+     * @param {Object} [params] — interpolation values: {msg: 'err'} replaces {msg}
+     * @returns {string}
+     */
+    function t(key, params) {
+        const dict = TRANSLATIONS[currentLang] || TRANSLATIONS["zh-TW"];
+        let str = dict[key];
+        if (str === undefined) {
+            // Fallback to zh-TW
+            str = (TRANSLATIONS["zh-TW"] || {})[key];
+        }
+        if (str === undefined) return key; // Last resort: return key itself
+
+        if (params) {
+            for (const [k, v] of Object.entries(params)) {
+                str = str.replace(new RegExp("\\{" + k + "\\}", "g"), v);
+            }
+        }
+        return str;
+    }
+
+    /**
+     * Apply translations to all elements with [data-i18n] attribute.
+     * Supports:
+     *   data-i18n="key"              → textContent
+     *   data-i18n-placeholder="key"  → placeholder
+     *   data-i18n-title="key"        → title attribute
+     */
+    function applyAll() {
+        document.querySelectorAll("[data-i18n]").forEach(function (el) {
+            const key = el.getAttribute("data-i18n");
+            if (key) el.textContent = t(key);
+        });
+        document.querySelectorAll("[data-i18n-placeholder]").forEach(function (el) {
+            const key = el.getAttribute("data-i18n-placeholder");
+            if (key) el.placeholder = t(key);
+        });
+        document.querySelectorAll("[data-i18n-title]").forEach(function (el) {
+            const key = el.getAttribute("data-i18n-title");
+            if (key) el.title = t(key);
+        });
+        document.title = t("page.title");
+        document.title = t("page.title");
+    }
+
+    /**
+     * Set language and re-apply all translations.
+     * @param {string} lang — language code like 'en-US', 'ja-JP', 'zh-TW'
+     */
+    function setLang(lang) {
+        // If exact match exists, use it; otherwise map CJK variants
+        if (TRANSLATIONS[lang]) {
+            currentLang = lang;
+        } else if (lang && lang.startsWith("zh")) {
+            currentLang = "zh-TW"; // zh-CN → zh-TW (Traditional Chinese as default)
+        } else {
+            currentLang = "zh-TW"; // Default fallback
+        }
+        applyAll();
+    }
+
+    /**
+     * Initialize: fetch language from Chainlit and apply.
+     */
+    async function init() {
+        try {
+            const resp = await fetch("/api/report/user/language");
+            if (resp.ok) {
+                const data = await resp.json();
+                setLang(data.language || "zh-TW");
+            }
+        } catch (_) {
+            // Silent: keep default zh-TW
+        }
+    }
+
+    // ── Expose API ──
+    window.__i18n = {
+        t: t,
+        setLang: setLang,
+        applyAll: applyAll,
+        init: init,
+        get lang() { return currentLang; },
+    };
+})();

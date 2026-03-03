@@ -1571,19 +1571,91 @@ body {
 
 .intervention-bar {
     display: flex;
-    align-items: center;
+    flex-direction: column;
     gap: 8px;
-    padding: 10px 14px;
+    padding: 14px;
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: var(--radius);
 }
 
-.intervention-label {
+.intervention-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+.intervention-bar textarea {
+    width: 100%;
+    min-height: 80px;
+    resize: vertical;
+    font-family: var(--font);
     font-size: 0.85rem;
-    font-weight: 500;
-    white-space: nowrap;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    outline: none;
+    transition: border-color 0.15s;
+}
+
+.intervention-bar textarea:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-light);
+}
+
+.intervention-bar textarea:disabled {
+    background: var(--bg);
+    color: var(--text-muted);
+    cursor: not-allowed;
+}
+
+.intervention-examples {
+    font-size: 0.78rem;
     color: var(--text-secondary);
+    background: var(--bg);
+    padding: 10px 14px;
+    border-radius: var(--radius);
+    margin-top: 8px;
+}
+
+.intervention-examples-title {
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: var(--text);
+}
+
+.intervention-examples ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.intervention-examples li {
+    padding: 3px 0;
+    line-height: 1.5;
+}
+
+.intervention-examples li::before {
+    content: "\2022";
+    color: var(--primary);
+    font-weight: bold;
+    display: inline-block;
+    width: 1em;
+}
+
+.intervention-examples code {
+    background: var(--bg-card);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 0.85em;
+}
+
+.intervention-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    white-space: nowrap;
+    color: var(--text);
 }
 
 /* ── Responsive: Tabs ── */
@@ -1818,4 +1890,80 @@ body {
     40% { content: ' ..'; }
     60% { content: ' ...'; }
     80%, 100% { content: ' .'; }
+}
+
+/* ============================================================
+   Formatted LLM Response Cards
+   ============================================================ */
+
+.llm-formatted-results {
+    margin-top: 8px;
+}
+
+.llm-clause-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    margin-bottom: 8px;
+}
+
+.llm-clause-header {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--text);
+    margin-bottom: 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border);
+}
+
+.llm-clause-summary {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.llm-evidence-item {
+    padding: 6px 10px;
+    margin-bottom: 4px;
+    border-radius: var(--radius-sm);
+    font-size: 0.8rem;
+}
+
+.llm-evidence-item.found {
+    background: var(--compliant-bg);
+    border-left: 3px solid var(--compliant);
+}
+
+.llm-evidence-item.not-found {
+    background: var(--non-compliant-bg);
+    border-left: 3px solid var(--non-compliant);
+}
+
+.llm-evidence-item.inadequate {
+    background: var(--partial-bg);
+    border-left: 3px solid var(--partial);
+}
+
+.llm-evidence-name {
+    font-weight: 500;
+    margin-bottom: 3px;
+}
+
+.llm-evidence-detail {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-top: 3px;
+    line-height: 1.4;
+}
+
+.llm-evidence-quote {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    font-style: italic;
+    margin-top: 3px;
+    padding: 4px 8px;
+    background: var(--bg-card);
+    border-radius: var(--radius-sm);
+    border-left: 2px solid var(--border-strong);
 }

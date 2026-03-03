@@ -1,4 +1,93 @@
 {
+  "_commands.cmd.audit": [
+    "文件更動紀錄",
+    "稽核紀錄",
+    "審計紀錄",
+    "操作紀錄"
+  ],
+  "_commands.cmd.delete_database": [
+    "刪除資料庫",
+    "刪除所有"
+  ],
+  "_commands.cmd.reset_watermark": [
+    "重設浮水印",
+    "更換浮水印",
+    "浮水印重設",
+    "清除浮水印"
+  ],
+  "_commands.cmd.reset_sig_detection": [
+    "重設簽章檢測",
+    "簽章檢測重設",
+    "更換簽章設定"
+  ],
+  "_commands.cmd.reset_level_range": [
+    "重設管控範圍",
+    "管控範圍重設",
+    "更換管控範圍"
+  ],
+  "_commands.cmd.document_list": [
+    "文件清單"
+  ],
+  "_commands.cmd.download_allrecords": [
+    "下載列表",
+    "匯出列表",
+    "下載文件紀錄",
+    "匯出文件紀錄"
+  ],
+  "_commands.cmd.download_audit": [
+    "下載文件更動紀錄",
+    "匯出文件更動紀錄",
+    "下載稽核紀錄",
+    "匯出稽核紀錄"
+  ],
+  "_commands.cmd.download_doclist": [
+    "下載文件清單",
+    "匯出文件清單"
+  ],
+  "_commands.cmd.download_file": [
+    "下載",
+    "取得正本",
+    "取得",
+    "提供正本",
+    "提供文件"
+  ],
+  "_commands.cmd.download_regulatory": [
+    "下載法規清單",
+    "匯出法規清單"
+  ],
+  "_commands.cmd.help": [
+    "幫助"
+  ],
+  "_commands.cmd.list": [
+    "列表",
+    "所有文件"
+  ],
+  "_commands.cmd.obsolete": [
+    "作廢"
+  ],
+  "_commands.cmd.regulatory": [
+    "法規清單",
+    "法規標準"
+  ],
+  "_commands.cmd.regulatory_update": [
+    "法規清單更新",
+    "更新法規清單"
+  ],
+  "_commands.cmd.search": [
+    "搜尋"
+  ],
+  "_commands.cmd.status": [
+    "狀態"
+  ],
+  "_commands.cmd.test_connection": [
+    "連線測試"
+  ],
+  "_commands.cmd.web": [
+    "/web",
+    "網路搜尋",
+    "上網搜尋",
+    "上網查詢"
+  ],
   "allrecords.error": "Eira：無法讀取列表: {error}",
   "allrecords.export_excel": "Eira：📋 已產生全部文件紀錄 Excel 報告 (共 {count} 份文件)。",
   "allrecords.export_hint": "Eira：📋 目前支援：\n- 「下載列表 word」\n- 「下載列表 excel」",
@@ -73,7 +162,7 @@
   "file.unsupported": "Eira：不支援的檔案格式: {suffix}",
   "file.version_detected": "Eira：⚠️ 偵測到文件進版: {doc_id} (現有 V{old_ver} → 新版 V{new_ver})",
   "file.version_exists": "Eira：此文件 ({doc_id}) 已存在於資料庫中。\n現有版本: **V{old_ver}** → 新版本: **V{new_ver}**\n\n是否要進行文件進版？",
-  "help.doc_control": "🤖 **文件管制使用指南**\n\n**文件上傳：**\n1. 在對話框拖放或上傳文件\n2. 系統自動進行 OCR 處理\n3. 偵測文件類型（新文件/進版）\n4. 偵測簽章/印章\n5. 自動存入 Markdown DB\n\n**對話指令：**\n- 「文件清單」- 現行正式版本文件（附 Word/Excel 匯出按鈕）\n- 「列表」- 所有文件紀錄（含進版、作廢）（附 Word/Excel 匯出按鈕）\n- 「搜尋 關鍵字」- 搜尋文件\n- 「下載 文件編號」- 下載原始文件 (如: 下載 QP-852)\n- 「作廢 文件編號」- 作廢文件 (如: 作廢 OTHER-016)\n- 「文件更動紀錄」- 查看操作紀錄（附 Word/Excel 匯出按鈕）\n- 「法規清單」- 列出所有引用的法規標準（附 Word/Excel 匯出按鈕）\n- 「法規清單更新」- 法規清單最新資訊評估分析（附 Word/Excel 匯出按鈕）\n- 「刪除資料庫」- 刪除所有文件\n- 「/web 關鍵字」- 搜尋網路（如: /web 最新 ISO 13485 版本）\n- 「狀態」- 系統狀態\n\n**支援格式：** PDF, Word, Excel, PowerPoint, 圖片, 文字檔",
+  "help.doc_control": "🤖 **文件管制使用指南**\n\n**文件上傳：**\n1. 在對話框拖放或上傳文件\n2. 系統自動進行 OCR 處理\n3. 偵測文件類型（新文件/進版）\n4. 偵測簽章/印章（可關閉）\n5. 自動存入 Markdown DB\n\n**文件觀看與下載：**\n- 管控範圍內的文件及外來法規文件：僅供線上觀看（含浮水印）\n- 管控範圍外的 4 階表單：可下載使用\n- 管控範圍可選擇 1-4 階或 1-3 階\n\n**對話指令：**\n- 「文件清單」- 現行正式版本文件（附 Word/Excel 匯出按鈕）\n- 「列表」- 所有文件紀錄（含進版、作廢）（附 Word/Excel 匯出按鈕）\n- 「搜尋 關鍵字」- 搜尋文件\n- 「下載 文件編號」- 下載/觀看文件（僅管控範圍外 4 階表單可下載，其他線上觀看）\n- 「作廢 文件編號」- 作廢文件 (如: 作廢 OTHER-016)\n- 「文件更動紀錄」- 查看操作紀錄（附 Word/Excel 匯出按鈕）\n- 「法規清單」- 列出所有引用的法規標準（附 Word/Excel 匯出按鈕）\n- 「法規清單更新」- 法規清單最新資訊評估分析（附 Word/Excel 匯出按鈕）\n- 「重設浮水印」- 重設浮水印設定，下次上傳時重新詢問\n- 「重設簽章檢測」- 重設簽章檢測設定\n- 「重設管控範圍」- 重設文件管控階層範圍\n- 「刪除資料庫」- 刪除所有文件\n- 「/web 關鍵字」- 搜尋網路（如: /web 最新 ISO 13485 版本）\n- 「狀態」- 系統狀態\n\n**支援格式：** PDF, Word, Excel, PowerPoint, 圖片, 文字檔",
   "help.main": "🤖 **AI-QMS 助理使用指南**\n\n**可用功能：**\n1. 輸入「狀態」- 查看系統狀態\n2. 輸入「文件清單」- 現行正式版本文件（附 Word/Excel 匯出按鈕）\n3. 輸入「列表」- 所有文件紀錄（含進版、作廢）（附 Word/Excel 匯出按鈕）\n4. 輸入「搜尋 關鍵字」- 搜尋文件內容\n5. 輸入「作廢 文件編號」- 作廢文件 (如: 作廢 OTHER-016)\n6. 輸入「文件更動紀錄」- 查看所有操作紀錄（附 Word/Excel 匯出按鈕）\n7. 輸入「法規清單」- 列出所有文件引用的法規標準（附 Word/Excel 匯出按鈕）\n8. 輸入「法規清單更新」- 法規清單最新資訊評估分析（附 Word/Excel 匯出按鈕）\n9. 直接提問 - AI 將搜尋文件資料庫後回答\n10. 輸入「/web 關鍵字」- 搜尋網路取得最新資訊（如: /web 最新 ISO 13485）\n\n**切換 Profile：**\n- 點擊頂部 Profile 選擇器切換到「文件管制」可上傳文件\n\n**支援格式：** PDF, Word, Excel, PowerPoint, 圖片, 文字檔",
   "llm.answer_from_docs": "\n\n請根據上述文件內容回答使用者的問題。如果文件中沒有相關資訊，請明確告知，不要編造答案。",
   "llm.db_context_header": "\n\n以下是從文件資料庫中找到的相關文件:\n\n",
@@ -98,6 +187,127 @@
   "reference.export_word": "Eira：📋 已產生 {doc_id} 引用清單 Word 報告 (共 {count} 份引用文件)。",
   "reference.no_data": "Eira：📋 目前沒有引用清單資料。請先進行文件進版，系統會自動產生引用清單。",
   "reference.no_refs": "Eira：📋 沒有其他文件引用 {doc_id}，無需匯出。",
+  "regulatory_export.aggregate_title": "📋 **法規清單** (共 {std_count} 項標準，涵蓋 {doc_count} 份文件)",
+  "regulatory_export.assessment_heading": "三、QMS 評估報告",
+  "regulatory_export.assessment_report": "📊 QMS 評估報告",
+  "regulatory_export.assessment_sheet": "評估報告",
+  "regulatory_export.content_truncated": "... (內容已截斷，完整內容請參閱 Markdown 檔案)",
+  "regulatory_export.detail_heading": "二、各文件引用明細",
+  "regulatory_export.detail_sheet": "文件引用明細",
+  "regulatory_export.detail_title": "各文件引用法規標準明細",
+  "regulatory_export.doc_headers": ["文件編號", "文件名稱", "類型", "版本", "引用標準"],
+  "regulatory_export.explicit_ref": "明確引用",
+  "regulatory_export.export_time": "匯出時間",
+  "regulatory_export.footer_regulatory": "本報告由 AI-QMS 品質管理系統自動產生。法規標準資訊擷取自文件 OCR 內容，僅供參考。",
+  "regulatory_export.footer_reference": "本報告由 AI-QMS 品質管理系統自動產生。列出所有引用 {doc_id} 的文件，建議確認是否需要同步更新。",
+  "regulatory_export.implicit_ref": "內容引用",
+  "regulatory_export.no_refs": "📋 資料庫中的文件未引用任何法規或標準。",
+  "regulatory_export.no_refs_doc": "📋 沒有其他文件引用 {doc_id}。",
+  "regulatory_export.no_refs_doc_word": "沒有其他文件引用 {doc_id}。",
+  "regulatory_export.ref_count": "引用 {doc_id} 的文件共 {count} 份",
+  "regulatory_export.ref_headers": ["#", "文件編號", "文件名稱", "版本", "引用方式"],
+  "regulatory_export.ref_sheet": "引用清單",
+  "regulatory_export.ref_table_title": "📋 **文件引用清單** — {doc_id} 被以下 {count} 份文件引用",
+  "regulatory_export.ref_table_headers": ["文件編號", "文件名稱", "類型", "版本", "引用方式"],
+  "regulatory_export.std_count": "標準總數: {count} 項",
+  "regulatory_export.std_coverage": "涵蓋文件: {count} 份",
+  "regulatory_export.std_headers": ["標準", "引用文件數", "引用文件"],
+  "regulatory_export.std_summary": "標準彙總",
+  "regulatory_export.std_summary_heading": "一、標準彙總",
+  "regulatory_export.title_regulatory": "AI-QMS 法規標準引用清單",
+  "regulatory_export.title_reference": "AI-QMS 文件引用清單 — {doc_id}",
+  "regulatory_update_export.content_detail_heading": "二、各地區法規詳情",
+  "regulatory_update_export.crawl_status_fail": "失敗",
+  "regulatory_update_export.crawl_status_success": "成功",
+  "regulatory_update_export.failed_sites": "⚠️ 無法爬取的網站",
+  "regulatory_update_export.footer": "本報告由 AI-QMS 品質管理系統自動產生。法規資訊透過網路爬取取得，僅供參考，請以各國官方網站公告為準。",
+  "regulatory_update_export.meta_stats": "掃描網站: {total} | 成功: {success} | 失敗: {failed} | 耗時: {duration}秒",
+  "regulatory_update_export.result_title": "📋 **法規清單更新結果** (成功 {success}/{total} 個網站，耗時 {duration} 秒)",
+  "regulatory_update_export.regions_covered": "涵蓋地區: {regions}",
+  "regulatory_update_export.summary_heading": "一、法規更新摘要",
+  "regulatory_update_export.summary_sheet": "更新摘要",
+  "regulatory_update_export.summary_table": "爬取結果摘要",
+  "regulatory_update_export.table_headers": ["地區", "機構", "URL", "狀態", "內容摘要", "儲存路徑", "QMS 對應"],
+  "regulatory_update_export.table_headers_md": ["地區", "機構", "狀態", "內容摘要", "QMS 對應"],
+  "regulatory_update_export.title": "AI-QMS 法規清單更新報告",
+  "regulatory_update_export.unknown_reason": "未知原因",
+  "pipeline.analysis_failed": "⚠️ 分析管線執行失敗: {error}",
+  "pipeline.analysis_id": "分析 ID",
+  "pipeline.budget_exceeded": "Token 預算已用盡",
+  "pipeline.calls_made": "呼叫次數: {count} 次",
+  "pipeline.completed_items": "完成項目: {count} 項",
+  "pipeline.critical_gaps": "🔴 發現嚴重差距，管線已暫停",
+  "pipeline.data_available": "{count}/{total} 項資料可用",
+  "pipeline.duration": "耗時: {seconds} 秒",
+  "pipeline.evidence_conflicts": "⚠️ 交叉驗證有分歧，管線已暫停",
+  "pipeline.evidence_search_done": "{count} 項完成證據搜尋",
+  "pipeline.flagged_ra": "需 RA 審查: {count} 項",
+  "pipeline.flagged_ra_note": "（交叉詰問 3 輪後仍有分歧，已標記待人工審查）",
+  "pipeline.initializing": "初始化分析管線...",
+  "pipeline.items_created": "已建立 {count} 個分析項目",
+  "pipeline.llm_token_usage": "LLM Token 用量",
+  "pipeline.no_items": "無可分析的項目（未找到引用法規標準的品質文件）",
+  "pipeline.no_risk": "（尚無風險評估）",
+  "pipeline.no_verdict": "（尚無判定結果）",
+  "pipeline.phase_done": "✅ 完成",
+  "pipeline.phase_fail": "❌ 失敗",
+  "pipeline.phase_running": "執行中...",
+  "pipeline.phase_skip": "⏭️ 跳過",
+  "pipeline.ra_items": "{count} 項需 RA 審查",
+  "pipeline.result_title": "📊 合規性分析管線結果",
+  "pipeline.risk_distribution": "風險等級分布",
+  "pipeline.skip_reason": "當前模式不執行此階段",
+  "pipeline.source_accessible": "{accessible} 可存取 / {broken} 失效",
+  "pipeline.token_usage": "總用量: {tokens} tokens ({percent}%)",
+  "pipeline.total_items": "總分析項目: {count} 項",
+  "pipeline.unknown_error": "未知錯誤",
+  "pipeline.verdict_distribution": "判定結果分布",
+  "pipeline.verification_passed": "所有項目驗證通過",
+  "report.open_interactive": "開啟互動式報告頁面",
+  "report.open_realtime": "開啟即時互動報告",
+  "report.page_features": "在報告頁面中，您可以：\n- 篩選和搜尋分析結果\n- 覆寫判定結果（附原因記錄）\n- 新增條款備註\n- 查看版本歷史\n- 匯出 Word/Excel 報告",
+  "report.page_online": "報告頁面已上線，您可以即時觀看 LLM 互動過程並介入。",
+  "report_api.title": "AI-QMS 合規性分析報告",
+  "report_api.meta": "分析 ID: {run_id}  |  匯出時間: {time}",
+  "report_api.summary_heading": "摘要",
+  "report_api.detail_heading": "詳細分析結果",
+  "report_api.col_clause": "條款",
+  "report_api.col_doc": "文件",
+  "report_api.col_audit_impact": "稽核影響",
+  "report_api.col_verdict": "判定",
+  "report_api.col_risk": "風險",
+  "report_api.col_gap": "差距",
+  "report_api.col_ra_flag": "RA 標記",
+  "report_api.sheet_name": "合規分析",
+  "report_api.col_clause_id": "條款 ID",
+  "report_api.col_clause_name": "條款名稱",
+  "report_api.col_doc_id": "文件 ID",
+  "report_api.col_doc_title": "文件標題",
+  "report_api.col_audit_question": "稽核問題",
+  "report_api.col_risk_level": "風險等級",
+  "report_api.col_gap_severity": "差距嚴重度",
+  "report_api.col_evidence": "證據 (找到/總計)",
+  "report_api.col_ra_override": "RA 覆寫",
+  "report_api.col_ra_notes": "RA 備註",
+  "report_api.md_title": "合規性分析報告",
+  "report_api.md_total_items": "分析項目數",
+  "report_api.md_total_docs": "文件數",
+  "report_api.md_ra_review": "需 RA 審查",
+  "report_api.md_items": "項",
+  "report_api.md_verdict_dist": "判定結果分布",
+  "report_api.md_risk_dist": "風險等級分布",
+  "report_api.md_detail": "詳細結果",
+  "report_api.md_doc_label": "文件",
+  "report_api.md_verdict_label": "判定",
+  "report_api.md_risk_label": "風險",
+  "report_api.md_audit_impact_label": "稽核影響",
+  "report_api.md_evidence_label": "證據",
+  "report_api.md_evidence_found": "{found}/{total} 項找到",
+  "report_api.md_remediation_label": "改善建議",
+  "report_api.md_ra_override_label": "RA 覆寫",
+  "report_api.md_ra_notes_label": "RA 備註",
+  "report_api.rerun_sse_msg": "條款 {row_id} 已重置為待重新分析（從 {phase} 開始）",
+  "report_api.rerun_success_msg": "條款已重置。請在 Chainlit 重新執行「法規清單」指令以觸發重新分析。",
   "regulatory.export_excel": "Eira：📋 已產生法規清單 Excel 報告 (共 {count} 項標準)。",
   "regulatory.export_word": "Eira：📋 已產生法規清單 Word 報告 (共 {count} 項標準)。",
   "regulatory.no_refs": "Eira：📋 資料庫中的文件未引用任何法規或標準，無法匯出。",
@@ -137,6 +347,18 @@
   "sig.presence_keywords": "文字中偵測到簽章相關描述: {keywords}",
   "sig.signatures_label": "簽名",
   "sig.stamps_label": "印章",
+  "sig_toggle.ask": "{name}，請問是否要開啟簽章檢測？\n開啟後，上傳的文件若未偵測到簽章/印章將會被拒絕。",
+  "sig_toggle.btn_enable": "✅ 開啟簽章檢測",
+  "sig_toggle.btn_disable": "⛔ 關閉簽章檢測",
+  "sig_toggle.enabled": "✅ 簽章檢測已開啟。上傳的文件將會驗證簽章/印章。",
+  "sig_toggle.disabled": "⛔ 簽章檢測已關閉。上傳的文件將不會驗證簽章/印章。",
+  "sig_toggle.reset_done": "✅ 簽章檢測設定已重設。下次上傳文件時會重新詢問。",
+  "level_range.ask": "請選擇文件管控範圍：\n- **1-4 階**：所有階層文件皆管控（浮水印 + 僅線上觀看）\n- **1-3 階**：僅 1-3 階管控，4 階表單可下載",
+  "level_range.btn_1_4": "📊 1-4 階（全部管控）",
+  "level_range.btn_1_3": "📊 1-3 階（4階可下載）",
+  "level_range.selected_1_4": "✅ 文件管控範圍已設定為 **1-4 階**。所有階層文件皆僅供線上觀看。",
+  "level_range.selected_1_3": "✅ 文件管控範圍已設定為 **1-3 階**。僅 4 階表單可下載。",
+  "level_range.reset_done": "✅ 文件管控範圍已重設。下次上傳文件時會重新詢問。",
   "stamp.cancelled": "Eira：已取消簽章確認。請確保文件已完成所有必要簽章後再次提交。",
   "status.doc_count": "文件數量",
   "status.model": "模型",
@@ -192,8 +414,39 @@
   "version.stamp_confirm_title": "Eira：## ⚠️ 進版簽章確認",
   "version.stamp_status": "Eira：🟢 **OCR 自動偵測**: 文件中偵測到簽名/簽章相關內容",
   "version.warning": "Eira：**重要提醒**: 確認後將產生不可竄改的文件更動紀錄 (SHA-256 雜湊鏈)。",
+  "view.download_hint": "此文件為 4 階表單，可直接下載使用。",
+  "view.download_title": "📥 下載 — {doc_id}",
+  "view.external_hint": "此為外來法規文件，僅供線上觀看。",
+  "view.inline_hint": "此文件為 {level} 級文件，僅供線上觀看，無法下載。",
+  "view.inline_title": "📖 線上觀看 — {doc_id}",
+  "view.no_pdf": "⚠️ 此文件格式無法線上預覽，請參考下方 Markdown 內容。",
+  "watermark.adjust_angle": "📐 調整角度",
+  "watermark.adjust_opacity": "🎨 調整深淺",
+  "watermark.adjust_tiles": "🔢 調整數量",
+  "watermark.applied": "✅ 已套用浮水印至文件。",
+  "watermark.applied_summary": "✅ 浮水印套用完成！已套用 {applied} 份文件，跳過 {skipped} 份（不在管控範圍內）。",
+  "watermark.ask_provide": "{name}，在上傳文件之前，請問您是否要提供浮水印圖片？",
+  "watermark.ask_provide_btn_no": "⏭ 不需要，直接上傳",
+  "watermark.ask_provide_btn_yes": "✅ 提供浮水印圖片",
+  "watermark.confirm": "✅ 確認使用此浮水印設定",
+  "watermark.confirmed": "✅ 浮水印設定已確認！正在處理您的文件...",
+  "watermark.enter_angle": "請輸入旋轉角度（0-360，建議 30-60）：",
+  "watermark.enter_opacity": "請輸入顏色深淺值（0.01-1.0，建議 0.1-0.3）：",
+  "watermark.enter_tiles": "請輸入每行每列數量（1-10，建議 2-5）：",
+  "watermark.error": "⚠️ 浮水印套用失敗: {error}",
+  "watermark.invalid_value": "⚠️ 輸入值無效，請重新輸入。",
+  "watermark.preview_adjust": "如需調整，請選擇以下參數修改：",
+  "watermark.preview_generating": "⏳ 正在產生浮水印預覽...",
+  "watermark.preview_params": "目前參數：\n• 顏色深淺 (Opacity): {opacity}\n• 角度 (Angle): {angle}°\n• 數量 (Tiles): {tile_count} x {tile_count}",
+  "watermark.preview_title": "📋 浮水印預覽 — 暫定版",
+  "watermark.skipped": "ℹ️ 已跳過浮水印，正在處理您的文件...",
+  "watermark.pending_files_lost": "⚠️ 先前暫存的文件已失效，請重新上傳。",
+  "watermark.reset_done": "✅ 浮水印設定已重設。下次上傳文件時會重新詢問是否要提供浮水印圖片。",
+  "watermark.upload_prompt": "請上傳您的浮水印圖片（支援 PNG、JPG 等格式）。",
   "web.combined_context": "\n\n你必須根據以上網路搜尋結果來回答使用者的問題。這些搜尋結果是系統透過 DuckDuckGo 即時查詢到的真實資料，請直接使用這些資訊回答。\n如果文件資料庫也有相關資料，請一併參考。如果兩者有衝突，請指出差異。\n如果本地文件資料庫沒有相關資料，請直接使用網路搜尋結果回答，不要說「找不到資料」。\n引用網路來源時，請依照以下優先順序：\n1. 國際標準與監管機構官方網站（如 ISO、FDA、EMA、WHO、CE 等）\n2. 各國政府機關網站（.gov、.go.jp 等）\n3. 學術機構與學術期刊（.edu、PubMed、學術論文等）\n4. 認證機構與產業組織（如 TÜV、BSI、SGS 等）\n5. 其他一般來源\n6. Wikipedia 等使用者可編輯的百科類網站（僅在其他來源不足時才引用，且需標註其非權威性）\n\n【法規版本比對】當使用者查詢涉及法規標準（如 ISO、IEC、FDA 法規、EU MDR 等）時，你必須：\n1. 先根據網路搜尋結果，明確回答使用者的問題（例如：最新版本號、適用範圍等）\n2. 再檢查本地文件資料庫：搜尋文件內容中是否有提到該標準的版本號（例如「ISO 14971:2019」或「ISO 14971:2007」）\n3. 版本比對結論（請保持前後一致，不要自相矛盾）：\n   - 如果本地文件中有明確引用該標準的版本號 → 說明引用的是哪個版本，是否為最新\n   - 如果本地文件中僅提及標準名稱但未標注版本號 → 說明「文件中提及了該標準但未標注具體版本號」\n   - 如果本地文件中完全未提及該標準 → 說明「本地文件資料庫中未找到引用該標準的文件」",
   "web.error": "Eira：⚠️ 網路搜尋失敗: {error}",
+  "web.fetched_content_count": "📄 已取得 {count} 個頁面的完整內容",
+  "web.fetching_content": "Eira：📄 正在讀取完整頁面內容...",
   "web.no_query": "Eira：請在 /web 後面輸入搜尋關鍵字。\n例如: `/web 最新 ISO 13485 版本`",
   "web.no_results": "Eira：🌐 未找到相關網路搜尋結果",
   "web.results_header": "\n\n以下是從網路搜尋到的相關資訊：\n\n",
@@ -207,80 +460,5 @@
   "welcome.main.greeting": "您好，我是 Eira。歡迎使用本 AI 輔助系統，Eira 可協助您進行品質文件審查、醫療器材法規符合性評估，以及各國法規標準的查詢與分析。",
   "welcome.main.instructions": "**子系統：**\n• 📄 **文件管制** — 文件上傳、OCR、版本管理、簽章偵測、稽核紀錄、匯出\n• 🔍 **稽核管理** — CAPA、內部稽核、不符合事項管理（Phase 2 規劃中）\n\n**通用功能：** 狀態 · /web 搜尋 · 幫助 · 直接提問",
   "welcome.main.switch_hint": "💡 切換到「文件管制」Profile 可上傳文件進行 OCR 處理",
-  "welcome.main.title": "🏥 **TMBIA-Tmti AI-QMS 品質法規助理 (Eira)**",
-  "web.fetching_content": "Eira：📄 正在讀取完整頁面內容...",
-  "web.fetched_content_count": "📄 已取得 {count} 個頁面的完整內容",
-  "_commands.cmd.audit": [
-    "文件更動紀錄",
-    "稽核紀錄",
-    "審計紀錄",
-    "操作紀錄"
-  ],
-  "_commands.cmd.delete_database": [
-    "刪除資料庫",
-    "刪除所有"
-  ],
-  "_commands.cmd.document_list": [
-    "文件清單"
-  ],
-  "_commands.cmd.download_allrecords": [
-    "下載列表",
-    "匯出列表",
-    "下載文件紀錄",
-    "匯出文件紀錄"
-  ],
-  "_commands.cmd.download_audit": [
-    "下載文件更動紀錄",
-    "匯出文件更動紀錄",
-    "下載稽核紀錄",
-    "匯出稽核紀錄"
-  ],
-  "_commands.cmd.download_doclist": [
-    "下載文件清單",
-    "匯出文件清單"
-  ],
-  "_commands.cmd.download_file": [
-    "下載",
-    "取得正本",
-    "取得",
-    "提供正本",
-    "提供文件"
-  ],
-  "_commands.cmd.download_regulatory": [
-    "下載法規清單",
-    "匯出法規清單"
-  ],
-  "_commands.cmd.help": [
-    "幫助"
-  ],
-  "_commands.cmd.list": [
-    "列表",
-    "所有文件"
-  ],
-  "_commands.cmd.obsolete": [
-    "作廢"
-  ],
-  "_commands.cmd.regulatory": [
-    "法規清單",
-    "法規標準"
-  ],
-  "_commands.cmd.regulatory_update": [
-    "法規清單更新",
-    "更新法規清單"
-  ],
-  "_commands.cmd.search": [
-    "搜尋"
-  ],
-  "_commands.cmd.status": [
-    "狀態"
-  ],
-  "_commands.cmd.test_connection": [
-    "連線測試"
-  ],
-  "_commands.cmd.web": [
-    "/web",
-    "網路搜尋",
-    "上網搜尋",
-    "上網查詢"
-  ]
+  "welcome.main.title": "🏥 **TMBIA-Tmti AI-QMS 品質法規助理 (Eira)**"
 }

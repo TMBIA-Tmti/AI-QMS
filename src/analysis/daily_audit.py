@@ -1,0 +1,1472 @@
+"""
+AI-QMS — Daily Audit & 10-Day Meta Review Module
+==================================================
+
+Third-party LLM agent that evaluates cross-examination quality through two
+dimensions:
+
+  Dimension A — MDSAP Regulation Accuracy:
+    Compares LLM cross-examination answers against predefined MDSAP regulation
+    profiles to score correctness.
+
+  Dimension B — 7-Country Cross-Examination Quality:
+    Scores overall cross-exam quality (depth, balance, completeness) across
+    all 7 countries (US, EU, TW, CA, JP, BR, AU).
+
+Daily audit runs produce a DailyAuditResult with 0-100 scores for each
+dimension plus an overall score.
+
+Every 10 days, a meta review aggregates daily results and produces a
+MetaReviewResult with trend analysis and deviation summary.
+
+Uses the bilingual prompt pattern: {"zh": ..., "en": ...}
+Follows the pattern from crossexam_qa_agent.py.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import time
+from datetime import datetime
+from pathlib import Path
+from typing import Optional
+
+from src.utils.safe_io import atomic_write_json
+
+logger = logging.getLogger(__name__)
+
+__all__ = [
+    "DailyAuditResult",
+    "MetaReviewResult",
+    "AuditFeedback",
+    "run_daily_audit",
+    "run_10day_meta_review",
+    "get_daily_audit_history",
+    "get_latest_meta_review",
+    "export_daily_audit_word",
+    "export_daily_audit_excel",
+    "export_meta_review_word",
+    "export_meta_review_excel",
+    "save_feedback",
+    "get_all_feedback",
+    "update_feedback",
+    "delete_feedback",
+    "get_feedback_by_id",
+    "get_feedback_for_audit",
+    "get_active_feedback_context",
+]
+
+AUDIT_DIR = Path("./data/daily_audit")
+EXPORT_DIR = Path("data/exports")
+FEEDBACK_DIR = AUDIT_DIR / "feedback"
+
+# Deviation thresholds
+DEVIATION_OVERALL_THRESHOLD = 70
+DEVIATION_DIM_GAP_THRESHOLD = 20
+
+
+# ============================================================
+# i18n helper
+# ============================================================
+
+
+def _get_prompt_lang(lang: str) -> str:
+    """Normalize lang code to 'zh' or 'en' for prompt selection."""
+    if lang and lang.lower().startswith(("zh", "ja")):
+        return "zh"
+    return "en"
+
+
+# ============================================================
+# System prompts — Dimension A (MDSAP regulation accuracy)
+# ============================================================
+
+
+_DIM_A_SYSTEM_PROMPTS = {
+    "zh": """你是品質管理系統的「MDSAP 法規準確性稽核專家」。你的任務是比對交叉詰問中 LLM 的回答與 MDSAP 法規原文，評估回答的準確性。
+
+你需要檢查：
+1. **法規引用準確性**: LLM 引用的法規條文是否正確？條號、內容是否與原文一致？
+2. **要求完整性**: LLM 是否遺漏了法規中的關鍵要求？
+3. **解釋正確性**: LLM 對法規的解釋是否正確？有無曲解或過度簡化？
+4. **跨國比較準確性**: 當 LLM 進行跨國比較時，差異描述是否正確？
+5. **原文一致性**: LLM 的回答是否與法規原文的語義一致？
+
+回答必須使用以下 JSON 格式：
+{
+  "dim_a_score": 0-100,
+  "checks": [
+    {
+      "check_type": "reference_accuracy | completeness | interpretation | cross_comparison | text_consistency",
+      "regulation": "被檢查的法規名稱",
+      "issue": "發現的問題描述（若無問題則為 null）",
+      "severity": "none | low | medium | high | critical",
+      "evidence": "支持證據"
+    }
+  ],
+  "summary": "Dim A 評估摘要（2-3 句話）"
+}""",
+    "en": """You are a "MDSAP Regulation Accuracy Audit Expert" for a quality management system. Your task is to compare LLM cross-examination answers against MDSAP regulation source texts and evaluate answer accuracy.
+
+You need to check:
+1. **Reference Accuracy**: Are the regulatory references cited by the LLM correct? Do article numbers and content match the source?
+2. **Completeness**: Has the LLM missed critical regulatory requirements?
+3. **Interpretation Correctness**: Is the LLM's interpretation of regulations correct? Any distortions or oversimplifications?
+4. **Cross-Country Comparison Accuracy**: When the LLM compares across countries, are the differences described correctly?
+5. **Source Text Consistency**: Is the LLM's answer semantically consistent with the regulation's original text?
+
+Respond in the following JSON format:
+{
+  "dim_a_score": 0-100,
+  "checks": [
+    {
+      "check_type": "reference_accuracy | completeness | interpretation | cross_comparison | text_consistency",
+      "regulation": "Regulation being checked",
+      "issue": "Description of issue found (null if no issue)",
+      "severity": "none | low | medium | high | critical",
+      "evidence": "Supporting evidence"
+    }
+  ],
+  "summary": "Dim A assessment summary (2-3 sentences)"
+}""",
+}
+
+
+# ============================================================
+# System prompts — Dimension B (cross-exam quality)
+# ============================================================
+
+
+_DIM_B_SYSTEM_PROMPTS = {
+    "zh": """你是品質管理系統的「7國交叉詰問品質評估專家」。你的任務是評估交叉詰問的整體品質。
+
+你需要評估：
+1. **國家覆蓋均衡性**: 7國（US, EU, TW, CA, JP, BR, AU）的覆蓋是否均衡？
+2. **問題深度**: 問題是否有足夠深度，不是表面性的？
+3. **回答品質**: 分析者和驗證者的回答是否有實質內容？
+4. **差異識別**: 跨國法規差異是否被正確識別？
+5. **同意率合理性**: 同意率是否在合理範圍內（過高過低都有問題）？
+6. **可操作性**: 建議和發現是否具有可操作性？
+
+回答必須使用以下 JSON 格式：
+{
+  "dim_b_score": 0-100,
+  "country_scores": {
+    "US": 0-100, "EU": 0-100, "TW": 0-100,
+    "CA": 0-100, "JP": 0-100, "BR": 0-100, "AU": 0-100
+  },
+  "findings": [
+    {
+      "category": "coverage_balance | question_depth | answer_quality | gap_identification | agreement_rate | actionability",
+      "severity": "low | medium | high | critical",
+      "description": "具體描述",
+      "recommendation": "建議改善措施"
+    }
+  ],
+  "summary": "Dim B 評估摘要（2-3 句話）"
+}""",
+    "en": """You are a "7-Country Cross-Examination Quality Assessment Expert" for a quality management system. Your task is to evaluate overall cross-examination quality.
+
+You need to assess:
+1. **Country Coverage Balance**: Is coverage balanced across all 7 countries (US, EU, TW, CA, JP, BR, AU)?
+2. **Question Depth**: Are questions sufficiently deep, not superficial?
+3. **Answer Quality**: Do analyzer and verifier answers have substantive content?
+4. **Gap Identification**: Are cross-country regulatory differences correctly identified?
+5. **Agreement Rate Reasonableness**: Is the agreement rate within a reasonable range (both too high and too low are problematic)?
+6. **Actionability**: Are recommendations and findings actionable?
+
+Respond in the following JSON format:
+{
+  "dim_b_score": 0-100,
+  "country_scores": {
+    "US": 0-100, "EU": 0-100, "TW": 0-100,
+    "CA": 0-100, "JP": 0-100, "BR": 0-100, "AU": 0-100
+  },
+  "findings": [
+    {
+      "category": "coverage_balance | question_depth | answer_quality | gap_identification | agreement_rate | actionability",
+      "severity": "low | medium | high | critical",
+      "description": "Specific description",
+      "recommendation": "Recommended improvement"
+    }
+  ],
+  "summary": "Dim B assessment summary (2-3 sentences)"
+}""",
+}
+
+
+# ============================================================
+# User prompt templates
+# ============================================================
+
+
+_DIM_A_USER_TEMPLATES = {
+    "zh": """## MDSAP 法規準確性稽核任務
+
+以下是最近 {record_count} 份交叉詰問記錄中涉及 MDSAP 法規的回答摘要：
+
+### MDSAP 法規參考資料
+{mdsap_references}
+
+### 交叉詰問回答樣本
+{exam_samples}
+
+請比對交叉詰問回答與 MDSAP 法規原文，給出準確性評分。""",
+    "en": """## MDSAP Regulation Accuracy Audit Task
+
+Below are answer summaries from the most recent {record_count} cross-examination records involving MDSAP regulations:
+
+### MDSAP Regulation References
+{mdsap_references}
+
+### Cross-Examination Answer Samples
+{exam_samples}
+
+Please compare cross-examination answers against MDSAP regulation source texts and provide an accuracy score.""",
+}
+
+
+_DIM_B_USER_TEMPLATES = {
+    "zh": """## 7國交叉詰問品質評估任務
+
+以下是最近 {record_count} 份交叉詰問記錄的統計數據：
+
+### 統計摘要
+- 記錄總數: {record_count}
+- 時間範圍: {time_range}
+- 平均同意率: {avg_agreement_rate:.1%}
+- 涵蓋國家: {countries}
+
+### 國家分布
+{country_distribution}
+
+### 問題類型分布
+{question_type_distribution}
+
+### 樣本記錄
+{sample_records}
+
+請評估整體品質並為每個國家評分。""",
+    "en": """## 7-Country Cross-Examination Quality Assessment Task
+
+Below are statistics from the most recent {record_count} cross-examination records:
+
+### Statistical Summary
+- Total Records: {record_count}
+- Time Range: {time_range}
+- Average Agreement Rate: {avg_agreement_rate:.1%}
+- Countries Covered: {countries}
+
+### Country Distribution
+{country_distribution}
+
+### Question Type Distribution
+{question_type_distribution}
+
+### Sample Records
+{sample_records}
+
+Please evaluate overall quality and score each country.""",
+}
+
+
+# ============================================================
+# Meta review prompts
+# ============================================================
+
+
+_META_REVIEW_SYSTEM_PROMPTS = {
+    "zh": """你是品質管理系統的「10日總檢專家」。你的任務是分析過去10天的每日稽核結果，提供趨勢分析和綜合建議。
+
+你需要分析：
+1. **分數趨勢**: Dim A 和 Dim B 分數是上升、持平還是下降？
+2. **偏差模式**: 是否有持續性偏差？偏差是否在加劇或改善？
+3. **國家表現趨勢**: 各國評分是否有一致趨勢？
+4. **改善建議**: 基於10天數據提出具體改善建議。
+
+回答必須使用以下 JSON 格式：
+{
+  "avg_dim_a": 0-100,
+  "avg_dim_b": 0-100,
+  "trend_analysis": "趨勢分析文字（3-5 句話）",
+  "recommendations": ["建議1", "建議2", ...],
+  "deviation_summary": "偏差摘要（若無偏差為 null）",
+  "country_trends": {
+    "US": "trend description", ...
+  }
+}""",
+    "en": """You are a "10-Day Meta Review Expert" for a quality management system. Your task is to analyze the past 10 days of daily audit results and provide trend analysis and recommendations.
+
+You need to analyze:
+1. **Score Trends**: Are Dim A and Dim B scores rising, stable, or declining?
+2. **Deviation Patterns**: Are there persistent deviations? Are deviations worsening or improving?
+3. **Country Performance Trends**: Are country scores showing consistent trends?
+4. **Improvement Recommendations**: Provide specific recommendations based on 10-day data.
+
+Respond in the following JSON format:
+{
+  "avg_dim_a": 0-100,
+  "avg_dim_b": 0-100,
+  "trend_analysis": "Trend analysis text (3-5 sentences)",
+  "recommendations": ["Recommendation 1", "Recommendation 2", ...],
+  "deviation_summary": "Deviation summary (null if no deviations)",
+  "country_trends": {
+    "US": "trend description", ...
+  }
+}""",
+}
+
+
+# ============================================================
+# Data classes
+# ============================================================
+
+
+class DailyAuditResult:
+    """Result of a daily audit run."""
+
+    def __init__(
+        self,
+        *,
+        audit_id: str = "",
+        audit_date: str = "",
+        dim_a_score: float = 0.0,
+        dim_a_checks: list[dict] | None = None,
+        dim_a_summary: str = "",
+        dim_b_score: float = 0.0,
+        dim_b_country_scores: dict[str, float] | None = None,
+        dim_b_findings: list[dict] | None = None,
+        dim_b_summary: str = "",
+        overall_score: float = 0.0,
+        deviation_detected: bool = False,
+        deviation_details: str = "",
+        model: str = "",
+        usage: dict | None = None,
+        timestamp: str = "",
+        summary: str = "",
+    ):
+        self.audit_id = audit_id or f"audit_{int(time.time())}"
+        self.audit_date = audit_date or datetime.now().strftime("%Y-%m-%d")
+        self.dim_a_score = dim_a_score
+        self.dim_a_checks = dim_a_checks or []
+        self.dim_a_summary = dim_a_summary
+        self.dim_b_score = dim_b_score
+        self.dim_b_country_scores = dim_b_country_scores or {}
+        self.dim_b_findings = dim_b_findings or []
+        self.dim_b_summary = dim_b_summary
+        self.overall_score = overall_score
+        self.deviation_detected = deviation_detected
+        self.deviation_details = deviation_details
+        self.model = model
+        self.usage = usage or {}
+        self.timestamp = timestamp or datetime.now().isoformat()
+        self.summary = summary
+
+    def to_dict(self) -> dict:
+        return {
+            "audit_id": self.audit_id,
+            "audit_date": self.audit_date,
+            "dim_a_score": self.dim_a_score,
+            "dim_a_checks": self.dim_a_checks,
+            "dim_a_summary": self.dim_a_summary,
+            "dim_b_score": self.dim_b_score,
+            "dim_b_country_scores": self.dim_b_country_scores,
+            "dim_b_findings": self.dim_b_findings,
+            "dim_b_summary": self.dim_b_summary,
+            "overall_score": self.overall_score,
+            "deviation_detected": self.deviation_detected,
+            "deviation_details": self.deviation_details,
+            "model": self.model,
+            "usage": self.usage,
+            "timestamp": self.timestamp,
+            "summary": self.summary,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "DailyAuditResult":
+        return cls(
+            **{k: v for k, v in data.items() if k in cls.__init__.__code__.co_varnames}
+        )
+
+    def detect_deviation(self) -> bool:
+        """Check if this result shows deviation beyond thresholds."""
+        if self.overall_score < DEVIATION_OVERALL_THRESHOLD:
+            self.deviation_detected = True
+            self.deviation_details = (
+                f"Overall score {self.overall_score:.0f} is below threshold "
+                f"{DEVIATION_OVERALL_THRESHOLD}"
+            )
+            return True
+        dim_gap = abs(self.dim_a_score - self.dim_b_score)
+        if dim_gap > DEVIATION_DIM_GAP_THRESHOLD:
+            self.deviation_detected = True
+            self.deviation_details = (
+                f"Dim A ({self.dim_a_score:.0f}) and Dim B ({self.dim_b_score:.0f}) "
+                f"gap ({dim_gap:.0f}) exceeds threshold {DEVIATION_DIM_GAP_THRESHOLD}"
+            )
+            return True
+        return False
+
+
+class MetaReviewResult:
+    """Result of a 10-day meta review."""
+
+    def __init__(
+        self,
+        *,
+        review_id: str = "",
+        period_start: str = "",
+        period_end: str = "",
+        daily_results: list[dict] | None = None,
+        avg_dim_a: float = 0.0,
+        avg_dim_b: float = 0.0,
+        trend_analysis: str = "",
+        recommendations: list[str] | None = None,
+        deviation_summary: str = "",
+        country_trends: dict[str, str] | None = None,
+        model: str = "",
+        usage: dict | None = None,
+        timestamp: str = "",
+    ):
+        self.review_id = review_id or f"meta_{int(time.time())}"
+        self.period_start = period_start
+        self.period_end = period_end
+        self.daily_results = daily_results or []
+        self.avg_dim_a = avg_dim_a
+        self.avg_dim_b = avg_dim_b
+        self.trend_analysis = trend_analysis
+        self.recommendations = recommendations or []
+        self.deviation_summary = deviation_summary
+        self.country_trends = country_trends or {}
+        self.model = model
+        self.usage = usage or {}
+        self.timestamp = timestamp or datetime.now().isoformat()
+
+    def to_dict(self) -> dict:
+        return {
+            "review_id": self.review_id,
+            "period_start": self.period_start,
+            "period_end": self.period_end,
+            "daily_results": self.daily_results,
+            "avg_dim_a": self.avg_dim_a,
+            "avg_dim_b": self.avg_dim_b,
+            "trend_analysis": self.trend_analysis,
+            "recommendations": self.recommendations,
+            "deviation_summary": self.deviation_summary,
+            "country_trends": self.country_trends,
+            "model": self.model,
+            "usage": self.usage,
+            "timestamp": self.timestamp,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "MetaReviewResult":
+        return cls(
+            **{k: v for k, v in data.items() if k in cls.__init__.__code__.co_varnames}
+        )
+
+
+# ============================================================
+# Core: run_daily_audit
+# ============================================================
+
+
+def run_daily_audit(
+    llm_completion_fn: callable,
+    model: str = "default",
+    temperature: float = 0.3,
+    max_tokens: int = 4096,
+    lang: str = "zh-TW",
+    store=None,
+    feedback_context: str = "",
+) -> DailyAuditResult:
+    """Run daily audit with Dim A (MDSAP accuracy) + Dim B (cross-exam quality).
+
+    Args:
+        llm_completion_fn: LLM completion function
+        model: LLM model name
+        temperature: LLM temperature
+        max_tokens: Max response tokens
+        lang: Language code
+        store: CrossExamStore instance (uses singleton if not provided)
+        feedback_context: Optional user feedback context to append to prompts
+
+    Returns:
+        DailyAuditResult with scores and findings
+    """
+    from src.database.crossexam_store import get_crossexam_store
+
+    if store is None:
+        store = get_crossexam_store()
+
+    records = store.get_all_records()
+    if not records:
+        return DailyAuditResult(
+            summary="No cross-examination records available for audit.",
+            dim_a_summary="No records.",
+            dim_b_summary="No records.",
+        )
+
+    _lang_key = _get_prompt_lang(lang)
+    result = DailyAuditResult()
+
+    # ---- Dimension A: MDSAP Regulation Accuracy ----
+    try:
+        dim_a = _run_dim_a(
+            llm_completion_fn, records, model, temperature, max_tokens, _lang_key,
+            feedback_context=feedback_context,
+        )
+        result.dim_a_score = dim_a.get("dim_a_score", 0.0)
+        result.dim_a_checks = dim_a.get("checks", [])
+        result.dim_a_summary = dim_a.get("summary", "")
+    except Exception as e:
+        logger.error(f"Dim A audit failed: {e}")
+        result.dim_a_summary = f"Dim A audit failed: {str(e)[:200]}"
+
+    # ---- Dimension B: 7-Country Cross-Exam Quality ----
+    try:
+        dim_b = _run_dim_b(
+            llm_completion_fn, records, store, model, temperature, max_tokens, _lang_key,
+            feedback_context=feedback_context,
+        )
+        result.dim_b_score = dim_b.get("dim_b_score", 0.0)
+        result.dim_b_country_scores = dim_b.get("country_scores", {})
+        result.dim_b_findings = dim_b.get("findings", [])
+        result.dim_b_summary = dim_b.get("summary", "")
+    except Exception as e:
+        logger.error(f"Dim B audit failed: {e}")
+        result.dim_b_summary = f"Dim B audit failed: {str(e)[:200]}"
+
+    # ---- Overall score ----
+    result.overall_score = (result.dim_a_score + result.dim_b_score) / 2
+    result.summary = f"Dim A: {result.dim_a_score:.0f}, Dim B: {result.dim_b_score:.0f}, Overall: {result.overall_score:.0f}"
+
+    # ---- Deviation detection ----
+    result.detect_deviation()
+
+    # ---- Save to disk ----
+    _save_daily_audit(result)
+
+    logger.info(
+        "Daily audit complete: overall=%.0f, dimA=%.0f, dimB=%.0f, deviation=%s",
+        result.overall_score,
+        result.dim_a_score,
+        result.dim_b_score,
+        result.deviation_detected,
+    )
+    return result
+
+
+def _run_dim_a(
+    llm_completion_fn: callable,
+    records: list,
+    model: str,
+    temperature: float,
+    max_tokens: int,
+    lang_key: str,
+    feedback_context: str = "",
+) -> dict:
+    """Run Dimension A audit: MDSAP regulation accuracy check."""
+    # Build MDSAP reference context from predefined profiles
+    mdsap_refs = _build_mdsap_reference_context()
+
+    # Build exam samples from recent records (up to 5)
+    exam_samples = _build_exam_samples(records[:5])
+
+    feedback_section = ""
+    if feedback_context:
+        feedback_section = (
+            f"\n\n### User Feedback Context\n"
+            f"The following feedback was provided by the user. Please incorporate it into your evaluation:\n"
+            f"{feedback_context}"
+        )
+
+    user_prompt = _DIM_A_USER_TEMPLATES[lang_key].format(
+        record_count=len(records),
+        mdsap_references=mdsap_refs or "  (No MDSAP references available)",
+        exam_samples=exam_samples or "  (No exam samples available)",
+    ) + feedback_section
+
+    messages = [
+        {"role": "system", "content": _DIM_A_SYSTEM_PROMPTS[lang_key]},
+        {"role": "user", "content": user_prompt},
+    ]
+
+    response = llm_completion_fn(
+        messages=messages,
+        model=model,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        stream=False,
+    )
+
+    response_text = response.get("content", "")
+    parsed = _parse_json_response(response_text)
+    return parsed
+
+
+def _run_dim_b(
+    llm_completion_fn: callable,
+    records: list,
+    store,
+    model: str,
+    temperature: float,
+    max_tokens: int,
+    lang_key: str,
+    feedback_context: str = "",
+) -> dict:
+    """Run Dimension B audit: 7-country cross-exam quality check."""
+    country_dist = store.get_country_distribution()
+    qtype_dist = store.get_question_type_distribution()
+
+    total_clauses = sum(r.total_clauses for r in records)
+    total_agreed = sum(r.total_agreed for r in records)
+    avg_agreement = total_agreed / max(total_clauses, 1)
+
+    time_range = (
+        f"{records[-1].timestamp} ~ {records[0].timestamp}" if records else "N/A"
+    )
+
+    countries = (
+        ", ".join(
+            sorted(
+                set(c for r in records for c in getattr(r, "selected_regulations", []))
+            )
+        )
+        or "N/A"
+    )
+
+    country_text = "\n".join(
+        f"  - {c}: {n} records"
+        for c, n in sorted(country_dist.items(), key=lambda x: -x[1])
+    )
+    qtype_text = "\n".join(
+        f"  - {t}: {n} records"
+        for t, n in sorted(qtype_dist.items(), key=lambda x: -x[1])
+    )
+
+    sample_text = _build_exam_samples(records[:3])
+
+    feedback_section = ""
+    if feedback_context:
+        feedback_section = (
+            f"\n\n### User Feedback Context\n"
+            f"The following feedback was provided by the user. Please incorporate it into your evaluation:\n"
+            f"{feedback_context}"
+        )
+
+    user_prompt = _DIM_B_USER_TEMPLATES[lang_key].format(
+        record_count=len(records),
+        time_range=time_range,
+        avg_agreement_rate=avg_agreement,
+        countries=countries,
+        country_distribution=country_text or "  (No country data)",
+        question_type_distribution=qtype_text or "  (No question type data)",
+        sample_records=sample_text or "  (No sample records)",
+    ) + feedback_section
+
+    messages = [
+        {"role": "system", "content": _DIM_B_SYSTEM_PROMPTS[lang_key]},
+        {"role": "user", "content": user_prompt},
+    ]
+
+    response = llm_completion_fn(
+        messages=messages,
+        model=model,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        stream=False,
+    )
+
+    response_text = response.get("content", "")
+    parsed = _parse_json_response(response_text)
+    return parsed
+
+
+# ============================================================
+# Core: run_10day_meta_review
+# ============================================================
+
+
+def run_10day_meta_review(
+    llm_completion_fn: callable,
+    model: str = "default",
+    temperature: float = 0.3,
+    max_tokens: int = 4096,
+    lang: str = "zh-TW",
+    feedback_context: str = "",
+) -> MetaReviewResult:
+    """Run 10-day meta review of daily audit results.
+
+    Aggregates up to 10 most recent daily audit results and analyzes trends.
+
+    Args:
+        llm_completion_fn: LLM completion function
+        model: LLM model name
+        temperature: LLM temperature
+        max_tokens: Max response tokens
+        lang: Language code
+        feedback_context: Optional user feedback context to append to prompts
+
+    Returns:
+        MetaReviewResult with trend analysis and recommendations
+    """
+    _lang_key = _get_prompt_lang(lang)
+
+    # Load recent daily audit results
+    daily_results = get_daily_audit_history(limit=10)
+    if not daily_results:
+        return MetaReviewResult(
+            trend_analysis="No daily audit results available for meta review.",
+        )
+
+    # Build context for LLM
+    results_summary = []
+    for r in daily_results:
+        results_summary.append(
+            f"- {r.audit_date}: DimA={r.dim_a_score:.0f}, DimB={r.dim_b_score:.0f}, "
+            f"Overall={r.overall_score:.0f}, Deviation={'Yes' if r.deviation_detected else 'No'}"
+        )
+
+    period_start = daily_results[-1].audit_date if daily_results else ""
+    period_end = daily_results[0].audit_date if daily_results else ""
+
+    feedback_section = ""
+    if feedback_context:
+        feedback_section = (
+            f"\n\n### User Feedback Context\n"
+            f"The following feedback was provided by the user. Please incorporate it into your analysis:\n"
+            f"{feedback_context}\n"
+        )
+
+    user_prompt = (
+        f"## 10-Day Meta Review\n\n"
+        f"Period: {period_start} to {period_end}\n"
+        f"Number of daily audits: {len(daily_results)}\n\n"
+        f"### Daily Results (newest first):\n"
+        + "\n".join(results_summary)
+        + feedback_section
+        + "\n\nPlease analyze trends and provide recommendations."
+    )
+
+    messages = [
+        {"role": "system", "content": _META_REVIEW_SYSTEM_PROMPTS[_lang_key]},
+        {"role": "user", "content": user_prompt},
+    ]
+
+    result = MetaReviewResult(
+        period_start=period_start,
+        period_end=period_end,
+        daily_results=[r.to_dict() for r in daily_results],
+    )
+
+    try:
+        response = llm_completion_fn(
+            messages=messages,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            stream=False,
+        )
+
+        response_text = response.get("content", "")
+        usage = response.get("usage", {})
+        result.model = response.get("model", model)
+        result.usage = usage
+
+        parsed = _parse_json_response(response_text)
+        result.avg_dim_a = parsed.get("avg_dim_a", 0.0)
+        result.avg_dim_b = parsed.get("avg_dim_b", 0.0)
+        result.trend_analysis = parsed.get("trend_analysis", "")
+        result.recommendations = parsed.get("recommendations", [])
+        result.deviation_summary = parsed.get("deviation_summary", "")
+        result.country_trends = parsed.get("country_trends", {})
+
+    except Exception as e:
+        logger.error(f"Meta review failed: {e}")
+        result.trend_analysis = f"Meta review failed: {str(e)[:200]}"
+
+    # Save to disk
+    _save_meta_review(result)
+
+    logger.info(
+        "Meta review complete: avgA=%.0f, avgB=%.0f, deviations=%s",
+        result.avg_dim_a,
+        result.avg_dim_b,
+        bool(result.deviation_summary),
+    )
+    return result
+
+
+# ============================================================
+# Helper: build context for LLM
+# ============================================================
+
+
+def _build_mdsap_reference_context() -> str:
+    """Build MDSAP regulation reference context from predefined profiles."""
+    try:
+        from src.analysis.compliance_rules import PREDEFINED_REGULATIONS
+
+        mdsap_keys = ["HC", "PMDA", "ANVISA", "TGA", "QMSR"]
+        parts = []
+        for key in mdsap_keys:
+            profile = PREDEFINED_REGULATIONS.get(key)
+            if not profile:
+                continue
+            parts.append(
+                f"### {profile.name_en} ({profile.country})\n"
+                f"- Regulation ID: {profile.regulation_id}\n"
+                f"- Source: {profile.source_url}\n"
+                f"- Mapped clauses: {len(profile.iso_mapped)}\n"
+                f"- Unique requirements: {len(profile.unique_requirements)}\n"
+            )
+            # Include a few sample clause mappings
+            sample_clauses = list(profile.iso_mapped.items())[:3]
+            for clause_id, mapping in sample_clauses:
+                parts.append(
+                    f"  - {clause_id}: {mapping.regulation_ref} — {mapping.rationale_en[:100]}...\n"
+                )
+        return "\n".join(parts)
+    except Exception as e:
+        logger.warning(f"Failed to build MDSAP reference context: {e}")
+        return ""
+
+
+def _build_exam_samples(records: list) -> str:
+    """Build exam sample text from records."""
+    parts = []
+    for r in records:
+        parts.append(
+            f"--- Record {r.record_id} ({r.timestamp}) ---\n"
+            f"Regulations: {', '.join(getattr(r, 'selected_regulations', []))}\n"
+            f"Clauses: {r.total_clauses}, Agreed: {r.total_agreed}, "
+            f"Flagged: {r.total_flagged}\n"
+        )
+        for clause in getattr(r, "clauses", [])[:2]:
+            parts.append(
+                f"  Clause {clause.get('clause_id', '')}: "
+                f"agreed={clause.get('agreed')}, "
+                f"rounds={len(clause.get('rounds', []))}\n"
+            )
+            for rd in clause.get("rounds", [])[:1]:
+                analyzer = rd.get("analyzer", {})
+                verifier = rd.get("verifier", {})
+                parts.append(
+                    f"    Analyzer: confidence={analyzer.get('confidence', 'N/A')}, "
+                    f"position={str(analyzer.get('position', ''))[:200]}\n"
+                    f"    Verifier: agreement={verifier.get('agreement_level', 'N/A')}\n"
+                )
+    return "".join(parts)
+
+
+# ============================================================
+# Persistence helpers
+# ============================================================
+
+
+def _save_daily_audit(result: DailyAuditResult) -> None:
+    """Save daily audit result to disk."""
+    AUDIT_DIR.mkdir(parents=True, exist_ok=True)
+    filepath = AUDIT_DIR / f"daily_{result.audit_date}.json"
+    atomic_write_json(filepath, result.to_dict())
+
+
+def _save_meta_review(result: MetaReviewResult) -> None:
+    """Save meta review result to disk."""
+    AUDIT_DIR.mkdir(parents=True, exist_ok=True)
+    filepath = (
+        AUDIT_DIR / f"meta_review_{result.period_end or result.timestamp[:10]}.json"
+    )
+    atomic_write_json(filepath, result.to_dict())
+
+
+def get_daily_audit_history(limit: int = 30) -> list[DailyAuditResult]:
+    """Load daily audit history from disk, most recent first.
+
+    Args:
+        limit: Maximum number of records to return
+
+    Returns:
+        List of DailyAuditResult sorted by date descending
+    """
+    AUDIT_DIR.mkdir(parents=True, exist_ok=True)
+    files = sorted(AUDIT_DIR.glob("daily_*.json"), reverse=True)
+
+    results = []
+    for f in files[:limit]:
+        try:
+            with open(f, "r", encoding="utf-8") as fh:
+                data = json.load(fh)
+            results.append(DailyAuditResult.from_dict(data))
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning(f"Failed to load audit file {f}: {e}")
+    return results
+
+
+def get_latest_meta_review() -> Optional[MetaReviewResult]:
+    """Load the most recent meta review result from disk."""
+    AUDIT_DIR.mkdir(parents=True, exist_ok=True)
+    files = sorted(AUDIT_DIR.glob("meta_review_*.json"), reverse=True)
+    if not files:
+        return None
+
+    try:
+        with open(files[0], "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return MetaReviewResult.from_dict(data)
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+# ============================================================
+# Response parsing
+# ============================================================
+
+
+def _parse_json_response(response_text: str) -> dict:
+    """Parse LLM JSON response, handling code fences and raw JSON."""
+    import re
+
+    text = response_text.strip()
+
+    # Try to extract JSON from code fence
+    json_match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", text, re.DOTALL)
+    if json_match:
+        text = json_match.group(1).strip()
+
+    try:
+        parsed = json.loads(text)
+        if isinstance(parsed, dict):
+            return parsed
+    except json.JSONDecodeError:
+        pass
+
+    # Try to find JSON object in the text
+    brace_start = text.find("{")
+    brace_end = text.rfind("}")
+    if brace_start >= 0 and brace_end > brace_start:
+        try:
+            parsed = json.loads(text[brace_start : brace_end + 1])
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            pass
+
+    # Fallback
+    return {
+        "summary": text[:500],
+        "dim_a_score": 0.0,
+        "dim_b_score": 0.0,
+    }
+
+
+# ============================================================
+# Export: Word / Excel
+# ============================================================
+
+
+def export_daily_audit_word(result: DailyAuditResult) -> Path:
+    """Export a daily audit result as a Word document.
+
+    Args:
+        result: DailyAuditResult to export
+
+    Returns:
+        Path to the generated .docx file
+    """
+    from docx import Document
+    from docx.shared import Pt, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+    EXPORT_DIR.mkdir(parents=True, exist_ok=True)
+    filepath = EXPORT_DIR / f"daily_audit_{result.audit_date}.docx"
+
+    doc = Document()
+    title = doc.add_heading("AI-QMS 每日稽核報告 / Daily Audit Report", level=1)
+    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    # Metadata
+    meta = doc.add_paragraph()
+    meta.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    run = meta.add_run(
+        f"稽核 ID: {result.audit_id}  |  日期: {result.audit_date}  |  時間: {result.timestamp}"
+    )
+    run.font.size = Pt(9)
+    run.font.color.rgb = RGBColor(128, 128, 128)
+
+    # Scores
+    doc.add_heading("評分摘要 / Score Summary", level=2)
+    doc.add_paragraph(
+        f"Overall Score: {result.overall_score:.0f}/100\n"
+        f"Dimension A (MDSAP Accuracy): {result.dim_a_score:.0f}/100\n"
+        f"Dimension B (Cross-Exam Quality): {result.dim_b_score:.0f}/100\n"
+        f"Deviation Detected: {'Yes ⚠️' if result.deviation_detected else 'No ✅'}"
+    )
+
+    if result.deviation_detected:
+        doc.add_heading("偏差詳情 / Deviation Details", level=2)
+        doc.add_paragraph(result.deviation_details)
+
+    # Dim A details
+    doc.add_heading("Dimension A — MDSAP 法規準確性", level=2)
+    doc.add_paragraph(result.dim_a_summary or "N/A")
+    if result.dim_a_checks:
+        doc.add_heading("檢查項目", level=3)
+        for check in result.dim_a_checks:
+            doc.add_paragraph(
+                f"• [{check.get('severity', 'N/A')}] {check.get('check_type', '')}: "
+                f"{check.get('issue', 'No issue')} "
+                f"(Regulation: {check.get('regulation', '')})"
+            )
+
+    # Dim B details
+    doc.add_heading("Dimension B — 7國交叉詰問品質", level=2)
+    doc.add_paragraph(result.dim_b_summary or "N/A")
+    if result.dim_b_country_scores:
+        doc.add_heading("各國評分", level=3)
+        for country, score in sorted(result.dim_b_country_scores.items()):
+            doc.add_paragraph(f"  {country}: {score:.0f}/100")
+    if result.dim_b_findings:
+        doc.add_heading("發現事項", level=3)
+        for finding in result.dim_b_findings:
+            doc.add_paragraph(
+                f"• [{finding.get('severity', 'N/A')}] {finding.get('category', '')}: "
+                f"{finding.get('description', '')}"
+            )
+
+    from src.utils.safe_io import safe_save_binary
+
+    safe_save_binary(filepath, doc.save)
+    return filepath
+
+
+def export_daily_audit_excel(result: DailyAuditResult) -> Path:
+    """Export a daily audit result as an Excel file.
+
+    Args:
+        result: DailyAuditResult to export
+
+    Returns:
+        Path to the generated .xlsx file
+    """
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+
+    EXPORT_DIR.mkdir(parents=True, exist_ok=True)
+    filepath = EXPORT_DIR / f"daily_audit_{result.audit_date}.xlsx"
+
+    wb = Workbook()
+
+    # Sheet 1: Summary
+    ws_sum = wb.active
+    ws_sum.title = "Summary"
+    header_fill = PatternFill(
+        start_color="4472C4", end_color="4472C4", fill_type="solid"
+    )
+    header_text_font = Font(bold=True, color="FFFFFF", size=11)
+
+    summary_data = [
+        ("Audit ID", result.audit_id),
+        ("Date", result.audit_date),
+        ("Timestamp", result.timestamp),
+        ("Overall Score", f"{result.overall_score:.0f}/100"),
+        ("Dim A Score (MDSAP Accuracy)", f"{result.dim_a_score:.0f}/100"),
+        ("Dim B Score (Cross-Exam Quality)", f"{result.dim_b_score:.0f}/100"),
+        ("Deviation Detected", "Yes" if result.deviation_detected else "No"),
+        ("Deviation Details", result.deviation_details or "N/A"),
+        ("Model", result.model),
+        ("Summary", result.summary),
+    ]
+
+    for row_idx, (key, val) in enumerate(summary_data, start=1):
+        ws_sum.cell(row=row_idx, column=1, value=key).font = Font(bold=True)
+        ws_sum.cell(row=row_idx, column=2, value=str(val))
+
+    ws_sum.column_dimensions["A"].width = 30
+    ws_sum.column_dimensions["B"].width = 60
+
+    # Sheet 2: Dim A Checks
+    ws_a = wb.create_sheet("Dim A Checks")
+    a_headers = ["Check Type", "Regulation", "Issue", "Severity", "Evidence"]
+    for col, h in enumerate(a_headers, 1):
+        cell = ws_a.cell(row=1, column=col, value=h)
+        cell.font = header_text_font
+        cell.fill = header_fill
+
+    for row_idx, check in enumerate(result.dim_a_checks, start=2):
+        ws_a.cell(row=row_idx, column=1, value=check.get("check_type", ""))
+        ws_a.cell(row=row_idx, column=2, value=check.get("regulation", ""))
+        ws_a.cell(row=row_idx, column=3, value=check.get("issue", ""))
+        ws_a.cell(row=row_idx, column=4, value=check.get("severity", ""))
+        ws_a.cell(row=row_idx, column=5, value=check.get("evidence", ""))
+
+    # Sheet 3: Dim B Findings
+    ws_b = wb.create_sheet("Dim B Findings")
+    b_headers = ["Category", "Severity", "Description", "Recommendation"]
+    for col, h in enumerate(b_headers, 1):
+        cell = ws_b.cell(row=1, column=col, value=h)
+        cell.font = header_text_font
+        cell.fill = header_fill
+
+    for row_idx, finding in enumerate(result.dim_b_findings, start=2):
+        ws_b.cell(row=row_idx, column=1, value=finding.get("category", ""))
+        ws_b.cell(row=row_idx, column=2, value=finding.get("severity", ""))
+        ws_b.cell(row=row_idx, column=3, value=finding.get("description", ""))
+        ws_b.cell(row=row_idx, column=4, value=finding.get("recommendation", ""))
+
+    # Sheet 4: Country Scores
+    if result.dim_b_country_scores:
+        ws_c = wb.create_sheet("Country Scores")
+        c_headers = ["Country", "Score"]
+        for col, h in enumerate(c_headers, 1):
+            cell = ws_c.cell(row=1, column=col, value=h)
+            cell.font = header_text_font
+            cell.fill = header_fill
+        for row_idx, (country, score) in enumerate(
+            sorted(result.dim_b_country_scores.items()), start=2
+        ):
+            ws_c.cell(row=row_idx, column=1, value=country)
+            ws_c.cell(row=row_idx, column=2, value=score)
+
+    from src.utils.safe_io import safe_save_binary
+
+    safe_save_binary(filepath, wb.save)
+    return filepath
+
+
+def export_meta_review_word(result: MetaReviewResult) -> Path:
+    """Export a meta review result as a Word document.
+
+    Args:
+        result: MetaReviewResult to export
+
+    Returns:
+        Path to the generated .docx file
+    """
+    from docx import Document
+    from docx.shared import Pt, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+    EXPORT_DIR.mkdir(parents=True, exist_ok=True)
+    filepath = EXPORT_DIR / f"meta_review_{result.period_end or 'latest'}.docx"
+
+    doc = Document()
+    title = doc.add_heading("AI-QMS 10日總檢報告 / 10-Day Meta Review Report", level=1)
+    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    meta = doc.add_paragraph()
+    meta.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    run = meta.add_run(
+        f"Review ID: {result.review_id}  |  "
+        f"Period: {result.period_start} ~ {result.period_end}  |  "
+        f"Generated: {result.timestamp}"
+    )
+    run.font.size = Pt(9)
+    run.font.color.rgb = RGBColor(128, 128, 128)
+
+    # Summary
+    doc.add_heading("評分摘要 / Score Summary", level=2)
+    doc.add_paragraph(
+        f"Average Dim A (MDSAP Accuracy): {result.avg_dim_a:.0f}/100\n"
+        f"Average Dim B (Cross-Exam Quality): {result.avg_dim_b:.0f}/100\n"
+        f"Daily Audits Analyzed: {len(result.daily_results)}"
+    )
+
+    # Trend Analysis
+    doc.add_heading("趨勢分析 / Trend Analysis", level=2)
+    doc.add_paragraph(result.trend_analysis or "N/A")
+
+    # Deviation Summary
+    if result.deviation_summary:
+        doc.add_heading("偏差摘要 / Deviation Summary", level=2)
+        doc.add_paragraph(result.deviation_summary)
+
+    # Country Trends
+    if result.country_trends:
+        doc.add_heading("各國趨勢 / Country Trends", level=2)
+        for country, trend in sorted(result.country_trends.items()):
+            doc.add_paragraph(f"  {country}: {trend}")
+
+    # Recommendations
+    if result.recommendations:
+        doc.add_heading("建議 / Recommendations", level=2)
+        for i, rec in enumerate(result.recommendations, 1):
+            doc.add_paragraph(f"{i}. {rec}")
+
+    # Daily Results Table
+    doc.add_heading("每日結果 / Daily Results", level=2)
+    if result.daily_results:
+        table = doc.add_table(rows=1, cols=5)
+        table.style = "Light Grid Accent 1"
+        hdr = table.rows[0].cells
+        hdr[0].text = "Date"
+        hdr[1].text = "Dim A"
+        hdr[2].text = "Dim B"
+        hdr[3].text = "Overall"
+        hdr[4].text = "Deviation"
+        for dr in result.daily_results:
+            row = table.add_row().cells
+            row[0].text = str(dr.get("audit_date", ""))
+            row[1].text = f"{dr.get('dim_a_score', 0):.0f}"
+            row[2].text = f"{dr.get('dim_b_score', 0):.0f}"
+            row[3].text = f"{dr.get('overall_score', 0):.0f}"
+            row[4].text = "⚠️" if dr.get("deviation_detected") else "✅"
+
+    from src.utils.safe_io import safe_save_binary
+
+    safe_save_binary(filepath, doc.save)
+    return filepath
+
+
+def export_meta_review_excel(result: MetaReviewResult) -> Path:
+    """Export a meta review result as an Excel file.
+
+    Args:
+        result: MetaReviewResult to export
+
+    Returns:
+        Path to the generated .xlsx file
+    """
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+
+    EXPORT_DIR.mkdir(parents=True, exist_ok=True)
+    filepath = EXPORT_DIR / f"meta_review_{result.period_end or 'latest'}.xlsx"
+
+    wb = Workbook()
+    header_fill = PatternFill(
+        start_color="4472C4", end_color="4472C4", fill_type="solid"
+    )
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+
+    # Sheet 1: Summary
+    ws_sum = wb.active
+    ws_sum.title = "Summary"
+    summary_data = [
+        ("Review ID", result.review_id),
+        ("Period", f"{result.period_start} ~ {result.period_end}"),
+        ("Generated", result.timestamp),
+        ("Avg Dim A", f"{result.avg_dim_a:.0f}/100"),
+        ("Avg Dim B", f"{result.avg_dim_b:.0f}/100"),
+        ("Daily Audits", str(len(result.daily_results))),
+        ("Trend Analysis", result.trend_analysis),
+        ("Deviation Summary", result.deviation_summary or "None"),
+    ]
+    for row_idx, (key, val) in enumerate(summary_data, start=1):
+        ws_sum.cell(row=row_idx, column=1, value=key).font = Font(bold=True)
+        ws_sum.cell(row=row_idx, column=2, value=str(val))
+    ws_sum.column_dimensions["A"].width = 25
+    ws_sum.column_dimensions["B"].width = 80
+
+    # Sheet 2: Daily Results
+    ws_daily = wb.create_sheet("Daily Results")
+    d_headers = ["Date", "Dim A", "Dim B", "Overall", "Deviation", "Summary"]
+    for col, h in enumerate(d_headers, 1):
+        cell = ws_daily.cell(row=1, column=col, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+
+    for row_idx, dr in enumerate(result.daily_results, start=2):
+        ws_daily.cell(row=row_idx, column=1, value=dr.get("audit_date", ""))
+        ws_daily.cell(row=row_idx, column=2, value=dr.get("dim_a_score", 0))
+        ws_daily.cell(row=row_idx, column=3, value=dr.get("dim_b_score", 0))
+        ws_daily.cell(row=row_idx, column=4, value=dr.get("overall_score", 0))
+        ws_daily.cell(
+            row=row_idx, column=5, value="Yes" if dr.get("deviation_detected") else "No"
+        )
+        ws_daily.cell(row=row_idx, column=6, value=dr.get("summary", ""))
+
+    # Sheet 3: Recommendations
+    if result.recommendations:
+        ws_rec = wb.create_sheet("Recommendations")
+        ws_rec.cell(row=1, column=1, value="#").font = header_font
+        ws_rec.cell(row=1, column=1).fill = header_fill
+        ws_rec.cell(row=1, column=2, value="Recommendation").font = header_font
+        ws_rec.cell(row=1, column=2).fill = header_fill
+        for row_idx, rec in enumerate(result.recommendations, start=2):
+            ws_rec.cell(row=row_idx, column=1, value=row_idx - 1)
+            ws_rec.cell(row=row_idx, column=2, value=rec)
+        ws_rec.column_dimensions["B"].width = 80
+
+    # Sheet 4: Country Trends
+    if result.country_trends:
+        ws_ct = wb.create_sheet("Country Trends")
+        ws_ct.cell(row=1, column=1, value="Country").font = header_font
+        ws_ct.cell(row=1, column=1).fill = header_fill
+        ws_ct.cell(row=1, column=2, value="Trend").font = header_font
+        ws_ct.cell(row=1, column=2).fill = header_fill
+        for row_idx, (country, trend) in enumerate(
+            sorted(result.country_trends.items()), start=2
+        ):
+            ws_ct.cell(row=row_idx, column=1, value=country)
+            ws_ct.cell(row=row_idx, column=2, value=trend)
+        ws_ct.column_dimensions["B"].width = 60
+
+    from src.utils.safe_io import safe_save_binary
+
+    safe_save_binary(filepath, wb.save)
+    return filepath
+
+
+
+# ============================================================
+# User Feedback — Data class, Storage, CRUD
+# ============================================================
+
+
+class AuditFeedback:
+    """User feedback record for daily audit or meta review."""
+
+    def __init__(
+        self,
+        feedback_id: str,
+        audit_type: str,           # 'daily' | 'meta'
+        target_id: str,            # audit_id or meta review date
+        feedback_text: str,
+        created_at: str,
+        updated_at: str,
+        status: str = "active",    # 'active' | 'deleted'
+        re_evaluation_id: Optional[str] = None,
+        re_evaluation_score: Optional[int] = None,
+    ):
+        self.feedback_id = feedback_id
+        self.audit_type = audit_type
+        self.target_id = target_id
+        self.feedback_text = feedback_text
+        self.created_at = created_at
+        self.updated_at = updated_at
+        self.status = status
+        self.re_evaluation_id = re_evaluation_id
+        self.re_evaluation_score = re_evaluation_score
+
+    def to_dict(self) -> dict:
+        return {
+            "feedback_id": self.feedback_id,
+            "audit_type": self.audit_type,
+            "target_id": self.target_id,
+            "feedback_text": self.feedback_text,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+            "status": self.status,
+            "re_evaluation_id": self.re_evaluation_id,
+            "re_evaluation_score": self.re_evaluation_score,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "AuditFeedback":
+        return cls(
+            feedback_id=d["feedback_id"],
+            audit_type=d.get("audit_type", "daily"),
+            target_id=d.get("target_id", ""),
+            feedback_text=d.get("feedback_text", ""),
+            created_at=d.get("created_at", ""),
+            updated_at=d.get("updated_at", ""),
+            status=d.get("status", "active"),
+            re_evaluation_id=d.get("re_evaluation_id"),
+            re_evaluation_score=d.get("re_evaluation_score"),
+        )
+
+
+def _ensure_feedback_dir() -> Path:
+    FEEDBACK_DIR.mkdir(parents=True, exist_ok=True)
+    return FEEDBACK_DIR
+
+
+def save_feedback(
+    audit_type: str,
+    target_id: str,
+    feedback_text: str,
+) -> AuditFeedback:
+    """Create and persist a new feedback record."""
+    _ensure_feedback_dir()
+    ts = datetime.now().isoformat()
+    fb_id = f"fb_{int(time.time())}_{audit_type}"
+    fb = AuditFeedback(
+        feedback_id=fb_id,
+        audit_type=audit_type,
+        target_id=target_id,
+        feedback_text=feedback_text,
+        created_at=ts,
+        updated_at=ts,
+    )
+    filepath = FEEDBACK_DIR / f"{fb_id}.json"
+    atomic_write_json(filepath, fb.to_dict())
+    logger.info(f"Saved feedback {fb_id} for {audit_type}/{target_id}")
+    return fb
+
+
+def get_all_feedback(include_deleted: bool = False) -> list[AuditFeedback]:
+    """Return all feedback records, sorted newest-first."""
+    _ensure_feedback_dir()
+    results: list[AuditFeedback] = []
+    for f in sorted(FEEDBACK_DIR.glob("fb_*.json"), reverse=True):
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+            fb = AuditFeedback.from_dict(data)
+            if not include_deleted and fb.status == "deleted":
+                continue
+            results.append(fb)
+        except Exception as exc:
+            logger.warning(f"Failed to load feedback {f}: {exc}")
+    return results
+
+
+def get_feedback_by_id(feedback_id: str) -> Optional[AuditFeedback]:
+    """Load a single feedback record by ID."""
+    filepath = FEEDBACK_DIR / f"{feedback_id}.json"
+    if not filepath.exists():
+        return None
+    try:
+        data = json.loads(filepath.read_text(encoding="utf-8"))
+        return AuditFeedback.from_dict(data)
+    except Exception as exc:
+        logger.warning(f"Failed to load feedback {feedback_id}: {exc}")
+        return None
+
+
+def update_feedback(feedback_id: str, new_text: str) -> Optional[AuditFeedback]:
+    """Update the text of an existing feedback record."""
+    fb = get_feedback_by_id(feedback_id)
+    if fb is None or fb.status == "deleted":
+        return None
+    fb.feedback_text = new_text
+    fb.updated_at = datetime.now().isoformat()
+    filepath = FEEDBACK_DIR / f"{feedback_id}.json"
+    atomic_write_json(filepath, fb.to_dict())
+    logger.info(f"Updated feedback {feedback_id}")
+    return fb
+
+
+def delete_feedback(feedback_id: str) -> bool:
+    """Soft-delete a feedback record (sets status='deleted')."""
+    fb = get_feedback_by_id(feedback_id)
+    if fb is None:
+        return False
+    fb.status = "deleted"
+    fb.updated_at = datetime.now().isoformat()
+    filepath = FEEDBACK_DIR / f"{feedback_id}.json"
+    atomic_write_json(filepath, fb.to_dict())
+    logger.info(f"Deleted feedback {feedback_id}")
+    return True
+
+
+def get_feedback_for_audit(target_id: str) -> list[AuditFeedback]:
+    """Get all active feedback for a specific audit/meta review."""
+    all_fb = get_all_feedback()
+    return [fb for fb in all_fb if fb.target_id == target_id]
+
+
+def get_active_feedback_context() -> str:
+    """Build a context string from all active feedback for LLM re-evaluation."""
+    all_fb = get_all_feedback()
+    if not all_fb:
+        return ""
+    lines = ["--- User feedback history (for reference during audit) ---"]
+    for fb in all_fb[:20]:  # limit to 20 most recent
+        lines.append(
+            f"[{fb.created_at[:10]}] ({fb.audit_type}/{fb.target_id}): {fb.feedback_text}"
+        )
+    lines.append("--- End of user feedback ---")
+    return "\n".join(lines)

@@ -61,6 +61,13 @@ generate_phoenix_report.py
 *.tmp
 *.bak
 %TEMP%/
+# Tests
+tests/
+chainlit_repo/
+
+# Changelog / document files
+CHANGELOG*.md
+CHANGELOG*.docx
 # Documentation (keep only demo video/animation)
 docs/*.md
 docs/**/*.md

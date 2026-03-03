@@ -6,6 +6,8 @@ Export regulatory crawl update results to Word (.docx) and Excel (.xlsx) formats
 Follows the same patterns as regulatory_export.py for consistency.
 """
 
+import json
+import os
 import re
 from datetime import datetime
 from pathlib import Path
@@ -17,6 +19,41 @@ from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+
+
+# ── i18n helpers ──
+
+
+def _t(key: str, lang: str = "zh-TW", **kwargs) -> str:
+    """Translate a key using locale JSON files."""
+    _cache = getattr(_t, "_cache", {})
+    if lang not in _cache:
+        locale_path = os.path.join(
+            os.path.dirname(__file__), "..", "chainlit_app", "locales", f"{lang}.json"
+        )
+        try:
+            with open(locale_path, "r", encoding="utf-8") as f:
+                _cache[lang] = json.load(f)
+        except Exception:
+            _cache[lang] = {}
+        _t._cache = _cache
+    text = _cache.get(lang, {}).get(key, key)
+    if kwargs:
+        try:
+            text = text.format(**kwargs)
+        except (KeyError, IndexError):
+            pass
+    return text
+
+
+def _tl(key: str, lang: str = "zh-TW") -> list:
+    """Translate a key that returns a list (e.g. table headers)."""
+    _cache = getattr(_t, "_cache", {})
+    if lang not in _cache:
+        _t(key, lang)  # populate cache
+        _cache = getattr(_t, "_cache", {})
+    val = _cache.get(lang, {}).get(key)
+    return val if isinstance(val, list) else [key]
 
 
 # Output directory for generated files
@@ -92,7 +129,9 @@ def _get_qms_mapping(agency: str, region: str = "") -> str:
 
 
 def format_regulatory_update_markdown(
-    crawl_results: dict, assessment: Optional[str] = None
+    crawl_results: dict,
+    assessment: Optional[str] = None,
+    lang: str = "zh-TW",
 ) -> str:
     """Format crawl results as Markdown for Chainlit chat display."""
     results = crawl_results.get("results", [])
@@ -104,12 +143,22 @@ def format_regulatory_update_markdown(
     duration = summary.get("crawl_duration_seconds", 0)
     regions = summary.get("regions_covered", [])
 
+    md_headers = _tl("regulatory_update_export.table_headers_md", lang)
+
     lines = [
-        f"📋 **法規清單更新結果** (成功 {success}/{total} 個網站，耗時 {duration:.1f} 秒)\n",
-        f"涵蓋地區: {', '.join(regions)}\n",
-        "### 爬取結果摘要\n",
-        "| 地區 | 機構 | 狀態 | 內容摘要 | QMS 對應 |",
-        "|------|------|------|----------|----------|",
+        _t(
+            "regulatory_update_export.result_title",
+            lang,
+            success=success,
+            total=total,
+            duration=f"{duration:.1f}",
+        )
+        + "\n",
+        _t("regulatory_update_export.regions_covered", lang, regions=", ".join(regions))
+        + "\n",
+        f"### {_t('regulatory_update_export.summary_table', lang)}\n",
+        f"| {' | '.join(md_headers)} |",
+        f"|{'|'.join(['------' for _ in md_headers])}|",
     ]
 
     for r in results:
@@ -122,7 +171,9 @@ def format_regulatory_update_markdown(
             content = r.get("content_markdown", "")
             preview = _strip_markdown(content)[:50] if content else ""
         elif r.get("crawl_status") == "failed":
-            reason = r.get("failure_reason", "未知原因")
+            reason = r.get(
+                "failure_reason", _t("regulatory_update_export.unknown_reason", lang)
+            )
             preview = reason[:50] + "..." if len(reason) > 50 else reason
         else:
             preview = r.get("note", "")[:50]
@@ -132,16 +183,18 @@ def format_regulatory_update_markdown(
     # Failed sites section
     failed_results = [r for r in results if r.get("crawl_status") == "failed"]
     if failed_results:
-        lines.append("\n### ⚠️ 無法爬取的網站\n")
+        lines.append(f"\n### {_t('regulatory_update_export.failed_sites', lang)}\n")
         for r in failed_results:
-            reason = r.get("failure_reason", "未知原因")
+            reason = r.get(
+                "failure_reason", _t("regulatory_update_export.unknown_reason", lang)
+            )
             lines.append(f"- **{r['region']} — {r['agency']}**: {reason}")
         lines.append("")
 
     # Assessment section
     if assessment:
         lines.append("\n---\n")
-        lines.append("### 📊 QMS 評估報告\n")
+        lines.append(f"### {_t('regulatory_export.assessment_report', lang)}\n")
         lines.append(assessment)
 
     return "\n".join(lines)
@@ -153,7 +206,10 @@ def format_regulatory_update_markdown(
 
 
 def export_regulatory_update_to_word(
-    crawl_results: dict, assessment: Optional[str] = None
+    crawl_results: dict,
+    assessment: Optional[str] = None,
+    verification_report: Optional[dict] = None,
+    lang: str = "zh-TW",
 ) -> str:
     """Export regulatory update results to Word (.docx).
 
@@ -171,20 +227,29 @@ def export_regulatory_update_to_word(
     doc = Document()
 
     # Title
-    title = doc.add_heading("AI-QMS 法規清單更新報告", level=1)
+    title = doc.add_heading(_t("regulatory_update_export.title", lang), level=1)
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     # Metadata
     meta = doc.add_paragraph()
     meta.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    run = meta.add_run(f"匯出時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    run = meta.add_run(
+        f"{_t('regulatory_export.export_time', lang)}: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    )
     run.font.size = Pt(9)
     run.font.color.rgb = RGBColor(128, 128, 128)
 
     meta2 = doc.add_paragraph()
     meta2.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     run2 = meta2.add_run(
-        f"掃描網站: {total} | 成功: {success} | 失敗: {failed} | 耗時: {duration:.1f}秒"
+        _t(
+            "regulatory_update_export.meta_stats",
+            lang,
+            total=total,
+            success=success,
+            failed=failed,
+            duration=f"{duration:.1f}",
+        )
     )
     run2.font.size = Pt(9)
     run2.font.color.rgb = RGBColor(128, 128, 128)
@@ -192,13 +257,13 @@ def export_regulatory_update_to_word(
     doc.add_paragraph()
 
     # Section 1: Summary Table (enhanced with structured columns)
-    doc.add_heading("一、法規更新摘要", level=2)
+    doc.add_heading(_t("regulatory_update_export.summary_heading", lang), level=2)
 
     table1 = doc.add_table(rows=1, cols=7)
     table1.style = "Table Grid"
     table1.alignment = WD_TABLE_ALIGNMENT.CENTER
 
-    headers = ["地區", "機構", "URL", "狀態", "內容摘要", "儲存路徑", "QMS 對應"]
+    headers = _tl("regulatory_update_export.table_headers", lang)
     for i, header in enumerate(headers):
         cell = table1.rows[0].cells[i]
         cell.text = header
@@ -212,7 +277,11 @@ def export_regulatory_update_to_word(
         row = table1.add_row()
         region = r.get("region", "")
         agency = r.get("agency", "")
-        status_text = "成功" if r.get("crawl_status") == "success" else "失敗"
+        status_text = (
+            _t("regulatory_update_export.crawl_status_success", lang)
+            if r.get("crawl_status") == "success"
+            else _t("regulatory_update_export.crawl_status_fail", lang)
+        )
 
         # Content summary
         content = r.get("content_markdown", "")
@@ -258,7 +327,9 @@ def export_regulatory_update_to_word(
     # Section 2: Content Details
     success_results = [r for r in results if r.get("crawl_status") == "success"]
     if success_results:
-        doc.add_heading("二、各地區法規詳情", level=2)
+        doc.add_heading(
+            _t("regulatory_update_export.content_detail_heading", lang), level=2
+        )
 
         for r in success_results:
             doc.add_heading(
@@ -272,7 +343,7 @@ def export_regulatory_update_to_word(
                 run.font.size = Pt(8)
             if len(content) > 1000:
                 trunc = doc.add_paragraph(
-                    "... (內容已截斷，完整內容請參閱 Markdown 檔案)"
+                    _t("regulatory_export.content_truncated", lang)
                 )
                 for run in trunc.runs:
                     run.font.size = Pt(8)
@@ -281,7 +352,7 @@ def export_regulatory_update_to_word(
 
     # Section 3: Assessment Report
     if assessment:
-        doc.add_heading("三、QMS 評估報告", level=2)
+        doc.add_heading(_t("regulatory_export.assessment_heading", lang), level=2)
         # Split assessment into paragraphs
         for para_text in assessment.split("\n"):
             stripped = para_text.strip()
@@ -307,13 +378,17 @@ def export_regulatory_update_to_word(
                 for run in p.runs:
                     run.font.size = Pt(9)
 
+    # Section: Verification Report (if provided)
+    if verification_report and verification_report.get("has_data"):
+        # Reuse the shared verification renderer from regulatory_export
+        from src.utils.regulatory_export import _render_verification_to_word
+
+        _render_verification_to_word(doc, verification_report, lang)
+
     # Footer
     doc.add_paragraph()
     footer = doc.add_paragraph()
-    run = footer.add_run(
-        "本報告由 AI-QMS 品質管理系統自動產生。"
-        "法規資訊透過網路爬取取得，僅供參考，請以各國官方網站公告為準。"
-    )
+    run = footer.add_run(_t("regulatory_update_export.footer", lang))
     run.font.size = Pt(8)
     run.font.italic = True
     run.font.color.rgb = RGBColor(128, 128, 128)
@@ -332,7 +407,10 @@ def export_regulatory_update_to_word(
 
 
 def export_regulatory_update_to_excel(
-    crawl_results: dict, assessment: Optional[str] = None
+    crawl_results: dict,
+    assessment: Optional[str] = None,
+    verification_report: Optional[dict] = None,
+    lang: str = "zh-TW",
 ) -> str:
     """Export regulatory update results to Excel (.xlsx).
 
@@ -351,12 +429,12 @@ def export_regulatory_update_to_excel(
 
     # Sheet 1: Summary (enhanced with structured columns)
     ws1 = wb.active
-    ws1.title = "更新摘要"
+    ws1.title = _t("regulatory_update_export.summary_sheet", lang)
 
     # Title
     ws1.merge_cells("A1:G1")
     title_cell = ws1.cell(row=1, column=1)
-    title_cell.value = "AI-QMS 法規清單更新報告"
+    title_cell.value = _t("regulatory_update_export.title", lang)
     title_cell.font = Font(name="Microsoft JhengHei", size=14, bold=True)
     title_cell.alignment = Alignment(horizontal="center")
 
@@ -364,15 +442,22 @@ def export_regulatory_update_to_excel(
     ws1.merge_cells("A2:G2")
     meta_cell = ws1.cell(row=2, column=1)
     meta_cell.value = (
-        f"匯出時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | "
-        f"掃描網站: {total} | 成功: {success} | 失敗: {failed} | 耗時: {duration:.1f}秒"
+        f"{_t('regulatory_export.export_time', lang)}: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | "
+        + _t(
+            "regulatory_update_export.meta_stats",
+            lang,
+            total=total,
+            success=success,
+            failed=failed,
+            duration=f"{duration:.1f}",
+        )
     )
     meta_cell.font = Font(
         name="Microsoft JhengHei", size=9, italic=True, color="808080"
     )
 
     # Headers (enhanced)
-    headers = ["地區", "機構", "URL", "狀態", "內容摘要", "儲存路徑", "QMS 對應"]
+    headers = _tl("regulatory_update_export.table_headers", lang)
     for col, header in enumerate(headers, 1):
         cell = ws1.cell(row=4, column=col)
         cell.value = header
@@ -385,7 +470,11 @@ def export_regulatory_update_to_excel(
     for row_idx, r in enumerate(results, 5):
         region = r.get("region", "")
         agency = r.get("agency", "")
-        status_text = "成功" if r.get("crawl_status") == "success" else "失敗"
+        status_text = (
+            _t("regulatory_update_export.crawl_status_success", lang)
+            if r.get("crawl_status") == "success"
+            else _t("regulatory_update_export.crawl_status_fail", lang)
+        )
 
         # Content summary
         content = r.get("content_markdown", "")
@@ -422,7 +511,7 @@ def export_regulatory_update_to_excel(
 
         # Color status cell
         status_cell = ws1.cell(row=row_idx, column=4)
-        if status_text == "成功":
+        if status_text == _t("regulatory_update_export.crawl_status_success", lang):
             status_cell.fill = SUCCESS_FILL
         else:
             status_cell.fill = FAIL_FILL
@@ -438,34 +527,21 @@ def export_regulatory_update_to_excel(
 
     # Sheet 2: Assessment Report (if provided)
     if assessment:
-        ws3 = wb.create_sheet("評估報告")
+        from src.utils.regulatory_export import _render_assessment_to_excel
 
-        ws3.merge_cells("A1:B1")
-        title_cell3 = ws3.cell(row=1, column=1)
-        title_cell3.value = "QMS 評估報告"
-        title_cell3.font = Font(name="Microsoft JhengHei", size=14, bold=True)
-        title_cell3.alignment = Alignment(horizontal="center")
+        _render_assessment_to_excel(wb, assessment, lang)
 
-        # Write assessment as rows
-        assessment_lines = assessment.split("\n")
-        for row_idx, line in enumerate(assessment_lines, 3):
-            cell = ws3.cell(row=row_idx, column=1)
-            cell.value = line
-            if line.strip().startswith("#"):
-                cell.font = Font(name="Microsoft JhengHei", size=11, bold=True)
-            else:
-                cell.font = CELL_FONT
+    # Sheet: Verification Report (if provided)
+    if verification_report and verification_report.get("has_data"):
+        from src.utils.regulatory_export import _render_verification_to_excel
 
-        ws3.column_dimensions["A"].width = 100
+        _render_verification_to_excel(wb, verification_report, lang)
 
     # Footer note
     note_row = len(results) + 6
     ws1.merge_cells(f"A{note_row}:G{note_row}")
     note_cell = ws1.cell(row=note_row, column=1)
-    note_cell.value = (
-        "本報告由 AI-QMS 品質管理系統自動產生。"
-        "法規資訊透過網路爬取取得，僅供參考，請以各國官方網站公告為準。"
-    )
+    note_cell.value = _t("regulatory_update_export.footer", lang)
     note_cell.font = Font(
         name="Microsoft JhengHei", size=8, italic=True, color="808080"
     )
