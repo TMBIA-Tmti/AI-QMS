@@ -418,13 +418,17 @@ load_cached_models()
 # all unmatched paths. We must move it to the end AFTER mounting our router.
 try:
     from chainlit.server import app as _chainlit_fastapi_app
+
     _chainlit_fastapi_app.include_router(report_router)
 
     # Move Chainlit's catch-all SPA route to the very end so our
     # /api/report/* routes are matched first.
     _catch_all = None
     for _i, _route in enumerate(_chainlit_fastapi_app.routes):
-        if hasattr(_route, 'path') and getattr(_route, 'path', '') == '/{full_path:path}':
+        if (
+            hasattr(_route, "path")
+            and getattr(_route, "path", "") == "/{full_path:path}"
+        ):
             _catch_all = _chainlit_fastapi_app.routes.pop(_i)
             break
     if _catch_all:
@@ -2875,9 +2879,8 @@ async def on_chat_start():
     await cl.Message(content=welcome).send()
 
     if saved and user_name:
-        # Returning user with saved settings — show Eira intro directly
-        intro = t("eira.introduction", name=user_name)
-        await cl.Message(content=intro, author="Eira").send()
+        # Returning user with saved settings — show Eira intro + setup questions
+        await _send_eira_introduction(user_name, profile, doc_count, doc_limit)
     else:
         # New user — wait for LLM settings first, then ask name in on_settings_update
         cl.user_session.set("eira_name_pending", True)
@@ -2943,6 +2946,7 @@ async def _send_eira_introduction(
     if profile == "文件管制 (Doc Control)":
         # Step 1: Ask signature detection toggle
         await _ask_sig_detection_toggle(user_name)
+
 
 @cl.on_chat_end
 async def on_chat_end():
@@ -3653,8 +3657,16 @@ async def _ask_product_docs_upload() -> Optional[str]:
                 "📌 上傳的文件僅用於本次分析，報告產生後將自動刪除。"
             ),
             actions=[
-                cl.Action(name="upload_product_docs", payload={"value": "upload"}, label="📎 上傳產品文件"),
-                cl.Action(name="skip_product_docs", payload={"value": "skip"}, label="⏭️ 跳過，直接分析"),
+                cl.Action(
+                    name="upload_product_docs",
+                    payload={"value": "upload"},
+                    label="📎 上傳產品文件",
+                ),
+                cl.Action(
+                    name="skip_product_docs",
+                    payload={"value": "skip"},
+                    label="⏭️ 跳過，直接分析",
+                ),
             ],
             timeout=120,
         ).send()
@@ -3724,7 +3736,10 @@ async def _ask_product_docs_upload() -> Optional[str]:
                     pass
         except Exception as e:
             import logging
-            logging.getLogger(__name__).warning(f"Failed to process product doc {f.name}: {e}")
+
+            logging.getLogger(__name__).warning(
+                f"Failed to process product doc {f.name}: {e}"
+            )
 
     if success_count > 0:
         await cl.Message(
@@ -3987,12 +4002,13 @@ async def handle_regulatory_list():
                 "pipeline.standard": "ISO_13485",
             },
         ):
+
             async def _on_run_id_ready(run_id: str):
                 _lang = cl.user_session.get("language", "zh-TW")
                 report_url = f"/api/report/page/{run_id}?lang={_lang}"
                 await cl.Message(
                     content=f"\n\n📊 **[{t('report.open_realtime')}]({report_url})**\n\n"
-                            f"{t('report.page_online')}"
+                    f"{t('report.page_online')}"
                 ).send()
 
             pipeline_result = await run_pipeline_analysis(
@@ -4047,7 +4063,9 @@ async def handle_regulatory_list():
             cache_id=_cache_id,
             command="regulatory_list",
             assessment=assessment,
-            status="completed" if (pipeline_result and pipeline_result.success) else "llm_failed",
+            status="completed"
+            if (pipeline_result and pipeline_result.success)
+            else "llm_failed",
             provider_id=provider_id,
             model_name=model_name,
         )
@@ -4078,7 +4096,9 @@ async def handle_regulatory_list():
     # Save pipeline state file path for report page (Phase D)
     if pipeline_result and pipeline_result.state_file_path:
         try:
-            cl.user_session.set("last_pipeline_state_path", pipeline_result.state_file_path)
+            cl.user_session.set(
+                "last_pipeline_state_path", pipeline_result.state_file_path
+            )
         except Exception:
             pass
 
@@ -4088,7 +4108,7 @@ async def handle_regulatory_list():
             report_url = f"/api/report/page/{pipeline_result.run_id}?lang={_lang}"
             await cl.Message(
                 content=f"\n\n📊 **[{t('report.open_interactive')}]({report_url})**\n\n"
-                        f"{t('report.page_features')}"
+                f"{t('report.page_features')}"
             ).send()
         except Exception:
             pass
@@ -4558,7 +4578,6 @@ async def handle_regulatory_update_rescan(selected_regions: list):
     model_name = cl.user_session.get("model_name", "default")
     api_key = cl.user_session.get("api_key", "").strip()
     try:
-
         if provider_id and model_name and (provider_id == "ollama" or api_key):
             setup_api_key(provider_id, api_key)
             manager = create_provider_manager(provider_id)
@@ -4585,12 +4604,13 @@ async def handle_regulatory_update_rescan(selected_regions: list):
                     "pipeline.regions": ", ".join(selected_regions),
                 },
             ):
+
                 async def _on_run_id_ready_update(run_id: str):
                     _lang = cl.user_session.get("language", "zh-TW")
                     report_url = f"/api/report/page/{run_id}?lang={_lang}"
                     await cl.Message(
                         content=f"\n\n📊 **[{t('report.open_realtime')}]({report_url})**\n\n"
-                                f"{t('report.page_online')}"
+                        f"{t('report.page_online')}"
                     ).send()
 
                 pipeline_result = await run_pipeline_analysis(
@@ -4625,14 +4645,11 @@ async def handle_regulatory_update_rescan(selected_regions: list):
 
     except Exception as e:
         assessment = (
-            f"⚠️ QMS 評估報告產生失敗: {str(e)[:200]}\n\n"
-            f"請確認 LLM 設定正確後重試。"
+            f"⚠️ QMS 評估報告產生失敗: {str(e)[:200]}\n\n請確認 LLM 設定正確後重試。"
         )
         import logging
 
-        logging.getLogger(__name__).warning(
-            f"Regulatory update pipeline failed: {e}"
-        )
+        logging.getLogger(__name__).warning(f"Regulatory update pipeline failed: {e}")
         try:
             await cl.Message(content=assessment).send()
         except Exception:
@@ -4650,7 +4667,9 @@ async def handle_regulatory_update_rescan(selected_regions: list):
             cache_id=_cache_id_update,
             command="regulatory_update",
             assessment=assessment,
-            status="completed" if (pipeline_result and pipeline_result.success) else "llm_failed",
+            status="completed"
+            if (pipeline_result and pipeline_result.success)
+            else "llm_failed",
             provider_id=provider_id,
             model_name=model_name,
         )
@@ -4662,10 +4681,7 @@ async def handle_regulatory_update_rescan(selected_regions: list):
         )
 
     # Save analysis report to persistent markdown DB
-    if (
-        assessment
-        and not assessment.startswith("⚠️")
-    ):
+    if assessment and not assessment.startswith("⚠️"):
         try:
             aggregate_local = scan_result_local.get("aggregate", [])
             by_doc_local = scan_result_local.get("by_document", [])
@@ -4689,7 +4705,9 @@ async def handle_regulatory_update_rescan(selected_regions: list):
     # Save pipeline state file path for report page (Phase D)
     if pipeline_result and pipeline_result.state_file_path:
         try:
-            cl.user_session.set("last_pipeline_state_path", pipeline_result.state_file_path)
+            cl.user_session.set(
+                "last_pipeline_state_path", pipeline_result.state_file_path
+            )
         except Exception:
             pass
 
@@ -4699,7 +4717,7 @@ async def handle_regulatory_update_rescan(selected_regions: list):
             report_url = f"/api/report/page/{pipeline_result.run_id}?lang={_lang}"
             await cl.Message(
                 content=f"\n\n📊 **[{t('report.open_interactive')}]({report_url})**\n\n"
-                        f"{t('report.page_features')}"
+                f"{t('report.page_features')}"
             ).send()
         except Exception:
             pass
@@ -5176,7 +5194,9 @@ async def _send_inline_view(filepath: str, doc_id: str, level: str):
         if level == "external":
             hint = t("view.external_hint")
         else:
-            level_label = {"1": "1階", "2": "2階", "3": "3階", "4": "4階"}.get(level, level)
+            level_label = {"1": "1階", "2": "2階", "3": "3階", "4": "4階"}.get(
+                level, level
+            )
             hint = t("view.inline_hint", level=level_label)
         msg_text = t("view.inline_title", doc_id=doc_id) + "\n" + hint
         await cl.Message(content=msg_text, elements=elements).send()
@@ -5190,7 +5210,9 @@ async def _send_inline_view(filepath: str, doc_id: str, level: str):
         if level == "external":
             hint = t("view.external_hint")
         else:
-            level_label = {"1": "1階", "2": "2階", "3": "3階", "4": "4階"}.get(level, level)
+            level_label = {"1": "1階", "2": "2階", "3": "3階", "4": "4階"}.get(
+                level, level
+            )
             hint = t("view.inline_hint", level=level_label)
         msg_text = t("view.inline_title", doc_id=doc_id) + "\n" + hint
         await cl.Message(content=msg_text, elements=elements).send()
@@ -5206,12 +5228,18 @@ async def _send_inline_view(filepath: str, doc_id: str, level: str):
         if level == "external":
             hint = t("view.external_hint")
         else:
-            level_label = {"1": "1階", "2": "2階", "3": "3階", "4": "4階"}.get(level, level)
+            level_label = {"1": "1階", "2": "2階", "3": "3階", "4": "4階"}.get(
+                level, level
+            )
             hint = t("view.inline_hint", level=level_label)
         msg_text = (
-            t("view.inline_title", doc_id=doc_id) + "\n" + hint
-            + "\n\n" + t("view.no_pdf")
-            + "\n\n---\n\n" + md_content
+            t("view.inline_title", doc_id=doc_id)
+            + "\n"
+            + hint
+            + "\n\n"
+            + t("view.no_pdf")
+            + "\n\n---\n\n"
+            + md_content
         )
         await cl.Message(content=msg_text).send()
     else:
@@ -5440,22 +5468,20 @@ async def on_download_original_file(action):
     # Documents in controlled levels are view-only
     # Only documents OUTSIDE controlled levels can be downloaded
     is_download_allowed = (
-        level not in controlled
-        and level != "external"
-        and level != "other"
+        level not in controlled and level != "external" and level != "other"
     )
 
     if is_download_allowed:
         # Outside controlled range (e.g., Level 4 when controlled is 1-3) — allow download
         await _send_file_download(
-            file_path, t("view.download_title", doc_id=doc_id) + "\n" + t("view.download_hint")
+            file_path,
+            t("view.download_title", doc_id=doc_id) + "\n" + t("view.download_hint"),
         )
     else:
         # Controlled levels + External — inline view only
         await _send_inline_view(file_path, doc_id, level)
 
     await action.remove()
-
 
 
 # ============================================================
@@ -5503,6 +5529,7 @@ async def _ask_level_range():
         author="Eira",
         actions=actions,
     ).send()
+
 
 async def _ask_post_upload_setup():
     """After all files uploaded, ask level range then watermark if not yet asked."""
@@ -5559,6 +5586,7 @@ async def on_level_range_1_3(action):
     if not cl.user_session.get("watermark_confirmed"):
         await _ask_watermark_before_upload()
 
+
 # ============================================================
 # Watermark Action Callbacks & Flow
 # ============================================================
@@ -5587,7 +5615,9 @@ async def _apply_watermark_to_existing_docs():
 
     applied_count = 0
     skipped_count = 0
-    progress_msg = await cl.Message(content="⏳ 正在對管控範圍內的文件套用浮水印...").send()
+    progress_msg = await cl.Message(
+        content="⏳ 正在對管控範圍內的文件套用浮水印..."
+    ).send()
 
     for doc in docs:
         doc_id = doc.get("doc_id", "")
@@ -5625,8 +5655,11 @@ async def _apply_watermark_to_existing_docs():
         try:
             await asyncio.to_thread(
                 add_watermark_to_pdf,
-                file_path, wm_path,
-                opacity=opacity, angle=angle, tile_count=tile_count,
+                file_path,
+                wm_path,
+                opacity=opacity,
+                angle=angle,
+                tile_count=tile_count,
             )
             applied_count += 1
         except Exception as e:
@@ -5638,6 +5671,7 @@ async def _apply_watermark_to_existing_docs():
         skipped=skipped_count,
     )
     await progress_msg.update()
+
 
 @cl.action_callback("watermark_provide")
 async def on_watermark_provide(action):
@@ -5710,23 +5744,49 @@ async def _send_watermark_preview():
     try:
         preview_path = await asyncio.to_thread(
             generate_watermark_preview,
-            wm_path, opacity=opacity, angle=angle, tile_count=tile_count,
+            wm_path,
+            opacity=opacity,
+            angle=angle,
+            tile_count=tile_count,
         )
 
         params_text = t(
             "watermark.preview_params",
-            opacity=opacity, angle=angle, tile_count=tile_count,
+            opacity=opacity,
+            angle=angle,
+            tile_count=tile_count,
         )
-        elements = [cl.Pdf(name="watermark_preview.pdf", path=preview_path, display="inline")]
+        elements = [
+            cl.Pdf(name="watermark_preview.pdf", path=preview_path, display="inline")
+        ]
         actions = [
-            cl.Action(name="watermark_confirm", payload={"value": "confirm"}, label=t("watermark.confirm")),
-            cl.Action(name="watermark_adjust_opacity", payload={"value": "opacity"}, label=t("watermark.adjust_opacity")),
-            cl.Action(name="watermark_adjust_angle", payload={"value": "angle"}, label=t("watermark.adjust_angle")),
-            cl.Action(name="watermark_adjust_tiles", payload={"value": "tiles"}, label=t("watermark.adjust_tiles")),
+            cl.Action(
+                name="watermark_confirm",
+                payload={"value": "confirm"},
+                label=t("watermark.confirm"),
+            ),
+            cl.Action(
+                name="watermark_adjust_opacity",
+                payload={"value": "opacity"},
+                label=t("watermark.adjust_opacity"),
+            ),
+            cl.Action(
+                name="watermark_adjust_angle",
+                payload={"value": "angle"},
+                label=t("watermark.adjust_angle"),
+            ),
+            cl.Action(
+                name="watermark_adjust_tiles",
+                payload={"value": "tiles"},
+                label=t("watermark.adjust_tiles"),
+            ),
         ]
         preview_msg.content = (
-            t("watermark.preview_title") + "\n\n" + params_text
-            + "\n\n" + t("watermark.preview_adjust")
+            t("watermark.preview_title")
+            + "\n\n"
+            + params_text
+            + "\n\n"
+            + t("watermark.preview_adjust")
         )
         preview_msg.elements = elements
         preview_msg.actions = actions
@@ -5897,7 +5957,12 @@ async def handle_file_upload(files):
         # Get signature detection setting from session
         sig_enabled = cl.user_session.get("signature_detection_enabled", True)
         result = await asyncio.to_thread(
-            process_uploaded_file_sync, file_el, provider_id, api_key, model_name, lang,
+            process_uploaded_file_sync,
+            file_el,
+            provider_id,
+            api_key,
+            model_name,
+            lang,
             sig_enabled,
         )
 
@@ -6161,7 +6226,6 @@ def process_uploaded_file_sync(
     ensure_upload_folder()
     dest_path = UPLOAD_FOLDER / f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
     shutil.copy(file_path, dest_path)
-
 
     # Signature detection BEFORE OCR — fail fast for unsigned documents.
     # detect_signature checks PDF structure, annotations, and embedded
@@ -7673,24 +7737,40 @@ async def on_message(message: cl.Message):
                 # Take the first image file as watermark
                 wm_file = file_elements[0]
                 wm_suffix = Path(wm_file.name).suffix.lower()
-                image_exts = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".tiff", ".tif", ".bmp"}
+                image_exts = {
+                    ".png",
+                    ".jpg",
+                    ".jpeg",
+                    ".gif",
+                    ".webp",
+                    ".tiff",
+                    ".tif",
+                    ".bmp",
+                }
                 if wm_suffix in image_exts:
                     # Copy watermark image to uploads
                     ensure_upload_folder()
-                    wm_dest = UPLOAD_FOLDER / f"watermark_{datetime.now().strftime('%Y%m%d%H%M%S')}{wm_suffix}"
+                    wm_dest = (
+                        UPLOAD_FOLDER
+                        / f"watermark_{datetime.now().strftime('%Y%m%d%H%M%S')}{wm_suffix}"
+                    )
                     shutil.copy(wm_file.path, wm_dest)
                     cl.user_session.set("watermark_image_path", str(wm_dest))
                     # Generate and show preview
                     await _send_watermark_preview()
                 else:
-                    await cl.Message(content=t("watermark.invalid_value") + " (PNG/JPG)").send()
+                    await cl.Message(
+                        content=t("watermark.invalid_value") + " (PNG/JPG)"
+                    ).send()
                     cl.user_session.set("awaiting_watermark_image", True)
                 return
 
             # Only block upload if sig detection hasn't been asked yet
             if not cl.user_session.get("sig_detection_asked"):
                 # Store pending files and ask sig detection first
-                cl.user_session.set("pending_upload_files", [(el.name, el.path) for el in file_elements])
+                cl.user_session.set(
+                    "pending_upload_files", [(el.name, el.path) for el in file_elements]
+                )
                 user_name = cl.user_session.get("user_name", "")
                 await _ask_sig_detection_toggle(user_name or "使用者")
                 return
@@ -8258,9 +8338,7 @@ async def on_message(message: cl.Message):
                 level = get_document_level(doc_id, doc_type, title_str, content_str)
                 controlled = cl.user_session.get("controlled_levels", ["1", "2", "3"])
                 is_dl_allowed = (
-                    level not in controlled
-                    and level != "external"
-                    and level != "other"
+                    level not in controlled and level != "external" and level != "other"
                 )
 
                 if is_dl_allowed:
@@ -8273,7 +8351,11 @@ async def on_message(message: cl.Message):
                         ),
                     ]
                     elements = [cl.File(name=fname, path=filepath, display="inline")]
-                    download_msg = t("view.download_title", doc_id=doc_id) + "\n" + t("view.download_hint")
+                    download_msg = (
+                        t("view.download_title", doc_id=doc_id)
+                        + "\n"
+                        + t("view.download_hint")
+                    )
                     await cl.Message(
                         content=download_msg, elements=elements, actions=actions
                     ).send()
@@ -8311,7 +8393,9 @@ async def on_message(message: cl.Message):
         # Reset document level range settings
         if _match_cmd(text, "cmd.reset_level_range"):
             cl.user_session.set("level_range_asked", False)
-            cl.user_session.set("controlled_levels", ["1", "2", "3"])  # Reset to default
+            cl.user_session.set(
+                "controlled_levels", ["1", "2", "3"]
+            )  # Reset to default
             await cl.Message(content=t("level_range.reset_done")).send()
             return
         # LLM test connection
