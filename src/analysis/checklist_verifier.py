@@ -225,7 +225,6 @@ def run_checklist_verify_row(
     model: str = "default",
     temperature: float = 0.1,
     max_tokens: int = 4096,
-    lang: str = "zh-TW",
 ) -> PhaseResult:
     """Execute Phase 2 checklist verification for a single row.
 
@@ -382,7 +381,6 @@ def _emit_pipeline_event(run_id: str, event: dict) -> None:
         return
     try:
         from src.analysis.report_api import emit_cross_exam_event
-
         emit_cross_exam_event(run_id, event)
     except ImportError:
         pass
@@ -490,7 +488,6 @@ def run_checklist_verify_document(
     temperature: float = 0.1,
     max_tokens: int = 8192,
     run_id: str = "",
-    lang: str = "zh-TW",
 ) -> PhaseResult:
     """Execute Phase 2 checklist verification for ALL clauses of one document.
 
@@ -566,18 +563,15 @@ def run_checklist_verify_document(
         doc_title = rows[0].doc_title if rows else doc_id
 
         # SSE: emit before LLM call
-        _emit_pipeline_event(
-            run_id,
-            {
-                "type": "phase_2_start",
-                "phase": "checklist_verify",
-                "doc_id": doc_id,
-                "doc_title": doc_title,
-                "clause_ids": [r.clause_id for r in rows],
-                "clause_count": len(rows),
-                "prompt_preview": user_prompt[:500],
-            },
-        )
+        _emit_pipeline_event(run_id, {
+            "type": "phase_2_start",
+            "phase": "checklist_verify",
+            "doc_id": doc_id,
+            "doc_title": doc_title,
+            "clause_ids": [r.clause_id for r in rows],
+            "clause_count": len(rows),
+            "prompt_preview": user_prompt[:500],
+        })
 
         # Call LLM
         response = llm_completion_fn(
@@ -605,11 +599,7 @@ def run_checklist_verify_document(
 
             for item in evidence_items:
                 l2_match = next(
-                    (
-                        r
-                        for r in l2_results
-                        if r.get("evidence_name") == item.evidence_name
-                    ),
+                    (r for r in l2_results if r.get("evidence_name") == item.evidence_name),
                     None,
                 )
                 if l2_match:
@@ -636,31 +626,25 @@ def run_checklist_verify_document(
         phase_result.llm_model = response.get("model", model)
 
         # SSE: emit after LLM call
-        _emit_pipeline_event(
-            run_id,
-            {
-                "type": "phase_2_result",
-                "phase": "checklist_verify",
-                "doc_id": doc_id,
-                "doc_title": doc_title,
-                "clause_ids": [r.clause_id for r in rows],
-                "llm_response": response_text[:2000],
-                "usage": usage,
-            },
-        )
+        _emit_pipeline_event(run_id, {
+            "type": "phase_2_result",
+            "phase": "checklist_verify",
+            "doc_id": doc_id,
+            "doc_title": doc_title,
+            "clause_ids": [r.clause_id for r in rows],
+            "llm_response": response_text[:2000],
+            "usage": usage,
+        })
 
     except Exception as e:
         phase_result.status = PhaseStatus.FAILED.value
         phase_result.error = str(e)
-        _emit_pipeline_event(
-            run_id,
-            {
-                "type": "phase_2_error",
-                "phase": "checklist_verify",
-                "doc_id": doc_id,
-                "error": str(e)[:500],
-            },
-        )
+        _emit_pipeline_event(run_id, {
+            "type": "phase_2_error",
+            "phase": "checklist_verify",
+            "doc_id": doc_id,
+            "error": str(e)[:500],
+        })
 
     phase_result.completed_at = time.time()
     return phase_result

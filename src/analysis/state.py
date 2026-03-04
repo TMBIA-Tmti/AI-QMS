@@ -296,14 +296,12 @@ class RowState:
 
 @dataclass
 class LLMBudget:
-    """Tracks LLM token usage and time against configurable upper limits."""
+    """Tracks LLM token usage against a configurable upper limit."""
 
     max_total_tokens: int = 500_000  # Default upper limit
-    max_time_seconds: int = 600  # Default 10 minutes for LLM phases
     prompt_tokens_used: int = 0
     completion_tokens_used: int = 0
     calls_made: int = 0
-    _timer_started_at: Optional[float] = field(default=None, repr=False)
 
     @property
     def total_tokens_used(self) -> int:
@@ -314,33 +312,14 @@ class LLMBudget:
         return max(0, self.max_total_tokens - self.total_tokens_used)
 
     @property
-    def elapsed_seconds(self) -> float:
-        """Seconds elapsed since start_timer() was called."""
-        if self._timer_started_at is None:
-            return 0.0
-        return time.time() - self._timer_started_at
-
-    @property
-    def time_exceeded(self) -> bool:
-        """Whether the time budget has been exceeded."""
-        if self._timer_started_at is None or self.max_time_seconds <= 0:
-            return False
-        return self.elapsed_seconds >= self.max_time_seconds
-
-    @property
     def exceeded(self) -> bool:
-        return self.total_tokens_used >= self.max_total_tokens or self.time_exceeded
+        return self.total_tokens_used >= self.max_total_tokens
 
     @property
     def usage_percent(self) -> float:
         if self.max_total_tokens <= 0:
             return 100.0
         return round((self.total_tokens_used / self.max_total_tokens) * 100, 1)
-
-    def start_timer(self) -> None:
-        """Start the time budget timer. Called at the first LLM phase."""
-        if self._timer_started_at is None:
-            self._timer_started_at = time.time()
 
     def record_usage(self, usage: dict) -> None:
         """Record LLM usage from a completion response."""
@@ -351,7 +330,6 @@ class LLMBudget:
     def to_dict(self) -> dict:
         return {
             "max_total_tokens": self.max_total_tokens,
-            "max_time_seconds": self.max_time_seconds,
             "prompt_tokens_used": self.prompt_tokens_used,
             "completion_tokens_used": self.completion_tokens_used,
             "total_tokens_used": self.total_tokens_used,
@@ -359,22 +337,16 @@ class LLMBudget:
             "exceeded": self.exceeded,
             "usage_percent": self.usage_percent,
             "calls_made": self.calls_made,
-            "elapsed_seconds": round(self.elapsed_seconds, 1),
-            "time_exceeded": self.time_exceeded,
-            "timer_started_at": self._timer_started_at,
         }
 
     @classmethod
     def from_dict(cls, data: dict) -> "LLMBudget":
-        budget = cls(
+        return cls(
             max_total_tokens=data.get("max_total_tokens", 500_000),
-            max_time_seconds=data.get("max_time_seconds", 600),
             prompt_tokens_used=data.get("prompt_tokens_used", 0),
             completion_tokens_used=data.get("completion_tokens_used", 0),
             calls_made=data.get("calls_made", 0),
         )
-        budget._timer_started_at = data.get("timer_started_at")
-        return budget
 
 
 @dataclass

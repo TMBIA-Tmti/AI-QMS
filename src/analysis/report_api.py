@@ -1619,46 +1619,6 @@ async def get_filter_options(run_id: str):
 # ============================================================
 
 
-def _get_llm_completion_fn(request: Request):
-    """Get an LLM completion function from the current user's saved settings.
-
-    Uses user_settings to retrieve provider/model/api_key, then creates
-    a provider manager. Falls back to litellm.completion if unavailable.
-    """
-    try:
-        from src.utils.user_settings import load_user_settings
-        from src.llm_providers import create_provider_manager, setup_api_key
-
-        settings = load_user_settings()
-        provider_id = settings.get("provider_id", "ollama")
-        api_key = settings.get("api_key", "")
-        model_name = settings.get("model_name", "default")
-
-        if api_key:
-            setup_api_key(provider_id, api_key)
-
-        manager = create_provider_manager(provider_id)
-
-        def _completion(**kwargs):
-            if "model" not in kwargs:
-                kwargs["model"] = model_name
-            if "stream" not in kwargs:
-                kwargs["stream"] = False
-            return manager.completion(**kwargs)
-
-        return _completion
-    except Exception as e:
-        logger.warning(f"Failed to create LLM completion fn from user settings: {e}")
-        try:
-            import litellm
-
-            return litellm.completion
-        except ImportError:
-            raise RuntimeError(
-                "No LLM provider available. Please configure provider in settings."
-            )
-
-
 def _verdict_to_risk(verdict: str, audit_impact: str) -> Optional[str]:
     """Reverse-map verdict to risk level using the risk matrix.
 

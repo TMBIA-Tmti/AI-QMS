@@ -24,6 +24,23 @@ TMBIA-Tmti 深知醫療器材法規人員在品質管理實務中面對的挑戰
 
 > **📌 開發進度：Phase 1（文件管制子 Agent）已完成，即將開始製作 Phase 2（稽核子 Agent）。**
 
+## Logo 設計理念
+
+<p align="center">
+  <img src="public/avatars/eira.svg" alt="Eira Logo" width="160" height="160">
+</p>
+
+Eira 的 Logo 由兩個核心符號交織而成，每一筆都承載著這個專案的使命：
+
+- **🐍 阿斯克勒庇俄斯之杖（Rod of Asclepius）**（藍色）— 單蛇纏繞權杖，是全世界最古老且通用的醫療象徵，代表醫療與療癒。選用此符號，直接宣告 Eira 的核心領域：**醫療器材品質管理**。
+- **🖊️ 鋼筆筆尖（Pen Nib）**（金色）— 象徵**品質管理系統（QMS）的全部流程**——文件管制、稽核管理、CAPA、不符合事項、設計管制等，QMS 的每一個環節都需要被嚴謹地記錄與管控。金色代表權威與正式性。目前已完成 Phase 1（文件管制），後續階段將逐步實現完整 QMS 管控。
+
+兩者在 Logo 中**交疊融合**——筆尖觸及蛇杖，隱喻 Eira 將「醫療領域的專業知識」與「品質管理的全面管控能力」合而為一。這不僅是功能的描述，更是對 Eira 名字的呼應：
+
+> **Eira**，取名自北歐神話中的**醫療與庇護女神**。她同時也是女武神（Valkyrie），職責是在戰場上篩選誰能存活與康復。在古北歐語中，Eira 的核心語義即為**「保護（Protection）」**與**「幫助（Help）」**——這正是品質管理系統的終極目的：保護病患安全，幫助企業合規。
+
+*Logo 使用 [Font Awesome](https://fontawesome.com/) 圖示（CC BY 4.0 授權）：`staff-snake`（蛇杖）與 `pen-nib`（鋼筆）。*
+
 ## 核心功能
 
 ### 主 Agent (Main Agent)
@@ -322,6 +339,23 @@ The system adopts a **Main Agent + Sub-Agent** architecture, where the Main Agen
 
 > **📌 Development Status: Phase 1 (Document Control Sub-Agent) is complete. Phase 2 (Audit Sub-Agent) is coming next.**
 
+## Logo Design
+
+<p align="center">
+  <img src="public/avatars/eira.svg" alt="Eira Logo" width="160" height="160">
+</p>
+
+The Eira logo weaves together two core symbols, each embodying the project's mission:
+
+- **🐍 Rod of Asclepius** (blue) — The single serpent entwined around a staff is the oldest and most universal symbol of medicine and healing. It declares Eira's core domain: **medical device quality management**.
+- **🖊️ Pen Nib** (gold) — Represents the **entirety of the Quality Management System (QMS)** — document control, audit management, CAPA, non-conformance handling, design control, and more. Every QMS process must be rigorously recorded and governed. Gold signifies authority and formality. Phase 1 (Document Control) is complete; subsequent phases will progressively realize the full QMS vision.
+
+The two symbols **overlap and merge** in the logo — the pen nib touches the serpent staff, symbolizing how Eira unifies "medical domain expertise" with "comprehensive quality management capability." This is also a tribute to the name itself:
+
+> **Eira** is named after the **Norse goddess of healing and protection**. Also a Valkyrie, her role was to choose who would survive and recover on the battlefield. In Old Norse, Eira's core meaning is **"Protection"** and **"Help"** — precisely the ultimate purpose of a quality management system: protecting patient safety and helping enterprises achieve compliance.
+
+*Logo uses [Font Awesome](https://fontawesome.com/) icons (CC BY 4.0): `staff-snake` (Rod of Asclepius) and `pen-nib` (fountain pen).*
+
 ## Core Features
 
 ### Main Agent
@@ -619,6 +653,23 @@ TMBIA-Tmti は、医療機器の法規担当者が品質管理において直面
 本システムは**メイン Agent + サブ Agent** アーキテクチャを採用しており、メイン Agent が品質管理システム全体のモジュールを統括し、文書管理サブ Agent が文書のアップロード、OCR 処理、バージョン検出、署名検証、監査ログなどの業務を担当します。
 
 > **📌 開発状況：Phase 1（文書管理サブ Agent）完了。Phase 2（監査サブ Agent）の開発を開始予定。**
+
+## ロゴデザイン
+
+<p align="center">
+  <img src="public/avatars/eira.svg" alt="Eira Logo" width="160" height="160">
+</p>
+
+Eira のロゴは、プロジェクトの使命を体現する 2 つのコアシンボルで構成されています：
+
+- **🐍 アスクレピオスの杖（Rod of Asclepius）**（青）— 杖に一匹の蛇が巻きついた、世界最古かつ最も普遍的な医療のシンボル。Eira のコア領域である**医療機器品質管理**を宣言しています。
+- **🖊️ 万年筆のペン先（Pen Nib）**（金）— **品質管理システム（QMS）のすべてのプロセス**を象徴しています。文書管理、監査管理、CAPA、不適合管理、設計管理など、QMS のあらゆるプロセスは厳密に記録・管理される必要があります。金色は権威と正式性を表します。Phase 1（文書管理）は完了済み、今後のフェーズで完全な QMS 管理を段階的に実現します。
+
+ロゴでは 2 つのシンボルが**重なり融合**しています。ペン先が蛇杖に触れ、Eira が「医療分野の専門知識」と「品質管理の包括的な管理能力」を統合することを表現しています。これは名前そのものへのオマージュでもあります：
+
+> **Eira** は、北欧神話の**医療と庇護の女神**に由来します。ヴァルキリーでもある彼女の役割は、戦場で誰が生存し回復するかを選ぶことでした。古ノルド語における Eira の核心的な意味は**「保護（Protection）」**と**「助力（Help）」**— まさに品質管理システムの究極の目的：患者の安全を守り、企業のコンプライアンスを支援することです。
+
+*ロゴは [Font Awesome](https://fontawesome.com/) アイコン（CC BY 4.0）を使用：`staff-snake`（アスクレピオスの杖）と `pen-nib`（万年筆）。*
 
 ## コア機能
 

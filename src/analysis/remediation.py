@@ -208,7 +208,6 @@ def run_remediation_row(
     model: str = "default",
     temperature: float = 0.3,
     max_tokens: int = 4096,
-    lang: str = "zh-TW",
 ) -> PhaseResult:
     """Execute Phase 4 remediation suggestions for a single row.
 
@@ -350,7 +349,6 @@ def _emit_pipeline_event(run_id: str, event: dict) -> None:
         return
     try:
         from src.analysis.report_api import emit_cross_exam_event
-
         emit_cross_exam_event(run_id, event)
     except ImportError:
         pass
@@ -466,7 +464,6 @@ def run_remediation_document(
     temperature: float = 0.3,
     max_tokens: int = 8192,
     run_id: str = "",
-    lang: str = "zh-TW",
 ) -> PhaseResult:
     """Execute Phase 4 remediation for ALL clauses of one document.
 
@@ -493,7 +490,9 @@ def run_remediation_document(
 
     try:
         # Filter rows that need remediation (not fully compliant)
-        rows_needing_remediation = [r for r in rows if r.verdict != "full_compliance"]
+        rows_needing_remediation = [
+            r for r in rows if r.verdict != "full_compliance"
+        ]
 
         if not rows_needing_remediation:
             phase_result.status = PhaseStatus.SKIPPED.value
@@ -508,7 +507,9 @@ def run_remediation_document(
         clauses_parts = []
         for i, row in enumerate(rows_needing_remediation, 1):
             evidence_items = [EvidenceItem.from_dict(e) for e in row.evidence_items]
-            gap_section = _build_gap_analysis_section(evidence_items, row.verdict or "")
+            gap_section = _build_gap_analysis_section(
+                evidence_items, row.verdict or ""
+            )
             regulation_text = _get_regulation_text(row.clause_id, row.standard)
             risk_display = RISK_LEVEL_DISPLAY.get(row.risk_level or "", {})
             risk_label = risk_display.get("label_zh", row.risk_level or "未評估")
@@ -546,18 +547,15 @@ def run_remediation_document(
             return phase_result
 
         # SSE: emit before LLM call
-        _emit_pipeline_event(
-            run_id,
-            {
-                "type": "phase_4_start",
-                "phase": "remediation",
-                "doc_id": doc_id,
-                "doc_title": doc_title,
-                "clause_ids": [r.clause_id for r in rows_needing_remediation],
-                "clause_count": len(rows_needing_remediation),
-                "prompt_preview": user_prompt[:500],
-            },
-        )
+        _emit_pipeline_event(run_id, {
+            "type": "phase_4_start",
+            "phase": "remediation",
+            "doc_id": doc_id,
+            "doc_title": doc_title,
+            "clause_ids": [r.clause_id for r in rows_needing_remediation],
+            "clause_count": len(rows_needing_remediation),
+            "prompt_preview": user_prompt[:500],
+        })
 
         # Call LLM
         response = llm_completion_fn(
@@ -602,32 +600,26 @@ def run_remediation_document(
         phase_result.llm_model = response.get("model", model)
 
         # SSE: emit after LLM call
-        _emit_pipeline_event(
-            run_id,
-            {
-                "type": "phase_4_result",
-                "phase": "remediation",
-                "doc_id": doc_id,
-                "doc_title": doc_title,
-                "clause_ids": [r.clause_id for r in rows_needing_remediation],
-                "llm_response": response_text[:2000],
-                "total_suggestions": total_suggestions,
-                "usage": usage,
-            },
-        )
+        _emit_pipeline_event(run_id, {
+            "type": "phase_4_result",
+            "phase": "remediation",
+            "doc_id": doc_id,
+            "doc_title": doc_title,
+            "clause_ids": [r.clause_id for r in rows_needing_remediation],
+            "llm_response": response_text[:2000],
+            "total_suggestions": total_suggestions,
+            "usage": usage,
+        })
 
     except Exception as e:
         phase_result.status = PhaseStatus.FAILED.value
         phase_result.error = str(e)
-        _emit_pipeline_event(
-            run_id,
-            {
-                "type": "phase_4_error",
-                "phase": "remediation",
-                "doc_id": doc_id,
-                "error": str(e)[:500],
-            },
-        )
+        _emit_pipeline_event(run_id, {
+            "type": "phase_4_error",
+            "phase": "remediation",
+            "doc_id": doc_id,
+            "error": str(e)[:500],
+        })
 
     phase_result.completed_at = time.time()
     return phase_result
