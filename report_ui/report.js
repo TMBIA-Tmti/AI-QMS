@@ -21,6 +21,7 @@
     let filteredRows = [];       // Currently displayed rows
     let currentRowId = null;     // Row being edited in a modal
     let filterOptions = null;    // Cached filter options
+    let phaseSkipConfig = [];    // Phases selected to skip (e.g. ["phase_2", "phase_5"])
 
     // ── DOM References ──
     const $ = (id) => document.getElementById(id);
@@ -140,6 +141,14 @@
         crossexamDlWord: $('crossexamDlWord'),
         crossexamDlExcel: $('crossexamDlExcel'),
         crossexamDlHelp: $('crossexamDlHelp'),
+        // Phase config panel
+        phaseConfigPanel: $('phaseConfigPanel'),
+        btnTogglePhaseConfig: $('btnTogglePhaseConfig'),
+        phaseConfigBody: $('phaseConfigBody'),
+        phaseConfigGrid: $('phaseConfigGrid'),
+        phaseConfigSummary: $('phaseConfigSummary'),
+        btnApplyPhaseConfig: $('btnApplyPhaseConfig'),
+        btnResetPhaseConfig: $('btnResetPhaseConfig'),
     };
 
     // ============================================================
@@ -464,7 +473,7 @@
         html += `<div class="evidence-editor-actions">
             <button class="btn btn-cancel" onclick="window.__report.cancelEvidenceEditor()">取消</button>
             <button class="btn btn-secondary" onclick="window.__report.previewEvidenceRecalc()">📊 預覽重算</button>
-            <button class="btn btn-assist" onclick="window.__report.deepRecalcEvidence()">🧠 LLM 深度重算</button>
+            <button class="btn btn-assist" onclick="window.__report.deepRecalcEvidence()" title="使用 LLM 重新分析所有證據項目，深度重算風險等級與判定結果">🧠 LLM 深度重算</button>
             <button class="btn btn-primary" onclick="window.__report.confirmEvidenceUpdate()">✅ 確認更新</button>
         </div>`;
 
@@ -1133,7 +1142,7 @@
                 }
 
                 // Human intervention button for evidence editing
-                html += `<div style="margin-top:10px"><button class="btn btn-assist btn-sm" onclick="window.__report.openEvidenceEditor('${escapeHtml(rowId)}')">✏️ 人工介入 — 編輯證據項目</button></div>`;
+                html += `<div style="margin-top:10px"><button class="btn btn-assist btn-sm" onclick="window.__report.openEvidenceEditor('${escapeHtml(rowId)}')" title="手動新增、刪除或修改證據項目，即時重算風險等級">✏️ 人工介入 — 編輯證據項目</button></div>`;
 
                 html += `</div>`;
             }
@@ -2897,11 +2906,13 @@
         card.innerHTML = `
             <div class="crossexam-card-header">
                 <span class="phase-badge phase-${phaseNum}">P${phaseNum}</span>
-                <span style="font-weight:600">${statusIcon} ${phaseName}</span>
-                <span class="card-doc-info">${escapeHtml(docInfo)}</span>
+                <span class="card-status-text">${statusIcon} ${phaseName}</span>
+                ${docInfo ? `<span class="card-tag card-tag-doc" title="品質文件">📄 ${escapeHtml(docInfo)}</span>` : ''}
+                ${clauseIds ? `<span class="card-tag card-tag-clause" title="ISO 13485 對應條款">§ ${escapeHtml(clauseIds)}</span>` : ''}
+                ${data.evidence_summary ? `<span class="card-tag card-tag-evidence" title="證據統計：找到/未找到/不充分">🔍 ${data.evidence_summary.found || 0}/${(data.evidence_summary.found || 0) + (data.evidence_summary.not_found || 0) + (data.evidence_summary.inadequate || 0)}</span>` : ''}
+                ${data.usage ? `<span class="card-tag card-tag-token" title="LLM Token 用量">⚡ ${((data.usage.total_tokens || 0) / 1000).toFixed(1)}k</span>` : ''}
                 <span class="card-timestamp">${now}</span>
             </div>
-            ${clauseIds ? `<div style="font-size:0.8rem;color:#64748b;margin-bottom:4px">條款: ${escapeHtml(clauseIds)}</div>` : ''}
             <div class="crossexam-card-body">${bodyHtml}</div>`;
 
         // If it's a 'start' event, mark previous start card for same doc as done
@@ -3829,6 +3840,82 @@
 
 
     // ============================================================
+    // Phase Configuration Panel
+    // ============================================================
+
+    function initPhaseConfig() {
+        if (!els.btnTogglePhaseConfig) return;
+
+        els.btnTogglePhaseConfig.addEventListener("click", function () {
+            var body = els.phaseConfigBody;
+            var isHidden = body.style.display === "none";
+            body.style.display = isHidden ? "block" : "none";
+            this.textContent = isHidden
+                ? "\u25B2 " + t("phase.collapseBtn", null, "\u6536\u5408")
+                : "\u25BC " + t("phase.toggleBtn", null, "\u5C55\u958B");
+        });
+
+        var checkboxes = els.phaseConfigGrid.querySelectorAll('input[type="checkbox"]:not([disabled])');
+        checkboxes.forEach(function (cb) {
+            cb.addEventListener("change", updatePhaseConfigSummary);
+        });
+
+        if (els.btnApplyPhaseConfig) {
+            els.btnApplyPhaseConfig.addEventListener("click", applyPhaseConfig);
+        }
+        if (els.btnResetPhaseConfig) {
+            els.btnResetPhaseConfig.addEventListener("click", resetPhaseConfig);
+        }
+    }
+
+    function updatePhaseConfigSummary() {
+        var checkboxes = els.phaseConfigGrid.querySelectorAll('input[type="checkbox"]:not([disabled])');
+        var skipped = [];
+        checkboxes.forEach(function (cb) {
+            if (cb.checked) {
+                skipped.push(cb.getAttribute("data-phase"));
+            }
+        });
+        phaseSkipConfig = skipped;
+
+        if (skipped.length === 0) {
+            els.phaseConfigSummary.textContent = t("phase.noSkip", null, "\u76EE\u524D\u8A2D\u5B9A\uFF1A\u57F7\u884C\u6240\u6709\u968E\u6BB5");
+        } else {
+            var phaseLabels = skipped.map(function (p) {
+                var input = els.phaseConfigGrid.querySelector('input[data-phase="' + p + '"]');
+                if (!input) return p;
+                var item = input.closest(".phase-config-item");
+                var nameEl = item ? item.querySelector(".phase-config-name") : null;
+                return nameEl ? nameEl.textContent : p;
+            });
+            els.phaseConfigSummary.textContent =
+                "\u5C07\u8DF3\u904E " + skipped.length + " \u500B\u968E\u6BB5\uFF1A" + phaseLabels.join("\u3001");
+        }
+    }
+
+    function applyPhaseConfig() {
+        apiPost("/phase-config", { skip_phases: phaseSkipConfig })
+            .then(function () {
+                showToast(t("phase.applySuccess", null, "\u968E\u6BB5\u8A2D\u5B9A\u5DF2\u5957\u7528"), "success");
+                els.phaseConfigBody.style.display = "none";
+                els.btnTogglePhaseConfig.textContent = "\u25BC " + t("phase.toggleBtn", null, "\u5C55\u958B");
+                els.phaseConfigPanel.style.borderColor = "var(--partial)";
+                setTimeout(function () { els.phaseConfigPanel.style.borderColor = ""; }, 2000);
+            })
+            .catch(function (e) {
+                showToast(t("phase.applyError", null, "\u5957\u7528\u5931\u6557") + ": " + (e.message || e), "error");
+            });
+    }
+
+    function resetPhaseConfig() {
+        var checkboxes = els.phaseConfigGrid.querySelectorAll('input[type="checkbox"]:not([disabled])');
+        checkboxes.forEach(function (cb) { cb.checked = false; });
+        phaseSkipConfig = [];
+        updatePhaseConfigSummary();
+        apiPost("/phase-config", { skip_phases: [] }).catch(function () {});
+    }
+
+    // ============================================================
     // Init
     // ============================================================
 
@@ -3837,6 +3924,7 @@
             await window.__i18n.init();
         }
         bindEvents();
+        initPhaseConfig();
         loadReport();
         if (els.sseRunIdInput && RUN_ID) {
             els.sseRunIdInput.value = RUN_ID;

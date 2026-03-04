@@ -1878,12 +1878,53 @@ body {
 .crossexam-card-header {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     margin-bottom: 8px;
+    flex-wrap: wrap;
 }
 
 .crossexam-card-header .phase-badge {
     flex-shrink: 0;
+}
+
+.crossexam-card-header .card-status-text {
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.crossexam-card-header .card-tag {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    border-radius: 12px;
+    white-space: nowrap;
+    cursor: default;
+}
+
+.crossexam-card-header .card-tag-doc {
+    background: #eff6ff;
+    color: #1e40af;
+    border: 1px solid #bfdbfe;
+}
+
+.crossexam-card-header .card-tag-clause {
+    background: #f0fdf4;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+    font-weight: 600;
+}
+
+.crossexam-card-header .card-tag-evidence {
+    background: #fefce8;
+    color: #854d0e;
+    border: 1px solid #fde68a;
+}
+
+.crossexam-card-header .card-tag-token {
+    background: #faf5ff;
+    color: #6b21a8;
+    border: 1px solid #e9d5ff;
 }
 
 .crossexam-card-header .card-doc-info {
@@ -1895,6 +1936,7 @@ body {
     margin-left: auto;
     font-size: 0.75rem;
     color: #94a3b8;
+    flex-shrink: 0;
 }
 
 .crossexam-card-body {
@@ -3103,5 +3145,142 @@ body {
     }
     .llm-assist-input-row {
         flex-direction: column;
+    }
+}
+
+/* ── Phase Configuration Panel ── */
+.phase-config-panel {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 16px;
+    box-shadow: var(--shadow-sm);
+    transition: border-color 0.3s;
+}
+.phase-config-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    cursor: pointer;
+}
+.phase-config-header h3 {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text);
+}
+.phase-config-body {
+    padding: 0 16px 16px;
+}
+.phase-config-desc {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin: 0 0 12px;
+}
+.phase-config-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 8px;
+    margin-bottom: 12px;
+}
+.phase-config-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    background: var(--bg-card);
+}
+.phase-config-item:hover {
+    background: var(--bg-hover);
+}
+.phase-config-item.phase-core {
+    opacity: 0.7;
+    cursor: default;
+}
+.phase-config-item.phase-core:hover {
+    background: var(--bg-card);
+}
+.phase-config-item input[type="checkbox"] {
+    margin-top: 3px;
+    flex-shrink: 0;
+}
+.phase-config-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 22px;
+    padding: 0 6px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    background: var(--primary-light);
+    color: var(--primary);
+    flex-shrink: 0;
+}
+.phase-config-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+}
+.phase-config-name {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text);
+}
+.phase-config-risk {
+    font-size: 0.75rem;
+    line-height: 1.3;
+}
+.phase-config-risk.risk-critical {
+    color: var(--non-compliant);
+}
+.phase-config-risk.risk-high {
+    color: var(--partial);
+}
+.phase-config-risk.risk-medium {
+    color: #b45309;
+}
+.phase-config-risk.risk-low {
+    color: var(--text-secondary);
+}
+.phase-config-lock {
+    font-size: 0.85rem;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+.phase-config-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.phase-config-summary {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    flex: 1;
+}
+.phase-config-item.phase-optional input[type="checkbox"]:checked ~ .phase-config-badge {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+@media (max-width: 768px) {
+    .phase-config-grid {
+        grid-template-columns: 1fr;
+    }
+    .phase-config-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .phase-config-summary {
+        text-align: center;
     }
 }

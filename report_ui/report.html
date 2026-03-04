@@ -78,6 +78,92 @@
         </div>
     </section>
 
+    <!-- ===== Phase Configuration Panel ===== -->
+    <section class="phase-config-panel" id="phaseConfigPanel">
+        <div class="phase-config-header">
+            <h3 data-i18n="phase.configTitle">⚙️ 分析階段設定</h3>
+            <button class="btn btn-sm btn-outline" id="btnTogglePhaseConfig" data-i18n="phase.toggleBtn" title="展開/收合分析階段設定">▼ 展開</button>
+        </div>
+        <div class="phase-config-body" id="phaseConfigBody" style="display:none">
+            <p class="phase-config-desc" data-i18n="phase.configDesc">選擇要跳過的分析階段。跳過的階段將記錄在報告中，請注意相關風險。</p>
+            <div class="phase-config-grid" id="phaseConfigGrid">
+                <label class="phase-config-item phase-core" title="核心階段 — 建議不要跳過">
+                    <input type="checkbox" value="phase_0" data-phase="phase_0" disabled>
+                    <span class="phase-config-badge">P0</span>
+                    <div class="phase-config-info">
+                        <span class="phase-config-name" data-i18n="phase.p0">資料品質檢查</span>
+                        <span class="phase-config-risk risk-high" data-i18n="phase.p0Risk">⚠️ 跳過將無法驗證資料完整性，後續分析可能基於不完整資料</span>
+                    </div>
+                    <span class="phase-config-lock" title="核心階段，無法跳過">🔒</span>
+                </label>
+                <label class="phase-config-item phase-core" title="核心階段 — 建議不要跳過">
+                    <input type="checkbox" value="phase_0_5" data-phase="phase_0_5" disabled>
+                    <span class="phase-config-badge">P0.5</span>
+                    <div class="phase-config-info">
+                        <span class="phase-config-name" data-i18n="phase.p05">法規參照對應</span>
+                        <span class="phase-config-risk risk-high" data-i18n="phase.p05Risk">⚠️ 跳過將無法比對法規條文，分析將缺乏法規參照基礎</span>
+                    </div>
+                    <span class="phase-config-lock" title="核心階段，無法跳過">🔒</span>
+                </label>
+                <label class="phase-config-item phase-core" title="核心階段 — 建議不要跳過">
+                    <input type="checkbox" value="phase_1" data-phase="phase_1" disabled>
+                    <span class="phase-config-badge">P1</span>
+                    <div class="phase-config-info">
+                        <span class="phase-config-name" data-i18n="phase.p1">差距掃描</span>
+                        <span class="phase-config-risk risk-critical" data-i18n="phase.p1Risk">🔴 核心階段，跳過將無法識別合規差距，無法產生分析結果</span>
+                    </div>
+                    <span class="phase-config-lock" title="核心階段，無法跳過">🔒</span>
+                </label>
+                <label class="phase-config-item phase-optional">
+                    <input type="checkbox" value="phase_2" data-phase="phase_2">
+                    <span class="phase-config-badge">P2</span>
+                    <div class="phase-config-info">
+                        <span class="phase-config-name" data-i18n="phase.p2">查核表驗證</span>
+                        <span class="phase-config-risk risk-medium" data-i18n="phase.p2Risk">⚠️ 跳過將減少證據交叉驗證，可能遺漏不充分的證據</span>
+                    </div>
+                </label>
+                <label class="phase-config-item phase-core" title="核心階段 — 建議不要跳過">
+                    <input type="checkbox" value="phase_3" data-phase="phase_3" disabled>
+                    <span class="phase-config-badge">P3</span>
+                    <div class="phase-config-info">
+                        <span class="phase-config-name" data-i18n="phase.p3">風險評估</span>
+                        <span class="phase-config-risk risk-critical" data-i18n="phase.p3Risk">🔴 核心階段，跳過將無法產生風險等級判定</span>
+                    </div>
+                    <span class="phase-config-lock" title="核心階段，無法跳過">🔒</span>
+                </label>
+                <label class="phase-config-item phase-optional">
+                    <input type="checkbox" value="phase_4" data-phase="phase_4">
+                    <span class="phase-config-badge">P4</span>
+                    <div class="phase-config-info">
+                        <span class="phase-config-name" data-i18n="phase.p4">改善建議</span>
+                        <span class="phase-config-risk risk-low" data-i18n="phase.p4Risk">跳過不影響判定結果，但將不會產生改善建議</span>
+                    </div>
+                </label>
+                <label class="phase-config-item phase-optional">
+                    <input type="checkbox" value="phase_5" data-phase="phase_5">
+                    <span class="phase-config-badge">P5</span>
+                    <div class="phase-config-info">
+                        <span class="phase-config-name" data-i18n="phase.p5">獨立驗證</span>
+                        <span class="phase-config-risk risk-medium" data-i18n="phase.p5Risk">⚠️ 跳過將減少分析者/驗證者交叉詰問的品質保證</span>
+                    </div>
+                </label>
+                <label class="phase-config-item phase-optional">
+                    <input type="checkbox" value="phase_6" data-phase="phase_6">
+                    <span class="phase-config-badge">P6</span>
+                    <div class="phase-config-info">
+                        <span class="phase-config-name" data-i18n="phase.p6">來源驗證</span>
+                        <span class="phase-config-risk risk-low" data-i18n="phase.p6Risk">跳過不影響判定結果，但不會驗證法規來源連結有效性</span>
+                    </div>
+                </label>
+            </div>
+            <div class="phase-config-actions">
+                <span class="phase-config-summary" id="phaseConfigSummary" data-i18n="phase.noSkip">目前設定：執行所有階段</span>
+                <button class="btn btn-sm btn-primary" id="btnApplyPhaseConfig" data-i18n="phase.apply">✅ 套用設定</button>
+                <button class="btn btn-sm btn-outline" id="btnResetPhaseConfig" data-i18n="phase.reset">🔄 重設為全部執行</button>
+            </div>
+        </div>
+    </section>
+
     <!-- ===== Filters & Actions Bar ===== -->
     <section class="filters-bar">
         <div class="filters-left">
@@ -391,7 +477,7 @@
                     <span class="crossexam-status" id="crossexamStatus" data-i18n="crossexam.notConnected">⏹ 未連線</span>
                     <button class="btn btn-primary" id="btnConnectSSE" data-i18n="crossexam.connect">🔌 連線</button>
                     <button class="btn btn-outline" id="btnPauseExam" disabled data-i18n="crossexam.pause">⏸ 暫停</button>
-                    <button class="btn btn-outline" id="btnResumeExam" disabled data-i18n="crossexam.resume">▶️ 繼續</button>
+                    <button class="btn btn-outline" id="btnResumeExam" disabled data-i18n="crossexam.resume" data-i18n-title="crossexam.resumeTitle" title="繼續進行交叉詰問分析">▶️ 繼續</button>
                 </div>
             </div>
 
@@ -630,7 +716,7 @@
                 </div>
                 <div class="daily-audit-actions">
                     <span class="daily-audit-count" id="dailyAuditCount" data-i18n="audit.count">0 筆紀錄</span>
-                    <button class="btn btn-primary" id="btnRunDailyAudit" data-i18n="audit.run">▶️ 執行每日稽核</button>
+                    <button class="btn btn-primary" id="btnRunDailyAudit" data-i18n="audit.run" data-i18n-title="audit.runTitle" title="立即執行每日稽核評分，包含 MDSAP 法規準確性與交叉詰問品質兩個維度">▶️ 執行每日稽核</button>
                     <button class="btn btn-accent" id="btnRunMetaReview" disabled data-i18n-title="audit.metaNeed10" title="需要 10 筆以上紀錄" data-i18n="audit.metaReview">🧠 10日總檢</button>
                     <button class="btn btn-outline" id="btnLoadAuditHistory" data-i18n="audit.loadHistory">🔄 載入歷史</button>
                 </div>
