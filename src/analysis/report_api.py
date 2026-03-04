@@ -27,6 +27,15 @@ Endpoints:
   POST /api/report/{run_id}/inject                 — Human message injection
   POST /api/report/{run_id}/pause                  — Pause cross-examination
   POST /api/report/{run_id}/resume                 — Resume cross-examination
+  POST /api/report/crossref/mdsap-verify            — Toggle MDSAP verification
+  GET  /api/report/crossref/mdsap-verify            — Get MDSAP verification state
+  GET  /api/report/daily-audit/history               — List daily audit records
+  POST /api/report/daily-audit/run                   — Trigger daily audit
+  GET  /api/report/daily-audit/meta-review           — Get latest 10-day meta review
+  POST /api/report/daily-audit/meta-review           — Trigger 10-day meta review
+  GET  /api/report/daily-audit/history/{id}/export   — Export audit record Word/Excel
+  GET  /api/report/daily-audit/export/{fmt}          — Export latest audit Word/Excel
+  GET  /api/report/daily-audit/meta-review/export    — Export meta review Word/Excel
 """
 
 from __future__ import annotations
@@ -35,10 +44,12 @@ import asyncio
 import json
 import logging
 import time
+import threading
 from collections import defaultdict
 from pathlib import Path
 from typing import Optional
-import os
+
+from src.utils.safe_io import safe_save_binary
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, FileResponse, HTMLResponse, StreamingResponse
@@ -66,29 +77,21 @@ _PIPELINE_DIR = Path("data/analysis_pipeline")
 # FastAPI router
 report_router = APIRouter(prefix="/api/report", tags=["report"])
 
-# ── i18n helper ──
 
-def _t(key: str, lang: str = "zh-TW", **kwargs) -> str:
-    """Translate a key using locale JSON files."""
-    _cache = getattr(_t, '_cache', {})
-    if lang not in _cache:
-        locale_path = os.path.join(
-            os.path.dirname(__file__), '..', 'chainlit_app', 'locales', f'{lang}.json'
-        )
-        try:
-            with open(locale_path, 'r', encoding='utf-8') as f:
-                _cache[lang] = json.load(f)
-        except Exception:
-            _cache[lang] = {}
-        _t._cache = _cache
-    text = _cache.get(lang, {}).get(key, key)
-    if kwargs:
-        try:
-            text = text.format(**kwargs)
-        except (KeyError, IndexError):
-            pass
-    return text
+# ── Phoenix tracing helper ──
 
+
+def _phoenix_report_span(name: str, attributes: dict = None):
+    """Create a Phoenix span for report API operations.
+
+    Falls back to no-op if Phoenix is not available.
+    """
+    try:
+        from src.chainlit_app.app import phoenix_span
+        return phoenix_span(name, profile="主系統 (Main Agent)", attributes=attributes)
+    except (ImportError, Exception):
+        from contextlib import nullcontext
+        return nullcontext()
 
 # ============================================================
 # Helpers
@@ -141,13 +144,8 @@ def _row_to_api(row_dict: dict) -> dict:
 
 
 @report_router.get("/page/{run_id}", response_class=HTMLResponse)
-async def serve_report_page(run_id: str, lang: str = Query(default="zh-TW")):
-    """Serve the report HTML page for a specific run.
-
-    Args:
-        run_id: Pipeline run identifier.
-        lang: UI language code (e.g. zh-TW, en-US, ja-JP). Injected into JS.
-    """
+async def serve_report_page(run_id: str):
+    """Serve the report HTML page for a specific run."""
     html_path = REPORT_STATIC_DIR / "report.html"
     if not html_path.exists():
         raise HTTPException(status_code=404, detail="Report page not found")
@@ -157,10 +155,9 @@ async def serve_report_page(run_id: str, lang: str = Query(default="zh-TW")):
     if not filepath.exists():
         raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
 
-    # Read and inject run_id + language into the HTML template
+    # Read and inject run_id into the HTML template
     html_content = html_path.read_text(encoding="utf-8")
     html_content = html_content.replace("{{RUN_ID}}", run_id)
-    html_content = html_content.replace("{{LANG}}", lang)
     return HTMLResponse(content=html_content)
 
 
@@ -187,21 +184,6 @@ async def serve_report_static(filename: str):
         filepath, media_type=content_types.get(ext, "application/octet-stream")
     )
 
-
-@report_router.get("/locales/{lang_code}.json")
-async def serve_report_locale(lang_code: str):
-    """Serve locale JSON for the report UI.
-
-    Falls back to zh-TW if requested language file is not found.
-    """
-    locales_dir = REPORT_STATIC_DIR / "locales"
-    filepath = locales_dir / f"{lang_code}.json"
-    if not filepath.exists():
-        # Fallback to zh-TW
-        filepath = locales_dir / "zh-TW.json"
-    if not filepath.exists():
-        raise HTTPException(status_code=404, detail="Locale file not found")
-    return FileResponse(filepath, media_type="application/json; charset=utf-8")
 
 # ============================================================
 # API Endpoints — Read
@@ -298,15 +280,12 @@ async def list_regulations():
 @report_router.get("/crossref/table")
 async def get_crossref_table(
     regulations: str = Query(..., description="Comma-separated regulation IDs, e.g. QMSR,EU_MDR,TFDA"),
-    run_id: Optional[str] = Query(None, description="Pipeline run ID to attach document evidence"),
 ):
     """Get the full cross-reference comparison table.
 
     Returns ISO 13485 clauses as rows, with each selected regulation's
     mapping status, rationale, method, and confidence.
     Also returns unique requirements (delta items) per regulation.
-    If run_id is provided, attaches document evidence from the pipeline run.
-    If run_id is not provided, auto-selects the latest run (if any).
     """
     mods = _get_cross_ref_modules()
     reg_ids = [r.strip() for r in regulations.split(",") if r.strip()]
@@ -330,13 +309,13 @@ async def get_crossref_table(
             "clause_title": clause_info.get("title", ""),
             "audit_impact": clause_info.get("audit_impact", ""),
             "regulations": {},
-            "doc_evidence": [],  # populated from pipeline run
         }
 
         for rid in reg_ids:
             analysis = mods["get_overlap_analysis"](rid, clause_id)
             profile = all_regs[rid]
 
+            # Flatten: mapping details are nested inside analysis["mapping"]
             mapping = analysis.get("mapping") or {}
             reg_data = {
                 "status": analysis.get("status", "na"),
@@ -347,167 +326,16 @@ async def get_crossref_table(
                 "method": mapping.get("method", ""),
                 "confidence": mapping.get("confidence", 0.0),
                 "notes": mapping.get("notes", ""),
+                "original_text": mapping.get("original_text", ""),
+                "original_lang": mapping.get("original_lang", ""),
+                "english_translation": mapping.get("english_translation", ""),
+                "semantic_note": mapping.get("semantic_note", ""),
                 "delta_items": analysis.get("delta_items", []),
             }
             row["regulations"][rid] = reg_data
 
         rows.append(row)
 
-    # ── Attach document evidence from pipeline run ──
-    # Group pipeline rows by clause_id to find which docs match each clause
-    _attached_run_id = None
-    try:
-        # Auto-select latest run if not specified
-        if not run_id:
-            available_runs = ComparisonTable.list_runs(_PIPELINE_DIR)
-            if available_runs:
-                run_id = available_runs[0].get("run_id", "")
-
-        if run_id:
-            run_file = _PIPELINE_DIR / f"{run_id}.json"
-            if run_file.exists():
-                import json as _json
-                with open(run_file, "r", encoding="utf-8") as _f:
-                    run_data = _json.load(_f)
-
-                # Build clause_id → list of doc evidence
-                clause_evidence: dict[str, list[dict]] = {}
-                for _row_id, _row_data in run_data.get("rows", {}).items():
-                    _cid = _row_data.get("clause_id", "")
-                    _did = _row_data.get("doc_id", "")
-                    _dtitle = _row_data.get("doc_title", "")
-                    _evidence_items = _row_data.get("evidence_items", [])
-
-                    if not _cid or not _did:
-                        continue
-
-                    # Summarize evidence for this doc-clause pair
-                    found_items = []
-                    missing_items = []
-                    inadequate_items = []
-                    for ei in _evidence_items:
-                        name = ei.get("evidence_name", "")
-                        if ei.get("found"):
-                            item = {
-                                "name": name,
-                                "section": ei.get("source_section", ""),
-                                "quote": (ei.get("source_quote", "") or "")[:200],
-                                "relevance": ei.get("relevance_score", 0),
-                                "inadequate": ei.get("is_inadequate", False),
-                            }
-                            if ei.get("is_inadequate"):
-                                inadequate_items.append(item)
-                            else:
-                                found_items.append(item)
-                        else:
-                            missing_items.append(name)
-
-                    doc_entry = {
-                        "doc_id": _did,
-                        "doc_title": _dtitle,
-                        "found_count": len(found_items),
-                        "missing_count": len(missing_items),
-                        "inadequate_count": len(inadequate_items),
-                        "found": found_items,
-                        "inadequate": inadequate_items,
-                        "missing": missing_items,
-                    }
-
-                    if _cid not in clause_evidence:
-                        clause_evidence[_cid] = []
-                    clause_evidence[_cid].append(doc_entry)
-
-                # Attach evidence to rows
-                for row in rows:
-                    cid = row["clause_id"]
-                    row["doc_evidence"] = clause_evidence.get(cid, [])
-
-                _attached_run_id = run_id
-    except Exception as e:
-        logger.warning(f"Failed to attach doc evidence from pipeline run: {e}")
-
-    # ── Supplement: scan ALL quality docs to fill gaps ──
-    # Pipeline only matches docs to their "primary" clauses. Here we also
-    # include docs matched by regex / body scan that weren't in the pipeline.
-    try:
-        from src.services.markdown_store_service import MarkdownStoreService
-        _doc_svc = MarkdownStoreService()
-        _all_docs = _doc_svc.list_documents()  # all active docs
-
-        # Load clause IDs for matching
-        from src.analysis.compliance_rules import list_clauses
-        _clause_ids = list_clauses("ISO_13485")
-
-        # Collect doc_ids already present per clause from pipeline
-        _pipeline_doc_ids: dict[str, set[str]] = {}
-        for row in rows:
-            cid = row["clause_id"]
-            _pipeline_doc_ids[cid] = {
-                de["doc_id"] for de in row.get("doc_evidence", [])
-            }
-
-        # For each doc, determine which clauses it covers
-        for _doc_summary in _all_docs:
-            _did = _doc_summary.get("doc_id", "")
-            _dtitle = _doc_summary.get("title", "")
-            _doc_type = _doc_summary.get("doc_type", "")
-            _status = _doc_summary.get("status", "active")
-
-            # Skip non-active docs
-            if _status != "active":
-                continue
-
-            # Skip external standard / regulation documents
-            _doc_dict = {"doc_id": _did, "title": _dtitle, "doc_type": _doc_type}
-            if ComparisonTable._is_external_standard_doc(_doc_dict, "ISO_13485"):
-                continue
-
-            # Get doc content for body scanning
-            _doc_detail = _doc_svc.get_document(_did)
-            _doc_body = ""
-            if _doc_detail and isinstance(_doc_detail, dict):
-                _doc_body = _doc_detail.get("content", "")
-
-            _doc_tags = []
-            if isinstance(_doc_detail, dict):
-                _doc_tags = _doc_detail.get("tags", [])
-
-            # Match doc to clauses using regex strategies (no LLM here)
-            _matched = ComparisonTable._match_doc_to_clauses(
-                _did, _dtitle, _doc_tags, _clause_ids, _doc_body
-            )
-            if _matched is None:
-                # No regex match — skip (LLM fallback too expensive for API call)
-                continue
-
-            # Add to doc_evidence for each matched clause if not already present
-            for _cid in _matched:
-                existing_ids = _pipeline_doc_ids.get(_cid, set())
-                if _did in existing_ids:
-                    continue  # already from pipeline
-
-                # Create a supplemental doc entry (no evidence details,
-                # just shows which doc is mapped to this clause)
-                _supp_entry = {
-                    "doc_id": _did,
-                    "doc_title": _dtitle,
-                    "found_count": -1,  # -1 = not scanned by pipeline
-                    "missing_count": -1,
-                    "inadequate_count": -1,
-                    "found": [],
-                    "inadequate": [],
-                    "missing": [],
-                    "source": "regex_supplement",
-                }
-
-                # Find the row for this clause and append
-                for row in rows:
-                    if row["clause_id"] == _cid:
-                        row["doc_evidence"].append(_supp_entry)
-                        break
-
-    except Exception as e:
-        logger.warning(f"Failed to supplement doc evidence via scan: {e}")
     # Collect unique requirements (delta) per regulation
     unique_reqs = {}
     for rid in reg_ids:
@@ -530,6 +358,10 @@ async def get_crossref_table(
                 "rationale_zh": req.rationale_zh,
                 "method": req.method.value if hasattr(req.method, 'value') else str(req.method),
                 "confidence": req.confidence,
+                "original_text": req.original_text,
+                "original_lang": req.original_lang,
+                "english_translation": req.english_translation,
+                "semantic_note": req.semantic_note,
             })
         unique_reqs[rid] = reqs
 
@@ -552,7 +384,6 @@ async def get_crossref_table(
         "iso_clause_count": len(checklist),
         "rows": rows,
         "unique_requirements": unique_reqs,
-        "pipeline_run_id": _attached_run_id,
     })
 
 
@@ -589,6 +420,130 @@ async def get_crossref_questions(
         "total_questions": len(questions),
         "questions": questions,
     })
+
+
+# ============================================================
+# Cross-Reference Validation Report Endpoints
+# ============================================================
+
+
+@report_router.get("/crossref/validation")
+async def get_crossref_validation(
+    regulations: str = "QMSR,EU_MDR,TFDA",
+    lang: str = "zh-en",
+):
+    """Generate a static 3-country × ISO 13485 cross-reference validation report.
+
+    No LLM calls — pure Python data assembly from predefined regulation profiles.
+
+    Args:
+        regulations: Comma-separated regulation IDs (default: all 3)
+        lang: Language mode: 'zh-en' (default), 'local' (add native text), 'zh-only'
+    """
+    from src.analysis.crossref_report import (
+        generate_crossref_validation_report,
+        format_crossref_report_markdown,
+    )
+
+    reg_ids = [r.strip() for r in regulations.split(",") if r.strip()]
+    report = generate_crossref_validation_report(reg_ids)
+
+    return JSONResponse(content={
+        "report": report,
+        "markdown": format_crossref_report_markdown(report, language_mode=lang),
+    })
+
+
+# ============================================================
+# User Language & Regulation Upload Reminders
+# ============================================================
+
+
+@report_router.get("/user/language")
+async def get_user_language():
+    """Get the current user's language setting from Chainlit user_settings.
+
+    Returns the language code (e.g., 'zh-TW', 'en-US', 'ja-JP').
+    The crossref table uses this to set the default display language.
+    """
+    try:
+        from src.utils.user_settings import load_user_settings
+        settings = load_user_settings()
+        language = settings.get("language", "zh-TW")
+    except Exception:
+        language = "zh-TW"
+    return JSONResponse(content={"language": language})
+
+
+@report_router.get("/crossref/upload-reminders")
+async def get_regulation_upload_reminders():
+    """Get list of regulations that need user-uploaded full text.
+
+    Similar to ISO 13485: when official regulation text cannot be
+    auto-retrieved, the system reminds the user to upload it.
+    Applies to all 7 countries (US, EU, TW, CA, JP, BR, AU).
+    """
+    try:
+        from src.storage.mdsap_markdown_storage import get_mdsap_markdown_store
+        store = get_mdsap_markdown_store()
+        reminders = store.get_upload_reminders()
+        all_status = store.list_all_regulations()
+        return JSONResponse(content={
+            "reminders": reminders,
+            "regulations": all_status,
+            "total_countries": len(all_status),
+            "needs_upload_count": len(reminders),
+        })
+    except ImportError:
+        return JSONResponse(content={
+            "reminders": [],
+            "regulations": [],
+            "total_countries": 0,
+            "needs_upload_count": 0,
+            "error": "mdsap_markdown_storage module not available",
+        })
+    except Exception as e:
+        logger.error(f"Failed to get upload reminders: {e}")
+        return JSONResponse(content={
+            "reminders": [],
+            "regulations": [],
+            "total_countries": 0,
+            "needs_upload_count": 0,
+            "error": str(e),
+        })
+
+
+@report_router.post("/crossref/upload-regulation")
+async def upload_regulation_text(request: Request):
+    """Upload full regulation text for a specific country.
+
+    Body JSON:
+        regulation_id: str (e.g., 'PMDA', 'ANVISA')
+        filename: str (original filename)
+        content: str (full Markdown/text content)
+    """
+    try:
+        body = await request.json()
+        regulation_id = body.get("regulation_id", "")
+        filename = body.get("filename", "")
+        content = body.get("content", "")
+
+        if not regulation_id or not content:
+            raise HTTPException(status_code=400, detail="regulation_id and content are required")
+
+        from src.storage.mdsap_markdown_storage import get_mdsap_markdown_store
+        store = get_mdsap_markdown_store()
+        result = store.save_uploaded_regulation(regulation_id, filename, content)
+
+        if result.get("success"):
+            return JSONResponse(content=result)
+        else:
+            raise HTTPException(status_code=400, detail=result.get("error", "Upload failed"))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to upload regulation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ============================================================
@@ -777,86 +732,33 @@ async def adjust_standard_mapping(request: Request):
     The old_iso_clause is optional but recommended for safety verification.
     Changes persist for the server session duration.
     """
-    mods = _get_standards_modules()
-    body = await request.json()
+    with _phoenix_report_span("report_adjust_standard"):
+        mods = _get_standards_modules()
+        body = await request.json()
 
-    standard_id = body.get("standard_id", "")
-    standard_clause = body.get("standard_clause", "")
-    old_iso_clause = body.get("old_iso_clause", "")
-    new_iso_clause = body.get("new_iso_clause", "")
+        standard_id = body.get("standard_id", "")
+        standard_clause = body.get("standard_clause", "")
+        old_iso_clause = body.get("old_iso_clause", "")
+        new_iso_clause = body.get("new_iso_clause", "")
 
-    if not standard_id or not standard_clause or not new_iso_clause:
-        return JSONResponse(
-            status_code=400,
-            content={
-                "success": False,
-                "message": "Required fields: standard_id, standard_clause, new_iso_clause",
-            },
+        if not standard_id or not standard_clause or not new_iso_clause:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "success": False,
+                    "message": "Required fields: standard_id, standard_clause, new_iso_clause",
+                },
+            )
+
+        result = mods["adjust_standard_clause_mapping"](
+            standard_id=standard_id,
+            standard_clause=standard_clause,
+            old_iso_clause=old_iso_clause,
+            new_iso_clause=new_iso_clause,
         )
 
-    result = mods["adjust_standard_clause_mapping"](
-        standard_id=standard_id,
-        standard_clause=standard_clause,
-        old_iso_clause=old_iso_clause,
-        new_iso_clause=new_iso_clause,
-    )
-
-    status_code = 200 if result["success"] else 400
-    return JSONResponse(status_code=status_code, content=result)
-
-
-# ============================================================
-# Verification API Endpoints
-# ============================================================
-
-
-@report_router.get("/verification/summary")
-async def get_verification_summary_endpoint():
-    """Quick verification summary (pass/warn/fail counts)."""
-    try:
-        from src.services.regulatory_verifier import get_verification_summary as _get_ver_summary
-        summary = _get_ver_summary()
-        return JSONResponse(content=summary)
-    except Exception as e:
-        logger.error(f"Verification summary failed: {e}")
-        return JSONResponse(
-            status_code=500,
-            content={"error": f"Verification failed: {e}"},
-        )
-
-
-@report_router.get("/verification/full")
-async def get_full_verification():
-    """Full verification report with all document details."""
-    try:
-        from src.services.regulatory_verifier import verify_all
-        report = verify_all()
-        return JSONResponse(content=report.to_dict())
-    except Exception as e:
-        logger.error(f"Full verification failed: {e}")
-        return JSONResponse(
-            status_code=500,
-            content={"error": f"Verification failed: {e}"},
-        )
-
-
-@report_router.get("/verification/document/{doc_id}")
-async def get_document_verification(doc_id: str):
-    """Verify a single document by doc_id."""
-    try:
-        from src.services.regulatory_verifier import verify_document
-        result = verify_document(doc_id)
-        if result is None:
-            raise HTTPException(status_code=404, detail=f"Document '{doc_id}' not found")
-        return JSONResponse(content=result.to_dict())
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Document verification failed: {e}")
-        return JSONResponse(
-            status_code=500,
-            content={"error": f"Verification failed: {e}"},
-        )
+        status_code = 200 if result["success"] else 400
+        return JSONResponse(status_code=status_code, content=result)
 
 
 # ============================================================
@@ -1007,6 +909,154 @@ async def get_row_history(run_id: str, row_id: str):
     )
 
 
+
+# ============================================================
+# Unified LLM-Assist Analysis (Human Intervention + LLM)
+# ============================================================
+
+
+async def _llm_assist_analyze(
+    request: Request,
+    user_input: str,
+    context_type: str,
+    context_data: dict = None,
+) -> dict:
+    """Unified LLM analysis for human intervention inputs.
+
+    Handles:
+    - Plain text input → LLM analyzes directly
+    - URLs → fetches content, then LLM analyzes
+    - Mixed → extracts URLs, fetches content, combines with text
+    """
+    import re as _re
+
+    with _phoenix_report_span("llm_assist_analyze", {
+        "context_type": context_type,
+        "input_length": len(user_input),
+    }):
+        # 1. Extract URLs from input
+        url_pattern = _re.compile(r'https?://[^\s<>"\')\]]+') 
+        found_urls = url_pattern.findall(user_input)
+        text_without_urls = url_pattern.sub('', user_input).strip()
+
+        # 2. Fetch URL content if any
+        fetched_content = {}
+        if found_urls:
+            try:
+                from src.chainlit_app.app import _fetch_web_full_content
+                fetched_content = await _fetch_web_full_content(
+                    found_urls, max_urls=3, timeout=15.0
+                )
+            except Exception as e:
+                logger.warning(f"URL fetch failed in llm_assist: {e}")
+                try:
+                    import httpx
+                    async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+                        for url in found_urls[:3]:
+                            try:
+                                resp = await client.get(url)
+                                if resp.status_code == 200:
+                                    fetched_content[url] = resp.text[:5000]
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+
+        # 3. Build LLM prompt based on context_type
+        context_prompts = {
+            "override": "你是品質管理系統的稽核助手。使用者想要覆寫一個條款的判定結果。請根據使用者提供的資訊（文字、URL內容、文章、算式），分析是否有合理依據支持覆寫，並建議新的判定結果與理由。",
+            "note": "你是品質管理系統的稽核助手。使用者想要為一個條款新增備註。請根據使用者提供的資訊，整理成專業的稽核備註內容。",
+            "evidence": "你是品質管理系統的稽核助手。使用者想要補充或修改風險證據項目。請分析並建議新的證據項目，包含 evidence_name、found、source_doc_id、relevance_score、is_inadequate、is_outdated、llm_reasoning。返回 JSON 格式。",
+            "inject": "你是品質管理系統的交叉詰問助手。使用者想要注入一段內容到交叉詰問過程中。請整理成適合交叉詰問的專業提問或回應。",
+            "feedback": "你是品質管理系統的稽核助手。使用者想要對每日稽核結果提出回饋意見。請整理成結構化的稽核改善建議。",
+            "standards": "你是品質管理系統的法規標準助手。使用者想要調整標準條款對應關係。請分析並建議合適的 ISO 13485 條款對應。",
+        }
+
+        system_prompt = context_prompts.get(context_type, context_prompts["note"])
+
+        if context_data:
+            system_prompt += f"\n\n目前的條款/項目資訊：\n```json\n{json.dumps(context_data, ensure_ascii=False, indent=2)}\n```"
+
+        # Build user message
+        user_message_parts = []
+        if text_without_urls:
+            user_message_parts.append(f"使用者輸入：\n{text_without_urls}")
+        if fetched_content:
+            user_message_parts.append("\n\n--- 以下為使用者提供的 URL 內容 ---")
+            for url, content in fetched_content.items():
+                user_message_parts.append(f"\n### {url}\n{content[:3000]}")
+
+        user_message = "\n".join(user_message_parts) if user_message_parts else user_input
+        user_message += "\n\n請分析以上資訊並提供你的建議。如果使用者提供了算式，請驗證計算結果。回覆請使用繁體中文。"
+
+        # 4. Call LLM
+        try:
+            llm_fn = _get_llm_completion_fn(request)
+            response = llm_fn(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_message},
+                ],
+                temperature=0.3,
+                max_tokens=2000,
+            )
+            if hasattr(response, 'choices') and response.choices:
+                analysis_text = response.choices[0].message.content
+            else:
+                analysis_text = str(response)
+        except Exception as e:
+            logger.error(f"LLM assist analysis failed: {e}")
+            analysis_text = f"LLM 分析失敗：{str(e)}。您提供的原始內容已保留。"
+
+        return {
+            "analysis": analysis_text,
+            "fetched_urls": list(fetched_content.keys()),
+            "fetched_content_lengths": {url: len(c) for url, c in fetched_content.items()},
+            "raw_input": user_input,
+            "context_type": context_type,
+            "timestamp": time.time(),
+        }
+
+
+@report_router.post("/llm-assist")
+async def llm_assist_endpoint(request: Request):
+    """Unified LLM-assist analysis endpoint for all human intervention points.
+
+    Body:
+        {
+            "user_input": "使用者的自由輸入（文字、URL、文章、算式皆可）",
+            "context_type": "override|note|evidence|inject|feedback|standards",
+            "context_data": { ... optional ... }
+        }
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+
+    user_input = body.get("user_input", "").strip()
+    context_type = body.get("context_type", "note")
+    context_data = body.get("context_data")
+
+    if not user_input:
+        raise HTTPException(status_code=400, detail="Missing 'user_input' field")
+
+    valid_types = ("override", "note", "evidence", "inject", "feedback", "standards")
+    if context_type not in valid_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid context_type: {context_type}. Must be one of {valid_types}",
+        )
+
+    with _phoenix_report_span("llm_assist_endpoint", {
+        "context_type": context_type,
+        "input_length": len(user_input),
+    }):
+        result = await _llm_assist_analyze(request, user_input, context_type, context_data)
+
+    return JSONResponse(content={"success": True, "result": result})
+
+
 # ============================================================
 # API Endpoints — Write (RA Modifications)
 # ============================================================
@@ -1019,37 +1069,38 @@ async def override_verdict(run_id: str, row_id: str, body: dict):
     Body:
         {"verdict": "full_compliance", "reason": "已確認文件內容符合要求"}
     """
-    new_verdict = body.get("verdict")
-    reason = body.get("reason", "")
-    user_id = body.get("user_id", "ra_user")
+    with _phoenix_report_span("report_override_verdict", {"run_id": run_id, "row_id": row_id}):
+        new_verdict = body.get("verdict")
+        reason = body.get("reason", "")
+        user_id = body.get("user_id", "ra_user")
 
-    if not new_verdict:
-        raise HTTPException(status_code=400, detail="Missing 'verdict' field")
-    if new_verdict not in Verdict.ALL:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid verdict: {new_verdict}. Must be one of {Verdict.ALL}",
-        )
-    if not reason:
-        raise HTTPException(status_code=400, detail="Missing 'reason' field")
+        if not new_verdict:
+            raise HTTPException(status_code=400, detail="Missing 'verdict' field")
+        if new_verdict not in Verdict.ALL:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid verdict: {new_verdict}. Must be one of {Verdict.ALL}",
+            )
+        if not reason:
+            raise HTTPException(status_code=400, detail="Missing 'reason' field")
 
-    table = _load_table(run_id)
-    updated = table.override_verdict(row_id, new_verdict, reason, user_id)
-    if updated is None:
-        raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
+        table = _load_table(run_id)
+        updated = table.override_verdict(row_id, new_verdict, reason, user_id)
+        if updated is None:
+            raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
 
-    # Auto-recalculate risk based on new verdict
-    # Verdict → gap_severity reverse mapping, then risk matrix lookup
-    if updated.audit_impact and new_verdict:
-        new_risk = _verdict_to_risk(new_verdict, updated.audit_impact)
-        if new_risk:
-            updated.risk_level = new_risk
-            table.state.update_row(updated)
+        # Auto-recalculate risk based on new verdict
+        # Verdict → gap_severity reverse mapping, then risk matrix lookup
+        if updated.audit_impact and new_verdict:
+            new_risk = _verdict_to_risk(new_verdict, updated.audit_impact)
+            if new_risk:
+                updated.risk_level = new_risk
+                table.state.update_row(updated)
 
-    _save_table(table)
+        _save_table(table)
 
-    row_dict = _row_to_api(updated.to_dict())
-    return JSONResponse(content={"success": True, "row": row_dict})
+        row_dict = _row_to_api(updated.to_dict())
+        return JSONResponse(content={"success": True, "row": row_dict})
 
 
 @report_router.post("/{run_id}/row/{row_id}/note")
@@ -1059,78 +1110,149 @@ async def add_note(run_id: str, row_id: str, body: dict):
     Body:
         {"note": "此條款在本公司不適用，因為..."}
     """
-    note = body.get("note", "")
-    user_id = body.get("user_id", "ra_user")
+    with _phoenix_report_span("report_add_note", {"run_id": run_id, "row_id": row_id}):
+        note = body.get("note", "")
+        user_id = body.get("user_id", "ra_user")
 
-    if not note:
-        raise HTTPException(status_code=400, detail="Missing 'note' field")
+        if not note:
+            raise HTTPException(status_code=400, detail="Missing 'note' field")
 
-    table = _load_table(run_id)
-    updated = table.add_clause_note(row_id, note, user_id)
-    if updated is None:
-        raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
+        table = _load_table(run_id)
+        updated = table.add_clause_note(row_id, note, user_id)
+        if updated is None:
+            raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
 
-    _save_table(table)
+        _save_table(table)
 
-    row_dict = _row_to_api(updated.to_dict())
-    return JSONResponse(content={"success": True, "row": row_dict})
+        row_dict = _row_to_api(updated.to_dict())
+        return JSONResponse(content={"success": True, "row": row_dict})
 
 
 @report_router.post("/{run_id}/row/{row_id}/restore")
 async def restore_original(run_id: str, row_id: str):
     """Restore the LLM's original verdict (undo RA override)."""
-    table = _load_table(run_id)
-    updated = table.restore_llm_original(row_id)
-    if updated is None:
-        raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
+    with _phoenix_report_span("report_restore_original", {"run_id": run_id, "row_id": row_id}):
+        table = _load_table(run_id)
+        updated = table.restore_llm_original(row_id)
+        if updated is None:
+            raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
 
-    _save_table(table)
+        _save_table(table)
+
+        row_dict = _row_to_api(updated.to_dict())
+        return JSONResponse(content={"success": True, "row": row_dict})
+
+
+# ============================================================
+# API Endpoints — Evidence Editing (Human-in-the-Loop)
+# ============================================================
+
+
+@report_router.post("/{run_id}/row/{row_id}/evidence/preview")
+async def preview_evidence_recalc(run_id: str, row_id: str, body: dict):
+    """Preview risk recalculation with modified evidence items (no save)."""
+    evidence_items = body.get("evidence_items")
+    if evidence_items is None:
+        raise HTTPException(status_code=400, detail="Missing 'evidence_items' field")
+
+    with _phoenix_report_span("report_evidence_preview", {"run_id": run_id, "row_id": row_id}):
+        table = _load_table(run_id)
+        result = table.preview_evidence_recalc(row_id, evidence_items)
+        if result is None:
+            raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
+
+    return JSONResponse(content={"success": True, "preview": result})
+
+
+@report_router.post("/{run_id}/row/{row_id}/evidence/confirm")
+async def confirm_evidence_update(run_id: str, row_id: str, body: dict):
+    """Confirm and save evidence item changes with rule-engine recalculation."""
+    evidence_items = body.get("evidence_items")
+    if evidence_items is None:
+        raise HTTPException(status_code=400, detail="Missing 'evidence_items' field")
+
+    user_id = body.get("user_id", "ra_user")
+
+    with _phoenix_report_span("report_evidence_confirm", {"run_id": run_id, "row_id": row_id}):
+        table = _load_table(run_id)
+        updated = table.update_evidence_items(row_id, evidence_items, user_id)
+        if updated is None:
+            raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
+        _save_table(table)
 
     row_dict = _row_to_api(updated.to_dict())
     return JSONResponse(content={"success": True, "row": row_dict})
 
 
+@report_router.post("/{run_id}/row/{row_id}/evidence/deep-recalc")
+async def deep_recalc_evidence(run_id: str, row_id: str, body: dict = None):
+    """Deep LLM recalculation — re-runs Phase 1+2+3 for this row."""
+    user_id = (body or {}).get("user_id", "ra_user")
+
+    with _phoenix_report_span("report_evidence_deep_recalc", {"run_id": run_id, "row_id": row_id}):
+        table = _load_table(run_id)
+        row = table._state.get_row(row_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
+
+        row.version_history.append(
+            {
+                "action": "deep_recalc_requested",
+                "previous_verdict": row.verdict,
+                "previous_risk_level": row.risk_level,
+                "by": user_id,
+                "at": time.time(),
+            }
+        )
+
+        updated = table.reset_row_for_rerun(row_id, Phase.GAP_SCAN)
+        if updated is None:
+            raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
+        _save_table(table)
+
+    row_dict = _row_to_api(updated.to_dict())
+    return JSONResponse(
+        content={
+            "success": True,
+            "row": row_dict,
+            "message": "Row reset to Phase 1. Re-run from Chainlit for deep recalculation.",
+        }
+    )
+
+
 @report_router.post("/{run_id}/row/{row_id}/rerun")
-async def reset_for_rerun(run_id: str, row_id: str, body: dict = None, lang: str = Query("zh-TW")):
+async def reset_for_rerun(run_id: str, row_id: str, body: dict = None):
     """Reset a row to re-run from Phase 1 (Gap Scan).
 
     Body (optional):
         {"from_phase": "phase_1"}  (default: phase_1)
     """
-    from_phase_str = (body or {}).get("from_phase", Phase.GAP_SCAN.value)
-    try:
-        from_phase = Phase(from_phase_str)
-    except ValueError:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid phase: {from_phase_str}",
+    with _phoenix_report_span("report_reset_for_rerun", {"run_id": run_id, "row_id": row_id}):
+        from_phase_str = (body or {}).get("from_phase", Phase.GAP_SCAN.value)
+        try:
+            from_phase = Phase(from_phase_str)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid phase: {from_phase_str}",
+            )
+
+        table = _load_table(run_id)
+        updated = table.reset_row_for_rerun(row_id, from_phase)
+        if updated is None:
+            raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
+
+        _save_table(table)
+
+        row_dict = _row_to_api(updated.to_dict())
+        return JSONResponse(
+            content={
+                "success": True,
+                "row": row_dict,
+                "message": f"Row reset to {from_phase.display_name}. "
+                f"Re-run the pipeline from Chainlit to execute the pending phases.",
+            }
         )
-
-    table = _load_table(run_id)
-    updated = table.reset_row_for_rerun(row_id, from_phase)
-    if updated is None:
-        raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
-
-    _save_table(table)
-
-    row_dict = _row_to_api(updated.to_dict())
-
-    # Emit SSE event so the cross-exam viewer shows the reset
-    emit_cross_exam_event(run_id, {
-        "type": "row_reset",
-        "row_id": row_id,
-        "clause_id": updated.clause_id if hasattr(updated, 'clause_id') else row_id,
-        "from_phase": from_phase.value,
-        "message": _t("report_api.rerun_sse_msg", lang, row_id=row_id, phase=from_phase.display_name),
-    })
-
-    return JSONResponse(
-        content={
-            "success": True,
-            "row": row_dict,
-            "message": _t("report_api.rerun_success_msg", lang),
-        }
-    )
 
 
 # ============================================================
@@ -1139,11 +1261,20 @@ async def reset_for_rerun(run_id: str, row_id: str, body: dict = None, lang: str
 
 
 @report_router.get("/{run_id}/export/{fmt}")
-async def export_report(run_id: str, fmt: str, lang: str = Query("zh-TW")):
+async def export_report(run_id: str, fmt: str):
     """Export the report as Word or Excel.
 
     fmt: "word" or "excel"
+    Deep report formats ("deep_word", "deep_excel") are forwarded
+    to export_deep_report to avoid FastAPI route-ordering conflicts.
     """
+    with _phoenix_report_span("report_export", {"run_id": run_id, "fmt": fmt}):
+        pass  # span covers the export operation
+    # Forward deep report requests to the dedicated handler
+    if fmt in ("deep_word", "deep_excel"):
+        deep_fmt = fmt.replace("deep_", "")
+        return await export_deep_report(run_id, deep_fmt)
+
     if fmt not in ("word", "excel"):
         raise HTTPException(status_code=400, detail="Format must be 'word' or 'excel'")
 
@@ -1162,27 +1293,27 @@ async def export_report(run_id: str, fmt: str, lang: str = Query("zh-TW")):
             from docx.enum.text import WD_ALIGN_PARAGRAPH
 
             filepath = export_dir / f"compliance_report_{run_id}.docx"
-            assessment = _build_export_assessment(flat_rows, summary, lang)
+            assessment = _build_export_assessment(flat_rows, summary)
 
             doc = Document()
-            title = doc.add_heading(_t("report_api.title", lang), level=1)
+            title = doc.add_heading("AI-QMS 合規性分析報告", level=1)
             title.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
             from datetime import datetime
             meta = doc.add_paragraph()
             meta.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-            run = meta.add_run(_t("report_api.meta", lang, run_id=run_id, time=datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+            run = meta.add_run(f"分析 ID: {run_id}  |  匯出時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
             run.font.size = Pt(9)
             run.font.color.rgb = RGBColor(128, 128, 128)
 
             # Summary section
-            doc.add_heading(_t("report_api.summary_heading", lang), level=2)
+            doc.add_heading("摘要", level=2)
             doc.add_paragraph(assessment)
 
             # Detail table
-            doc.add_heading(_t("report_api.detail_heading", lang), level=2)
+            doc.add_heading("詳細分析結果", level=2)
             if flat_rows:
-                headers = [_t("report_api.col_clause", lang), _t("report_api.col_doc", lang), _t("report_api.col_audit_impact", lang), _t("report_api.col_verdict", lang), _t("report_api.col_risk", lang), _t("report_api.col_gap", lang), _t("report_api.col_ra_flag", lang)]
+                headers = ["條款", "文件", "稽核影響", "判定", "風險", "差距", "RA 標記"]
                 tbl = doc.add_table(rows=1 + len(flat_rows), cols=len(headers))
                 tbl.style = "Table Grid"
                 for i, h in enumerate(headers):
@@ -1196,23 +1327,23 @@ async def export_report(run_id: str, fmt: str, lang: str = Query("zh-TW")):
                     tbl.rows[ri].cells[5].text = row.get('gap_severity', '') or ''
                     tbl.rows[ri].cells[6].text = '⚠️' if row.get('flagged_for_ra') else ''
 
-            doc.save(str(filepath))
+            safe_save_binary(filepath, doc.save)
 
         else:  # excel
             from openpyxl import Workbook
             from openpyxl.styles import Font, Alignment, PatternFill
 
             filepath = export_dir / f"compliance_report_{run_id}.xlsx"
-            assessment = _build_export_assessment(flat_rows, summary, lang)
+            assessment = _build_export_assessment(flat_rows, summary)
 
             wb = Workbook()
             ws = wb.active
-            ws.title = _t("report_api.sheet_name", lang)
+            ws.title = "合規分析"
 
             # Headers
-            headers = [_t("report_api.col_clause_id", lang), _t("report_api.col_clause_name", lang), _t("report_api.col_doc_id", lang), _t("report_api.col_doc_title", lang), _t("report_api.col_audit_impact", lang),
-                       _t("report_api.col_audit_question", lang), _t("report_api.col_verdict", lang), _t("report_api.col_risk_level", lang), _t("report_api.col_gap_severity", lang),
-                       _t("report_api.col_evidence", lang), _t("report_api.col_ra_flag", lang), _t("report_api.col_ra_override", lang), _t("report_api.col_ra_notes", lang)]
+            headers = ["條款 ID", "條款名稱", "文件 ID", "文件標題", "稽核影響",
+                       "稽核問題", "判定", "風險等級", "差距嚴重度",
+                       "證據 (找到/總計)", "RA 標記", "RA 覆寫", "RA 備註"]
             header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
             header_font = Font(bold=True, color="FFFFFF", size=10)
             for ci, h in enumerate(headers, 1):
@@ -1242,7 +1373,7 @@ async def export_report(run_id: str, fmt: str, lang: str = Query("zh-TW")):
                 max_len = max((len(str(c.value or '')) for c in col), default=8)
                 ws.column_dimensions[col[0].column_letter].width = min(max_len + 2, 50)
 
-            wb.save(str(filepath))
+            safe_save_binary(filepath, wb.save)
     except ImportError:
         raise HTTPException(
             status_code=500,
@@ -1351,64 +1482,64 @@ def _verdict_to_risk(verdict: str, audit_impact: str) -> Optional[str]:
     return result  # assess_risk returns risk level string directly
 
 
-def _build_export_assessment(flat_rows: list[dict], summary: dict, lang: str = "zh-TW") -> str:
+def _build_export_assessment(flat_rows: list[dict], summary: dict) -> str:
     """Build a markdown assessment text from flat rows for Word/Excel export."""
     lines = [
-        f"# {_t('report_api.md_title', lang)}",
+        "# 合規性分析報告",
         "",
-        f"**{_t('report_api.md_total_items', lang)}**: {summary.get('total_rows', 0)}",
-        f"**{_t('report_api.md_total_docs', lang)}**: {summary.get('documents_analyzed', 0)}",
-        f"**{_t('report_api.md_ra_review', lang)}**: {summary.get('flagged_for_ra', 0)} {_t('report_api.md_items', lang)}",
+        f"**分析項目數**: {summary.get('total_rows', 0)}",
+        f"**文件數**: {summary.get('documents_analyzed', 0)}",
+        f"**需 RA 審查**: {summary.get('flagged_for_ra', 0)} 項",
         "",
-        f"## {_t('report_api.md_verdict_dist', lang)}",
+        "## 判定結果分布",
         "",
     ]
 
     vd = summary.get("verdict_distribution", {})
     for v, count in vd.items():
         disp = VERDICT_DISPLAY.get(v, {})
-        lines.append(f"- {disp.get('icon', '')} {disp.get('label_zh', v)}: {count} {_t('report_api.md_items', lang)}")
+        lines.append(f"- {disp.get('icon', '')} {disp.get('label_zh', v)}: {count} 項")
 
     lines.append("")
-    lines.append(f"## {_t('report_api.md_risk_dist', lang)}")
+    lines.append("## 風險等級分布")
     lines.append("")
 
     rd = summary.get("risk_distribution", {})
     for r, count in rd.items():
         disp = RISK_LEVEL_DISPLAY.get(r, {})
-        lines.append(f"- {disp.get('icon', '')} {disp.get('label_zh', r)}: {count} {_t('report_api.md_items', lang)}")
+        lines.append(f"- {disp.get('icon', '')} {disp.get('label_zh', r)}: {count} 項")
 
     lines.append("")
-    lines.append(f"## {_t('report_api.md_detail', lang)}")
+    lines.append("## 詳細結果")
     lines.append("")
 
     for row in flat_rows:
         lines.append(f"### {row.get('clause_id', '')} — {row.get('clause_title', '')}")
         lines.append(
-            f"- **{_t('report_api.md_doc_label', lang)}**: {row.get('doc_title', '')} ({row.get('doc_id', '')})"
+            f"- **文件**: {row.get('doc_title', '')} ({row.get('doc_id', '')})"
         )
         lines.append(
-            f"- **{_t('report_api.md_verdict_label', lang)}**: {row.get('verdict_icon', '')} {row.get('verdict_label', '')}"
+            f"- **判定**: {row.get('verdict_icon', '')} {row.get('verdict_label', '')}"
         )
         lines.append(
-            f"- **{_t('report_api.md_risk_label', lang)}**: {row.get('risk_icon', '')} {row.get('risk_label', '')}"
+            f"- **風險**: {row.get('risk_icon', '')} {row.get('risk_label', '')}"
         )
-        lines.append(f"- **{_t('report_api.md_audit_impact_label', lang)}**: {row.get('audit_impact', '')}")
+        lines.append(f"- **稽核影響**: {row.get('audit_impact', '')}")
         ev_found = row.get("evidence_found", 0)
         ev_total = row.get("evidence_total", 0)
-        lines.append(f"- **{_t('report_api.md_evidence_label', lang)}**: {_t('report_api.md_evidence_found', lang, found=ev_found, total=ev_total)}")
+        lines.append(f"- **證據**: {ev_found}/{ev_total} 項找到")
 
         if row.get("remediation"):
-            lines.append(f"- **{_t('report_api.md_remediation_label', lang)}**: {row['remediation']}")
+            lines.append(f"- **改善建議**: {row['remediation']}")
 
         if row.get("ra_override"):
             override = row["ra_override"]
             lines.append(
-                f"- **{_t('report_api.md_ra_override_label', lang)}**: {override.get('verdict', '')} — {override.get('reason', '')}"
+                f"- **RA 覆寫**: {override.get('verdict', '')} — {override.get('reason', '')}"
             )
 
         if row.get("ra_notes"):
-            lines.append(f"- **{_t('report_api.md_ra_notes_label', lang)}**: {row['ra_notes']}")
+            lines.append(f"- **RA 備註**: {row['ra_notes']}")
 
         lines.append("")
 
@@ -1419,13 +1550,59 @@ def _build_export_assessment(flat_rows: list[dict], summary: dict, lang: str = "
 # ============================================================
 # SSE Event Streaming for Real-Time Cross-Examination
 # ============================================================
-# SSE Event Streaming for Real-Time Cross-Examination
-# ============================================================
 
 
 # Global event bus: run_id → asyncio.Queue
 # Each queue holds dicts like {"type": "analyzer", "content": "...", ...}
 _event_queues: dict[str, list[asyncio.Queue]] = defaultdict(list)
+
+# ── Pipeline Control Registry (pause/resume/inject) ──
+# run_id → {"pause_event": threading.Event, "injected_messages": list}
+# The pause_event is SET when running, CLEARED when paused.
+_pipeline_controls: dict[str, dict] = {}
+_pipeline_controls_lock = threading.Lock()
+
+def register_pipeline_control(run_id: str) -> threading.Event:
+    """Register a new pipeline run for pause/resume/inject control.
+
+    Returns a threading.Event that is initially SET (running).
+    The pipeline should call event.wait() to check for pauses.
+    """
+    event = threading.Event()
+    event.set()  # Start in running state
+    with _pipeline_controls_lock:
+        _pipeline_controls[run_id] = {
+            "pause_event": event,
+            "injected_messages": [],
+        }
+    return event
+
+
+def unregister_pipeline_control(run_id: str) -> None:
+    """Remove pipeline control entry when run completes."""
+    with _pipeline_controls_lock:
+        _pipeline_controls.pop(run_id, None)
+
+
+def get_pause_event(run_id: str) -> threading.Event | None:
+    """Get the pause event for a run_id, or None if not registered."""
+    ctrl = _pipeline_controls.get(run_id)
+    return ctrl["pause_event"] if ctrl else None
+
+
+def get_injected_messages(run_id: str) -> list[str]:
+    """Drain and return all pending injected messages for a run.
+
+    Thread-safe: uses lock to ensure atomic drain.
+    Returns a list of message strings, clearing the buffer.
+    """
+    with _pipeline_controls_lock:
+        ctrl = _pipeline_controls.get(run_id)
+        if not ctrl:
+            return []
+        messages = list(ctrl["injected_messages"])
+        ctrl["injected_messages"].clear()
+        return messages
 
 
 def emit_cross_exam_event(run_id: str, event: dict) -> None:
@@ -1507,36 +1684,855 @@ async def inject_human_message(run_id: str, body: dict):
     Body:
         {"message": "你問錯了，應該問...", "user_id": "ra_user"}
     """
-    message = body.get("message", "").strip()
-    user_id = body.get("user_id", "human")
+    with _phoenix_report_span("report_inject_human", {"run_id": run_id}):
+        message = body.get("message", "").strip()
+        user_id = body.get("user_id", "human")
 
-    if not message:
-        raise HTTPException(status_code=400, detail="Missing 'message' field")
+        if not message:
+            raise HTTPException(status_code=400, detail="Missing 'message' field")
 
-    # Broadcast the human injection event to all SSE listeners
-    event = {
-        "type": "human_injection",
-        "message": message,
-        "user_id": user_id,
-        "run_id": run_id,
-    }
-    emit_cross_exam_event(run_id, event)
+        # Store message for the pipeline verifier to pick up
+        with _pipeline_controls_lock:
+            ctrl = _pipeline_controls.get(run_id)
+            if ctrl:
+                ctrl["injected_messages"].append(message)
 
-    return JSONResponse(content={
-        "success": True,
-        "message": "Human injection sent to cross-examination",
-    })
+        # Broadcast the human injection event to all SSE listeners
+        event = {
+            "type": "human_injection",
+            "message": message,
+            "user_id": user_id,
+            "run_id": run_id,
+        }
+        emit_cross_exam_event(run_id, event)
+
+        return JSONResponse(content={
+            "success": True,
+            "message": "Human injection stored and broadcast",
+        })
 
 
 @report_router.post("/{run_id}/pause")
 async def pause_cross_examination(run_id: str):
-    """Pause the cross-examination for this run."""
+    """Pause the pipeline/cross-examination for this run."""
+    event = get_pause_event(run_id)
+    if event:
+        event.clear()  # Block pipeline threads waiting on this event
     emit_cross_exam_event(run_id, {"type": "pause", "run_id": run_id})
-    return JSONResponse(content={"success": True, "message": "Pause signal sent"})
+    return JSONResponse(content={"success": True, "message": "Pipeline paused"})
 
 
 @report_router.post("/{run_id}/resume")
 async def resume_cross_examination(run_id: str):
-    """Resume the cross-examination for this run."""
+    """Resume the pipeline/cross-examination for this run."""
+    event = get_pause_event(run_id)
+    if event:
+        event.set()  # Unblock pipeline threads
     emit_cross_exam_event(run_id, {"type": "resume", "run_id": run_id})
-    return JSONResponse(content={"success": True, "message": "Resume signal sent"})
+    return JSONResponse(content={"success": True, "message": "Pipeline resumed"})
+
+
+# ============================================================
+# Cross-Examination History Endpoints
+# ============================================================
+
+
+@report_router.get("/crossexam/history")
+async def get_crossexam_history():
+    """List all cross-examination history records."""
+    try:
+        from src.database.crossexam_store import get_crossexam_store
+        store = get_crossexam_store()
+        records = store.get_all_records()
+        return JSONResponse(content={
+            "records": [r.to_dict() for r in records],
+            "total": len(records),
+            "needs_meta_analysis": store.needs_meta_analysis(),
+        })
+    except Exception as e:
+        logger.error(f"Failed to load crossexam history: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@report_router.get("/crossexam/history/{record_id}")
+async def get_crossexam_record(record_id: str):
+    """Get a single cross-examination record by ID."""
+    try:
+        from src.database.crossexam_store import get_crossexam_store
+        store = get_crossexam_store()
+        record = store.get_record(record_id)
+        if not record:
+            raise HTTPException(status_code=404, detail=f"Record {record_id} not found")
+        return JSONResponse(content=record.to_dict())
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@report_router.get("/crossexam/history/{record_id}/export/{fmt}")
+async def export_crossexam_record(record_id: str, fmt: str):
+    """Export a single cross-exam record as Word or Excel.
+
+    fmt: 'word' or 'excel'
+    """
+    if fmt not in ("word", "excel"):
+        raise HTTPException(status_code=400, detail="Format must be 'word' or 'excel'")
+
+    try:
+        from src.database.crossexam_store import get_crossexam_store
+        store = get_crossexam_store()
+        record = store.get_record(record_id)
+        if not record:
+            raise HTTPException(status_code=404, detail=f"Record {record_id} not found")
+
+        from src.utils.crossexam_export import (
+            export_crossexam_record_word,
+            export_crossexam_record_excel,
+        )
+
+        if fmt == "word":
+            filepath = export_crossexam_record_word(record.to_dict())
+        else:
+            filepath = export_crossexam_record_excel(record.to_dict())
+
+        content_type = (
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            if fmt == "word"
+            else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        return FileResponse(filepath, media_type=content_type, filename=filepath.name)
+
+    except HTTPException:
+        raise
+    except ImportError:
+        raise HTTPException(status_code=500, detail="Export dependencies not available")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================
+# Deep Report Export Endpoints
+# ============================================================
+
+
+@report_router.get("/{run_id}/export/deep_{fmt}")
+async def export_deep_report(run_id: str, fmt: str):
+    """Export a deep analysis report including ALL LLM interactions.
+
+    fmt: 'word' or 'excel' (URL: /export/deep_word or /export/deep_excel)
+    """
+    if fmt not in ("word", "excel"):
+        raise HTTPException(status_code=400, detail="Format must be 'word' or 'excel'")
+
+    table = _load_table(run_id)
+    flat_rows = table.to_flat_rows()
+    summary = table.summary()
+
+    # Load interaction log
+    interactions = None
+    try:
+        from src.database.interaction_log import load_interaction_log
+        ilog = load_interaction_log(run_id)
+        if ilog:
+            interactions = ilog.get_interactions()
+    except Exception:
+        pass
+
+    # Load crossexam record
+    crossexam_record = None
+    try:
+        from src.database.crossexam_store import get_crossexam_store
+        store = get_crossexam_store()
+        record = store.get_record_by_run_id(run_id)
+        if record:
+            crossexam_record = record.to_dict()
+    except Exception:
+        pass
+
+    # Load meta-analysis (if available)
+    meta_analysis = None
+    try:
+        from src.analysis.crossexam_qa_agent import get_latest_meta_analysis
+        ma = get_latest_meta_analysis()
+        if ma:
+            meta_analysis = ma.llm_response
+    except Exception:
+        pass
+
+    try:
+        from src.utils.crossexam_export import (
+            export_deep_report_word,
+            export_deep_report_excel,
+        )
+
+        if fmt == "word":
+            filepath = export_deep_report_word(
+                run_id, flat_rows, summary, interactions, crossexam_record, meta_analysis
+            )
+        else:
+            filepath = export_deep_report_excel(
+                run_id, flat_rows, summary, interactions, crossexam_record, meta_analysis
+            )
+
+        content_type = (
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            if fmt == "word"
+            else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        return FileResponse(filepath, media_type=content_type, filename=filepath.name)
+
+    except ImportError:
+        raise HTTPException(status_code=500, detail="Export dependencies not available")
+    except Exception as e:
+        logger.error(f"Deep report export failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================
+# Meta-Analysis Endpoints
+# ============================================================
+
+
+@report_router.get("/crossexam/meta-analysis")
+async def get_meta_analysis():
+    """Get the latest meta-analysis results."""
+    try:
+        from src.analysis.crossexam_qa_agent import get_latest_meta_analysis
+        result = get_latest_meta_analysis()
+        if not result:
+            return JSONResponse(content={"available": False, "message": "No meta-analysis available"})
+        return JSONResponse(content={"available": True, **result.to_dict()})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@report_router.get("/crossexam/meta-analysis/export/{fmt}")
+async def export_meta_analysis(fmt: str):
+    """Export meta-analysis report as Word or Excel.
+
+    fmt: 'word' or 'excel'
+    """
+    if fmt not in ("word", "excel"):
+        raise HTTPException(status_code=400, detail="Format must be 'word' or 'excel'")
+
+    try:
+        from src.analysis.crossexam_qa_agent import get_latest_meta_analysis
+        from src.utils.crossexam_export import (
+            export_deep_report_word,
+            export_deep_report_excel,
+        )
+
+        result = get_latest_meta_analysis()
+        if not result:
+            raise HTTPException(status_code=404, detail="No meta-analysis available")
+
+        # Export as a standalone report with just the meta-analysis section
+        meta_analysis = result.llm_response
+        if fmt == "word":
+            filepath = export_deep_report_word(
+                f"meta_analysis_{result.analysis_id}",
+                [], {}, None, None, meta_analysis
+            )
+        else:
+            filepath = export_deep_report_excel(
+                f"meta_analysis_{result.analysis_id}",
+                [], {}, None, None, meta_analysis
+            )
+
+        content_type = (
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            if fmt == "word"
+            else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        return FileResponse(filepath, media_type=content_type, filename=filepath.name)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@report_router.get("/{run_id}/interactions")
+async def get_interaction_log(run_id: str):
+    """Get all LLM interaction logs for a pipeline run."""
+    try:
+        from src.database.interaction_log import load_interaction_log
+        ilog = load_interaction_log(run_id)
+        if not ilog:
+            return JSONResponse(content={"available": False, "interactions": []})
+        return JSONResponse(content={"available": True, **ilog.to_dict()})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================
+# MDSAP Cross-Exam Toggle
+# ============================================================
+
+
+# In-memory toggle state (persisted via user settings if available)
+_mdsap_verify_enabled: bool = True
+
+
+@report_router.post("/crossref/mdsap-verify")
+async def set_mdsap_verify(request: Request):
+    """Enable or disable MDSAP cross-examination verification."""
+    global _mdsap_verify_enabled
+    try:
+        body = await request.json()
+        _mdsap_verify_enabled = bool(body.get("enabled", True))
+        # Persist to user settings if possible
+        try:
+            from src.utils.user_settings import load_user_settings, save_user_settings
+            settings = load_user_settings()
+            settings["mdsap_verify_enabled"] = _mdsap_verify_enabled
+            save_user_settings(settings)
+        except Exception:
+            pass  # Non-critical
+        return JSONResponse(content={"enabled": _mdsap_verify_enabled})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@report_router.get("/crossref/mdsap-verify")
+async def get_mdsap_verify():
+    """Get current MDSAP cross-examination verification state."""
+    return JSONResponse(content={"enabled": _mdsap_verify_enabled})
+
+
+# ============================================================
+# Daily Audit Endpoints
+# ============================================================
+
+
+@report_router.get("/daily-audit/history")
+async def get_daily_audit_history(limit: int = Query(30, ge=1, le=365)):
+    """Get daily audit history records."""
+    try:
+        from src.analysis.daily_audit import get_daily_audit_history
+        records = get_daily_audit_history(limit=limit)
+        return JSONResponse(content={
+            "records": [r.to_dict() for r in records],
+            "count": len(records),
+        })
+    except ImportError:
+        return JSONResponse(content={"records": [], "count": 0})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@report_router.post("/daily-audit/run")
+async def run_daily_audit_endpoint(request: Request):
+    """Trigger a daily audit run."""
+    try:
+        from src.analysis.daily_audit import run_daily_audit
+        from src.database.crossexam_store import get_crossexam_store
+
+        # Get LLM completion function from app state
+        llm_fn = _get_llm_completion_fn(request)
+        store = get_crossexam_store()
+
+        # Get user language
+        lang = "zh-TW"
+        try:
+            from src.utils.user_settings import load_user_settings
+            settings = load_user_settings()
+            lang = settings.get("language", "zh-TW")
+        except Exception:
+            pass
+
+        result = run_daily_audit(
+            llm_completion_fn=llm_fn,
+            lang=lang,
+            store=store,
+        )
+
+        # Check for deviation and send Chainlit announcement if needed
+        if result.deviation_detected:
+            _send_deviation_announcement(result)
+
+        return JSONResponse(content=result.to_dict())
+    except ImportError as e:
+        raise HTTPException(status_code=501, detail=f"Daily audit module not available: {e}")
+    except Exception as e:
+        logger.error(f"Daily audit failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@report_router.get("/daily-audit/meta-review")
+async def get_meta_review():
+    """Get the latest 10-day meta review results."""
+    try:
+        from src.analysis.daily_audit import get_latest_meta_review
+        result = get_latest_meta_review()
+        if not result:
+            return JSONResponse(content={"available": False, "message": "No meta review available"})
+        return JSONResponse(content={"available": True, **result.to_dict()})
+    except ImportError:
+        return JSONResponse(content={"available": False, "message": "Module not available"})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@report_router.post("/daily-audit/meta-review")
+async def run_meta_review_endpoint(request: Request):
+    """Trigger a 10-day meta review."""
+    try:
+        from src.analysis.daily_audit import run_10day_meta_review
+
+        llm_fn = _get_llm_completion_fn(request)
+
+        lang = "zh-TW"
+        try:
+            from src.utils.user_settings import load_user_settings
+            settings = load_user_settings()
+            lang = settings.get("language", "zh-TW")
+        except Exception:
+            pass
+
+        result = run_10day_meta_review(
+            llm_completion_fn=llm_fn,
+            lang=lang,
+        )
+
+        # Send announcement if deviations found
+        if result.deviation_summary:
+            _send_meta_review_announcement(result)
+
+        return JSONResponse(content=result.to_dict())
+    except ImportError as e:
+        raise HTTPException(status_code=501, detail=f"Daily audit module not available: {e}")
+    except Exception as e:
+        logger.error(f"Meta review failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@report_router.get("/daily-audit/history/{audit_id}/export/{fmt}")
+async def export_audit_record(audit_id: str, fmt: str):
+    """Export a single daily audit record as Word or Excel."""
+    if fmt not in ("word", "excel"):
+        raise HTTPException(status_code=400, detail="Format must be 'word' or 'excel'")
+
+    try:
+        from src.analysis.daily_audit import (
+            get_daily_audit_history,
+            export_daily_audit_word,
+            export_daily_audit_excel,
+        )
+
+        # Find the record
+        records = get_daily_audit_history(limit=365)
+        target = None
+        for r in records:
+            if r.audit_id == audit_id:
+                target = r
+                break
+
+        if not target:
+            raise HTTPException(status_code=404, detail=f"Audit record {audit_id} not found")
+
+        if fmt == "word":
+            filepath = export_daily_audit_word(target)
+        else:
+            filepath = export_daily_audit_excel(target)
+
+        content_type = (
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            if fmt == "word"
+            else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        return FileResponse(filepath, media_type=content_type, filename=filepath.name)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@report_router.get("/daily-audit/export/{fmt}")
+async def export_latest_audit(fmt: str):
+    """Export the latest daily audit record as Word or Excel."""
+    if fmt not in ("word", "excel"):
+        raise HTTPException(status_code=400, detail="Format must be 'word' or 'excel'")
+
+    try:
+        from src.analysis.daily_audit import (
+            get_daily_audit_history,
+            export_daily_audit_word,
+            export_daily_audit_excel,
+        )
+
+        records = get_daily_audit_history(limit=1)
+        if not records:
+            raise HTTPException(status_code=404, detail="No audit records available")
+
+        if fmt == "word":
+            filepath = export_daily_audit_word(records[0])
+        else:
+            filepath = export_daily_audit_excel(records[0])
+
+        content_type = (
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            if fmt == "word"
+            else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        return FileResponse(filepath, media_type=content_type, filename=filepath.name)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@report_router.get("/daily-audit/meta-review/export/{fmt}")
+async def export_meta_review_report(fmt: str):
+    """Export the latest 10-day meta review as Word or Excel."""
+    if fmt not in ("word", "excel"):
+        raise HTTPException(status_code=400, detail="Format must be 'word' or 'excel'")
+
+    try:
+        from src.analysis.daily_audit import (
+            get_latest_meta_review,
+            export_meta_review_word,
+            export_meta_review_excel,
+        )
+
+        result = get_latest_meta_review()
+        if not result:
+            raise HTTPException(status_code=404, detail="No meta review available")
+
+        if fmt == "word":
+            filepath = export_meta_review_word(result)
+        else:
+            filepath = export_meta_review_excel(result)
+
+        content_type = (
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            if fmt == "word"
+            else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        return FileResponse(filepath, media_type=content_type, filename=filepath.name)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================
+# Deviation Announcement Helpers (Chainlit push)
+# ============================================================
+
+
+def _get_llm_completion_fn(request: Request):
+    """Extract LLM completion function from app state."""
+    # Try to get from app state (set by pipeline runner)
+    app = request.app
+    llm_fn = getattr(app.state, 'llm_completion_fn', None)
+    if llm_fn:
+        return llm_fn
+
+    # Fallback: create a basic completion function
+    try:
+        from src.llm_providers import get_completion
+        return get_completion
+    except ImportError:
+        raise HTTPException(
+            status_code=503,
+            detail="LLM completion function not available. Run an analysis first."
+        )
+
+
+def _send_deviation_announcement(result) -> None:
+    """Send deviation alert to Chainlit (same pattern as upload reminder)."""
+    try:
+        from src.analysis.pipeline_runner import _pipeline_send_message_fn
+        send_fn = _pipeline_send_message_fn
+        if send_fn is None:
+            logger.info("No Chainlit send_fn available for deviation alert")
+            return
+
+        import asyncio
+        msg = (
+            f"\n\n⚠️ **稽核分數差異警告**\n\n"
+            f"每日稽核分數出現偏差，請注意以下細節：\n"
+            f"- 總分: {result.overall_score}/100\n"
+            f"- 法規準確度 (Dim A): {result.dim_a_score}/100\n"
+            f"- 交叉詰問品質 (Dim B): {result.dim_b_score}/100\n"
+            f"- 偏差說明: {result.deviation_details}\n\n"
+            f"系統將根據差異分析結果調整交叉詰問參數。"
+            f"如您有任何意見，請在此提出。\n"
+        )
+
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            asyncio.ensure_future(send_fn(msg))
+        else:
+            loop.run_until_complete(send_fn(msg))
+    except Exception as e:
+        logger.warning(f"Failed to send deviation announcement: {e}")
+
+
+def _send_meta_review_announcement(result) -> None:
+    """Send meta review deviation summary to Chainlit."""
+    try:
+        from src.analysis.pipeline_runner import _pipeline_send_message_fn
+        send_fn = _pipeline_send_message_fn
+        if send_fn is None:
+            return
+
+        import asyncio
+        msg = (
+            f"\n\n🧠 **10日總檢報告**\n\n"
+            f"過去 10 天的稽核結果已完成總檢：\n"
+            f"- 平均 Dim A (法規準確度): {result.avg_dim_a:.0f}/100\n"
+            f"- 平均 Dim B (交叉詰問品質): {result.avg_dim_b:.0f}/100\n"
+            f"\n{result.deviation_summary}\n\n"
+            f"如您有任何意見或建議，請在此提出。\n"
+        )
+
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            asyncio.ensure_future(send_fn(msg))
+        else:
+            loop.run_until_complete(send_fn(msg))
+    except Exception as e:
+        logger.warning(f"Failed to send meta review announcement: {e}")
+
+
+
+# ============================================================
+# User Feedback CRUD + Re-evaluation Endpoints
+# ============================================================
+
+
+@report_router.post("/daily-audit/feedback")
+async def submit_feedback(request: Request):
+    """Submit user feedback for a daily audit or meta review, then re-evaluate."""
+    with _phoenix_report_span("report_submit_feedback"):
+        try:
+            body = await request.json()
+            audit_type = body.get("audit_type", "daily")  # 'daily' | 'meta'
+            target_id = body.get("target_id", "")
+            feedback_text = body.get("feedback_text", "").strip()
+
+            if not feedback_text:
+                raise HTTPException(status_code=400, detail="feedback_text is required")
+            if audit_type not in ("daily", "meta"):
+                raise HTTPException(status_code=400, detail="audit_type must be 'daily' or 'meta'")
+
+            from src.analysis.daily_audit import save_feedback
+            fb = save_feedback(audit_type=audit_type, target_id=target_id, feedback_text=feedback_text)
+
+            # Trigger re-evaluation with feedback context
+            re_eval_result = None
+            try:
+                re_eval_result = await _run_reeval_with_feedback(request, audit_type, fb)
+            except Exception as e:
+                logger.warning(f"Re-evaluation failed after feedback: {e}")
+
+            return JSONResponse(content={
+                "success": True,
+                "feedback": fb.to_dict(),
+                "re_evaluation": re_eval_result,
+            })
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Submit feedback failed: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+
+@report_router.get("/daily-audit/feedback")
+async def list_feedback():
+    """List all active feedback records."""
+    try:
+        from src.analysis.daily_audit import get_all_feedback
+        records = get_all_feedback()
+        return JSONResponse(content={
+            "records": [fb.to_dict() for fb in records],
+            "total": len(records),
+        })
+    except ImportError:
+        return JSONResponse(content={"records": [], "total": 0})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@report_router.put("/daily-audit/feedback/{feedback_id}")
+async def update_feedback_endpoint(feedback_id: str, request: Request):
+    """Update an existing feedback record's text."""
+    try:
+        body = await request.json()
+        new_text = body.get("feedback_text", "").strip()
+        if not new_text:
+            raise HTTPException(status_code=400, detail="feedback_text is required")
+
+        from src.analysis.daily_audit import update_feedback
+        fb = update_feedback(feedback_id, new_text)
+        if fb is None:
+            raise HTTPException(status_code=404, detail=f"Feedback {feedback_id} not found")
+
+        return JSONResponse(content={"success": True, "feedback": fb.to_dict()})
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@report_router.delete("/daily-audit/feedback/{feedback_id}")
+async def delete_feedback_endpoint(feedback_id: str):
+    """Delete (soft) a feedback record."""
+    try:
+        from src.analysis.daily_audit import delete_feedback
+        ok = delete_feedback(feedback_id)
+        if not ok:
+            raise HTTPException(status_code=404, detail=f"Feedback {feedback_id} not found")
+        return JSONResponse(content={"success": True, "deleted": feedback_id})
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+@report_router.get("/daily-audit/feedback/export/{fmt}")
+async def export_feedback_records(fmt: str):
+    """Export all active feedback records as Word or Excel."""
+    if fmt not in ("word", "excel"):
+        raise HTTPException(status_code=400, detail="Format must be 'word' or 'excel'")
+
+    try:
+        from datetime import datetime
+        from src.analysis.daily_audit import get_all_feedback
+        records = get_all_feedback()
+        if not records:
+            raise HTTPException(status_code=404, detail="No feedback records available")
+
+        EXPORT_DIR = Path("data/exports")
+        EXPORT_DIR.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        if fmt == "word":
+            from docx import Document
+            doc = Document()
+            doc.add_heading("使用者意見紀錄 (User Feedback Records)", level=1)
+            doc.add_paragraph(f"匯出時間: {datetime.now().isoformat()[:19]}")
+            doc.add_paragraph(f"總計: {len(records)} 筆紀錄")
+            doc.add_paragraph("")
+            for fb in records:
+                doc.add_heading(
+                    f"[{fb.audit_type.upper()}] {fb.feedback_id}",
+                    level=2,
+                )
+                doc.add_paragraph(f"建立時間: {fb.created_at}")
+                doc.add_paragraph(f"更新時間: {fb.updated_at}")
+                doc.add_paragraph(f"狀態: {fb.status}")
+                doc.add_paragraph(f"目標: {fb.target_id or 'N/A'}")
+                doc.add_paragraph(f"意見內容: {fb.feedback_text}")
+                if fb.re_evaluation_score is not None:
+                    doc.add_paragraph(f"重新評估分數: {fb.re_evaluation_score}")
+                if fb.re_evaluation_id:
+                    doc.add_paragraph(f"重新評估 ID: {fb.re_evaluation_id}")
+                doc.add_paragraph("")
+
+            filepath = EXPORT_DIR / f"feedback_records_{ts}.docx"
+            doc.save(str(filepath))
+            content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+        else:  # excel
+            from openpyxl import Workbook
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "Feedback Records"
+            headers = ["ID", "類型", "目標", "意見內容", "建立時間", "更新時間", "狀態", "重新評估分數", "重新評估 ID"]
+            ws.append(headers)
+            for fb in records:
+                ws.append([
+                    fb.feedback_id,
+                    fb.audit_type,
+                    fb.target_id or '',
+                    fb.feedback_text,
+                    fb.created_at,
+                    fb.updated_at,
+                    fb.status,
+                    fb.re_evaluation_score if fb.re_evaluation_score is not None else '',
+                    fb.re_evaluation_id or '',
+                ])
+            # Auto-width
+            for col in ws.columns:
+                max_len = 0
+                col_letter = col[0].column_letter
+                for cell in col:
+                    if cell.value:
+                        max_len = max(max_len, len(str(cell.value)))
+                ws.column_dimensions[col_letter].width = min(max_len + 2, 60)
+
+            filepath = EXPORT_DIR / f"feedback_records_{ts}.xlsx"
+            wb.save(str(filepath))
+            content_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+        return FileResponse(filepath, media_type=content_type, filename=filepath.name)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Export feedback failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+async def _run_reeval_with_feedback(request: Request, audit_type: str, fb) -> dict | None:
+    """Re-run daily audit with user feedback context appended to prompts."""
+    try:
+        llm_fn = _get_llm_completion_fn(request)
+        lang = "zh-TW"
+        try:
+            from src.utils.user_settings import load_user_settings
+            settings = load_user_settings()
+            lang = settings.get("language", "zh-TW")
+        except Exception:
+            pass
+
+        if audit_type == "daily":
+            from src.analysis.daily_audit import run_daily_audit, get_active_feedback_context
+            feedback_ctx = get_active_feedback_context()
+            result = run_daily_audit(
+                llm_completion_fn=llm_fn,
+                lang=lang,
+                feedback_context=feedback_ctx,
+            )
+            # Update the feedback record with re-evaluation result
+            fb.re_evaluation_id = result.audit_id
+            fb.re_evaluation_score = result.overall_score
+            from src.analysis.daily_audit import FEEDBACK_DIR
+            from src.utils.safe_io import atomic_write_json
+            atomic_write_json(FEEDBACK_DIR / f"{fb.feedback_id}.json", fb.to_dict())
+
+            return {
+                "audit_id": result.audit_id,
+                "overall_score": result.overall_score,
+                "dim_a_score": result.dim_a_score,
+                "dim_b_score": result.dim_b_score,
+            }
+        elif audit_type == "meta":
+            from src.analysis.daily_audit import run_10day_meta_review, get_active_feedback_context
+            feedback_ctx = get_active_feedback_context()
+            result = run_10day_meta_review(
+                llm_completion_fn=llm_fn,
+                lang=lang,
+                feedback_context=feedback_ctx,
+            )
+            # Update the feedback record with re-evaluation result
+            fb.re_evaluation_id = f"meta_{result.period_end}"
+            fb.re_evaluation_score = int((result.avg_dim_a + result.avg_dim_b) / 2)
+            from src.analysis.daily_audit import FEEDBACK_DIR
+            from src.utils.safe_io import atomic_write_json
+            atomic_write_json(FEEDBACK_DIR / f"{fb.feedback_id}.json", fb.to_dict())
+
+            return {
+                "avg_dim_a": result.avg_dim_a,
+                "avg_dim_b": result.avg_dim_b,
+            }
+    except Exception as e:
+        logger.warning(f"Re-evaluation failed: {e}")
+        return None

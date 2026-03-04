@@ -25,7 +25,7 @@ from src.analysis.state import (
     PhaseStatus,
 )
 from src.analysis.compliance_rules import get_checklist, list_clauses
-from src.analysis.risk_matrix import VERDICT_DISPLAY, RISK_LEVEL_DISPLAY
+from src.analysis.risk_matrix import (    VERDICT_DISPLAY, RISK_LEVEL_DISPLAY,    determine_gap_severity, assess_risk, risk_to_verdict,)
 
 logger = logging.getLogger(__name__)
 
@@ -691,6 +691,132 @@ class ComparisonTable:
         self._state.update_row(row)
         return row
 
+    def preview_evidence_recalc(self, row_id: str, evidence_items: list[dict]) -> Optional[dict]:
+        """Preview risk recalculation with modified evidence WITHOUT saving.
+
+        Returns a dict with the recalculated gap_severity, risk_level, verdict,
+        and evidence_stats so the UI can show a before/after comparison.
+        """
+        row = self._state.get_row(row_id)
+        if row is None:
+            return None
+
+        # Count evidence stats from the proposed items
+        total = len(evidence_items)
+        found_count = sum(1 for e in evidence_items if e.get("found", False))
+        has_inadequate = any(
+            e.get("found", False) and e.get("is_inadequate", False)
+            for e in evidence_items
+        )
+        has_outdated = any(
+            e.get("found", False) and e.get("is_outdated", False)
+            for e in evidence_items
+        )
+        missing = total - found_count
+
+        # Recalculate using the risk matrix (rule engine)
+        new_gap_severity = determine_gap_severity(
+            expected_count=total,
+            found_count=found_count,
+            has_inadequate=has_inadequate,
+            has_outdated=has_outdated,
+        )
+        new_risk_level = assess_risk(row.audit_impact, new_gap_severity)
+        new_verdict = risk_to_verdict(new_risk_level)
+
+        return {
+            "original": {
+                "gap_severity": row.gap_severity,
+                "risk_level": row.risk_level,
+                "verdict": row.verdict,
+                "evidence_stats": {
+                    "total": len(row.evidence_items),
+                    "found": sum(1 for e in row.evidence_items if e.get("found", False)),
+                    "inadequate": sum(1 for e in row.evidence_items if e.get("is_inadequate", False)),
+                    "outdated": sum(1 for e in row.evidence_items if e.get("is_outdated", False)),
+                    "missing": len(row.evidence_items) - sum(1 for e in row.evidence_items if e.get("found", False)),
+                },
+            },
+            "proposed": {
+                "gap_severity": new_gap_severity,
+                "risk_level": new_risk_level,
+                "verdict": new_verdict,
+                "evidence_stats": {
+                    "total": total,
+                    "found": found_count,
+                    "inadequate": sum(1 for e in evidence_items if e.get("is_inadequate", False)),
+                    "outdated": sum(1 for e in evidence_items if e.get("is_outdated", False)),
+                    "missing": missing,
+                },
+            },
+            "changed": (
+                new_gap_severity != row.gap_severity
+                or new_risk_level != row.risk_level
+                or new_verdict != row.verdict
+            ),
+        }
+
+    def update_evidence_items(
+        self, row_id: str, evidence_items: list[dict], user_id: str = "ra_user"
+    ) -> Optional[RowState]:
+        """Update evidence items and recalculate risk using the rule engine.
+
+        Saves the change to version_history for audit trail.
+        """
+        row = self._state.get_row(row_id)
+        if row is None:
+            return None
+
+        # Snapshot previous state for version_history
+        prev_evidence = row.evidence_items.copy() if row.evidence_items else []
+        prev_gap = row.gap_severity
+        prev_risk = row.risk_level
+        prev_verdict = row.verdict
+
+        # Update evidence items
+        row.evidence_items = evidence_items
+
+        # Recalculate risk using the rule engine
+        total = len(evidence_items)
+        found_count = sum(1 for e in evidence_items if e.get("found", False))
+        has_inadequate = any(
+            e.get("found", False) and e.get("is_inadequate", False)
+            for e in evidence_items
+        )
+        has_outdated = any(
+            e.get("found", False) and e.get("is_outdated", False)
+            for e in evidence_items
+        )
+
+        row.gap_severity = determine_gap_severity(
+            expected_count=total,
+            found_count=found_count,
+            has_inadequate=has_inadequate,
+            has_outdated=has_outdated,
+        )
+        row.risk_level = assess_risk(row.audit_impact, row.gap_severity)
+        row.verdict = risk_to_verdict(row.risk_level)
+
+        # Record in version_history
+        row.version_history.append(
+            {
+                "action": "update_evidence",
+                "previous_evidence_count": len(prev_evidence),
+                "new_evidence_count": len(evidence_items),
+                "previous_gap_severity": prev_gap,
+                "new_gap_severity": row.gap_severity,
+                "previous_risk_level": prev_risk,
+                "new_risk_level": row.risk_level,
+                "previous_verdict": prev_verdict,
+                "new_verdict": row.verdict,
+                "by": user_id,
+                "at": time.time(),
+            }
+        )
+
+        row.updated_at = time.time()
+        self._state.update_row(row)
+        return row
     # ── Persistence ──
 
     def save(self) -> Path:

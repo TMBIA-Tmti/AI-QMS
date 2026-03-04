@@ -14,59 +14,13 @@
     const RUN_ID = window.__RUN_ID__ || "";
     const DEBOUNCE_MS = 300;
 
-    // ── i18n ──
-    const LANG = window.__LANG__ || "zh-TW";
-    let _locale = {};
-    let _localeReady = false;
-
-    async function loadLocale() {
-        try {
-            const resp = await fetch(`/api/report/locales/${LANG}.json`);
-            if (resp.ok) _locale = await resp.json();
-        } catch (e) { console.warn("Failed to load locale:", e); }
-        _localeReady = true;
-        applyDataI18n();
-    }
-
-    function t(key, params) {
-        let text = _locale[key] || key;
-        if (params) {
-            for (const [k, v] of Object.entries(params)) {
-                text = text.replace(`{${k}}`, v);
-            }
-        }
-        return text;
-    }
-
-    function applyDataI18n() {
-        document.querySelectorAll("[data-i18n]").forEach(el => {
-            const key = el.getAttribute("data-i18n");
-            const translated = t(key);
-            if (translated !== key) {
-                if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") el.placeholder = translated;
-                else el.textContent = translated;
-            }
-        });
-        document.querySelectorAll("[data-i18n-title]").forEach(el => {
-            const key = el.getAttribute("data-i18n-title");
-            const translated = t(key);
-            if (translated !== key) el.title = translated;
-        });
-        document.querySelectorAll("[data-i18n-placeholder]").forEach(el => {
-            const key = el.getAttribute("data-i18n-placeholder");
-            const translated = t(key);
-            if (translated !== key) el.placeholder = translated;
-        });
-    }
-
-    loadLocale();
+    const t = (key, params) => window.__i18n ? window.__i18n.t(key, params) : key;
 
     // ── State ──
     let reportData = null;       // Full report response
     let filteredRows = [];       // Currently displayed rows
     let currentRowId = null;     // Row being edited in a modal
     let filterOptions = null;    // Cached filter options
-    let verificationLoaded = false; // Whether verification tab was loaded
 
     // ── DOM References ──
     const $ = (id) => document.getElementById(id);
@@ -142,20 +96,641 @@
         humanMessageInput: $("humanMessageInput"),
         btnSendHuman: $("btnSendHuman"),
         phaseFilterBar: $('phaseFilterBar'),
-        // Verification tab
-        btnReVerify: $("btnReVerify"),
-        verPassCount: $("verPassCount"),
-        verWarnCount: $("verWarnCount"),
-        verFailCount: $("verFailCount"),
-        verTotalCount: $("verTotalCount"),
-        verTimestamp: $("verTimestamp"),
-        verNoData: $("verNoData"),
-        verNoDataMsg: $("verNoDataMsg"),
-        verCrossChecks: $("verCrossChecks"),
-        verCrossChecksList: $("verCrossChecksList"),
-        verTableWrapper: $("verTableWrapper"),
-        verTableBody: $("verTableBody"),
+        // Daily Audit tab
+        dailyAuditCount: $('dailyAuditCount'),
+        btnRunDailyAudit: $('btnRunDailyAudit'),
+        btnRunMetaReview: $('btnRunMetaReview'),
+        btnLoadAuditHistory: $('btnLoadAuditHistory'),
+        dailyAuditSummary: $('dailyAuditSummary'),
+        auditOverallScore: $('auditOverallScore'),
+        auditDimAScore: $('auditDimAScore'),
+        auditDimBScore: $('auditDimBScore'),
+        dailyAuditHistory: $('dailyAuditHistory'),
+        metaReviewSection: $('metaReviewSection'),
+        metaReviewContent: $('metaReviewContent'),
+        deviationAlertBanner: $('deviationAlertBanner'),
+        deviationAlertTitle: $('deviationAlertTitle'),
+        deviationAlertDetails: $('deviationAlertDetails'),
+        // Unified command bars
+        crossrefCommandInput: $('crossrefCommandInput'),
+        btnCrossrefSend: $('btnCrossrefSend'),
+        btnCrossrefHelp: $('btnCrossrefHelp'),
+        btnCrossrefDownloads: $('btnCrossrefDownloads'),
+        crossrefHelpPopup: $('crossrefHelpPopup'),
+        crossrefDownloadCatalog: $('crossrefDownloadCatalog'),
+        crossrefFeedbackHistory: $('crossrefFeedbackHistory'),
+        crossrefFeedbackList: $('crossrefFeedbackList'),
+        btnCrossexamHelp: $('btnCrossexamHelp'),
+        btnCrossexamDownloads: $('btnCrossexamDownloads'),
+        crossexamHelpPopup: $('crossexamHelpPopup'),
+        crossexamDownloadCatalog: $('crossexamDownloadCatalog'),
+        crossexamFeedbackHistory: $('crossexamFeedbackHistory'),
+        crossexamFeedbackList: $('crossexamFeedbackList'),
+        // Action dropdown selectors + inline help panels
+        crossexamActionSelect: $('crossexamActionSelect'),
+        crossexamInlineHelp: $('crossexamInlineHelp'),
+        crossrefActionSelect: $('crossrefActionSelect'),
+        crossrefInlineHelp: $('crossrefInlineHelp'),
+        // Download bar dropdowns + buttons + help panels
+        crossrefDlTypeSelect: $('crossrefDlTypeSelect'),
+        crossrefDlWord: $('crossrefDlWord'),
+        crossrefDlExcel: $('crossrefDlExcel'),
+        crossrefDlHelp: $('crossrefDlHelp'),
+        crossexamDlTypeSelect: $('crossexamDlTypeSelect'),
+        crossexamDlWord: $('crossexamDlWord'),
+        crossexamDlExcel: $('crossexamDlExcel'),
+        crossexamDlHelp: $('crossexamDlHelp'),
     };
+
+    // ============================================================
+    // Action Dropdown — Command Prefixes & Inline Help Data
+    // ============================================================
+
+    /** Maps dropdown value → command prefix auto-filled into input */
+    const ACTION_CMD_PREFIX = {
+        inject:           '',
+        download:         '/download ',
+        feedback:         '/feedback daily "',
+        feedback_history: '/feedback history',
+        run:              '/run ',
+        downloads:        '/downloads',
+        adjust:           '/adjust ',
+        standards:        '/standards',
+    };
+
+    /** Help content for each action — title, description (30-50+ chars), example input + effect */
+    const ACTION_HELP_DATA = {
+        inject: {
+            icon: '🙋',
+            title: '人工介入 — 直接對 LLM 對話',
+            desc: '直接在輸入框打字即可介入 LLM 的交叉詰問對話。不需要任何特殊格式，系統會將你的訊息傳遞給正在運作的分析者與驗證者。當 LLM 分析方向錯誤、需要補充資訊、或要修正判斷時使用。',
+            examples: [
+                { input: '你應該問的是管理審查的頻率，不是內容', effect: '→ 系統會讓 LLM 重新聚焦在管理審查頻率的合規性上' },
+                { input: '我們的 SOP-001 第 5.2 節有規定這個流程', effect: '→ LLM 會將此資訊納入考量，重新評估該條款' },
+            ]
+        },
+        download: {
+            icon: '📥',
+            title: '下載報告 — 匯出 Word 或 Excel',
+            desc: '輸入 /download 加上報告類型與格式即可下載。支援的報告類型：crossexam (交叉詰問記錄)、audit (稽核報告)、meta (總檢報告)。格式支援 word 與 excel。',
+            examples: [
+                { input: '/download crossexam word', effect: '→ 下載交叉詰問記錄（Word 格式）' },
+                { input: '/download audit excel', effect: '→ 下載每日稽核報告（Excel 格式）' },
+            ]
+        },
+        feedback: {
+            icon: '💬',
+            title: '提供意見 — 記錄並觸發重新評分',
+            desc: '提交意見後，系統會自動重新執行稽核評分。使用 /feedback daily 對當日稽核提意見，/feedback meta 對 10 日總檢提意見。意見內容請用雙引號包住。',
+            examples: [
+                { input: '/feedback daily "建議加強證據引用的精確度"', effect: '→ 記錄意見並自動重新執行每日稽核評分' },
+                { input: '/feedback meta "交叉詰問深度不足，需加強"', effect: '→ 意見記錄到 10 日總檢報告中' },
+            ]
+        },
+        feedback_history: {
+            icon: '📝',
+            title: '查看意見紀錄 — 管理歷史意見',
+            desc: '顯示所有已提交的意見清單，可以查看、編輯或刪除過去提交的意見。直接點擊發送即可執行，不需要額外參數。',
+            examples: [
+                { input: '/feedback history', effect: '→ 打開意見紀錄列表，可編輯或刪除個別意見' },
+            ]
+        },
+        run: {
+            icon: '▶️',
+            title: '執行稽核/總檢 — 手動觸發分析',
+            desc: '手動執行每日稽核或 10 日總檢分析。/run audit 執行每日稽核評分，/run meta 執行 10 日總檢分析。稽核完成後會自動更新報告內容。',
+            examples: [
+                { input: '/run audit', effect: '→ 立即執行每日稽核評分，完成後更新分數與報告' },
+                { input: '/run meta', effect: '→ 立即執行 10 日總檢分析，產生趨勢與建議報告' },
+            ]
+        },
+        downloads: {
+            icon: '📂',
+            title: '打開下載目錄 — 流覽所有可下載檔案',
+            desc: '顯示系統中所有可下載的報告與檔案目錄，包含合規報告、深度報告、稽核報告、交叉詰問記錄等。直接點擊發送即可打開。',
+            examples: [
+                { input: '/downloads', effect: '→ 打開下載目錄彈窗，可一鍵下載各類報告' },
+            ]
+        },
+        adjust: {
+            icon: '🔧',
+            title: '調整條款對應 — 修改補充標準的條款映射',
+            desc: '將補充標準（如 ISO 14971、IEC 62304）的條款對應到 ISO 13485 的映射關係進行調整。格式為 /adjust 標準ID "條款名稱" 舊條款 -> 新條款。',
+            examples: [
+                { input: '/adjust ISO_14971 "風險管理流程" 7.1 -> 7.3.3', effect: '→ 將 ISO 14971 「風險管理流程」從對應 7.1 改為對應 7.3.3' },
+            ]
+        },
+        standards: {
+            icon: '📜',
+            title: '列出補充標準 — 查看所有標準對應關係',
+            desc: '顯示系統中已設定的所有補充標準及其條款與 ISO 13485 的對應映射關係。直接點擊發送即可執行，不需要額外參數。',
+            examples: [
+                { input: '/standards', effect: '→ 在聊天區顯示所有補充標準的條款對應清單' },
+            ]
+        },
+    };
+
+    // ============================================================
+    // LLM-Assist Help Data — for all 6 intervention points
+    // ============================================================
+
+    const LLM_ASSIST_HELP = {
+        override: {
+            icon: '✏️',
+            title: '覆寫判定 LLM 輔助',
+            desc: '提供補充資料（文字、URL、文章或算式），LLM 會分析內容並建議最適合的覆寫判定結果與原因說明。',
+            examples: [
+                { input: '根據 SOP-001 第 5.2 節，這個流程已經有完整紀錄', effect: '→ LLM 建議調整為「完全符合」並提供說明' },
+                { input: 'https://law.moj.gov.tw/LawClass/... 這條法規已更新', effect: '→ LLM 爬取 URL 內容後分析對判定的影響' },
+            ]
+        },
+        note: {
+            icon: '📝',
+            title: '備註內容 LLM 輔助',
+            desc: '提供相關資訊，LLM 會分析後產生結構化的備註內容，包含法規引用與合規建議。',
+            examples: [
+                { input: '我們的管理審查會議已於 2024/12 完成，詳見 MR-2024-12', effect: '→ LLM 產生結構化備註，包含時間戳與文件引用' },
+                { input: 'https://example.com/audit-report.pdf', effect: '→ LLM 爬取報告內容並擘要重點作為備註' },
+            ]
+        },
+        evidence: {
+            icon: '🔍',
+            title: '證據項目人工編輯',
+            desc: '手動新增、刪除或修改證據項目，系統即時重新計算風險等級與判定結果，也可觸發 LLM 深度重算。',
+            examples: [
+                { input: '新增證據：「SOP-003 第 4.1 節有明確規定」', effect: '→ 系統即時重算風險等級，可預覽變更後確認' },
+                { input: 'https://docs.company.com/evidence.pdf', effect: '→ LLM 爬取 URL 並擷取證據內容自動填入' },
+            ]
+        },
+        inject: {
+            icon: '🙋',
+            title: '人工介入對話 LLM 輔助',
+            desc: '輸入任意文字、URL 或文章，LLM 會分析內容並整合到當前交叉詰問對話中，提供建議介入訊息。',
+            examples: [
+                { input: '我們的產品檔案中有這個流程紀錄，請重新評估', effect: '→ LLM 建議介入訊息，確認後發送到對話' },
+                { input: 'https://regulation-site.gov/update', effect: '→ 爬取內容後提供適合的介入文字' },
+            ]
+        },
+        feedback: {
+            icon: '💬',
+            title: '稽核意見 LLM 輔助',
+            desc: '提供相關資料，LLM 會分析並產生結構化的稽核意見內容，含具體改善建議與評分參考。',
+            examples: [
+                { input: '建議加強證據引用的精確度，特別是第 7 章的部分', effect: '→ LLM 將意見結構化並提供評分影響分析' },
+                { input: 'https://audit-example.com/findings', effect: '→ 爬取內容後整合為意見再提交' },
+            ]
+        },
+        standards: {
+            icon: '📜',
+            title: '標準調整 LLM 輔助',
+            desc: '提供法規資料或 URL，LLM 會分析內容並建議最適合的條款對應調整方案與說明理由。',
+            examples: [
+                { input: 'ISO 14971:2019 第 7.4 節應對應到 ISO 13485 第 7.1', effect: '→ LLM 分析並建議調整指令格式' },
+                { input: 'https://iso.org/standard/72704.html', effect: '→ 爬取標準頁面後建議條款對應' },
+            ]
+        },
+    };
+
+    // ============================================================
+    // LLM-Assist Functions — Unified for all intervention points
+    // ============================================================
+
+    /**
+     * Send user input to LLM for analysis and display suggestion.
+     * @param {'override'|'note'|'evidence'|'inject'|'feedback'|'standards'} contextType
+     */
+    async function llmAssist(contextType) {
+        const inputEl = document.getElementById(contextType + 'LlmInput');
+        const resultEl = document.getElementById(contextType + 'LlmResult');
+        const contentEl = document.getElementById(contextType + 'LlmResultContent');
+        const btnEl = document.getElementById(contextType + 'LlmBtn');
+        if (!inputEl || !resultEl || !contentEl) return;
+
+        const userInput = inputEl.value.trim();
+        if (!userInput) {
+            showToast(t('toast.llmAssistEmpty'), 'error');
+            return;
+        }
+
+        // Get context data from current row
+        const row = currentRowId ? findRow(currentRowId) : null;
+        const contextData = row ? {
+            clause_id: row.clause_id,
+            clause_title: row.clause_title,
+            current_verdict: row.verdict,
+            current_risk: row.risk_level,
+            evidence_items: row.evidence_items || [],
+            doc_id: row.doc_id,
+        } : {};
+
+        if (btnEl) { btnEl.disabled = true; btnEl.textContent = '⚙️ 分析中...'; }
+
+        try {
+            const result = await apiPost('/llm-assist', {
+                user_input: userInput,
+                context_type: contextType,
+                context_data: contextData,
+            });
+
+            if (result.success && result.suggestion) {
+                contentEl.innerHTML = `<div class="llm-assist-suggestion">${escapeHtml(result.suggestion)}</div>`;
+                if (result.sources && result.sources.length > 0) {
+                    contentEl.innerHTML += `<div class="llm-assist-sources">📎 資料來源：${result.sources.map(s => escapeHtml(s)).join(', ')}</div>`;
+                }
+                resultEl.style.display = 'block';
+                resultEl.dataset.suggestion = result.suggestion;
+                resultEl.dataset.contextType = contextType;
+            } else {
+                showToast(result.message || t('toast.llmAssistFailed'), 'error');
+            }
+        } catch (err) {
+            showToast(t('toast.llmAssistFailed', { msg: err.message }), 'error');
+        } finally {
+            if (btnEl) { btnEl.disabled = false; btnEl.textContent = '🔍 分析'; }
+        }
+    }
+
+    /**
+     * Apply LLM suggestion to the relevant field.
+     * @param {'override'|'note'|'evidence'|'inject'|'feedback'|'standards'} contextType
+     */
+    function applyLlmResult(contextType) {
+        const resultEl = document.getElementById(contextType + 'LlmResult');
+        if (!resultEl) return;
+        const suggestion = resultEl.dataset.suggestion || '';
+
+        switch (contextType) {
+            case 'override':
+                if (els.overrideReason) els.overrideReason.value = suggestion;
+                break;
+            case 'note':
+                if (els.noteText) els.noteText.value = suggestion;
+                break;
+            case 'inject':
+                if (els.humanMessageInput) els.humanMessageInput.value = suggestion;
+                break;
+            case 'feedback': {
+                const fbInput = els.crossrefCommandInput || els.crossexamCommandInput;
+                if (fbInput) fbInput.value = '/feedback daily "' + suggestion + '"';
+                break;
+            }
+            case 'standards': {
+                const adjInput = els.crossrefCommandInput || els.crossexamCommandInput;
+                if (adjInput) adjInput.value = suggestion;
+                break;
+            }
+            default:
+                break;
+        }
+
+        showToast(t('toast.llmAssistApplied'), 'success');
+        resultEl.style.display = 'none';
+    }
+
+    /**
+     * Dismiss LLM suggestion without applying.
+     * @param {string} contextType
+     */
+    function dismissLlmResult(contextType) {
+        const resultEl = document.getElementById(contextType + 'LlmResult');
+        if (resultEl) resultEl.style.display = 'none';
+    }
+
+    // ============================================================
+    // Evidence Editor — Human-in-the-loop evidence editing
+    // ============================================================
+
+    let evidenceEditorData = null; // { rowId, items: [...] }
+
+    function openEvidenceEditor(rowId) {
+        const row = findRow(rowId);
+        if (!row) return;
+
+        evidenceEditorData = {
+            rowId: rowId,
+            items: JSON.parse(JSON.stringify(row.evidence_items || [])),
+        };
+
+        // Build editor modal content in detailBody
+        renderEvidenceEditor();
+    }
+
+    function renderEvidenceEditor() {
+        if (!evidenceEditorData) return;
+        const row = findRow(evidenceEditorData.rowId);
+        if (!row) return;
+
+        let html = `<div class="evidence-editor">
+            <div class="evidence-editor-header">
+                <h3>✏️ 證據項目編輯器 — ${escapeHtml(row.clause_id)}</h3>
+                <p class="evidence-editor-desc">新增、刪除或修改證據項目後，可即時預覽風險重算結果或觸發 LLM 深度重算。支援輸入文字、URL、文章或算式。</p>
+            </div>`;
+
+        // Evidence items list
+        html += `<div class="evidence-editor-list">`;
+        for (let i = 0; i < evidenceEditorData.items.length; i++) {
+            html += renderEvidenceEditorItem(i, evidenceEditorData.items[i]);
+        }
+        html += `</div>`;
+
+        // Add new evidence input
+        html += `<div class="evidence-editor-add">
+            <textarea id="newEvidenceInput" class="form-textarea" rows="2" 
+                      placeholder="輸入新證據名稱與來源（可輸入文字、URL 或文章）..."></textarea>
+            <button class="btn btn-assist" onclick="window.__report.addEvidenceItem()">➕ 新增證據</button>
+        </div>`;
+
+        // LLM assist section for evidence
+        html += `<div class="llm-assist-section" id="evidenceLlmAssist">
+            <div class="llm-assist-header">
+                <span>🤖 LLM 智慧輔助</span>
+                <span class="llm-assist-hint">輸入資料讓 LLM 協助分析證據</span>
+            </div>
+            <div class="llm-assist-input-row">
+                <textarea id="evidenceLlmInput" class="form-textarea llm-assist-textarea" rows="2"
+                          placeholder="輸入補充資料（文字、URL、文章或算式）..."></textarea>
+                <button class="btn btn-assist" onclick="window.__report.llmAssist('evidence')" id="evidenceLlmBtn">🔍 分析</button>
+            </div>
+            <div class="llm-assist-result" id="evidenceLlmResult" style="display:none">
+                <div class="llm-assist-result-content" id="evidenceLlmResultContent"></div>
+                <div class="llm-assist-result-actions">
+                    <button class="btn btn-sm btn-primary" onclick="window.__report.applyLlmResult('evidence')">✅ 採用建議</button>
+                    <button class="btn btn-sm btn-cancel" onclick="window.__report.dismissLlmResult('evidence')">✕ 忽略</button>
+                </div>
+            </div>
+        </div>`;
+
+        // Action buttons
+        html += `<div class="evidence-editor-actions">
+            <button class="btn btn-cancel" onclick="window.__report.cancelEvidenceEditor()">取消</button>
+            <button class="btn btn-secondary" onclick="window.__report.previewEvidenceRecalc()">📊 預覽重算</button>
+            <button class="btn btn-assist" onclick="window.__report.deepRecalcEvidence()">🧠 LLM 深度重算</button>
+            <button class="btn btn-primary" onclick="window.__report.confirmEvidenceUpdate()">✅ 確認更新</button>
+        </div>`;
+
+        // Preview result area
+        html += `<div class="evidence-editor-preview" id="evidencePreviewResult" style="display:none"></div>`;
+
+        html += `</div>`;
+
+        els.detailBody.innerHTML = html;
+        els.detailTitle.textContent = `✏️ 證據編輯 — ${findRow(evidenceEditorData.rowId)?.clause_id || ''}`;
+        openModal(els.detailModal);
+    }
+
+    function renderEvidenceEditorItem(index, item) {
+        const foundClass = item.found ? 'found' : 'not-found';
+        const foundIcon = item.found ? (item.is_inadequate ? '⚠️' : '✅') : '❌';
+        return `<div class="evidence-editor-item ${foundClass}" data-index="${index}">
+            <div class="evidence-editor-item-header">
+                <span>${foundIcon} ${escapeHtml(item.evidence_name || '未命名證據')}</span>
+                <button class="btn btn-sm btn-danger" onclick="window.__report.deleteEvidenceItem(${index})" title="刪除">🗑</button>
+            </div>
+            <div class="evidence-editor-item-controls">
+                <label><input type="checkbox" ${item.found ? 'checked' : ''} onchange="window.__report.toggleEvidenceFound(${index}, this.checked)"> 已找到</label>
+                <label><input type="checkbox" ${item.is_inadequate ? 'checked' : ''} onchange="window.__report.toggleEvidenceInadequate(${index}, this.checked)"> 不充分</label>
+                <label><input type="checkbox" ${item.is_outdated ? 'checked' : ''} onchange="window.__report.toggleEvidenceOutdated(${index}, this.checked)"> 過期</label>
+            </div>
+            ${item.source_doc_id ? `<div class="evidence-editor-source">📄 ${escapeHtml(item.source_doc_id)}${item.source_section ? ' — ' + escapeHtml(item.source_section) : ''}</div>` : ''}
+        </div>`;
+    }
+
+    function toggleEvidenceFound(index, checked) {
+        if (!evidenceEditorData || !evidenceEditorData.items[index]) return;
+        evidenceEditorData.items[index].found = checked;
+        renderEvidenceEditor();
+    }
+
+    function toggleEvidenceInadequate(index, checked) {
+        if (!evidenceEditorData || !evidenceEditorData.items[index]) return;
+        evidenceEditorData.items[index].is_inadequate = checked;
+        renderEvidenceEditor();
+    }
+
+    function toggleEvidenceOutdated(index, checked) {
+        if (!evidenceEditorData || !evidenceEditorData.items[index]) return;
+        evidenceEditorData.items[index].is_outdated = checked;
+        renderEvidenceEditor();
+    }
+
+    function addEvidenceItem() {
+        if (!evidenceEditorData) return;
+        const input = document.getElementById('newEvidenceInput');
+        const name = input ? input.value.trim() : '';
+        if (!name) {
+            showToast(t('toast.evidenceNameEmpty'), 'error');
+            return;
+        }
+        evidenceEditorData.items.push({
+            evidence_name: name,
+            found: false,
+            is_inadequate: false,
+            is_outdated: false,
+            source_doc_id: '',
+            source_section: '',
+            source_quote: '',
+            llm_reasoning: '',
+            relevance_score: null,
+            user_added: true,
+        });
+        renderEvidenceEditor();
+    }
+
+    function deleteEvidenceItem(index) {
+        if (!evidenceEditorData || !evidenceEditorData.items[index]) return;
+        evidenceEditorData.items.splice(index, 1);
+        renderEvidenceEditor();
+    }
+
+    async function previewEvidenceRecalc() {
+        if (!evidenceEditorData) return;
+        const previewEl = document.getElementById('evidencePreviewResult');
+        if (!previewEl) return;
+
+        try {
+            showToast(t('toast.evidencePreviewCalc'), 'info');
+            const result = await apiPost(`/${RUN_ID}/row/${evidenceEditorData.rowId}/evidence/preview`, {
+                evidence_items: evidenceEditorData.items,
+            });
+
+            if (result.success) {
+                const orig = result.original || {};
+                const proposed = result.proposed || {};
+                previewEl.innerHTML = `<h4>📊 風險重算預覽</h4>
+                    <div class="evidence-preview-grid">
+                        <div class="preview-col">
+                            <strong>原始</strong>
+                            <div>差距嚴重度: ${escapeHtml(orig.gap_severity || '—')}</div>
+                            <div>風險等級: ${escapeHtml(orig.risk_level || '—')}</div>
+                            <div>判定: ${escapeHtml(orig.verdict || '—')}</div>
+                        </div>
+                        <div class="preview-arrow">→</div>
+                        <div class="preview-col preview-proposed">
+                            <strong>更新後</strong>
+                            <div>差距嚴重度: ${escapeHtml(proposed.gap_severity || '—')}</div>
+                            <div>風險等級: ${escapeHtml(proposed.risk_level || '—')}</div>
+                            <div>判定: ${escapeHtml(proposed.verdict || '—')}</div>
+                        </div>
+                    </div>`;
+                previewEl.style.display = 'block';
+            }
+        } catch (err) {
+            showToast(t('toast.evidencePreviewFailed', { msg: err.message }), 'error');
+        }
+    }
+
+    async function deepRecalcEvidence() {
+        if (!evidenceEditorData) return;
+        try {
+            showToast(t('toast.evidenceDeepRecalc'), 'info');
+            const result = await apiPost(`/${RUN_ID}/row/${evidenceEditorData.rowId}/evidence/deep-recalc`, {
+                evidence_items: evidenceEditorData.items,
+            });
+
+            if (result.success) {
+                showToast(t('toast.evidenceDeepRecalcDone'), 'success');
+                // Refresh data
+                if (result.row) {
+                    updateRowInData(evidenceEditorData.rowId, result.row);
+                    applyFilters();
+                    refreshSummary();
+                }
+                closeModal(els.detailModal);
+                evidenceEditorData = null;
+            }
+        } catch (err) {
+            showToast(t('toast.evidenceDeepRecalcFailed', { msg: err.message }), 'error');
+        }
+    }
+
+    async function confirmEvidenceUpdate() {
+        if (!evidenceEditorData) return;
+        try {
+            showToast(t('toast.evidenceConfirming'), 'info');
+            const result = await apiPost(`/${RUN_ID}/row/${evidenceEditorData.rowId}/evidence/confirm`, {
+                evidence_items: evidenceEditorData.items,
+                user_id: 'ra_user',
+            });
+
+            if (result.success) {
+                showToast(t('toast.evidenceConfirmed'), 'success');
+                if (result.row) {
+                    updateRowInData(evidenceEditorData.rowId, result.row);
+                    applyFilters();
+                    refreshSummary();
+                }
+                closeModal(els.detailModal);
+                evidenceEditorData = null;
+            }
+        } catch (err) {
+            showToast(t('toast.evidenceConfirmFailed', { msg: err.message }), 'error');
+        }
+    }
+
+    function cancelEvidenceEditor() {
+        evidenceEditorData = null;
+        closeModal(els.detailModal);
+    }
+
+    /**
+     * Render inline help panel below the command bar when a dropdown option is selected.
+     * @param {'crossexam'|'crossref'} tab
+     * @param {string} actionValue — dropdown option value
+     */
+    function showActionInlineHelp(tab, actionValue) {
+        const panel = tab === 'crossexam' ? els.crossexamInlineHelp : els.crossrefInlineHelp;
+        if (!panel) return;
+
+        if (!actionValue || !ACTION_HELP_DATA[actionValue]) {
+            panel.style.display = 'none';
+            panel.innerHTML = '';
+            return;
+        }
+
+        const data = ACTION_HELP_DATA[actionValue];
+        let html = `<div class="cmd-inline-help-title">${data.icon} ${data.title}</div>`;
+        html += `<div class="cmd-inline-help-desc">${data.desc}</div>`;
+
+        for (const ex of data.examples) {
+            html += `<div class="cmd-inline-help-example">`;
+            html += `<div class="example-label">範例</div>`;
+            html += `<code>${escapeHtml(ex.input)}</code>`;
+            html += `<div class="example-effect">${escapeHtml(ex.effect)}</div>`;
+            html += `</div>`;
+        }
+
+        panel.innerHTML = html;
+        panel.style.display = 'block';
+    }
+
+    // ============================================================
+    // Download Bar — Report Type Help Data
+    // ============================================================
+
+    /** Description for each download report type (30-50 chars) */
+    const DL_TYPE_HELP = {
+        report: {
+            icon: '📊',
+            title: '合規分析報告',
+            desc: '包含所有條款的合規判定結果、證據比對、風險等級與改善建議的綜合報告。適用於稽核準備與管理審查。'
+        },
+        deep: {
+            icon: '📋',
+            title: '深度分析報告',
+            desc: '包含合規報告全部內容，另外加上所有 LLM 交互記錄、交叉詰問對話與詳細推理過程。資料量較大。'
+        },
+        crossexam: {
+            icon: '💬',
+            title: '交叉詰問記錄',
+            desc: '匯出所有 LLM 交叉詰問對話記錄，包含分析者與驗證者的多輪辩論及最終判定結果。'
+        },
+        audit: {
+            icon: '📝',
+            title: '每日稽核報告',
+            desc: '最新一次每日稽核的評分結果，包含各維度分數、強項與待改進項目的詳細分析。'
+        },
+        meta: {
+            icon: '🧠',
+            title: '10日總檢報告',
+            desc: '近 10 日稽核趨勢分析與總結，包含分數變化曲線、系統性問題識別與改善優先順序建議。'
+        },
+        quality: {
+            icon: '🌟',
+            title: '品質分析報告',
+            desc: '交叉詰問品質總分析，包含 LLM 對話品質評估、一致性統計與整體合規度評價。'
+        },
+        feedback: {
+            icon: '💬',
+            title: '意見紀錄',
+            desc: '匯出所有使用者提交的意見回饋紀錄，包含意見內容、提交時間與對應的評分變動。'
+        },
+    };
+
+    /**
+     * Show inline help for a download type selection.
+     * @param {'crossref'|'crossexam'} tab
+     * @param {string} typeValue
+     */
+    function showDlInlineHelp(tab, typeValue) {
+        const panel = tab === 'crossref' ? els.crossrefDlHelp : els.crossexamDlHelp;
+        const wordBtn = tab === 'crossref' ? els.crossrefDlWord : els.crossexamDlWord;
+        const excelBtn = tab === 'crossref' ? els.crossrefDlExcel : els.crossexamDlExcel;
+        if (!panel) return;
+
+        if (!typeValue || !DL_TYPE_HELP[typeValue]) {
+            panel.style.display = 'none';
+            panel.innerHTML = '';
+            if (wordBtn) wordBtn.disabled = true;
+            if (excelBtn) excelBtn.disabled = true;
+            return;
+        }
+
+        const data = DL_TYPE_HELP[typeValue];
+        panel.innerHTML = `<div class="cmd-inline-help-title">${data.icon} ${data.title}</div><div class="cmd-inline-help-desc">${data.desc}</div>`;
+        panel.style.display = 'block';
+        if (wordBtn) wordBtn.disabled = false;
+        if (excelBtn) excelBtn.disabled = false;
+    }
 
 
     // ============================================================
@@ -192,7 +767,7 @@
     // Toast Notifications
     // ============================================================
 
-    function showToast(message, type = "info") {
+    function showToast(message, type = "info", duration = 3000) {
         const toast = document.createElement("div");
         toast.className = `toast toast-${type}`;
         toast.textContent = message;
@@ -202,7 +777,7 @@
             toast.style.transform = "translateX(20px)";
             toast.style.transition = "all 0.3s";
             setTimeout(() => toast.remove(), 300);
-        }, 3000);
+        }, duration);
     }
 
 
@@ -239,10 +814,10 @@
 
     function formatDuration(seconds) {
         if (!seconds && seconds !== 0) return "—";
-        if (seconds < 60) return t("format.seconds", {value: seconds.toFixed(1)});
+        if (seconds < 60) return `${seconds.toFixed(1)} 秒`;
         const mins = Math.floor(seconds / 60);
         const secs = Math.round(seconds % 60);
-        return t("format.minutes", {mins, secs});
+        return `${mins} 分 ${secs} 秒`;
     }
 
 
@@ -252,11 +827,11 @@
 
     async function loadReport() {
         if (!RUN_ID) {
-            els.tableBody.innerHTML = `<tr><td colspan="8" class="loading-cell">${t("table.invalid_id")}</td></tr>`;
+            els.tableBody.innerHTML = `<tr><td colspan="8" class="loading-cell">❌ 無效的報告 ID</td></tr>`;
             return;
         }
 
-        els.tableBody.innerHTML = `<tr><td colspan="8" class="loading-cell">⏳ ${t("table.loading")}</td></tr>`;
+        els.tableBody.innerHTML = `<tr><td colspan="8" class="loading-cell">⏳ 載入中...</td></tr>`;
 
         try {
             const [data, filters] = await Promise.all([
@@ -273,8 +848,8 @@
             applyFilters();
 
         } catch (err) {
-            els.tableBody.innerHTML = `<tr><td colspan="8" class="loading-cell">${t("table.load_error", {error: escapeHtml(err.message)})}</td></tr>`;
-            showToast(t("toast.load_error", {error: err.message}), "error");
+            els.tableBody.innerHTML = `<tr><td colspan="8" class="loading-cell">❌ 載入失敗: ${escapeHtml(err.message)}</td></tr>`;
+            showToast(t('toast.loadFailed', {msg: err.message}), "error");
         }
     }
 
@@ -287,11 +862,11 @@
         els.headerRunId.textContent = data.run_id || "";
 
         const statusMap = {
-            completed: { text: t("status.completed"), cls: "status-completed" },
-            running: { text: t("status.running"), cls: "status-running" },
-            paused: { text: t("status.paused"), cls: "status-paused" },
-            failed: { text: t("status.failed"), cls: "status-failed" },
-            pending: { text: t("status.pending"), cls: "status-running" },
+            completed: { text: "✅ 已完成", cls: "status-completed" },
+            running: { text: "⏳ 執行中", cls: "status-running" },
+            paused: { text: "⏸️ 已暫停", cls: "status-paused" },
+            failed: { text: "❌ 失敗", cls: "status-failed" },
+            pending: { text: "⏳ 等待中", cls: "status-running" },
         };
         const st = statusMap[data.status] || { text: data.status, cls: "" };
         els.headerStatus.textContent = st.text;
@@ -329,7 +904,7 @@
 
     function populateFilters(filters) {
         // Documents
-        els.filterDoc.innerHTML = `<option value="">${t("filters.all_documents")}</option>`;
+        els.filterDoc.innerHTML = '<option value="">全部文件</option>';
         (filters.documents || []).forEach((d) => {
             const opt = document.createElement("option");
             opt.value = d.id;
@@ -338,7 +913,7 @@
         });
 
         // Verdicts
-        els.filterVerdict.innerHTML = `<option value="">${t("filters.all_verdicts")}</option>`;
+        els.filterVerdict.innerHTML = '<option value="">全部結果</option>';
         (filters.verdicts || []).forEach((v) => {
             const opt = document.createElement("option");
             opt.value = v.value;
@@ -347,7 +922,7 @@
         });
 
         // Risk levels
-        els.filterRisk.innerHTML = `<option value="">${t("filters.all_risk_levels")}</option>`;
+        els.filterRisk.innerHTML = '<option value="">全部等級</option>';
         (filters.risk_levels || []).forEach((r) => {
             const opt = document.createElement("option");
             opt.value = r.value;
@@ -388,7 +963,7 @@
 
         filteredRows = rows;
         renderTable(rows);
-        els.tableCount.textContent = t("table.count", {shown: rows.length, total: reportData.rows.length});
+        els.tableCount.textContent = t('table.showing', {shown: rows.length, total: reportData.rows.length});
     }
 
 
@@ -402,7 +977,7 @@
                 <tr><td colspan="8" class="loading-cell">
                     <div class="empty-state">
                         <div class="empty-state-icon">🔍</div>
-                        <div class="empty-state-text">${t("table.empty")}</div>
+                        <div class="empty-state-text">無符合條件的項目</div>
                     </div>
                 </td></tr>`;
             return;
@@ -424,8 +999,13 @@
         // Verdict badge
         const verdictBadge = getVerdictBadge(r.verdict, r.verdict_icon, r.verdict_label_zh, !!r.ra_override);
 
-        // Risk badge
-        const riskBadge = getRiskBadge(r.risk_level, r.risk_icon, r.risk_label_zh);
+        // Risk badge with formula tooltip
+        const riskTooltip = r.risk_level && r.gap_severity && r.audit_impact
+            ? `${r.audit_impact} × ${r.gap_severity} → ${r.risk_level}`
+            : '';
+        const riskBadge = riskTooltip
+            ? `<span class="risk-badge-wrapper">${getRiskBadge(r.risk_level, r.risk_icon, r.risk_label_zh)}<span class="risk-tooltip">⚖️ ${escapeHtml(riskTooltip)}</span></span>`
+            : getRiskBadge(r.risk_level, r.risk_icon, r.risk_label_zh);
 
         return `
         <tr class="${rowClass}" data-row-id="${escapeAttr(r.row_id)}">
@@ -450,22 +1030,22 @@
             </td>
             <td class="col-verdict">${verdictBadge}</td>
             <td class="col-risk">${riskBadge}</td>
-            <td class="col-flags">${flagged ? `<span class="flag-icon" title="${t('row.flag_tooltip')}">🚩</span>` : ""}</td>
+            <td class="col-flags">${flagged ? '<span class="flag-icon" title="需 RA 審查">🚩</span>' : ""}</td>
             <td class="col-actions">
                 <div class="action-group">
-                    <button class="btn btn-sm btn-outline" onclick="window.__report.openDetail('${escapeAttr(r.row_id)}')" title="${t('row.btn_detail')}">🔍</button>
-                    <button class="btn btn-sm btn-outline" onclick="window.__report.openOverride('${escapeAttr(r.row_id)}')" title="${t('row.btn_override')}">✏️</button>
-                    <button class="btn btn-sm btn-outline" onclick="window.__report.openNote('${escapeAttr(r.row_id)}')" title="${t('row.btn_note')}">📝</button>
-                    <button class="btn btn-sm btn-outline" onclick="window.__report.openHistory('${escapeAttr(r.row_id)}')" title="${t('row.btn_history')}">📜</button>
-                    ${r.ra_override ? `<button class="btn btn-sm btn-success" onclick="window.__report.restoreOriginal('${escapeAttr(r.row_id)}')" title="${t('row.btn_restore')}">↩️</button>` : ""}
-                    <button class="btn btn-sm btn-primary" onclick="window.__report.rerunRow('${escapeAttr(r.row_id)}')" title="${t('row.btn_rerun')}">🔄</button>
+                    <button class="btn btn-sm btn-outline" onclick="window.__report.openDetail('${escapeAttr(r.row_id)}')" title="詳情">🔍</button>
+                    <button class="btn btn-sm btn-outline" onclick="window.__report.openOverride('${escapeAttr(r.row_id)}')" title="覆寫判定">✏️</button>
+                    <button class="btn btn-sm btn-outline" onclick="window.__report.openNote('${escapeAttr(r.row_id)}')" title="備註">📝</button>
+                    <button class="btn btn-sm btn-outline" onclick="window.__report.openHistory('${escapeAttr(r.row_id)}')" title="歷史">📜</button>
+                    <button class="btn btn-sm btn-outline" onclick="window.__report.rerunRow('${escapeAttr(r.row_id)}')" title="重新分析此行">🔄</button>
+                    ${r.ra_override ? `<button class="btn btn-sm btn-success" onclick="window.__report.restoreOriginal('${escapeAttr(r.row_id)}')" title="還原 LLM 原始判定">↩️</button>` : ""}
                 </div>
             </td>
         </tr>`;
     }
 
     function getVerdictBadge(verdict, icon, label, hasOverride) {
-        if (!verdict) return `<span class="badge badge-insufficient">${t("verdict.undetermined")}</span>`;
+        if (!verdict) return '<span class="badge badge-insufficient">— 未判定</span>';
         const classMap = {
             full_compliance: "badge-full",
             partial_compliance: "badge-partial",
@@ -478,7 +1058,7 @@
     }
 
     function getRiskBadge(risk, icon, label) {
-        if (!risk) return `<span class="badge badge-insufficient">${t("risk.unassessed")}</span>`;
+        if (!risk) return '<span class="badge badge-insufficient">— 未評估</span>';
         const classMap = {
             immediate_correction: "badge-risk-immediate",
             deadline_correction: "badge-risk-deadline",
@@ -508,32 +1088,63 @@
 
             // Basic info
             html += `<div class="detail-section">
-                <h3>${t("detail.basic_info")}</h3>
+                <h3>📋 基本資訊</h3>
                 <div class="detail-grid">
-                    <span class="detail-label">${t("detail.clause_id")}</span>
+                    <span class="detail-label">條款 ID</span>
                     <span class="detail-value">${escapeHtml(row.clause_id)}</span>
-                    <span class="detail-label">${t("detail.clause_title")}</span>
+                    <span class="detail-label">條款標題</span>
                     <span class="detail-value">${escapeHtml(row.clause_title)}</span>
-                    <span class="detail-label">${t("detail.quality_doc")}</span>
+                    <span class="detail-label">品質文件</span>
                     <span class="detail-value">${escapeHtml(row.doc_id)} — ${escapeHtml(row.doc_title)}</span>
-                    <span class="detail-label">${t("detail.audit_impact")}</span>
+                    <span class="detail-label">稽核影響</span>
                     <span class="detail-value">${escapeHtml(row.audit_impact)}</span>
-                    <span class="detail-label">${t("detail.audit_question")}</span>
+                    <span class="detail-label">稽核問題</span>
                     <span class="detail-value">${escapeHtml(row.audit_question || "—")}</span>
-                    <span class="detail-label">${t("detail.verdict_result")}</span>
+                    <span class="detail-label">判定結果</span>
                     <span class="detail-value">${getVerdictBadge(row.verdict, row.verdict_icon, row.verdict_label_zh, !!row.ra_override)}</span>
-                    <span class="detail-label">${t("detail.risk_level")}</span>
+                    <span class="detail-label">風險等級</span>
                     <span class="detail-value">${getRiskBadge(row.risk_level, row.risk_icon, row.risk_label_zh)}</span>
                 </div>
             </div>`;
 
+            // Risk reasoning section — show formula and evidence stats
+            if (row.risk_level && row.gap_severity) {
+                const formula = `${escapeHtml(row.audit_impact || '?')} × ${escapeHtml(row.gap_severity)} → ${escapeHtml(row.risk_level)}`;
+                html += `<div class="risk-reasoning">
+                    <h4>⚖️ 風險評估推理</h4>
+                    <div class="risk-formula">📊 稽核影響(${escapeHtml(row.audit_impact || '?')}) × 差距嚴重度(${escapeHtml(row.gap_severity)}) → 風險等級(${escapeHtml(row.risk_level)})</div>`;
+
+                // Extract evidence_stats from phase_3.output if available
+                const p3 = (row.phase_results || {}).phase_3;
+                const stats = p3 && p3.output ? p3.output.evidence_stats : null;
+                if (stats) {
+                    html += `<div class="evidence-stats-grid">
+                        <div class="evidence-stat-item stat-total"><span class="stat-value">${stats.total || 0}</span>總計</div>
+                        <div class="evidence-stat-item stat-adequate"><span class="stat-value">${stats.found_adequate || 0}</span>充分</div>
+                        <div class="evidence-stat-item stat-inadequate"><span class="stat-value">${stats.inadequate || 0}</span>不充分</div>
+                        <div class="evidence-stat-item stat-outdated"><span class="stat-value">${stats.outdated || 0}</span>過期</div>
+                        <div class="evidence-stat-item stat-missing"><span class="stat-value">${stats.missing || 0}</span>缺失</div>
+                    </div>`;
+                }
+
+                // Show risk action suggestion if available
+                if (row.risk_action_zh) {
+                    html += `<div style="margin-top:8px;font-size:0.82rem;color:#78350f">🛠️ 建議措施：${escapeHtml(row.risk_action_zh)}</div>`;
+                }
+
+                // Human intervention button for evidence editing
+                html += `<div style="margin-top:10px"><button class="btn btn-assist btn-sm" onclick="window.__report.openEvidenceEditor('${escapeHtml(rowId)}')">✏️ 人工介入 — 編輯證據項目</button></div>`;
+
+                html += `</div>`;
+            }
+
             // RA Override info
             if (row.ra_override) {
                 html += `<div class="ra-override-info">
-                    <strong>${t("detail.ra_override")}</strong>：${escapeHtml(row.ra_override.verdict)} — ${escapeHtml(row.ra_override.reason || "")}
+                    <strong>✏️ RA 已覆寫判定</strong>：${escapeHtml(row.ra_override.verdict)} — ${escapeHtml(row.ra_override.reason || "")}
                     <div style="font-size:0.75rem;color:#64748b;margin-top:4px">
-                        ${t("detail.override_by")}: ${escapeHtml(row.ra_override.by || "—")} | 
-                        ${t("detail.override_time")}: ${formatTimestamp(row.ra_override.at)}
+                        覆寫者: ${escapeHtml(row.ra_override.by || "—")} | 
+                        時間: ${formatTimestamp(row.ra_override.at)}
                     </div>
                 </div>`;
             }
@@ -541,7 +1152,7 @@
             // RA Notes
             if (row.ra_notes) {
                 html += `<div class="ra-notes">
-                    <strong>${t("detail.ra_notes")}</strong>：${escapeHtml(row.ra_notes)}
+                    <strong>📝 RA 備註</strong>：${escapeHtml(row.ra_notes)}
                 </div>`;
             }
 
@@ -549,7 +1160,7 @@
             const evidenceItems = row.evidence_items || [];
             if (evidenceItems.length > 0) {
                 html += `<div class="detail-section">
-                    <h3>${t("detail.evidence_items")} (${evidenceItems.filter(e => e.found).length}/${evidenceItems.length})</h3>
+                    <h3>🔍 證據項目 (${evidenceItems.filter(e => e.found).length}/${evidenceItems.length})</h3>
                     <ul class="evidence-list">`;
 
                 for (const ev of evidenceItems) {
@@ -557,10 +1168,10 @@
                     const statusIcon = ev.found ? (ev.is_inadequate ? "⚠️" : "✅") : "❌";
 
                     html += `<li class="evidence-item ${evClass}">
-                        <div class="evidence-name">${statusIcon} ${escapeHtml(ev.evidence_name || t("detail.unknown_evidence"))}</div>`;
+                        <div class="evidence-name">${statusIcon} ${escapeHtml(ev.evidence_name || "未知證據項")}</div>`;
 
                     if (ev.source_doc_id) {
-                        html += `<div class="evidence-source">${t("detail.evidence_source")}: ${escapeHtml(ev.source_doc_id)}${ev.source_section ? ` — ${escapeHtml(ev.source_section)}` : ""}</div>`;
+                        html += `<div class="evidence-source">📄 來源: ${escapeHtml(ev.source_doc_id)}${ev.source_section ? ` — ${escapeHtml(ev.source_section)}` : ""}</div>`;
                     }
 
                     if (ev.source_quote) {
@@ -568,11 +1179,11 @@
                     }
 
                     if (ev.llm_reasoning) {
-                        html += `<div class="evidence-source">${t("detail.llm_reasoning")}: ${escapeHtml(ev.llm_reasoning)}</div>`;
+                        html += `<div class="evidence-source">💭 LLM 推理: ${escapeHtml(ev.llm_reasoning)}</div>`;
                     }
 
                     if (ev.relevance_score != null) {
-                        html += `<div class="evidence-source">${t("detail.relevance_score")}: ${(ev.relevance_score * 100).toFixed(0)}%</div>`;
+                        html += `<div class="evidence-source">📊 相關度: ${(ev.relevance_score * 100).toFixed(0)}%</div>`;
                     }
 
                     html += `</li>`;
@@ -585,7 +1196,7 @@
             const expectedEvidence = row.expected_evidence || [];
             if (expectedEvidence.length > 0 && evidenceItems.length === 0) {
                 html += `<div class="detail-section">
-                    <h3>${t("detail.expected_evidence")}</h3>
+                    <h3>📋 預期證據</h3>
                     <ul class="evidence-list">`;
                 for (const ev of expectedEvidence) {
                     html += `<li class="evidence-item not-found">
@@ -599,27 +1210,27 @@
             const rounds = row.verification_rounds || [];
             if (rounds.length > 0) {
                 html += `<div class="detail-section">
-                    <h3>${t("detail.cross_exam_rounds", {count: rounds.length})}</h3>`;
+                    <h3>🔄 交叉詰問 (${rounds.length} 輪)</h3>`;
 
                 for (let i = 0; i < rounds.length; i++) {
                     const round = rounds[i];
                     const agreed = round.agreed;
-                    const statusText = agreed ? t("detail.agreed") : t("detail.disagreed");
+                    const statusText = agreed ? "✅ 一致" : "❌ 不一致";
 
                     html += `<div class="verification-round">
                         <div class="verification-round-header">
-                            <span>${t("detail.round_num", {num: i + 1})}</span>
+                            <span>第 ${i + 1} 輪</span>
                             <span>${statusText}</span>
                         </div>
                         <div class="verification-round-body">`;
 
                     if (round.analyzer_response) {
-                        html += `<div class="verification-role analyzer">${t("detail.analyzer")}</div>
+                        html += `<div class="verification-role analyzer">🔍 分析者</div>
                             <div class="verification-text">${escapeHtml(round.analyzer_response)}</div>`;
                     }
 
                     if (round.verifier_response) {
-                        html += `<div class="verification-role verifier">${t("detail.verifier")}</div>
+                        html += `<div class="verification-role verifier">🛡️ 驗證者</div>
                             <div class="verification-text">${escapeHtml(round.verifier_response)}</div>`;
                     }
 
@@ -628,7 +1239,7 @@
 
                 if (row.flagged_for_ra) {
                     html += `<div class="ra-override-info">
-                        <strong>${t("detail.flagged_for_ra")}</strong>：${t("detail.flagged_reason")}
+                        <strong>🚩 已標記待 RA 審查</strong>：交叉詰問 3 輪後仍有分歧
                     </div>`;
                 }
 
@@ -638,12 +1249,12 @@
             // Remediation
             if (row.remediation_suggestion) {
                 html += `<div class="detail-section">
-                    <h3>${t("detail.remediation")}</h3>
+                    <h3>🛠️ 改善建議</h3>
                     <div class="remediation-text">${escapeHtml(row.remediation_suggestion)}</div>`;
 
                 if (row.remediation_regulation_cite) {
                     html += `<div style="margin-top:8px;font-size:0.8rem;color:#64748b">
-                        ${t("detail.regulation_cite")}: ${escapeHtml(row.remediation_regulation_cite)}
+                        📖 法規引用: ${escapeHtml(row.remediation_regulation_cite)}
                     </div>`;
                 }
 
@@ -655,18 +1266,18 @@
             const phaseKeys = Object.keys(phaseResults);
             if (phaseKeys.length > 0) {
                 html += `<div class="detail-section">
-                    <h3>${t("detail.phase_results")}</h3>
+                    <h3>⏱️ 階段執行記錄</h3>
                     <div class="detail-grid">`;
 
                 const phaseNames = {
-                    phase_0: t("phase.phase_0"),
-                    phase_0_5: t("phase.phase_0_5"),
-                    phase_1: t("phase.phase_1"),
-                    phase_2: t("phase.phase_2"),
-                    phase_3: t("phase.phase_3"),
-                    phase_4: t("phase.phase_4"),
-                    phase_5: t("phase.phase_5"),
-                    phase_6: t("phase.phase_6"),
+                    phase_0: "資料品質檢查",
+                    phase_0_5: "法規參照對應",
+                    phase_1: "差距掃描",
+                    phase_2: "查核表驗證",
+                    phase_3: "風險評估",
+                    phase_4: "改善建議",
+                    phase_5: "獨立驗證",
+                    phase_6: "來源驗證",
                 };
 
                 for (const key of phaseKeys) {
@@ -676,6 +1287,19 @@
 
                     html += `<span class="detail-label">${phaseNames[key] || key}</span>
                         <span class="detail-value">${statusIcon} ${pr.status || "—"} ${duration ? `(${duration})` : ""}</span>`;
+
+                    // For Phase 3 (Risk Assessment), show the output details inline
+                    if (key === 'phase_3' && pr.output) {
+                        const out = pr.output;
+                        const parts = [];
+                        if (out.gap_severity) parts.push(`差距: ${out.gap_severity}`);
+                        if (out.risk_level) parts.push(`風險: ${out.risk_level}`);
+                        if (out.verdict) parts.push(`判定: ${out.verdict}`);
+                        if (parts.length) {
+                            html += `<span class="detail-label"></span>
+                                <span class="detail-value" style="font-size:0.78rem;color:#78350f">└─ ${escapeHtml(parts.join(' | '))}</span>`;
+                        }
+                    }
                 }
 
                 html += `</div></div>`;
@@ -685,7 +1309,7 @@
             openModal(els.detailModal);
 
         } catch (err) {
-            showToast(t("detail.load_error", {error: err.message}), "error");
+            showToast(t('toast.detailFailed', {msg: err.message}), "error");
         }
     }
 
@@ -711,12 +1335,12 @@
         const reason = els.overrideReason.value.trim();
 
         if (!reason) {
-            showToast(t("override.reason_empty"), "error");
+            showToast(t('toast.overrideNoReason'), "error");
             return;
         }
 
         els.overrideSaveBtn.disabled = true;
-        els.overrideSaveBtn.textContent = t("override.processing");
+        els.overrideSaveBtn.textContent = "處理中...";
 
         try {
             const result = await apiPost(`/${RUN_ID}/row/${currentRowId}/override`, {
@@ -725,24 +1349,17 @@
             });
 
             if (result.success) {
-                showToast(t("override.success"), "success");
+                showToast(t('toast.overrideSuccess'), "success");
                 closeModal(els.overrideModal);
                 updateRowInData(currentRowId, result.row);
                 applyFilters();
                 refreshSummary();
-
-                // Offer to re-run analysis after override
-                setTimeout(() => {
-                    if (confirm(t("override.rerun_prompt"))) {
-                        rerunRow(currentRowId);
-                    }
-                }, 300);
             }
         } catch (err) {
-            showToast(t("override.error", {error: err.message}), "error");
+            showToast(t('toast.overrideFailed', {msg: err.message}), "error");
         } finally {
             els.overrideSaveBtn.disabled = false;
-            els.overrideSaveBtn.textContent = t("override.confirm");
+            els.overrideSaveBtn.textContent = "確認覆寫";
         }
     }
 
@@ -766,12 +1383,12 @@
         const note = els.noteText.value.trim();
 
         if (!note) {
-            showToast(t("note.empty"), "error");
+            showToast(t('toast.noteEmpty'), "error");
             return;
         }
 
         els.noteSaveBtn.disabled = true;
-        els.noteSaveBtn.textContent = t("note.saving");
+        els.noteSaveBtn.textContent = "儲存中...";
 
         try {
             const result = await apiPost(`/${RUN_ID}/row/${currentRowId}/note`, {
@@ -779,16 +1396,16 @@
             });
 
             if (result.success) {
-                showToast(t("note.success"), "success");
+                showToast(t('toast.noteSuccess'), "success");
                 closeModal(els.noteModal);
                 updateRowInData(currentRowId, result.row);
                 applyFilters();
             }
         } catch (err) {
-            showToast(t("note.error", {error: err.message}), "error");
+            showToast(t('toast.noteFailed', {msg: err.message}), "error");
         } finally {
             els.noteSaveBtn.disabled = false;
-            els.noteSaveBtn.textContent = t("note.save");
+            els.noteSaveBtn.textContent = "儲存備註";
         }
     }
 
@@ -808,7 +1425,7 @@
                 els.historyBody.innerHTML = `
                     <div class="empty-state">
                         <div class="empty-state-icon">📜</div>
-                        <div class="empty-state-text">${t("history.empty")}</div>
+                        <div class="empty-state-text">此條款尚無修改歷史</div>
                     </div>`;
             } else {
                 let html = "";
@@ -816,9 +1433,9 @@
                 const reversed = history.slice().reverse();
                 for (const entry of reversed) {
                     const actionLabels = {
-                        override_verdict: t("history.override_verdict"),
-                        add_note: t("history.add_note"),
-                        restore_original: t("history.restore_original"),
+                        override_verdict: "覆寫判定",
+                        add_note: "新增備註",
+                        restore_original: "還原 LLM 原始判定",
                     };
                     const actionClasses = {
                         override_verdict: "override",
@@ -833,16 +1450,16 @@
                         <div class="history-action ${cls}">${label}</div>`;
 
                     if (entry.action === "override_verdict") {
-                        html += `<div>${t("history.prev_verdict")}: ${escapeHtml(entry.previous_verdict || "—")} → ${t("history.new_verdict")}: ${escapeHtml(entry.new_verdict || "—")}</div>
-                            <div>${t("history.reason")}: ${escapeHtml(entry.reason || "—")}</div>`;
+                        html += `<div>原判定: ${escapeHtml(entry.previous_verdict || "—")} → 新判定: ${escapeHtml(entry.new_verdict || "—")}</div>
+                            <div>原因: ${escapeHtml(entry.reason || "—")}</div>`;
                     } else if (entry.action === "add_note") {
-                        html += `<div>${t("history.note_content")}: ${escapeHtml(entry.new_note || "—")}</div>`;
+                        html += `<div>備註: ${escapeHtml(entry.new_note || "—")}</div>`;
                     } else if (entry.action === "restore_original") {
-                        html += `<div>${t("history.override_to_restore", {overridden: escapeHtml(entry.overridden_verdict || "—"), restored: escapeHtml(entry.restored_verdict || "—")})}</div>`;
+                        html += `<div>覆寫判定 ${escapeHtml(entry.overridden_verdict || "—")} → 還原為 ${escapeHtml(entry.restored_verdict || "—")}</div>`;
                     }
 
                     html += `<div class="history-meta">
-                            ${entry.by ? `${t("history.operator")}: ${escapeHtml(entry.by)}` : ""}
+                            ${entry.by ? `操作者: ${escapeHtml(entry.by)}` : ""}
                             ${entry.at ? ` | ${formatTimestamp(entry.at)}` : ""}
                         </div>
                     </div>`;
@@ -855,21 +1472,21 @@
             if (data.ra_override) {
                 els.historyBody.insertAdjacentHTML("afterbegin", `
                     <div class="ra-override-info" style="margin-bottom:16px">
-                        <strong>${t("history.current_override")}</strong>：${escapeHtml(data.ra_override.verdict || "—")} — ${escapeHtml(data.ra_override.reason || "")}
+                        <strong>✏️ 目前覆寫狀態</strong>：${escapeHtml(data.ra_override.verdict || "—")} — ${escapeHtml(data.ra_override.reason || "")}
                     </div>`);
             }
 
             if (data.ra_notes) {
                 els.historyBody.insertAdjacentHTML("afterbegin", `
                     <div class="ra-notes" style="margin-bottom:16px">
-                        <strong>${t("history.current_notes")}</strong>：${escapeHtml(data.ra_notes)}
+                        <strong>📝 目前備註</strong>：${escapeHtml(data.ra_notes)}
                     </div>`);
             }
 
             openModal(els.historyModal);
 
         } catch (err) {
-            showToast(t("history.load_error", {error: err.message}), "error");
+            showToast(t('toast.historyFailed', {msg: err.message}), "error");
         }
     }
 
@@ -879,7 +1496,7 @@
     // ============================================================
 
     async function restoreOriginal(rowId) {
-        if (!confirm(t("restore.confirm"))) {
+        if (!confirm("確定要還原為 LLM 原始判定結果嗎？\n（此操作會記錄在版本歷史中）")) {
             return;
         }
 
@@ -887,48 +1504,13 @@
             const result = await apiPost(`/${RUN_ID}/row/${rowId}/restore`, {});
 
             if (result.success) {
-                showToast(t("restore.success"), "success");
+                showToast(t('toast.restoreSuccess'), "success");
                 updateRowInData(rowId, result.row);
                 applyFilters();
                 refreshSummary();
             }
         } catch (err) {
-            showToast(t("restore.error", {error: err.message}), "error");
-        }
-    }
-
-
-    // ============================================================
-    // Re-run Single Row
-    // ============================================================
-
-    async function rerunRow(rowId) {
-        const row = findRow(rowId);
-        const clauseLabel = row ? `${row.clause_id} — ${row.clause_title}` : rowId;
-
-        if (!confirm(t("rerun.confirm", {clause: clauseLabel}))) {
-            return;
-        }
-
-        try {
-            const result = await apiPost(`/${RUN_ID}/row/${rowId}/rerun`, {
-                from_phase: "phase_1",
-            });
-
-            if (result.success) {
-                showToast(
-                    t("rerun.success", {clause_id: row ? row.clause_id : rowId, message: result.message}),
-                    "success"
-                );
-                // Update the row in local data to reflect pending status
-                if (result.row) {
-                    updateRowInData(rowId, result.row);
-                }
-                applyFilters();
-                refreshSummary();
-            }
-        } catch (err) {
-            showToast(t("rerun.error", {error: err.message}), "error");
+            showToast(t('toast.restoreFailed', {msg: err.message}), "error");
         }
     }
 
@@ -937,9 +1519,23 @@
     // Export
     // ============================================================
 
+    async function rerunRow(rowId) {
+        if (!confirm("確定要重新分析此行？將從 Phase 1 (差距掃描) 重新開始。")) return;
+        try {
+            const result = await apiPost(`/${RUN_ID}/row/${rowId}/rerun`, { from_phase: "phase_1" });
+            if (result.success) {
+                showToast(t('toast.rerunSuccess'), "info");
+                updateRowInData(rowId, result.row);
+                applyFilters();
+            }
+        } catch (err) {
+            showToast(t('toast.rerunFailed', {msg: err.message}), "error");
+        }
+    }
+
     function exportReport(format) {
         const url = `${API_BASE}/${RUN_ID}/export/${format}`;
-        showToast(t("export.progress", {format: format.toUpperCase()}), "info");
+        showToast(t('toast.exporting', {fmt: format.toUpperCase()}), "info");
 
         // Use a hidden link to trigger download
         const a = document.createElement("a");
@@ -994,6 +1590,178 @@
         return escapeHtml(str);
     }
 
+    /**
+     * Format LLM cross-examination content into human-readable HTML.
+     * Parses JSON responses from analyzer/verifier and renders structured output.
+     * Falls back to escaped plain text if content is not valid JSON.
+     */
+    function formatLLMContent(rawContent, msgType) {
+        if (!rawContent) return '';
+        const text = String(rawContent).trim();
+
+        // Try to parse JSON (may be wrapped in ```json ... ```)
+        let data = null;
+        let rawJsonStr = null;
+        try {
+            let jsonStr = text;
+            const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+            if (fenceMatch) jsonStr = fenceMatch[1].trim();
+            data = JSON.parse(jsonStr);
+            rawJsonStr = JSON.stringify(data, null, 2);
+        } catch (e) {
+            // Not JSON — render as readable text
+            return `<div class="llm-text">${escapeHtml(text)}</div>`;
+        }
+
+        if (!data || typeof data !== 'object') {
+            return `<div class="llm-text">${escapeHtml(text)}</div>`;
+        }
+
+        // Build human-readable HTML
+        let humanHtml = '';
+        // ── Analyzer initial position ──
+        if (data.position) {
+            humanHtml = formatAnalyzerPosition(data);
+        }
+        // ── Analyzer response to challenge ──
+        else if (data.response && !data.agreement_level) {
+            humanHtml = formatAnalyzerResponse(data);
+        }
+        // ── Verifier challenge / follow-up ──
+        else if (data.agreement_level) {
+            humanHtml = formatVerifierAssessment(data);
+        }
+        // Fallback: render unknown JSON as labeled key-value pairs
+        else {
+            humanHtml = formatGenericJSON(data);
+        }
+
+        // Append collapsible raw JSON block
+        const rawId = 'raw-json-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+        const rawJsonBlock = `
+            <details class="llm-raw-json-toggle">
+                <summary>🔧 原始 LLM JSON</summary>
+                <pre class="llm-raw-json" id="${rawId}">${escapeHtml(rawJsonStr)}</pre>
+            </details>`;
+
+        return humanHtml + rawJsonBlock;
+    }
+
+    function formatAnalyzerPosition(d) {
+        const conf = d.confidence != null ? `<span class="llm-confidence">${(d.confidence * 100).toFixed(0)}%</span>` : '';
+        let html = `<div class="llm-structured">`;
+        html += `<div class="llm-section"><span class="llm-label">📝 評估立場</span>${conf}</div>`;
+        html += `<div class="llm-content">${escapeHtml(d.position)}</div>`;
+
+        if (d.key_evidence && d.key_evidence.length) {
+            html += `<div class="llm-section"><span class="llm-label">📎 關鍵證據</span></div>`;
+            html += `<ul class="llm-evidence-list">`;
+            d.key_evidence.forEach(e => { html += `<li>${escapeHtml(e)}</li>`; });
+            html += `</ul>`;
+        }
+
+        if (d.acknowledged_weaknesses && d.acknowledged_weaknesses.length) {
+            html += `<div class="llm-section"><span class="llm-label">⚠️ 已知弱點</span></div>`;
+            html += `<ul class="llm-weakness-list">`;
+            d.acknowledged_weaknesses.forEach(w => { html += `<li>${escapeHtml(w)}</li>`; });
+            html += `</ul>`;
+        }
+
+        html += `</div>`;
+        return html;
+    }
+
+    function formatAnalyzerResponse(d) {
+        const conf = d.revised_confidence != null ? `<span class="llm-confidence">${(d.revised_confidence * 100).toFixed(0)}%</span>` : '';
+        let html = `<div class="llm-structured">`;
+        html += `<div class="llm-section"><span class="llm-label">💬 回應</span>${conf}</div>`;
+        html += `<div class="llm-content">${escapeHtml(d.response)}</div>`;
+
+        if (d.additional_evidence && d.additional_evidence.length) {
+            html += `<div class="llm-section"><span class="llm-label">📎 補充證據</span></div>`;
+            html += `<ul class="llm-evidence-list">`;
+            d.additional_evidence.forEach(e => { html += `<li>${escapeHtml(e)}</li>`; });
+            html += `</ul>`;
+        }
+
+        if (d.concession) {
+            html += `<div class="llm-section"><span class="llm-label">✅ 承認質疑有理的部分</span></div>`;
+            html += `<div class="llm-content llm-concession">${escapeHtml(d.concession)}</div>`;
+        }
+
+        html += `</div>`;
+        return html;
+    }
+
+    function formatVerifierAssessment(d) {
+        const levelIcons = { agree: '✅', partial_agree: '⚠️', disagree: '❌' };
+        const levelLabels = { agree: '同意', partial_agree: '部分同意', disagree: '不同意' };
+        const icon = levelIcons[d.agreement_level] || '❓';
+        const label = levelLabels[d.agreement_level] || d.agreement_level;
+
+        let html = `<div class="llm-structured">`;
+        html += `<div class="llm-section"><span class="llm-label">🛡️ 驗證意見</span> <span class="llm-agreement llm-agreement-${d.agreement_level}">${icon} ${label}</span></div>`;
+
+        // Challenges (initial response)
+        if (d.challenges && d.challenges.length) {
+            html += `<div class="llm-section"><span class="llm-label">❓ 質疑點</span></div>`;
+            d.challenges.forEach((c, i) => {
+                html += `<div class="llm-challenge">`;
+                html += `<div class="llm-challenge-point"><strong>${i + 1}.</strong> ${escapeHtml(c.point || '')}</div>`;
+                if (c.regulation_basis) html += `<div class="llm-challenge-basis">📜 ${escapeHtml(c.regulation_basis)}</div>`;
+                if (c.expected_evidence) html += `<div class="llm-challenge-evidence">📎 ${escapeHtml(c.expected_evidence)}</div>`;
+                html += `</div>`;
+            });
+        }
+
+        // Remaining concerns (follow-up)
+        if (d.remaining_concerns && d.remaining_concerns.length) {
+            html += `<div class="llm-section"><span class="llm-label">❌ 未解決的疑慮</span></div>`;
+            html += `<ul class="llm-concern-list">`;
+            d.remaining_concerns.forEach(c => { html += `<li>${escapeHtml(c)}</li>`; });
+            html += `</ul>`;
+        }
+
+        // Resolved concerns (follow-up)
+        if (d.resolved_concerns && d.resolved_concerns.length) {
+            html += `<div class="llm-section"><span class="llm-label">✅ 已解決的疑慮</span></div>`;
+            html += `<ul class="llm-resolved-list">`;
+            d.resolved_concerns.forEach(c => { html += `<li>${escapeHtml(c)}</li>`; });
+            html += `</ul>`;
+        }
+
+        if (d.overall_assessment) {
+            html += `<div class="llm-section"><span class="llm-label">📝 總評</span></div>`;
+            html += `<div class="llm-content llm-overall">${escapeHtml(d.overall_assessment)}</div>`;
+        }
+
+        html += `</div>`;
+        return html;
+    }
+
+    function formatGenericJSON(obj) {
+        let html = `<div class="llm-structured">`;
+        for (const [key, val] of Object.entries(obj)) {
+            const label = key.replace(/_/g, ' ');
+            if (Array.isArray(val)) {
+                html += `<div class="llm-section"><span class="llm-label">${escapeHtml(label)}</span></div>`;
+                html += `<ul class="llm-evidence-list">`;
+                val.forEach(item => {
+                    if (typeof item === 'object') html += `<li>${escapeHtml(JSON.stringify(item))}</li>`;
+                    else html += `<li>${escapeHtml(String(item))}</li>`;
+                });
+                html += `</ul>`;
+            } else if (typeof val === 'object' && val !== null) {
+                html += `<div class="llm-section"><span class="llm-label">${escapeHtml(label)}</span></div>`;
+                html += `<div class="llm-content">${escapeHtml(JSON.stringify(val, null, 2))}</div>`;
+            } else {
+                html += `<div class="llm-section"><span class="llm-label">${escapeHtml(label)}</span> ${escapeHtml(String(val))}</div>`;
+            }
+        }
+        html += `</div>`;
+        return html;
+    }
+
     // Debounce helper
     function debounce(fn, ms) {
         let timer;
@@ -1020,6 +1788,22 @@
         els.btnRefresh.addEventListener("click", loadReport);
         els.btnExportWord.addEventListener("click", () => exportReport("word"));
         els.btnExportExcel.addEventListener("click", () => exportReport("excel"));
+
+        // Deep report export
+        const btnDeepWord = document.getElementById('btnDeepReportWord');
+        const btnDeepExcel = document.getElementById('btnDeepReportExcel');
+        if (btnDeepWord) btnDeepWord.addEventListener('click', () => exportDeepReport('word'));
+        if (btnDeepExcel) btnDeepExcel.addEventListener('click', () => exportDeepReport('excel'));
+
+        // History tab controls
+        const btnLoadHistory = document.getElementById('btnLoadHistory');
+        if (btnLoadHistory) btnLoadHistory.addEventListener('click', loadCrossexamHistory);
+        const btnRunMeta = document.getElementById('btnRunMetaAnalysis');
+        if (btnRunMeta) btnRunMeta.addEventListener('click', loadMetaAnalysis);
+        const btnExportMetaWord = document.getElementById('btnExportMetaWord');
+        if (btnExportMetaWord) btnExportMetaWord.addEventListener('click', () => exportMetaAnalysis('word'));
+        const btnExportMetaExcel = document.getElementById('btnExportMetaExcel');
+        if (btnExportMetaExcel) btnExportMetaExcel.addEventListener('click', () => exportMetaAnalysis('excel'));
 
         // Detail modal
         els.detailClose.addEventListener("click", () => closeModal(els.detailModal));
@@ -1066,10 +1850,6 @@
                 if (tabId === "crossref" && !crossrefRegulations) {
                     loadCrossrefRegulations();
                 }
-                // Lazy-load verification on first visit
-                if (tabId === "verification" && !verificationLoaded) {
-                    loadVerification();
-                }
             });
         }
 
@@ -1077,12 +1857,17 @@
         if (els.btnLoadCrossref) {
             els.btnLoadCrossref.addEventListener("click", loadCrossrefTable);
         }
-
-        // Verification controls
-        if (els.btnReVerify) {
-            els.btnReVerify.addEventListener("click", () => {
-                verificationLoaded = false;
-                loadVerification();
+        // Original text toggle for cross-reference
+        const toggleOriginalTextCb = document.getElementById("toggleOriginalText");
+        if (toggleOriginalTextCb) {
+            toggleOriginalTextCb.addEventListener("change", () => {
+                showOriginalText = toggleOriginalTextCb.checked;
+                // Re-render all crossref sections if data exists
+                if (crossrefData) {
+                    renderCrossrefTable(crossrefData);
+                    renderInterCountryDiffs(crossrefData);
+                    renderDeltaItems(crossrefData);
+                }
             });
         }
 
@@ -1120,6 +1905,154 @@
                 }
             });
         }
+
+        // MDSAP verify toggle
+        const toggleMdsapVerifyCb = document.getElementById('toggleMdsapVerify');
+        if (toggleMdsapVerifyCb) {
+            toggleMdsapVerifyCb.addEventListener('change', () => {
+                mdsapVerifyEnabled = toggleMdsapVerifyCb.checked;
+                apiPost('/crossref/mdsap-verify', { enabled: mdsapVerifyEnabled })
+                    .then(() => showToast(mdsapVerifyEnabled ? t('toast.mdsapEnabled') : t('toast.mdsapDisabled'), 'info'))
+                    .catch(e => showToast(t('toast.mdsapFailed', {msg: e.message || e}), 'error'));
+            });
+        }
+
+        // Daily Audit tab controls
+        if (els.btnRunDailyAudit) {
+            els.btnRunDailyAudit.addEventListener('click', runDailyAudit);
+        }
+        if (els.btnRunMetaReview) {
+            els.btnRunMetaReview.addEventListener('click', runMetaReview);
+        }
+        if (els.btnLoadAuditHistory) {
+            els.btnLoadAuditHistory.addEventListener('click', loadDailyAuditHistory);
+        }
+        // Daily audit export buttons
+        const btnExportAuditWord = document.getElementById('btnExportAuditWord');
+        if (btnExportAuditWord) btnExportAuditWord.addEventListener('click', () => exportDailyAudit('word'));
+        const btnExportAuditExcel = document.getElementById('btnExportAuditExcel');
+        if (btnExportAuditExcel) btnExportAuditExcel.addEventListener('click', () => exportDailyAudit('excel'));
+        const btnExportMetaReviewWord = document.getElementById('btnExportMetaReviewWord');
+        if (btnExportMetaReviewWord) btnExportMetaReviewWord.addEventListener('click', () => exportMetaReviewReport('word'));
+        const btnExportMetaReviewExcel = document.getElementById('btnExportMetaReviewExcel');
+        if (btnExportMetaReviewExcel) btnExportMetaReviewExcel.addEventListener('click', () => exportMetaReviewReport('excel'));
+        // Deviation alert dismiss
+        const btnDismissDeviation = document.getElementById('btnDismissDeviation');
+        if (btnDismissDeviation) {
+            btnDismissDeviation.addEventListener('click', () => {
+                if (els.deviationAlertBanner) els.deviationAlertBanner.style.display = 'none';
+            });
+        }
+
+        // === Unified Command Bar: Crossref Tab ===
+        if (els.btnCrossrefSend) {
+            els.btnCrossrefSend.addEventListener('click', sendCrossrefCommand);
+        }
+        if (els.crossrefCommandInput) {
+            els.crossrefCommandInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendCrossrefCommand();
+                }
+            });
+        }
+        if (els.btnCrossrefHelp) {
+            els.btnCrossrefHelp.addEventListener('click', () => togglePopup('crossrefHelp'));
+        }
+        if (els.btnCrossrefDownloads) {
+            els.btnCrossrefDownloads.addEventListener('click', () => {
+                renderDownloadCatalog('crossref');
+                togglePopup('crossrefDownloads');
+            });
+        }
+        const closeCrossrefHelp = document.getElementById('closeCrossrefHelp');
+        if (closeCrossrefHelp) closeCrossrefHelp.addEventListener('click', () => closePopup('crossrefHelp'));
+        const closeCrossrefDownloads = document.getElementById('closeCrossrefDownloads');
+        if (closeCrossrefDownloads) closeCrossrefDownloads.addEventListener('click', () => closePopup('crossrefDownloads'));
+        const closeCrossrefFeedback = document.getElementById('closeCrossrefFeedback');
+        if (closeCrossrefFeedback) closeCrossrefFeedback.addEventListener('click', () => closePopup('crossrefFeedback'));
+
+        // === Unified Command Bar: Crossexam Tab ===
+        if (els.btnCrossexamHelp) {
+            els.btnCrossexamHelp.addEventListener('click', () => togglePopup('crossexamHelp'));
+        }
+        if (els.btnCrossexamDownloads) {
+            els.btnCrossexamDownloads.addEventListener('click', () => {
+                renderDownloadCatalog('crossexam');
+                togglePopup('crossexamDownloads');
+            });
+        }
+        const closeCrossexamHelp = document.getElementById('closeCrossexamHelp');
+        if (closeCrossexamHelp) closeCrossexamHelp.addEventListener('click', () => closePopup('crossexamHelp'));
+        const closeCrossexamDownloads = document.getElementById('closeCrossexamDownloads');
+        if (closeCrossexamDownloads) closeCrossexamDownloads.addEventListener('click', () => closePopup('crossexamDownloads'));
+        const closeCrossexamFeedback = document.getElementById('closeCrossexamFeedback');
+        if (closeCrossexamFeedback) closeCrossexamFeedback.addEventListener('click', () => closePopup('crossexamFeedback'));
+
+        // === Action Dropdown: Crossexam ===
+        if (els.crossexamActionSelect) {
+            els.crossexamActionSelect.addEventListener('change', () => {
+                showActionInlineHelp('crossexam', els.crossexamActionSelect.value);
+                // Auto-fill command prefix into input
+                const prefix = ACTION_CMD_PREFIX[els.crossexamActionSelect.value];
+                if (prefix && els.humanMessageInput) {
+                    els.humanMessageInput.value = prefix;
+                    els.humanMessageInput.focus();
+                }
+            });
+        }
+
+        // === Action Dropdown: Crossref ===
+        if (els.crossrefActionSelect) {
+            els.crossrefActionSelect.addEventListener('change', () => {
+                showActionInlineHelp('crossref', els.crossrefActionSelect.value);
+                const prefix = ACTION_CMD_PREFIX[els.crossrefActionSelect.value];
+                if (prefix && els.crossrefCommandInput) {
+                    els.crossrefCommandInput.value = prefix;
+                    els.crossrefCommandInput.focus();
+                }
+            });
+        }
+
+
+        // === Download Bar: Crossref ===
+        if (els.crossrefDlTypeSelect) {
+            els.crossrefDlTypeSelect.addEventListener('change', () => {
+                showDlInlineHelp('crossref', els.crossrefDlTypeSelect.value);
+            });
+        }
+        if (els.crossrefDlWord) {
+            els.crossrefDlWord.addEventListener('click', () => {
+                const type = els.crossrefDlTypeSelect ? els.crossrefDlTypeSelect.value : '';
+                if (type) handleDownloadCommand(['', type, 'word'], 'crossref');
+            });
+        }
+        if (els.crossrefDlExcel) {
+            els.crossrefDlExcel.addEventListener('click', () => {
+                const type = els.crossrefDlTypeSelect ? els.crossrefDlTypeSelect.value : '';
+                if (type) handleDownloadCommand(['', type, 'excel'], 'crossref');
+            });
+        }
+
+        // === Download Bar: Crossexam ===
+        if (els.crossexamDlTypeSelect) {
+            els.crossexamDlTypeSelect.addEventListener('change', () => {
+                showDlInlineHelp('crossexam', els.crossexamDlTypeSelect.value);
+            });
+        }
+        if (els.crossexamDlWord) {
+            els.crossexamDlWord.addEventListener('click', () => {
+                const type = els.crossexamDlTypeSelect ? els.crossexamDlTypeSelect.value : '';
+                if (type) handleDownloadCommand(['', type, 'word'], 'crossexam');
+            });
+        }
+        if (els.crossexamDlExcel) {
+            els.crossexamDlExcel.addEventListener('click', () => {
+                const type = els.crossexamDlTypeSelect ? els.crossexamDlTypeSelect.value : '';
+                if (type) handleDownloadCommand(['', type, 'excel'], 'crossexam');
+            });
+        }
+
     }
 
 
@@ -1135,6 +2068,26 @@
         restoreOriginal,
         rerunRow,
         toggleRationale,
+        exportHistoryRecord,
+        exportAuditRecord,
+        editFeedback,
+        deleteFeedback,
+        cmdDownload,
+        // LLM-Assist functions
+        llmAssist,
+        applyLlmResult,
+        dismissLlmResult,
+        // Evidence Editor functions
+        openEvidenceEditor,
+        addEvidenceItem,
+        deleteEvidenceItem,
+        toggleEvidenceFound,
+        toggleEvidenceInadequate,
+        toggleEvidenceOutdated,
+        previewEvidenceRecalc,
+        deepRecalcEvidence,
+        confirmEvidenceUpdate,
+        cancelEvidenceEditor,
     };
 
 
@@ -1144,6 +2097,8 @@
 
     let crossrefRegulations = null;  // cached regulation list
     let crossrefData = null;         // cached cross-ref table data
+    let showOriginalText = false;   // toggle: show native-language regulatory text
+    let mdsapVerifyEnabled = true; // toggle: MDSAP cross-examination verification
 
     const FLAG_EMOJIS = {
         US: "🇺🇸", EU: "🇪🇺", TW: "🇹🇼", JP: "🇯🇵",
@@ -1151,24 +2106,38 @@
         BR: "🇧🇷", IN: "🇮🇳", GB: "🇬🇧",
     };
 
-    function getMethodLabel(key) {
-        return t("method." + key) !== "method." + key ? t("method." + key) : key;
-    }
+    const METHOD_LABELS = {
+        official_crossref: "📜 官方交叉參照",
+        clause_structure: "📁 條文結構對應",
+        semantic_en: "🇬🇧 英文語意分析",
+        semantic_zh: "🇹🇼 中文語意分析",
+        keyword_match: "🔑 關鍵字比對",
+        expert_judgment: "🧑‍💻 專家判斷",
+        llm_analysis: "🤖 LLM 分析",
+    };
 
-    function getLangLabel(key) {
-        return t("lang." + key) !== "lang." + key ? t("lang." + key) : key;
-    }
+    const LANG_LABELS = {
+        en: "English",
+        "zh-TW": "繁體中文",
+        "zh-CN": "簡體中文",
+        de: "Deutsch",
+        fr: "Français",
+        ja: "日本語",
+        ko: "한국어",
+        "pt-BR": "Português (Brasil)",
+        pt: "Português",
+    };
 
     async function loadCrossrefRegulations() {
         if (!els.countryCheckboxes) return;
-        els.countryCheckboxes.innerHTML = `<div class="loading-cell">${t("crossref.loading_regulations")}</div>`;
+        els.countryCheckboxes.innerHTML = '<div class="loading-cell">✨ 載入法規清單中...</div>';
 
         try {
             const data = await apiFetch("/crossref/regulations");
             crossrefRegulations = data.regulations || [];
 
             if (crossrefRegulations.length === 0) {
-                els.countryCheckboxes.innerHTML = `<div class="loading-cell">${t("crossref.no_regulations")}</div>`;
+                els.countryCheckboxes.innerHTML = '<div class="loading-cell">❌ 無可用法規</div>';
                 return;
             }
 
@@ -1185,7 +2154,7 @@
                     <div>
                         <div class="country-name">${escapeHtml(reg.country_name_zh)} (${escapeHtml(reg.country)})</div>
                         <div class="country-meta">${escapeHtml(reg.name_zh)}</div>
-                        <div class="country-meta">✅${fullCount} ⬆️${exceedsCount} 🚨${uniqueCount}${t("crossref.unique_count")}</div>
+                        <div class="country-meta">✅${fullCount} ⬆️${exceedsCount} 🚨${uniqueCount}獨有</div>
                     </div>
                 </label>`;
             }
@@ -1200,7 +2169,7 @@
                 item.classList.toggle("checked", cb.checked);
             });
         } catch (err) {
-            els.countryCheckboxes.innerHTML = `<div class="loading-cell">${t("crossref.load_error", {error: escapeHtml(err.message)})}</div>`;
+            els.countryCheckboxes.innerHTML = `<div class="loading-cell">❌ 載入失敗: ${escapeHtml(err.message)}</div>`;
         }
     }
 
@@ -1210,12 +2179,12 @@
         const regIds = Array.from(checked).map((cb) => cb.value);
 
         if (regIds.length === 0) {
-            showToast(t("crossref.select_at_least_one"), "error");
+            showToast(t('toast.selectCountry'), "error");
             return;
         }
 
         els.btnLoadCrossref.disabled = true;
-        els.btnLoadCrossref.textContent = t("crossref.generating");
+        els.btnLoadCrossref.textContent = "✨ 產生中...";
 
         try {
             const data = await apiFetch(`/crossref/table?regulations=${regIds.join(",")}`);
@@ -1231,12 +2200,12 @@
             els.intercountrySection.style.display = "";
             els.deltaSection.style.display = "";
 
-            showToast(t("crossref.generated", {rows: data.rows.length, countries: regIds.length}), "success");
+            showToast(t('toast.crossrefGenerated', {rows: data.rows.length, cols: regIds.length}), "success");
         } catch (err) {
-            showToast(t("crossref.generate_error", {error: err.message}), "error");
+            showToast(t('toast.crossrefFailed', {msg: err.message}), "error");
         } finally {
             els.btnLoadCrossref.disabled = false;
-            els.btnLoadCrossref.textContent = t("crossref.generate_btn");
+            els.btnLoadCrossref.textContent = "📊 產生交叉比對表";
         }
     }
 
@@ -1263,11 +2232,11 @@
             html += `
             <div class="crossref-stat-card">
                 <h4>${flag} ${escapeHtml(m.country_name_zh || rid)}</h4>
-                <div class="stat-row"><span>${t("crossref.stat_full")}</span><strong>${fullCount}</strong></div>
-                <div class="stat-row"><span>${t("crossref.stat_exceeds")}</span><strong style="color:#2563eb">${exceedsCount}</strong></div>
-                <div class="stat-row"><span>${t("crossref.stat_partial")}</span><strong style="color:var(--partial)">${partialCount}</strong></div>
-                <div class="stat-row"><span>${t("crossref.stat_na")}</span><strong style="color:var(--insufficient)">${naCount}</strong></div>
-                <div class="stat-row"><span>${t("crossref.stat_unique")}</span><strong style="color:var(--non-compliant)">${uniqueReqs.length}</strong></div>
+                <div class="stat-row"><span>✅ 完全採用</span><strong>${fullCount}</strong></div>
+                <div class="stat-row"><span>⬆️ 超越 ISO</span><strong style="color:#2563eb">${exceedsCount}</strong></div>
+                <div class="stat-row"><span>⚠️ 部分採用</span><strong style="color:var(--partial)">${partialCount}</strong></div>
+                <div class="stat-row"><span>➖ 不適用</span><strong style="color:var(--insufficient)">${naCount}</strong></div>
+                <div class="stat-row"><span>🚨 獨有要求</span><strong style="color:var(--non-compliant)">${uniqueReqs.length}</strong></div>
                 <div class="stat-bar">
                     <div class="stat-bar-fill" style="width:${Math.round(fullCount / (data.iso_clause_count || 71) * 100)}%;background:var(--compliant)"></div>
                 </div>
@@ -1283,7 +2252,7 @@
         const rows = data.rows || [];
 
         // Build header
-        let headHtml = `<tr><th>${t("crossref.iso_clause")}</th>`;
+        let headHtml = `<tr><th>ISO 13485 條款</th>`;
         for (const rid of regIds) {
             const m = meta[rid] || {};
             const flag = FLAG_EMOJIS[m.country] || "";
@@ -1316,7 +2285,7 @@
                 bodyHtml += `<td>
                     <span class="status-cell status-${status}${uniqueClass}"
                           onclick="window.__report.toggleRationale('${rowId}')"
-                          title="${t('crossref.click_expand')}"
+                          title="點擊展開詳情"
                     >${statusLabels[status] || status}</span>
                 </td>`;
             }
@@ -1331,21 +2300,21 @@
                 const flag = FLAG_EMOJIS[m.country] || "";
                 const conf = reg.confidence || 0;
                 const confClass = conf >= 0.9 ? "confidence-high" : conf >= 0.7 ? "confidence-medium" : "confidence-low";
-                const methodLabel = getMethodLabel(reg.method);
+                const methodLabel = METHOD_LABELS[reg.method] || reg.method || "—";
 
                 bodyHtml += `<div class="rationale-card">
                     <div class="rc-header">${flag} ${escapeHtml(m.country_name_zh || rid)}</div>
-                    <div class="rc-field"><span class="rc-label">${t("crossref.rationale_reg_ref")}</span> <span class="rc-value">${escapeHtml(reg.regulation_ref || "—")}</span></div>
-                    <div class="rc-field"><span class="rc-label">${t("crossref.rationale_method")}</span> <span class="method-badge">${methodLabel}</span></div>
-                    <div class="rc-field"><span class="rc-label">${t("crossref.rationale_confidence")}</span> <span class="rc-confidence ${confClass}">${Math.round(conf * 100)}%</span></div>
-                    <div class="rc-field"><span class="rc-label">${t("crossref.rationale_reason_en")}</span> <span class="rc-value">${escapeHtml(reg.rationale_en || "—")}</span></div>
-                    <div class="rc-field"><span class="rc-label">${t("crossref.rationale_reason_zh")}</span> <span class="rc-value">${escapeHtml(reg.rationale_zh || "—")}</span></div>`;
+                    <div class="rc-field"><span class="rc-label">法規參照:</span> <span class="rc-value">${escapeHtml(reg.regulation_ref || "—")}</span></div>
+                    <div class="rc-field"><span class="rc-label">判斷方法:</span> <span class="method-badge">${methodLabel}</span></div>
+                    <div class="rc-field"><span class="rc-label">可信度:</span> <span class="rc-confidence ${confClass}">${Math.round(conf * 100)}%</span></div>
+                    <div class="rc-field"><span class="rc-label">原因(EN):</span> <span class="rc-value">${escapeHtml(reg.rationale_en || "—")}</span></div>
+                    <div class="rc-field"><span class="rc-label">原因(中):</span> <span class="rc-value">${escapeHtml(reg.rationale_zh || "—")}</span></div>`;
 
                 // Native-language regulatory text comparison
-                if (reg.original_text) {
-                    const langLabel = getLangLabel(reg.original_lang) || reg.original_lang || "—";
+                if (showOriginalText && reg.original_text) {
+                    const langLabel = LANG_LABELS[reg.original_lang] || reg.original_lang || "—";
                     bodyHtml += `<div class="rc-field" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
-                        <span class="rc-label">${t("crossref.original_text")} (${langLabel}):</span>
+                        <span class="rc-label">📜 法規原文 (${langLabel}):</span>
                         <div class="rc-value" style="font-style:italic;margin-top:4px">${escapeHtml(reg.original_text)}</div>
                     </div>`;
                     if (reg.english_translation) {
@@ -1356,7 +2325,7 @@
                     }
                     if (reg.semantic_note) {
                         bodyHtml += `<div class="rc-field">
-                            <span class="rc-label">${t("crossref.semantic_note")}:</span>
+                            <span class="rc-label">💡 語意解釋 / 跨國差異:</span>
                             <div class="rc-value" style="margin-top:4px;color:var(--primary)">${escapeHtml(reg.semantic_note)}</div>
                         </div>`;
                     }
@@ -1366,14 +2335,14 @@
                 const deltas = reg.delta_items || [];
                 if (deltas.length > 0) {
                     bodyHtml += `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
-                        <span class="rc-label">${t("crossref.unique_requirements")}</span>`;
+                        <span class="rc-label">🚨 獨有要求:</span>`;
                     for (const d of deltas) {
                         bodyHtml += `<div style="margin-top:4px;padding:6px;background:var(--non-compliant-bg);border-radius:4px">
                             <strong>${escapeHtml(d.title_zh || d.title_en)}</strong>
                             <div style="font-size:0.72rem;color:var(--text-secondary)">${escapeHtml(d.regulation_ref)}</div>`;
                         // Show native text for delta items too
-                        if (d.original_text) {
-                            const dLang = getLangLabel(d.original_lang) || d.original_lang || "";
+                        if (showOriginalText && d.original_text) {
+                            const dLang = LANG_LABELS[d.original_lang] || d.original_lang || "";
                             bodyHtml += `<div style="margin-top:4px;font-style:italic;font-size:0.75rem">📜 ${dLang}: ${escapeHtml(d.original_text)}</div>`;
                             if (d.english_translation) {
                                 bodyHtml += `<div style="font-size:0.75rem">🇬🇧 ${escapeHtml(d.english_translation)}</div>`;
@@ -1389,63 +2358,11 @@
 
                 bodyHtml += `</div>`;  // end rationale-card
             }
-
-            // ── Document evidence for this clause (outside per-regulation loop) ──
-            const docs = row.doc_evidence || [];
-            const relevantDocs = docs.filter(d => d.found_count !== 0 || d.missing_count !== 0 || d.inadequate_count !== 0);
-            if (relevantDocs.length > 0) {
-                bodyHtml += `<div style="margin-top:12px;padding-top:10px;border-top:2px solid var(--primary)">
-                    <span class="rc-label" style="font-size:0.85rem">${t("crossref.doc_evidence")} (${relevantDocs.length}):</span>`;
-                for (const doc of relevantDocs) {
-                    const isPipeline = doc.source !== 'regex_supplement';
-                    const sourceTag = isPipeline
-                        ? `<span style="font-size:0.65rem;padding:1px 5px;background:var(--compliant-bg);color:var(--compliant);border-radius:3px;margin-left:6px">Pipeline</span>`
-                        : `<span style="font-size:0.65rem;padding:1px 5px;background:var(--surface-alt);color:var(--text-secondary);border-radius:3px;margin-left:6px">對應</span>`;
-                    const countsHtml = isPipeline
-                        ? `<span style="margin-left:8px;font-size:0.75rem">✅${doc.found_count} ⚠️${doc.inadequate_count} ❌${doc.missing_count}</span>`
-                        : '';
-                    bodyHtml += `<div style="margin-top:4px;padding:6px 8px;background:var(--surface-alt);border-radius:4px;border-left:3px solid var(--primary)">
-                        <strong style="font-size:0.8rem">${escapeHtml(doc.doc_id)}</strong>
-                        <span style="font-size:0.75rem;color:var(--text-secondary);margin-left:4px">— ${escapeHtml(doc.doc_title)}</span>
-                        ${sourceTag}${countsHtml}
-                    </div>`;
-                    // Show found evidence details if available
-                    if (isPipeline && doc.found && doc.found.length > 0) {
-                        bodyHtml += `<div style="margin-left:16px;font-size:0.72rem;color:var(--text-secondary)">`;
-                        for (const f of doc.found.slice(0, 3)) {
-                            bodyHtml += `<div style="margin-top:2px">✅ ${escapeHtml(f.name)} — <em>${escapeHtml(f.section || '')}</em></div>`;
-                        }
-                        if (doc.found.length > 3) {
-                            bodyHtml += `<div style="margin-top:2px">${t("crossref.more_items", {count: doc.found.length - 3})}</div>`;
-                        }
-                        bodyHtml += `</div>`;
-                    }
-                    if (isPipeline && doc.inadequate && doc.inadequate.length > 0) {
-                        bodyHtml += `<div style="margin-left:16px;font-size:0.72rem;color:var(--warning-color,orange)">`;
-                        for (const f of doc.inadequate.slice(0, 3)) {
-                            bodyHtml += `<div style="margin-top:2px">⚠️ ${escapeHtml(f.name)} — <em>${escapeHtml(f.section || '')}</em></div>`;
-                        }
-                        bodyHtml += `</div>`;
-                    }
-                    if (isPipeline && doc.missing && doc.missing.length > 0) {
-                        bodyHtml += `<div style="margin-left:16px;font-size:0.72rem;color:var(--non-compliant,red)">`;
-                        for (const m of doc.missing.slice(0, 3)) {
-                            bodyHtml += `<div style="margin-top:2px">❌ ${escapeHtml(m)}</div>`;
-                        }
-                        if (doc.missing.length > 3) {
-                            bodyHtml += `<div style="margin-top:2px">${t("crossref.more_items", {count: doc.missing.length - 3})}</div>`;
-                        }
-                        bodyHtml += `</div>`;
-                    }
-                }
-                bodyHtml += `</div>`;
-            }
-
             bodyHtml += `</td></tr>`;
         }
 
         els.crossrefTableBody.innerHTML = bodyHtml;
-        els.crossrefTableCount.textContent = t("crossref.table_count", {rows: rows.length, countries: regIds.length});
+        els.crossrefTableCount.textContent = `顯示 ${rows.length} 條 ISO 13485 條款 × ${regIds.length} 國家法規`;
     }
 
     function toggleRationale(rowId) {
@@ -1514,10 +2431,10 @@
             if (d.exceeds_only.length === 0 && reqs.length === 0 && d.unique_only.length === 0) continue;
 
             html += `<div class="intercountry-card">
-                <h4>${flag} ${escapeHtml(m.country_name_zh || rid)} ${t("intercountry.unique_diff")}</h4>`;
+                <h4>${flag} ${escapeHtml(m.country_name_zh || rid)} 獨有差異</h4>`;
 
             if (d.exceeds_only.length > 0) {
-                html += `<div style="margin-bottom:8px"><strong>${t("intercountry.exceeds_only")}</strong>
+                html += `<div style="margin-bottom:8px"><strong>⬆️ 只有該國超越 ISO 13485 的條款：</strong>
                     <div class="diff-clause-list">
                         ${d.exceeds_only.map(c => `<span class="diff-clause-chip diff-chip-exceeds">${c}</span>`).join("")}            
                     </div>
@@ -1525,14 +2442,14 @@
             }
 
             if (reqs.length > 0) {
-                html += `<div style="margin-bottom:8px"><strong>${t("intercountry.unique_reqs", {count: reqs.length})}</strong>`;
+                html += `<div style="margin-bottom:8px"><strong>🚨 國家獨有要求 (${reqs.length} 項)：</strong>`;
                 for (const req of reqs) {
                     html += `<div style="margin:4px 0;padding:6px 8px;background:var(--bg);border-radius:4px;font-size:0.78rem">
                         <strong>${escapeHtml(req.title_zh)}</strong>
                         <span style="color:var(--text-muted);margin-left:8px">${escapeHtml(req.regulation_ref)}</span>`;
                     // Show native text for inter-country comparison
-                    if (req.original_text) {
-                        const langLabel = getLangLabel(req.original_lang) || req.original_lang || "";
+                    if (showOriginalText && req.original_text) {
+                        const langLabel = LANG_LABELS[req.original_lang] || req.original_lang || "";
                         html += `<div style="margin-top:4px;font-size:0.75rem;font-style:italic">📜 ${langLabel}: ${escapeHtml(req.original_text)}</div>`;
                         if (req.english_translation) {
                             html += `<div style="font-size:0.75rem">🇬🇧 ${escapeHtml(req.english_translation)}</div>`;
@@ -1547,7 +2464,7 @@
             }
 
             if (d.unique_only.length > 0) {
-                html += `<div><strong>${t("intercountry.not_covered")}</strong>
+                html += `<div><strong>➖ 該國未涵蓋但其他國家有的條款：</strong>
                     <div class="diff-clause-list">
                         ${d.unique_only.map(c => `<span class="diff-clause-chip diff-chip-unique">${c}</span>`).join("")}            
                     </div>
@@ -1560,7 +2477,7 @@
         if (html) {
             els.intercountryContainer.innerHTML = html;
         } else {
-            els.intercountryContainer.innerHTML = `<div class="empty-state"><div class="empty-state-text">${t("intercountry.no_diffs")}</div></div>`;
+            els.intercountryContainer.innerHTML = '<div class="empty-state"><div class="empty-state-text">所選國家法規高度一致，無顯著差異</div></div>';
         }
     }
 
@@ -1585,11 +2502,11 @@
             const flag = FLAG_EMOJIS[m.country] || "";
 
             html += `<div class="delta-country-group">
-                <h4>${flag} ${escapeHtml(m.country_name_zh || rid)} — ${t("delta.unique_count", {country: "", count: reqs.length})}</h4>`;
+                <h4>${flag} ${escapeHtml(m.country_name_zh || rid)} — ${reqs.length} 項獨有要求</h4>`;
 
             for (const req of reqs) {
                 const confClass = req.confidence >= 0.9 ? "confidence-high" : req.confidence >= 0.7 ? "confidence-medium" : "confidence-low";
-                const methodLabel = getMethodLabel(req.method);
+                const methodLabel = METHOD_LABELS[req.method] || req.method || "—";
 
                 html += `<div class="delta-item">
                     <div class="di-ref">${escapeHtml(req.regulation_ref)}</div>
@@ -1597,28 +2514,28 @@
                     <div class="di-req">${escapeHtml(req.requirement_zh)}</div>`;
 
                 // Native text with translation
-                if (req.original_text) {
-                    const langLabel = getLangLabel(req.original_lang) || req.original_lang || "";
+                if (showOriginalText && req.original_text) {
+                    const langLabel = LANG_LABELS[req.original_lang] || req.original_lang || "";
                     html += `<div style="margin:8px 0;padding:8px;background:var(--bg);border-radius:4px;border-left:3px solid var(--primary)">
-                        <div style="font-size:0.72rem;font-weight:600;color:var(--text-secondary);margin-bottom:4px">${t("crossref.original_text")} (${langLabel})</div>
+                        <div style="font-size:0.72rem;font-weight:600;color:var(--text-secondary);margin-bottom:4px">📜 法規原文 (${langLabel})</div>
                         <div style="font-style:italic;font-size:0.8rem">${escapeHtml(req.original_text)}</div>`;
                     if (req.english_translation) {
                         html += `<div style="margin-top:6px;font-size:0.72rem;font-weight:600;color:var(--text-secondary)">🇬🇧 English Translation</div>
                             <div style="font-size:0.8rem">${escapeHtml(req.english_translation)}</div>`;
                     }
                     if (req.semantic_note) {
-                        html += `<div style="margin-top:6px;font-size:0.72rem;font-weight:600;color:var(--primary)">${t("delta.semantic_analysis")}</div>
+                        html += `<div style="margin-top:6px;font-size:0.72rem;font-weight:600;color:var(--primary)">💡 語意解釋 / 跨國差異分析</div>
                             <div style="font-size:0.8rem;color:var(--primary)">${escapeHtml(req.semantic_note)}</div>`;
                     }
                     html += `</div>`;
                 }
 
-                html += `<div class="di-question">${t("delta.audit_question")} ${escapeHtml(req.audit_question_zh)}</div>
+                html += `<div class="di-question">💬 稽核問題: ${escapeHtml(req.audit_question_zh)}</div>
                     <div class="di-meta">
-                        <span>${t("delta.related_iso")} ${(req.related_iso_clauses || []).join(", ")}</span>
-                        <span>${t("delta.impact")} ${escapeHtml(req.audit_impact)}</span>
+                        <span>📊 相關 ISO: ${(req.related_iso_clauses || []).join(", ")}</span>
+                        <span>⚠️ 影響: ${escapeHtml(req.audit_impact)}</span>
                         <span class="method-badge">${methodLabel}</span>
-                        <span class="rc-confidence ${confClass}">${t("delta.confidence", {value: Math.round((req.confidence || 0) * 100)})}</span>
+                        <span class="rc-confidence ${confClass}">可信度 ${Math.round((req.confidence || 0) * 100)}%</span>
                     </div>
                 </div>`;
             }
@@ -1627,7 +2544,7 @@
         }
 
         if (totalDelta === 0) {
-            html = `<div class="empty-state"><div class="empty-state-text">${t("delta.no_items")}</div></div>`;
+            html = '<div class="empty-state"><div class="empty-state-text">所選國家法規無獨有要求</div></div>';
         }
 
         els.deltaItemsContainer.innerHTML = html;
@@ -1644,7 +2561,7 @@
     function connectSSE() {
         const runId = (els.sseRunIdInput && els.sseRunIdInput.value.trim()) || RUN_ID;
         if (!runId) {
-            showToast(t("crossexam.enter_run_id"), "error");
+            showToast(t('toast.enterRunId'), "error");
             return;
         }
 
@@ -1656,19 +2573,20 @@
 
         // Clear feed
         els.crossexamFeed.innerHTML = "";
-        addSystemMessage(t("crossexam.connecting"));
+        addSystemMessage("🔌 正在連線...");
 
         try {
             sseSource = new EventSource(`${API_BASE}/${encodeURIComponent(runId)}/stream`);
 
             sseSource.onopen = function () {
                 sseConnected = true;
-                updateSSEStatus("connected", t("sse.streaming"));
-                els.btnConnectSSE.textContent = t("crossexam.disconnect");
+                updateSSEStatus("connected", "🟢 已連線");
+                els.btnConnectSSE.textContent = "❌ 斷線";
                 els.btnPauseExam.disabled = false;
                 els.humanMessageInput.disabled = false;
                 els.btnSendHuman.disabled = false;
             };
+                window.__sseReconnectAttempts = 0;  // Reset reconnect counter on successful connect
 
             sseSource.onmessage = function (event) {
                 try {
@@ -1681,13 +2599,24 @@
 
             sseSource.onerror = function () {
                 if (sseConnected) {
-                    addSystemMessage(t("crossexam.reconnecting"));
-                    updateSSEStatus("", t("crossexam.reconnect_status"));
+                    sseConnected = false;
+                    addSystemMessage("❌ 連線中斷，嘗試重新連線...");
+                    updateSSEStatus("", "⚠️ 重連中");
+                    // Auto-reconnect with exponential backoff
+                    if (!window.__sseReconnectAttempts) window.__sseReconnectAttempts = 0;
+                    window.__sseReconnectAttempts++;
+                    const delay = Math.min(1000 * Math.pow(2, window.__sseReconnectAttempts - 1), 30000);
+                    setTimeout(() => {
+                        if (!sseConnected) {
+                            addSystemMessage(`🔄 第 ${window.__sseReconnectAttempts} 次重連嘗試...`);
+                            connectSSE();
+                        }
+                    }, delay);
                 }
             };
 
         } catch (err) {
-            showToast(t("crossexam.sse_error", {error: err.message}), "error");
+            showToast(t('toast.sseFailed', {msg: err.message}), "error");
         }
     }
 
@@ -1697,8 +2626,8 @@
             sseSource = null;
         }
         sseConnected = false;
-        updateSSEStatus("", t("crossexam.disconnected"));
-        els.btnConnectSSE.textContent = t("crossexam.connect");
+        updateSSEStatus("", "⏹ 未連線");
+        els.btnConnectSSE.textContent = "🔌 連線";
         els.btnPauseExam.disabled = true;
         els.btnResumeExam.disabled = true;
         els.humanMessageInput.disabled = true;
@@ -1707,6 +2636,10 @@
 
     // Active phase filter
     let activePhaseFilter = 'all';
+
+    // Cache clause context from verification_start events
+    // Maps clause_id → { clause_title, doc_id, selected_regulations }
+    const clauseContextCache = {};
 
     function filterSSEFeedByPhase(phase) {
         activePhaseFilter = phase;
@@ -1727,17 +2660,17 @@
         switch (type) {
             // ── Pipeline lifecycle ──
             case 'connected':
-                addSystemMessage(t("sse.connected"));
-                updateSSEStatus('streaming', t("sse.streaming"));
+                addSystemMessage('✅ 已連線至即時 LLM 互動串流');
+                updateSSEStatus('streaming', '🟢 串流中');
                 break;
 
             case 'pipeline_started':
-                addSystemMessage(t("sse.pipeline_started"));
+                addSystemMessage('🚀 分析管線已啟動');
                 break;
 
             case 'pipeline_complete':
-                addSystemMessage(t("sse.pipeline_complete"));
-                updateSSEStatus('connected', t("sse.complete"));
+                addSystemMessage('🏁 分析管線已完成');
+                updateSSEStatus('connected', '✅ 完成');
                 break;
 
             // ── Phase 1: Gap Scan ──
@@ -1753,205 +2686,107 @@
 
             // ── Phase 2: Checklist Verify ──
             case 'phase_2_start':
-                addPhaseCard('2', t("crossexam.phase_verify"), data, 'start');
+                addPhaseCard('2', '驗證', data, 'start');
                 break;
             case 'phase_2_result':
-                addPhaseCard('2', t("crossexam.phase_verify"), data, 'result');
+                addPhaseCard('2', '驗證', data, 'result');
                 break;
             case 'phase_2_error':
-                addPhaseCard('2', t("crossexam.phase_verify"), data, 'error');
+                addPhaseCard('2', '驗證', data, 'error');
                 break;
 
             // ── Phase 4: Remediation ──
             case 'phase_4_start':
-                addPhaseCard('4', t("crossexam.phase_remediation"), data, 'start');
+                addPhaseCard('4', '改善建議', data, 'start');
                 break;
             case 'phase_4_result':
-                addPhaseCard('4', t("crossexam.phase_remediation"), data, 'result');
+                addPhaseCard('4', '改善建議', data, 'result');
                 break;
             case 'phase_4_error':
-                addPhaseCard('4', t("crossexam.phase_remediation"), data, 'error');
+                addPhaseCard('4', '改善建議', data, 'error');
                 break;
 
             // ── Phase 5: Cross-Examination ──
             case 'phase_5_start':
-                addPhaseCard('5', t("crossexam.phase_crossexam"), data, 'start');
+                addPhaseCard('5', '交叉詰問', data, 'start');
                 break;
             case 'phase_5_result':
-                addPhaseCard('5', t("crossexam.phase_crossexam"), data, 'result');
+                addPhaseCard('5', '交叉詰問', data, 'result');
                 break;
             case 'phase_5_error':
-                addPhaseCard('5', t("crossexam.phase_crossexam"), data, 'error');
+                addPhaseCard('5', '交叉詰問', data, 'error');
                 break;
 
             // ── Phase 5 sub-events (Analyzer/Verifier debate) ──
             case 'verification_start':
-                addSystemMessage(t("sse.verification_start", {clause_id: data.clause_id, clause_title: data.clause_title || ''}), '5');
+                // Cache clause context for enriching analyzer/verifier messages
+                if (data.clause_id) {
+                    clauseContextCache[data.clause_id] = {
+                        clause_title: data.clause_title || '',
+                        doc_id: data.doc_id || '',
+                        selected_regulations: data.selected_regulations || []
+                    };
+                }
+                addSystemMessage(`🔄 開始交叉詰問: ${data.clause_id} — ${data.clause_title || ''}`, '5');
                 break;
             case 'round_start':
                 addRoundDivider(data.round, '5');
                 break;
             case 'analyzer':
-                addExamMessage('analyzer', t("sse.analyzer"), data.content, data.clause_id, null, '5');
+                addExamMessage('analyzer', '🔍 分析者', data.content, data.clause_id, null, '5');
                 break;
             case 'verifier':
-                addExamMessage('verifier', t("sse.verifier"), data.content, data.clause_id, null, '5');
+                addExamMessage('verifier', '🛡️ 驗證者', data.content, data.clause_id, null, '5');
                 break;
             case 'round_end': {
-                const resultText = data.agreed ? t("sse.round_agreed") : t("sse.round_disagreed");
+                const resultText = data.agreed ? '✅ 本輪結果：一致' : '❌ 本輪結果：不一致';
                 addSystemMessage(`${resultText} (${data.clause_id})`, '5');
                 break;
             }
             case 'verification_complete':
-                addSystemMessage(data.agreed ? t("sse.verification_complete_agreed", {clause_id: data.clause_id}) : t("sse.verification_complete_flagged", {clause_id: data.clause_id}), '5');
+                addSystemMessage(`🏁 條款 ${data.clause_id} 交叉詰問完成 — ${data.agreed ? '✅ 一致' : '🚩 需 RA 審查'}`, '5');
                 break;
 
+            case 'verification_skipped':
+                addSystemMessage(`⏭ 條款 ${data.clause_id} 跳過交叉詰問 (${data.reason === 'time_budget' ? '時間預算耗盡' : 'Token 預算耗盡'})`, '5');
+                break;
+            case 'human_ack':
+                addSystemMessage(`✅ 人工介入已被 LLM 吸收 (Round ${data.consumed_at_round}, 條款 ${data.clause_id})`, '5');
+                break;
             // ── Human intervention ──
             case 'human_injection':
-                addExamMessage('human', t("sse.human_label", {user_id: data.user_id || t("sse.human_default")}), data.message, null, data.timestamp);
-                break;
-
-            case 'row_reset':
-                addSystemMessage(`🔄 ${data.message || t("sse.row_reset_default", {row_id: data.row_id})}`);
-                // Refresh table to show updated row status
-                loadReport();
+                addExamMessage('human', `🙋 ${data.user_id || '人工'}`, data.message, null, data.timestamp);
                 break;
 
             // ── Control events ──
             case 'complete':
-                addSystemMessage(t("sse.complete_verdict", {verdict: data.verdict || '—', flagged: data.flagged ? t("sse.flagged_label") : ''}));
-                updateSSEStatus('connected', t("sse.complete"));
+                addSystemMessage(`🏁 完成 — 判定: ${data.verdict || '—'} ${data.flagged ? '🚩需RA審查' : ''}`);
+                updateSSEStatus('connected', '✅ 完成');
                 break;
             case 'error':
-                addSystemMessage(t("sse.error_msg", {message: data.message || data.error || t("sse.unknown_error")}));
+                addSystemMessage(`❌ 錯誤: ${data.message || data.error || '未知錯誤'}`);
                 break;
             case 'pause':
-                addSystemMessage(t("sse.paused"));
-                updateSSEStatus('connected', t("sse.paused"));
+                addSystemMessage('⏸ 已暫停');
+                updateSSEStatus('connected', '⏸ 已暫停');
                 els.btnPauseExam.disabled = true;
                 els.btnResumeExam.disabled = false;
                 break;
             case 'resume':
-                addSystemMessage(t("sse.resumed"));
-                updateSSEStatus('streaming', t("sse.streaming"));
+                addSystemMessage('▶️ 已繼續');
+                updateSSEStatus('streaming', '🟢 串流中');
                 els.btnPauseExam.disabled = false;
                 els.btnResumeExam.disabled = true;
                 break;
             case 'heartbeat':
                 break;
             default:
-                console.log('Unknown SSE event type:', type, data);
+                console.warn('Unknown SSE event type:', type, data);
         }
 
         // Auto-scroll to bottom
         els.crossexamFeed.scrollTop = els.crossexamFeed.scrollHeight;
     }
-
-    /**
-     * Format raw LLM response JSON into user-friendly HTML.
-     * Handles Phase 1 (gap scan), Phase 2 (verify), Phase 4 (remediation) formats.
-     */
-    function formatLlmResponse(responseText, phaseNum) {
-        let parsed = null;
-        try {
-            // Try to extract JSON from response (may have markdown code fences)
-            let jsonStr = responseText;
-            const fenceMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/);
-            if (fenceMatch) jsonStr = fenceMatch[1];
-            parsed = JSON.parse(jsonStr);
-        } catch (e) {
-            // Not valid JSON — show as collapsible raw text
-            return `
-                <span class="collapsible-toggle" onclick="this.nextElementSibling.classList.toggle('expanded')">${t("llm.view_response")}</span>
-                <div class="collapsible-content">
-                    <div class="llm-response-preview">${escapeHtml(responseText)}</div>
-                </div>`;
-        }
-
-        let html = '';
-
-        // Phase 1: Gap Scan — clause_results with evidence_results
-        if (parsed.clause_results) {
-            const clauses = Object.entries(parsed.clause_results);
-            html += `<div class="llm-formatted-results">`;
-            for (const [clauseId, clauseData] of clauses) {
-                const evidences = clauseData.evidence_results || [];
-                const foundCount = evidences.filter(e => e.found && !e.is_inadequate).length;
-                const notFoundCount = evidences.filter(e => !e.found).length;
-                const inadequateCount = evidences.filter(e => e.found && e.is_inadequate).length;
-
-                html += `<div class="llm-clause-card">`;
-                html += `<div class="llm-clause-header">${t("llm.clause_header", {clause_id: escapeHtml(clauseId)})}</div>`;
-                html += `<div class="llm-clause-summary">${t("llm.found_count", {found: foundCount, inadequate: inadequateCount, not_found: notFoundCount})}</div>`;
-
-                for (const ev of evidences) {
-                    const icon = ev.found ? (ev.is_inadequate ? '⚠️' : '✅') : '❌';
-                    const evClass = ev.found ? (ev.is_inadequate ? 'inadequate' : 'found') : 'not-found';
-                    html += `<div class="llm-evidence-item ${evClass}">`;
-                    html += `<div class="llm-evidence-name">${icon} ${escapeHtml(ev.evidence_name || t("llm.unknown_evidence"))}</div>`;
-                    if (ev.source_section) {
-                        html += `<div class="llm-evidence-detail">📍 ${escapeHtml(ev.source_section)}</div>`;
-                    }
-                    if (ev.source_quote) {
-                        html += `<div class="llm-evidence-quote">“${escapeHtml(ev.source_quote.substring(0, 150))}${ev.source_quote.length > 150 ? '...' : ''}”</div>`;
-                    }
-                    if (ev.reasoning) {
-                        html += `<div class="llm-evidence-detail">💭 ${escapeHtml(ev.reasoning)}</div>`;
-                    }
-                    if (ev.relevance_score != null) {
-                        const pct = Math.round(ev.relevance_score * 100);
-                        html += `<div class="llm-evidence-detail">📊 相關度: ${pct}%</div>`;
-                    }
-                    html += `</div>`;
-                }
-                html += `</div>`;
-            }
-            html += `</div>`;
-            // Also keep raw view as collapsible fallback
-            html += `<span class="collapsible-toggle" onclick="this.nextElementSibling.classList.toggle('expanded')" style="margin-top:8px;display:inline-block">${t("llm.view_raw")}</span>`;
-            html += `<div class="collapsible-content"><div class="llm-response-preview">${escapeHtml(responseText)}</div></div>`;
-            return html;
-        }
-
-        // Phase 4: Remediation — suggestions
-        if (parsed.suggestions || parsed.remediation_suggestions) {
-            const suggestions = parsed.suggestions || parsed.remediation_suggestions || [];
-            html += `<div class="llm-formatted-results">`;
-            for (const s of (Array.isArray(suggestions) ? suggestions : [])) {
-                html += `<div class="llm-clause-card">`;
-                html += `<div class="llm-clause-header">${t("llm.remediation_header", {title: escapeHtml(s.clause_id || s.title || t("llm.suggestion_default"))})}</div>`;
-                if (s.suggestion || s.recommendation) {
-                    html += `<div class="llm-evidence-detail">${escapeHtml(s.suggestion || s.recommendation)}</div>`;
-                }
-                if (s.regulation_cite) {
-                    html += `<div class="llm-evidence-detail">📖 ${escapeHtml(s.regulation_cite)}</div>`;
-                }
-                html += `</div>`;
-            }
-            html += `</div>`;
-            html += `<span class="collapsible-toggle" onclick="this.nextElementSibling.classList.toggle('expanded')" style="margin-top:8px;display:inline-block">${t("llm.view_raw")}</span>`;
-            html += `<div class="collapsible-content"><div class="llm-response-preview">${escapeHtml(responseText)}</div></div>`;
-            return html;
-        }
-
-        // Generic parsed JSON — try to render key-value pairs nicely
-        html += `<div class="llm-formatted-results">`;
-        for (const [key, value] of Object.entries(parsed)) {
-            if (typeof value === 'object' && value !== null) {
-                html += `<div class="llm-clause-card">`;
-                html += `<div class="llm-clause-header">${escapeHtml(key)}</div>`;
-                html += `<div class="llm-evidence-detail">${escapeHtml(JSON.stringify(value, null, 2).substring(0, 500))}</div>`;
-                html += `</div>`;
-            } else {
-                html += `<div class="llm-evidence-detail"><strong>${escapeHtml(key)}</strong>: ${escapeHtml(String(value))}</div>`;
-            }
-        }
-        html += `</div>`;
-        html += `<span class="collapsible-toggle" onclick="this.nextElementSibling.classList.toggle('expanded')" style="margin-top:8px;display:inline-block">${t("llm.view_raw")}</span>`;
-        html += `<div class="collapsible-content"><div class="llm-response-preview">${escapeHtml(responseText)}</div></div>`;
-        return html;
-    }
-
 
     /**
      * Add a phase card to the SSE feed.
@@ -1976,42 +2811,46 @@
         const clauseIds = (data.clause_ids || []).join(', ');
 
         let statusIcon = '🔄';
-        let statusText = t("sse.phase_running");
+        let statusText = '執行中...';
         if (status === 'result') {
             statusIcon = '✅';
-            statusText = t("sse.phase_done");
+            statusText = '完成';
         } else if (status === 'error') {
             statusIcon = '❌';
-            statusText = t("sse.phase_error");
+            statusText = '錯誤';
         }
 
         let bodyHtml = '';
         if (status === 'start' && data.prompt_preview) {
             bodyHtml = `
-                <span class="collapsible-toggle" onclick="this.nextElementSibling.classList.toggle('expanded')">${t("llm.view_prompt")}</span>
+                <span class="collapsible-toggle" onclick="this.nextElementSibling.classList.toggle('expanded')">📄 查看 Prompt 預覽</span>
                 <div class="collapsible-content">
                     <div class="llm-prompt-preview">${escapeHtml(data.prompt_preview)}</div>
                 </div>`;
         } else if (status === 'result') {
             const summary = [];
             if (data.evidence_summary) {
-                summary.push(`${t("sse.evidence_found")}: ${data.evidence_summary.found || 0} | ${t("sse.evidence_not_found")}: ${data.evidence_summary.not_found || 0} | ${t("sse.evidence_inadequate")}: ${data.evidence_summary.inadequate || 0}`);
+                summary.push(`找到: ${data.evidence_summary.found || 0} | 未找到: ${data.evidence_summary.not_found || 0} | 不充分: ${data.evidence_summary.inadequate || 0}`);
             }
             if (data.total_suggestions !== undefined) {
-                summary.push(t("sse.suggestions_count", {count: data.total_suggestions}));
+                summary.push(`建議數: ${data.total_suggestions}`);
             }
             if (data.total_agreed !== undefined) {
-                summary.push(t("sse.agreed_count", {agreed: data.total_agreed, flagged: data.total_flagged || 0}));
+                summary.push(`一致: ${data.total_agreed} | 標記: ${data.total_flagged || 0}`);
             }
             if (data.usage) {
                 summary.push(`Token: ${(data.usage.total_tokens || 0).toLocaleString()}`);
             }
             bodyHtml = summary.length > 0 ? `<div style="margin-bottom:6px">${summary.join(' | ')}</div>` : '';
             if (data.llm_response) {
-                bodyHtml += formatLlmResponse(data.llm_response, phaseNum);
+                bodyHtml += `
+                    <span class="collapsible-toggle" onclick="this.nextElementSibling.classList.toggle('expanded')">📄 查看 LLM 回應</span>
+                    <div class="collapsible-content">
+                        <div class="llm-response-preview">${escapeHtml(data.llm_response)}</div>
+                    </div>`;
             }
         } else if (status === 'error') {
-            bodyHtml = `<div style="color:#dc2626">${escapeHtml(data.error || t("sse.unknown_error"))}</div>`;
+            bodyHtml = `<div style="color:#dc2626">${escapeHtml(data.error || '未知錯誤')}</div>`;
         }
 
         card.innerHTML = `
@@ -2021,7 +2860,7 @@
                 <span class="card-doc-info">${escapeHtml(docInfo)}</span>
                 <span class="card-timestamp">${now}</span>
             </div>
-            ${clauseIds ? `<div style="font-size:0.8rem;color:#64748b;margin-bottom:4px">${t("sse.clauses")} ${escapeHtml(clauseIds)}</div>` : ''}
+            ${clauseIds ? `<div style="font-size:0.8rem;color:#64748b;margin-bottom:4px">條款: ${escapeHtml(clauseIds)}</div>` : ''}
             <div class="crossexam-card-body">${bodyHtml}</div>`;
 
         // If it's a 'start' event, mark previous start card for same doc as done
@@ -2047,13 +2886,28 @@
         const timeStr = timestamp ? new Date(timestamp * 1000).toLocaleTimeString() : new Date().toLocaleTimeString();
         const regBadge = regulation ? `<span class="msg-regulation">${escapeHtml(regulation)}</span>` : '';
 
+        // Enrich header with clause context (clause_title, doc_id) from cache
+        let contextLine = '';
+        if (regulation && clauseContextCache[regulation]) {
+            const ctx = clauseContextCache[regulation];
+            const parts = [];
+            if (ctx.clause_title) parts.push(ctx.clause_title);
+            if (ctx.doc_id) parts.push(`📄 ${ctx.doc_id}`);
+            if (ctx.selected_regulations && ctx.selected_regulations.length) {
+                parts.push(`📜 ${ctx.selected_regulations.join(', ')}`);
+            }
+            if (parts.length) {
+                contextLine = `<div class="msg-clause-context">${escapeHtml(parts.join(' │ '))}</div>`;
+            }
+        }
+
         msgDiv.innerHTML = `
             <div class="msg-header">
                 <span class="msg-role role-${type}">${role}</span>
                 <span>${regBadge} <span class="msg-time">${timeStr}</span></span>
             </div>
-            <div class="msg-body">${escapeHtml(content || '')}</div>`;
-
+            ${contextLine}
+            <div class="msg-body">${(type === 'analyzer' || type === 'verifier') ? formatLLMContent(content, type) : escapeHtml(content || '')}</div>`;
         els.crossexamFeed.appendChild(msgDiv);
     }
 
@@ -2075,7 +2929,7 @@
         const div = document.createElement('div');
         div.className = 'msg-round-divider';
         if (phase) div.dataset.phase = phase;
-        div.textContent = t("sse.round_divider", {round: round});
+        div.textContent = `─── 第 ${round} 輪 ───`;
 
         // Respect active filter
         if (phase && activePhaseFilter !== 'all' && activePhaseFilter !== phase) {
@@ -2098,7 +2952,7 @@
         try {
             await apiPost(`/${runId}/pause`, {});
         } catch (err) {
-            showToast(t("crossexam.pause_error", {error: err.message}), "error");
+            showToast(t('toast.pauseFailed', {msg: err.message}), "error");
         }
     }
 
@@ -2108,7 +2962,7 @@
         try {
             await apiPost(`/${runId}/resume`, {});
         } catch (err) {
-            showToast(t("crossexam.resume_error", {error: err.message}), "error");
+            showToast(t('toast.resumeFailed', {msg: err.message}), "error");
         }
     }
 
@@ -2133,7 +2987,7 @@
             await apiPost(`/${runId}/inject`, { message: message });
             els.humanMessageInput.value = "";
         } catch (err) {
-            showToast(t("crossexam.send_error", {error: err.message}), "error");
+            showToast(t('toast.sendFailed', {msg: err.message}), "error");
         } finally {
             els.btnSendHuman.disabled = false;
         }
@@ -2158,14 +3012,22 @@
         const cmd = parts[0].toLowerCase();
 
         if (cmd === "/help") {
-            appendSystemMessage(
-                `<strong>${t("dialog.help_title")}</strong><br>` +
-                `<code>/adjust &lt;standard_id&gt; "&lt;clause_name&gt;" &lt;old&gt; -&gt; &lt;new&gt;</code><br>` +
-                `&nbsp;&nbsp;${t("dialog.help_adjust_desc")}<br>` +
-                `&nbsp;&nbsp;${t("dialog.help_adjust_example")} <code>/adjust ISO_14971 "Clause 4 (Risk management process)" 7.1 -> 7.3.3</code><br><br>` +
-                `<code>/standards</code> — ${t("dialog.help_standards_desc")}<br>` +
-                `<code>/help</code> — ${t("dialog.help_help_desc")}`
-            );
+            // If crossexam help popup exists, toggle it instead of appending
+            if (els.crossexamHelpPopup) {
+                togglePopup('crossexamHelp');
+            } else {
+                appendSystemMessage(
+                    `<strong>可用命令 (Available Commands):</strong><br>` +
+                    `<code>/download &lt;type&gt; &lt;format&gt;</code> — 下載報告<br>` +
+                    `<code>/feedback daily|meta "&lt;text&gt;"</code> — 提交意見<br>` +
+                    `<code>/feedback history</code> — 查看意見紀錄<br>` +
+                    `<code>/run audit|meta</code> — 執行稽核/總檢<br>` +
+                    `<code>/downloads</code> — 顯示可下載資料目錄<br>` +
+                    `<code>/adjust &lt;id&gt; "&lt;clause&gt;" &lt;old&gt; -&gt; &lt;new&gt;</code> — 調整條款<br>` +
+                    `<code>/standards</code> — 列出補充標準<br>` +
+                    `<code>/help</code> — 顯示此幫助訊息`
+                );
+            }
             return true;
         }
 
@@ -2173,7 +3035,7 @@
             try {
                 const resp = await fetch("/api/report/standards/list");
                 const data = await resp.json();
-                let html = `<strong>${t("dialog.standards_title", {count: data.standards.length})}</strong><br>`;
+                let html = `<strong>補充標準 (${data.standards.length} 項):</strong><br>`;
                 for (const std of data.standards) {
                     html += `<br><strong>${std.name_zh}</strong> (${std.standard_id})<br>`;
                     for (const cl of std.clause_links) {
@@ -2182,7 +3044,7 @@
                 }
                 appendSystemMessage(html);
             } catch (err) {
-                showToast(t("dialog.standards_load_error", {error: err.message}), "error");
+                showToast(t('toast.standardsFailed', {msg: err.message}), "error");
             }
             return true;
         }
@@ -2194,9 +3056,9 @@
             );
             if (!adjustMatch) {
                 appendSystemMessage(
-                    `<span style="color:#e74c3c">${t("dialog.adjust_format_error")}</span><br>` +
+                    `<span style="color:#e74c3c">✗ 格式錯誤。用法:</span><br>` +
                     `<code>/adjust &lt;standard_id&gt; "&lt;clause_name&gt;" &lt;old_clause&gt; -&gt; &lt;new_clause&gt;</code><br>` +
-                    `${t("dialog.adjust_example")} <code>/adjust ISO_14971 "Clause 4 (Risk management process)" 7.1 -> 7.3.3</code>`
+                    `例: <code>/adjust ISO_14971 "Clause 4 (Risk management process)" 7.1 -> 7.3.3</code>`
                 );
                 return true;
             }
@@ -2223,8 +3085,39 @@
                     );
                 }
             } catch (err) {
-                showToast(t("dialog.adjust_error", {error: err.message}), "error");
+                showToast(t('toast.adjustFailed', {msg: err.message}), "error");
             }
+            return true;
+        }
+
+        // ---- /download <type> <format> ----
+        if (cmd === "/download") {
+            return handleDownloadCommand(parts, 'crossexam');
+        }
+
+        // ---- /downloads — show download catalog ----
+        if (cmd === "/downloads") {
+            renderDownloadCatalog('crossexam');
+            togglePopup('crossexamDownloads');
+            return true;
+        }
+
+        // ---- /feedback ----
+        if (cmd === "/feedback") {
+            return await handleFeedbackCommand(message, 'crossexam');
+        }
+
+        // ---- /run audit | /run meta ----
+        if (cmd === "/run") {
+            const target = (parts[1] || '').toLowerCase();
+            if (target === 'audit') {
+                runDailyAudit();
+                return true;
+            } else if (target === 'meta') {
+                runMetaReview();
+                return true;
+            }
+            appendSystemMessage(`<span style="color:#e74c3c">✗ 未知目標。用法: /run audit 或 /run meta</span>`);
             return true;
         }
 
@@ -2247,176 +3140,663 @@
 
 
     // ============================================================
-    // Verification Tab
+    // Deep Report Export
     // ============================================================
 
-    /**
-     * Load full verification report from the API and render all sections.
-     */
-    async function loadVerification() {
-        // Show loading state
-        if (els.verNoData) {
-            els.verNoData.style.display = "block";
-            if (els.verNoDataMsg) els.verNoDataMsg.textContent = t("verification.verifying");
-        }
-        if (els.verCrossChecks) els.verCrossChecks.style.display = "none";
-        if (els.verTableWrapper) els.verTableWrapper.style.display = "none";
+    function exportDeepReport(format) {
+        const url = `${API_BASE}/${RUN_ID}/export/deep_${format}`;
+        showToast(t('toast.exportingDeep', {fmt: format.toUpperCase()}), "info");
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }
+
+
+    // ============================================================
+    // Cross-Exam History
+    // ============================================================
+
+    async function loadCrossexamHistory() {
+        const listEl = document.getElementById('historyList');
+        const countEl = document.getElementById('historyCount');
+        const metaBtn = document.getElementById('btnRunMetaAnalysis');
+        if (!listEl) return;
+
+        listEl.innerHTML = '<div class="loading-cell">載入中...</div>';
 
         try {
-            const data = await apiFetch("/verification/full");
-            verificationLoaded = true;
-            renderVerification(data);
-        } catch (err) {
-            if (els.verNoData) {
-                els.verNoData.style.display = "block";
-                if (els.verNoDataMsg) {
-                    els.verNoDataMsg.textContent = t("verification.verify_error", {error: err.message});
+            const data = await apiFetch('/crossexam/history');
+            const records = data.records || [];
+            countEl.textContent = `${records.length} 筆記錄`;
+
+            if (metaBtn) {
+                metaBtn.disabled = !data.needs_meta_analysis;
+                if (data.needs_meta_analysis) {
+                    metaBtn.title = '可以執行品質分析';
                 }
             }
-            showToast(t("verification.verify_toast_error", {error: err.message}), "error");
-        }
-    }
 
-    /**
-     * Render the full verification report.
-     */
-    function renderVerification(data) {
-        // Handle no-data state
-        if (!data.has_data) {
-            renderVerificationNoData(data.no_data_message || t("verification.no_data_default"));
-            return;
-        }
-
-        // Hide no-data, show results
-        if (els.verNoData) els.verNoData.style.display = "none";
-
-        // Summary cards
-        renderVerificationSummary(data);
-
-        // Cross checks
-        renderVerificationCrossChecks(data.cross_checks || []);
-
-        // Document table
-        renderVerificationTable(data.documents || []);
-
-        // Timestamp
-        if (els.verTimestamp && data.verified_at) {
-            const d = new Date(data.verified_at);
-            els.verTimestamp.textContent = t("verification.timestamp", {time: d.toLocaleString()});
-        }
-    }
-
-    /**
-     * Show the no-data empty state.
-     */
-    function renderVerificationNoData(message) {
-        if (els.verNoData) {
-            els.verNoData.style.display = "block";
-            if (els.verNoDataMsg) els.verNoDataMsg.textContent = message;
-        }
-        if (els.verCrossChecks) els.verCrossChecks.style.display = "none";
-        if (els.verTableWrapper) els.verTableWrapper.style.display = "none";
-        // Reset summary cards to dashes
-        if (els.verPassCount) els.verPassCount.textContent = "—";
-        if (els.verWarnCount) els.verWarnCount.textContent = "—";
-        if (els.verFailCount) els.verFailCount.textContent = "—";
-        if (els.verTotalCount) els.verTotalCount.textContent = "—";
-        if (els.verTimestamp) els.verTimestamp.textContent = "";
-    }
-
-    /**
-     * Render verification summary cards.
-     */
-    function renderVerificationSummary(data) {
-        if (els.verPassCount) els.verPassCount.textContent = data.passed_count ?? "—";
-        if (els.verWarnCount) els.verWarnCount.textContent = data.warning_count ?? "—";
-        if (els.verFailCount) els.verFailCount.textContent = data.failed_count ?? "—";
-        if (els.verTotalCount) els.verTotalCount.textContent = data.total_documents ?? "—";
-    }
-
-    /**
-     * Render cross-check results list.
-     */
-    function renderVerificationCrossChecks(crossChecks) {
-        if (!els.verCrossChecks || !els.verCrossChecksList) return;
-
-        if (!crossChecks.length) {
-            els.verCrossChecks.style.display = "none";
-            return;
-        }
-
-        els.verCrossChecks.style.display = "block";
-        els.verCrossChecksList.innerHTML = crossChecks.map(function (c) {
-            var icon = c.passed ? "✅" : (c.severity === "critical" ? "🔴" : "🟡");
-            var cls = c.passed ? "cross-check-pass" : "cross-check-fail";
-            return (
-                '<div class="cross-check-item ' + cls + '" style="padding:6px 10px;margin-bottom:4px;' +
-                'border-radius:6px;background:' + (c.passed ? '#f0fdf4' : '#fef2f2') + '">' +
-                '<span style="margin-right:6px">' + icon + '</span>' +
-                '<strong>' + escapeHtml(c.check_name) + '</strong>: ' +
-                escapeHtml(c.message) +
-                '</div>'
-            );
-        }).join("");
-    }
-
-    /**
-     * Render the per-document verification table.
-     */
-    function renderVerificationTable(documents) {
-        if (!els.verTableWrapper || !els.verTableBody) return;
-
-        if (!documents.length) {
-            els.verTableWrapper.style.display = "none";
-            return;
-        }
-
-        els.verTableWrapper.style.display = "block";
-
-        els.verTableBody.innerHTML = documents.map(function (doc) {
-            var statusIcon = doc.overall_status === "pass" ? "🟢" :
-                             doc.overall_status === "warning" ? "🟡" : "🔴";
-
-            // Summarize checks
-            var passedChecks = doc.checks.filter(function (c) { return c.passed; }).length;
-            var totalChecks = doc.checks.length;
-            var checksSummary = t("verification.checks_passed", {passed: passedChecks, total: totalChecks});
-
-            // Collect failed/warning check messages
-            var issues = doc.checks
-                .filter(function (c) { return !c.passed; })
-                .map(function (c) { return escapeHtml(c.message); })
-                .join("<br>");
-            if (!issues) issues = '<span style="color:#16a34a">' + t("verification.no_issues") + '</span>';
-
-            // Truncate URL for display
-            var displayUrl = doc.url || "—";
-            if (displayUrl.length > 50) {
-                displayUrl = displayUrl.substring(0, 47) + "…";
+            if (records.length === 0) {
+                listEl.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📜</div><div class="empty-state-text">尚無交叉詰問記錄</div></div>';
+                return;
             }
 
-            return (
-                '<tr>' +
-                '<td>' + escapeHtml(doc.region || '—') + '</td>' +
-                '<td>' + escapeHtml(doc.agency || '—') + '</td>' +
-                '<td title="' + escapeHtml(doc.url || '') + '">' + escapeHtml(displayUrl) + '</td>' +
-                '<td style="text-align:center">' + statusIcon + '</td>' +
-                '<td>' + checksSummary + '</td>' +
-                '<td>' + issues + '</td>' +
-                '</tr>'
-            );
-        }).join("");
+            listEl.innerHTML = records.map(r => `
+                <div class="history-record-card">
+                    <div class="history-record-header">
+                        <span class="record-id">📌 ${r.record_id}</span>
+                        <span class="record-time">${r.timestamp ? r.timestamp.substring(0, 19) : ''}</span>
+                    </div>
+                    <div class="history-record-body">
+                        <div class="record-stats">
+                            <span>📋 條款: ${r.total_clauses}</span>
+                            <span>✅ 同意: ${r.total_agreed}</span>
+                            <span>⚠️ RA: ${r.total_flagged}</span>
+                            <span>🔄 輪次: ${r.total_rounds}</span>
+                        </div>
+                        <div class="record-regs">法規: ${(r.selected_regulations || []).join(', ') || '無'}</div>
+                        <div class="record-countries">國家: ${(r.countries || []).join(', ') || '無'}</div>
+                    </div>
+                    <div class="history-record-actions">
+                        <button class="btn btn-sm btn-outline" onclick="window.__report.exportHistoryRecord('${r.record_id}', 'word')">📄 Word</button>
+                        <button class="btn btn-sm btn-outline" onclick="window.__report.exportHistoryRecord('${r.record_id}', 'excel')">📊 Excel</button>
+                    </div>
+                </div>
+            `).join('');
+
+        } catch (e) {
+            listEl.innerHTML = `<div class="error-state">❗ 載入失敗: ${e.message || e}</div>`;
+        }
     }
+
+    function exportHistoryRecord(recordId, format) {
+        const url = `${API_BASE}/crossexam/history/${recordId}/export/${format}`;
+        showToast(t('toast.exportingCrossexam', {fmt: format.toUpperCase()}), "info");
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }
+
+
+    // ============================================================
+    // Meta-Analysis
+    // ============================================================
+
+    async function loadMetaAnalysis() {
+        const section = document.getElementById('metaAnalysisSection');
+        const content = document.getElementById('metaAnalysisContent');
+        if (!section || !content) return;
+
+        section.style.display = 'block';
+        content.innerHTML = '<div class="loading-cell">正在載入品質分析...</div>';
+
+        try {
+            const data = await apiFetch('/crossexam/meta-analysis');
+            if (!data.available) {
+                content.innerHTML = '<div class="empty-state-text">尚無品質分析結果。請先確保有 10 筆以上交叉詰問記錄，並執行分析。</div>';
+                return;
+            }
+
+            const resp = data.llm_response || {};
+            const score = resp.quality_score || 0;
+            const scoreColor = score >= 0.7 ? '#27ae60' : score >= 0.4 ? '#f39c12' : '#e74c3c';
+            const findings = resp.findings || [];
+            const recommendations = resp.recommendations || [];
+            const tuning = resp.prompt_tuning || {};
+
+            content.innerHTML = `
+                <div class="meta-summary">
+                    <div class="meta-score" style="border-color: ${scoreColor}">
+                        <div class="score-value" style="color: ${scoreColor}">${(score * 100).toFixed(0)}</div>
+                        <div class="score-label">品質分數</div>
+                    </div>
+                    <div class="meta-text">${resp.summary || '無摘要'}</div>
+                </div>
+                ${findings.length ? `<h4>🔍 發現事項</h4><ul>${findings.map(f => `
+                    <li class="finding finding-${f.severity || 'low'}">
+                        <strong>[${f.severity || ''}]</strong> ${f.description || ''}
+                        ${f.recommendation ? `<br><em>建議: ${f.recommendation}</em>` : ''}
+                    </li>
+                `).join('')}</ul>` : ''}
+                ${recommendations.length ? `<h4>💡 建議</h4><ul>${recommendations.map(r => `<li>${r}</li>`).join('')}</ul>` : ''}
+                ${Object.keys(tuning).length ? `<h4>🔧 Prompt 調整</h4><ul>${Object.entries(tuning).map(([k, v]) => `<li><strong>${k}</strong>: ${v}</li>`).join('')}</ul>` : ''}
+            `;
+
+        } catch (e) {
+            content.innerHTML = `<div class="error-state">❗ 品質分析載入失敗: ${e.message || e}</div>`;
+        }
+    }
+
+    function exportMetaAnalysis(format) {
+        const url = `${API_BASE}/crossexam/meta-analysis/export/${format}`;
+        showToast(t('toast.exportingQuality', {fmt: format.toUpperCase()}), "info");
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }
+
+    // ============================================================
+    // Daily Audit Tab
+    // ============================================================
+
+    async function loadDailyAuditHistory() {
+        if (!els.dailyAuditHistory) return;
+        els.dailyAuditHistory.innerHTML = '<div class="loading-cell">正在載入稽核歷史...</div>';
+
+        try {
+            const data = await apiFetch('/daily-audit/history');
+            const records = data.records || [];
+            if (els.dailyAuditCount) els.dailyAuditCount.textContent = `${records.length} 筆紀錄`;
+
+            // Enable meta review button if >= 10 records
+            if (els.btnRunMetaReview && records.length >= 10) {
+                els.btnRunMetaReview.disabled = false;
+                els.btnRunMetaReview.title = '';
+            }
+
+            if (records.length === 0) {
+                els.dailyAuditHistory.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🔍</div>
+                        <div class="empty-state-text">尚無每日稽核紀錄。請點擊「執行每日稽核」開始。</div>
+                    </div>`;
+                return;
+            }
+
+            // Show most recent result in summary cards
+            const latest = records[0];
+            showAuditSummary(latest);
+
+            // Check for deviations
+            if (latest.deviation_detected) {
+                showDeviationAlert(latest);
+            }
+
+            // Render history list
+            let html = '<div class="history-records">';
+            for (const r of records) {
+                const scoreColor = r.overall_score >= 80 ? '#27ae60' : r.overall_score >= 60 ? '#f39c12' : '#e74c3c';
+                html += `
+                    <div class="history-record-card">
+                        <div class="record-header">
+                            <span class="record-date">📅 ${r.audit_date || r.timestamp || ''}</span>
+                            <span class="record-score" style="color:${scoreColor}">總分: ${r.overall_score}/100</span>
+                        </div>
+                        <div class="record-scores">
+                            <span>📜 Dim A (法規準確度): ${r.dim_a_score}/100</span>
+                            <span>💬 Dim B (交叉詰問品質): ${r.dim_b_score}/100</span>
+                        </div>
+                        ${r.deviation_detected ? '<div class="record-deviation">⚠️ 差異警告: ' + (r.deviation_details || '') + '</div>' : ''}
+                        <div class="record-actions">
+                            <button class="btn btn-outline btn-sm" onclick="window.__report.exportAuditRecord('${r.audit_id}', 'word')">📄 Word</button>
+                            <button class="btn btn-outline btn-sm" onclick="window.__report.exportAuditRecord('${r.audit_id}', 'excel')">📊 Excel</button>
+                        </div>
+                    </div>`;
+            }
+            html += '</div>';
+            els.dailyAuditHistory.innerHTML = html;
+
+            // Load meta review if available
+            await loadLatestMetaReview();
+
+        } catch (e) {
+            els.dailyAuditHistory.innerHTML = `<div class="error-state">❍ 載入失敗: ${e.message || e}</div>`;
+        }
+    }
+
+    function showAuditSummary(result) {
+        if (!els.dailyAuditSummary) return;
+        els.dailyAuditSummary.style.display = 'flex';
+        if (els.auditOverallScore) els.auditOverallScore.textContent = result.overall_score || '—';
+        if (els.auditDimAScore) els.auditDimAScore.textContent = result.dim_a_score || '—';
+        if (els.auditDimBScore) els.auditDimBScore.textContent = result.dim_b_score || '—';
+    }
+
+    function showDeviationAlert(result) {
+        if (!els.deviationAlertBanner) return;
+        els.deviationAlertBanner.style.display = 'flex';
+        if (els.deviationAlertTitle) {
+            els.deviationAlertTitle.textContent = '稽核分數差異警告';
+        }
+        if (els.deviationAlertDetails) {
+            els.deviationAlertDetails.innerHTML = `
+                <p>${result.deviation_details || '稽核分數出現偏差，請檢查以下細節。'}</p>
+                <p>系統將根據差異分析結果調整交叉詰問參數。如您有任何意見，請在文件管制系統中提出。</p>
+            `;
+        }
+    }
+
+    async function runDailyAudit() {
+        if (els.btnRunDailyAudit) els.btnRunDailyAudit.disabled = true;
+        showToast(t('toast.auditRunning'), 'info');
+
+        try {
+            const result = await apiPost('/daily-audit/run', {});
+            showToast(t('toast.auditDone', {score: result.overall_score}), 'success');
+            showAuditSummary(result);
+            if (result.deviation_detected) {
+                showDeviationAlert(result);
+            }
+            // Reload history
+            await loadDailyAuditHistory();
+        } catch (e) {
+            showToast(t('toast.auditFailed', {msg: e.message || e}), 'error');
+        } finally {
+            if (els.btnRunDailyAudit) els.btnRunDailyAudit.disabled = false;
+        }
+    }
+
+    async function runMetaReview() {
+        if (els.btnRunMetaReview) els.btnRunMetaReview.disabled = true;
+        showToast(t('toast.metaRunning'), 'info');
+
+        try {
+            const result = await apiPost('/daily-audit/meta-review', {});
+            showToast(t('toast.metaDone'), 'success');
+            renderMetaReview(result);
+        } catch (e) {
+            showToast(t('toast.metaFailed', {msg: e.message || e}), 'error');
+        } finally {
+            if (els.btnRunMetaReview) els.btnRunMetaReview.disabled = false;
+        }
+    }
+
+    async function loadLatestMetaReview() {
+        try {
+            const data = await apiFetch('/daily-audit/meta-review');
+            if (data.available) {
+                renderMetaReview(data);
+            }
+        } catch (e) {
+            // Meta review not available yet — silent
+        }
+    }
+
+    function renderMetaReview(data) {
+        if (!els.metaReviewSection || !els.metaReviewContent) return;
+        els.metaReviewSection.style.display = 'block';
+
+        const avgA = data.avg_dim_a || 0;
+        const avgB = data.avg_dim_b || 0;
+        const trend = data.trend_analysis || {};
+        const recommendations = data.recommendations || [];
+        const summary = data.deviation_summary || '';
+
+        els.metaReviewContent.innerHTML = `
+            <div class="meta-summary">
+                <div class="meta-score" style="border-color: ${avgA >= 80 ? '#27ae60' : '#f39c12'}">
+                    <div class="score-value" style="color: ${avgA >= 80 ? '#27ae60' : '#f39c12'}">${avgA.toFixed(0)}</div>
+                    <div class="score-label">平均 Dim A</div>
+                </div>
+                <div class="meta-score" style="border-color: ${avgB >= 80 ? '#27ae60' : '#f39c12'}">
+                    <div class="score-value" style="color: ${avgB >= 80 ? '#27ae60' : '#f39c12'}">${avgB.toFixed(0)}</div>
+                    <div class="score-label">平均 Dim B</div>
+                </div>
+            </div>
+            ${summary ? `<div class="meta-text"><strong>偏差摘要:</strong> ${summary}</div>` : ''}
+            ${trend.direction ? `<div class="meta-text"><strong>趨勢:</strong> ${trend.direction} (${trend.detail || ''})</div>` : ''}
+            ${recommendations.length ? `<h4>💡 建議</h4><ul>${recommendations.map(r => `<li>${r}</li>`).join('')}</ul>` : ''}
+        `;
+    }
+
+    function exportDailyAudit(format) {
+        const url = `${API_BASE}/daily-audit/export/${format}`;
+        showToast(t('toast.exportingAudit', {fmt: format.toUpperCase()}), 'info');
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = '';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }
+
+    function exportMetaReviewReport(format) {
+        const url = `${API_BASE}/daily-audit/meta-review/export/${format}`;
+        showToast(t('toast.exportingMetaReview', {fmt: format.toUpperCase()}), 'info');
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = '';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }
+
+    function exportAuditRecord(auditId, format) {
+        const url = `${API_BASE}/daily-audit/history/${auditId}/export/${format}`;
+        showToast(t('toast.exportingAuditRecord', {fmt: format.toUpperCase()}), 'info');
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = '';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }
+
+
+    // ============================================================
+    // Unified Command Bar Logic
+    // ============================================================
+
+    // ---- Popup management ----
+    const popupMap = {
+        crossrefHelp:      () => els.crossrefHelpPopup,
+        crossrefDownloads: () => els.crossrefDownloadCatalog,
+        crossrefFeedback:  () => els.crossrefFeedbackHistory,
+        crossexamHelp:     () => els.crossexamHelpPopup,
+        crossexamDownloads:() => els.crossexamDownloadCatalog,
+        crossexamFeedback: () => els.crossexamFeedbackHistory,
+    };
+
+    function togglePopup(name) {
+        const el = popupMap[name] && popupMap[name]();
+        if (!el) return;
+        // Close all sibling popups first
+        const prefix = name.startsWith('crossref') ? 'crossref' : 'crossexam';
+        Object.keys(popupMap).forEach(k => {
+            if (k.startsWith(prefix) && k !== name) {
+                const other = popupMap[k]();
+                if (other) other.style.display = 'none';
+            }
+        });
+        el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function closePopup(name) {
+        const el = popupMap[name] && popupMap[name]();
+        if (el) el.style.display = 'none';
+    }
+
+    // ---- Crossref command dispatch ----
+    async function sendCrossrefCommand() {
+        const input = els.crossrefCommandInput;
+        if (!input) return;
+        const message = input.value.trim();
+        if (!message) return;
+
+        if (message.startsWith('/')) {
+            const parts = message.split(/\s+/);
+            const cmd = parts[0].toLowerCase();
+
+            if (cmd === '/help') {
+                togglePopup('crossrefHelp');
+                input.value = '';
+                return;
+            }
+            if (cmd === '/downloads') {
+                renderDownloadCatalog('crossref');
+                togglePopup('crossrefDownloads');
+                input.value = '';
+                return;
+            }
+            if (cmd === '/download') {
+                handleDownloadCommand(parts, 'crossref');
+                input.value = '';
+                return;
+            }
+            if (cmd === '/feedback') {
+                await handleFeedbackCommand(message, 'crossref');
+                input.value = '';
+                return;
+            }
+            if (cmd === '/run') {
+                const target = (parts[1] || '').toLowerCase();
+                if (target === 'audit') { runDailyAudit(); }
+                else if (target === 'meta') { runMetaReview(); }
+                else { showToast(t('toast.unknownTarget'), 'error'); }
+                input.value = '';
+                return;
+            }
+            if (cmd === '/standards') {
+                // Delegate to existing handler via crossexam
+                try {
+                    const resp = await fetch('/api/report/standards/list');
+                    const data = await resp.json();
+                    let msg = `補充標準 (${data.standards.length} 項):\n`;
+                    for (const std of data.standards) {
+                        msg += `\n${std.name_zh} (${std.standard_id})\n`;
+                        for (const cl of std.clause_links) {
+                            msg += `  ${cl.standard_clause} \u2192 ISO 13485 ${cl.iso_13485_clause}\n`;
+                        }
+                    }
+                    showToast(msg, 'info', 8000);
+                } catch (err) {
+                    showToast(t('toast.standardsFailed', {msg: err.message}), 'error');
+                }
+                input.value = '';
+                return;
+            }
+            // Unrecognized command
+            showToast(t('toast.unknownCommand', {cmd: cmd}), 'error');
+            input.value = '';
+            return;
+        }
+
+        // Not a command — treat as general feedback for daily audit
+        showToast(t('toast.feedbackHint'), 'info');
+        input.value = '';
+    }
+
+    // ---- Download command handler ----
+    function handleDownloadCommand(parts, tab) {
+        const type = (parts[1] || '').toLowerCase();
+        const format = (parts[2] || 'word').toLowerCase();
+        if (!['word', 'excel'].includes(format)) {
+            showToast(t('toast.formatError'), 'error');
+            return true;
+        }
+        const downloadMap = {
+            report:    () => exportReport(format),
+            deep:      () => exportDeepReport(format),
+            audit:     () => exportDailyAudit(format),
+            meta:      () => exportMetaReviewReport(format),
+            crossexam: () => {
+                // Download latest crossexam quality analysis
+                const url = `${API_BASE}/crossexam/meta-analysis/export/${format}`;
+                triggerDownload(url, `交叉詰問品質分析 (${format.toUpperCase()})`);
+            },
+            quality:   () => exportMetaAnalysis(format),
+            feedback:  () => {
+                // Download feedback records (reuse daily audit export as it includes feedback)
+                const url = `${API_BASE}/daily-audit/feedback/export/${format}`;
+                triggerDownload(url, `使用者意見紀錄 (${format.toUpperCase()})`);
+            },
+        };
+        const fn = downloadMap[type];
+        if (fn) {
+            fn();
+        } else {
+            showToast(t('toast.unknownDownloadType', {type: type}), 'error');
+        }
+        return true;
+    }
+
+    function triggerDownload(url, label) {
+        showToast(t('toast.downloading', {label: label}), 'info');
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = '';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }
+
+    // ---- Feedback command handler ----
+    async function handleFeedbackCommand(message, tab) {
+        const parts = message.split(/\s+/);
+        const subCmd = (parts[1] || '').toLowerCase();
+
+        if (subCmd === 'history') {
+            await loadFeedbackHistory(tab);
+            togglePopup(tab === 'crossref' ? 'crossrefFeedback' : 'crossexamFeedback');
+            return true;
+        }
+
+        if (subCmd === 'daily' || subCmd === 'meta') {
+            // Extract text in quotes
+            const textMatch = message.match(/"([^"]+)"/);
+            if (!textMatch) {
+                showToast(t('toast.feedbackFormat'), 'error');
+                return true;
+            }
+            const feedbackText = textMatch[1];
+            const auditType = subCmd;
+
+            showToast(t('toast.feedbackSubmitting'), 'info');
+            try {
+                const result = await apiPost('/daily-audit/feedback', {
+                    audit_type: auditType,
+                    feedback_text: feedbackText,
+                });
+                if (result.re_evaluation) {
+                    const reeval = result.re_evaluation;
+                    showToast(
+                        t('toast.feedbackReEvalSuccess', {score: auditType === 'daily' ? reeval.overall_score : `Dim A: ${reeval.avg_dim_a}, Dim B: ${reeval.avg_dim_b}`}),
+                        'success'
+                    );
+                    // Refresh audit history if visible
+                    if (document.querySelector('.tab-content[data-tab="dailyaudit"].active')) {
+                        await loadDailyAuditHistory();
+                    }
+                } else {
+                    showToast(t('toast.feedbackSaved'), 'info');
+                }
+            } catch (err) {
+                showToast(t('toast.feedbackFailed', {msg: err.message}), 'error');
+            }
+            return true;
+        }
+
+        showToast(t('toast.feedbackUsage'), 'error');
+        return true;
+    }
+
+    // ---- Feedback CRUD ----
+    async function loadFeedbackHistory(tab) {
+        const listEl = tab === 'crossref' ? els.crossrefFeedbackList : els.crossexamFeedbackList;
+        if (!listEl) return;
+        listEl.innerHTML = '<div class="empty-state-text">載入中...</div>';
+
+        try {
+            const data = await apiFetch('/daily-audit/feedback');
+            const records = data.records || [];
+            if (records.length === 0) {
+                listEl.innerHTML = '<div class="empty-state-text">尚無意見紀錄</div>';
+                return;
+            }
+            listEl.innerHTML = records.map(fb => `
+                <div class="feedback-record" data-id="${fb.feedback_id}">
+                    <div class="feedback-record-header">
+                        <span class="feedback-record-type">${fb.audit_type === 'daily' ? '📝 每日稽核' : '🧠 10日總檢'}</span>
+                        <span class="feedback-record-date">${fb.created_at ? fb.created_at.substring(0, 19) : ''}</span>
+                    </div>
+                    <div class="feedback-record-text">${escapeHtml(fb.feedback_text)}</div>
+                    ${fb.re_evaluation_score != null ? `<div class="feedback-record-score">重新評估分數: ${fb.re_evaluation_score}</div>` : ''}
+                    <div class="feedback-record-actions">
+                        <button class="btn btn-sm btn-outline" onclick="window.__report.editFeedback('${fb.feedback_id}', '${tab}')">✂ 編輯</button>
+                        <button class="btn btn-sm btn-outline" onclick="window.__report.deleteFeedback('${fb.feedback_id}', '${tab}')" style="color:var(--non-compliant)">🗑 刪除</button>
+                    </div>
+                </div>
+            `).join('');
+        } catch (err) {
+            listEl.innerHTML = `<div class="error-state">❗ 載入失敗: ${err.message}</div>`;
+        }
+    }
+
+    async function editFeedback(feedbackId, tab) {
+        const newText = prompt('請輸入新的意見內容:');
+        if (!newText) return;
+        try {
+            const resp = await fetch(`${API_BASE}/daily-audit/feedback/${feedbackId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ feedback_text: newText }),
+            });
+            if (!resp.ok) {
+                const errData = await resp.json().catch(() => ({}));
+                throw new Error(errData.detail || `HTTP ${resp.status}`);
+            }
+            showToast(t('toast.feedbackUpdated'), 'success');
+            await loadFeedbackHistory(tab);
+        } catch (err) {
+            showToast(t('toast.feedbackUpdateFailed', {msg: err.message}), 'error');
+        }
+    }
+
+    async function deleteFeedback(feedbackId, tab) {
+        if (!confirm('確定要刪除此意見紀錄嗎？')) return;
+        try {
+            const resp = await fetch(`${API_BASE}/daily-audit/feedback/${feedbackId}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+            });
+            if (!resp.ok) {
+                const errData = await resp.json().catch(() => ({}));
+                throw new Error(errData.detail || `HTTP ${resp.status}`);
+            }
+            showToast(t('toast.feedbackDeleted'), 'success');
+            await loadFeedbackHistory(tab);
+        } catch (err) {
+            showToast(t('toast.feedbackDeleteFailed', {msg: err.message}), 'error');
+        }
+    }
+
+    // escapeHtml defined above (line ~925) — single implementation
+
+    // ---- Download catalog renderer ----
+    function getDownloadCatalog() {
+        const t = window.__i18n ? window.__i18n.t : (k) => k;
+        return [
+            { name: t('dl.complianceReport'), desc: t('dl.complianceDesc'), type: 'report', formats: ['word', 'excel'] },
+            { name: t('dl.deepReport'), desc: t('dl.deepDesc'), type: 'deep', formats: ['word', 'excel'] },
+            { name: t('dl.auditReport'), desc: t('dl.auditDesc'), type: 'audit', formats: ['word', 'excel'] },
+            { name: t('dl.metaReport'), desc: t('dl.metaDesc'), type: 'meta', formats: ['word', 'excel'] },
+            { name: t('dl.qualityReport'), desc: t('dl.qualityDesc'), type: 'quality', formats: ['word', 'excel'] },
+            { name: t('dl.feedbackReport'), desc: t('dl.feedbackDesc'), type: 'feedback', formats: ['word', 'excel'] },
+        ];
+    }
+
+    function renderDownloadCatalog(tab) {
+        const listEl = tab === 'crossref' ? $('crossrefDownloadList') : $('crossexamDownloadList');
+        if (!listEl) return;
+        listEl.innerHTML = getDownloadCatalog().map(item => `
+            <div class="download-catalog-item">
+                <div class="download-item-info">
+                    <div class="download-item-name">${item.name}</div>
+                    <div class="download-item-desc">${item.desc}</div>
+                </div>
+                <div class="download-item-actions">
+                    ${item.formats.map(fmt => `
+                        <button class="btn btn-sm btn-outline" onclick="window.__report.cmdDownload('${item.type}', '${fmt}')">${fmt === 'word' ? '📄' : '📊'} ${fmt.toUpperCase()}</button>
+                    `).join('')}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function cmdDownload(type, format) {
+        handleDownloadCommand(['', type, format], 'global');
+    }
+
 
     // ============================================================
     // Init
     // ============================================================
 
     async function init() {
-        if (!_localeReady) await loadLocale();
+        if (window.__i18n) {
+            await window.__i18n.init();
+        }
         bindEvents();
         loadReport();
-        // Pre-fill SSE run ID input
         if (els.sseRunIdInput && RUN_ID) {
             els.sseRunIdInput.value = RUN_ID;
         }
