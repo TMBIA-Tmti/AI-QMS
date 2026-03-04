@@ -89,14 +89,15 @@ def _run_risk_assessment_row(row_state: RowState) -> None:
     try:
         evidence_items = [EvidenceItem.from_dict(e) for e in row_state.evidence_items]
 
-        # Determine gap severity from evidence items
         found_count = sum(1 for e in evidence_items if e.found and not e.is_inadequate)
         total_count = len(evidence_items)
         inadequate_count = sum(1 for e in evidence_items if e.is_inadequate)
         outdated_count = sum(1 for e in evidence_items if e.is_outdated)
 
+        expected_count = max(total_count, len(row_state.expected_evidence))
+
         gap_severity = determine_gap_severity(
-            expected_count=total_count,
+            expected_count=expected_count,
             found_count=found_count,
             has_inadequate=bool(inadequate_count),
             has_outdated=bool(outdated_count),
@@ -122,11 +123,11 @@ def _run_risk_assessment_row(row_state: RowState) -> None:
             "risk_level": risk_level,
             "verdict": verdict,
             "evidence_stats": {
-                "total": total_count,
+                "total": expected_count,
                 "found_adequate": found_count,
                 "inadequate": inadequate_count,
                 "outdated": outdated_count,
-                "missing": total_count - found_count - inadequate_count,
+                "missing": expected_count - found_count - inadequate_count,
             },
         }
 
@@ -138,7 +139,7 @@ def _run_risk_assessment_row(row_state: RowState) -> None:
     row_state.set_phase_result(Phase.RISK_ASSESSMENT, phase_result)
 
 
-def _emit_phase3_event(run_id: str, event: dict) -> None:
+def _emit_phase3_event(run_id: Optional[str], event: dict) -> None:
     """Emit Phase 3 pipeline event to SSE listeners for real-time HTML viewing."""
     if not run_id:
         return
@@ -217,7 +218,8 @@ class AnalysisPipeline:
             standard=standard,
         )
         budget = LLMBudget(
-            max_total_tokens=max_tokens_budget, max_time_seconds=max_time_seconds
+            max_total_tokens=max_tokens_budget,
+            max_time_seconds=max_time_seconds,
         )
         self._state.update_budget(budget)
 
