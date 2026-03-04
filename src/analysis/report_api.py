@@ -52,7 +52,12 @@ from typing import Optional
 from src.utils.safe_io import safe_save_binary
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.responses import JSONResponse, FileResponse, HTMLResponse, StreamingResponse
+from fastapi.responses import (
+    JSONResponse,
+    FileResponse,
+    HTMLResponse,
+    StreamingResponse,
+)
 
 from src.analysis.state import Phase
 from src.analysis.comparison_table import ComparisonTable
@@ -88,10 +93,13 @@ def _phoenix_report_span(name: str, attributes: dict = None):
     """
     try:
         from src.chainlit_app.app import phoenix_span
+
         return phoenix_span(name, profile="主系統 (Main Agent)", attributes=attributes)
     except (ImportError, Exception):
         from contextlib import nullcontext
+
         return nullcontext()
+
 
 # ============================================================
 # Helpers
@@ -214,6 +222,7 @@ async def redirect_to_latest_run():
         raise HTTPException(status_code=404, detail="No valid run_id found")
 
     from starlette.responses import RedirectResponse
+
     return RedirectResponse(url=f"/api/report/page/{latest_run_id}")
 
 
@@ -232,6 +241,7 @@ def _get_cross_ref_modules():
         generate_cross_exam_questions,
         MappingStatus,
     )
+
     return {
         "ISO_13485_CHECKLIST": ISO_13485_CHECKLIST,
         "get_all_regulations": get_all_regulations,
@@ -258,28 +268,32 @@ async def list_regulations():
         for cm in profile.iso_mapped.values():
             status_counts[cm.status.value] += 1
 
-        regulations.append({
-            "regulation_id": reg_id,
-            "name_en": profile.name_en,
-            "name_zh": profile.name_zh,
-            "country": profile.country,
-            "country_name_en": profile.country_name_en,
-            "country_name_zh": profile.country_name_zh,
-            "source": profile.source,
-            "source_url": profile.source_url,
-            "last_updated": profile.last_updated,
-            "effective_date": profile.effective_date,
-            "iso_mapped_count": iso_mapped_count,
-            "unique_requirements_count": unique_count,
-            "status_counts": dict(status_counts),
-        })
+        regulations.append(
+            {
+                "regulation_id": reg_id,
+                "name_en": profile.name_en,
+                "name_zh": profile.name_zh,
+                "country": profile.country,
+                "country_name_en": profile.country_name_en,
+                "country_name_zh": profile.country_name_zh,
+                "source": profile.source,
+                "source_url": profile.source_url,
+                "last_updated": profile.last_updated,
+                "effective_date": profile.effective_date,
+                "iso_mapped_count": iso_mapped_count,
+                "unique_requirements_count": unique_count,
+                "status_counts": dict(status_counts),
+            }
+        )
 
     return JSONResponse(content={"regulations": regulations})
 
 
 @report_router.get("/crossref/table")
 async def get_crossref_table(
-    regulations: str = Query(..., description="Comma-separated regulation IDs, e.g. QMSR,EU_MDR,TFDA"),
+    regulations: str = Query(
+        ..., description="Comma-separated regulation IDs, e.g. QMSR,EU_MDR,TFDA"
+    ),
 ):
     """Get the full cross-reference comparison table.
 
@@ -342,27 +356,31 @@ async def get_crossref_table(
         profile = all_regs[rid]
         reqs = []
         for req in profile.unique_requirements:
-            reqs.append({
-                "req_id": req.req_id,
-                "regulation_ref": req.regulation_ref,
-                "title_en": req.title_en,
-                "title_zh": req.title_zh,
-                "requirement_en": req.requirement_en,
-                "requirement_zh": req.requirement_zh,
-                "related_iso_clauses": req.related_iso_clauses,
-                "audit_impact": req.audit_impact,
-                "audit_question_en": req.audit_question_en,
-                "audit_question_zh": req.audit_question_zh,
-                "expected_evidence": req.expected_evidence,
-                "rationale_en": req.rationale_en,
-                "rationale_zh": req.rationale_zh,
-                "method": req.method.value if hasattr(req.method, 'value') else str(req.method),
-                "confidence": req.confidence,
-                "original_text": req.original_text,
-                "original_lang": req.original_lang,
-                "english_translation": req.english_translation,
-                "semantic_note": req.semantic_note,
-            })
+            reqs.append(
+                {
+                    "req_id": req.req_id,
+                    "regulation_ref": req.regulation_ref,
+                    "title_en": req.title_en,
+                    "title_zh": req.title_zh,
+                    "requirement_en": req.requirement_en,
+                    "requirement_zh": req.requirement_zh,
+                    "related_iso_clauses": req.related_iso_clauses,
+                    "audit_impact": req.audit_impact,
+                    "audit_question_en": req.audit_question_en,
+                    "audit_question_zh": req.audit_question_zh,
+                    "expected_evidence": req.expected_evidence,
+                    "rationale_en": req.rationale_en,
+                    "rationale_zh": req.rationale_zh,
+                    "method": req.method.value
+                    if hasattr(req.method, "value")
+                    else str(req.method),
+                    "confidence": req.confidence,
+                    "original_text": req.original_text,
+                    "original_lang": req.original_lang,
+                    "english_translation": req.english_translation,
+                    "semantic_note": req.semantic_note,
+                }
+            )
         unique_reqs[rid] = reqs
 
     # Regulation metadata for the header
@@ -378,20 +396,24 @@ async def get_crossref_table(
             "effective_date": p.effective_date,
         }
 
-    return JSONResponse(content={
-        "regulation_ids": reg_ids,
-        "regulation_meta": reg_meta,
-        "iso_clause_count": len(checklist),
-        "rows": rows,
-        "unique_requirements": unique_reqs,
-    })
+    return JSONResponse(
+        content={
+            "regulation_ids": reg_ids,
+            "regulation_meta": reg_meta,
+            "iso_clause_count": len(checklist),
+            "rows": rows,
+            "unique_requirements": unique_reqs,
+        }
+    )
 
 
 @report_router.get("/crossref/questions")
 async def get_crossref_questions(
     doc_id: str = Query(..., description="Document ID, e.g. QP-852"),
     doc_title: str = Query("", description="Document title"),
-    baseline_clause: str = Query("", description="Primary ISO 13485 clause, e.g. 8.5.2"),
+    baseline_clause: str = Query(
+        "", description="Primary ISO 13485 clause, e.g. 8.5.2"
+    ),
     regulations: str = Query(..., description="Comma-separated regulation IDs"),
     doc_content_summary: str = Query("", description="Brief document content summary"),
 ):
@@ -413,13 +435,15 @@ async def get_crossref_questions(
         doc_content_summary=doc_content_summary,
     )
 
-    return JSONResponse(content={
-        "doc_id": doc_id,
-        "baseline_clause": baseline_clause,
-        "selected_regulations": reg_ids,
-        "total_questions": len(questions),
-        "questions": questions,
-    })
+    return JSONResponse(
+        content={
+            "doc_id": doc_id,
+            "baseline_clause": baseline_clause,
+            "selected_regulations": reg_ids,
+            "total_questions": len(questions),
+            "questions": questions,
+        }
+    )
 
 
 # ============================================================
@@ -448,10 +472,12 @@ async def get_crossref_validation(
     reg_ids = [r.strip() for r in regulations.split(",") if r.strip()]
     report = generate_crossref_validation_report(reg_ids)
 
-    return JSONResponse(content={
-        "report": report,
-        "markdown": format_crossref_report_markdown(report, language_mode=lang),
-    })
+    return JSONResponse(
+        content={
+            "report": report,
+            "markdown": format_crossref_report_markdown(report, language_mode=lang),
+        }
+    )
 
 
 # ============================================================
@@ -468,6 +494,7 @@ async def get_user_language():
     """
     try:
         from src.utils.user_settings import load_user_settings
+
         settings = load_user_settings()
         language = settings.get("language", "zh-TW")
     except Exception:
@@ -485,32 +512,39 @@ async def get_regulation_upload_reminders():
     """
     try:
         from src.storage.mdsap_markdown_storage import get_mdsap_markdown_store
+
         store = get_mdsap_markdown_store()
         reminders = store.get_upload_reminders()
         all_status = store.list_all_regulations()
-        return JSONResponse(content={
-            "reminders": reminders,
-            "regulations": all_status,
-            "total_countries": len(all_status),
-            "needs_upload_count": len(reminders),
-        })
+        return JSONResponse(
+            content={
+                "reminders": reminders,
+                "regulations": all_status,
+                "total_countries": len(all_status),
+                "needs_upload_count": len(reminders),
+            }
+        )
     except ImportError:
-        return JSONResponse(content={
-            "reminders": [],
-            "regulations": [],
-            "total_countries": 0,
-            "needs_upload_count": 0,
-            "error": "mdsap_markdown_storage module not available",
-        })
+        return JSONResponse(
+            content={
+                "reminders": [],
+                "regulations": [],
+                "total_countries": 0,
+                "needs_upload_count": 0,
+                "error": "mdsap_markdown_storage module not available",
+            }
+        )
     except Exception as e:
         logger.error(f"Failed to get upload reminders: {e}")
-        return JSONResponse(content={
-            "reminders": [],
-            "regulations": [],
-            "total_countries": 0,
-            "needs_upload_count": 0,
-            "error": str(e),
-        })
+        return JSONResponse(
+            content={
+                "reminders": [],
+                "regulations": [],
+                "total_countries": 0,
+                "needs_upload_count": 0,
+                "error": str(e),
+            }
+        )
 
 
 @report_router.post("/crossref/upload-regulation")
@@ -529,16 +563,21 @@ async def upload_regulation_text(request: Request):
         content = body.get("content", "")
 
         if not regulation_id or not content:
-            raise HTTPException(status_code=400, detail="regulation_id and content are required")
+            raise HTTPException(
+                status_code=400, detail="regulation_id and content are required"
+            )
 
         from src.storage.mdsap_markdown_storage import get_mdsap_markdown_store
+
         store = get_mdsap_markdown_store()
         result = store.save_uploaded_regulation(regulation_id, filename, content)
 
         if result.get("success"):
             return JSONResponse(content=result)
         else:
-            raise HTTPException(status_code=400, detail=result.get("error", "Upload failed"))
+            raise HTTPException(
+                status_code=400, detail=result.get("error", "Upload failed")
+            )
     except HTTPException:
         raise
     except Exception as e:
@@ -561,6 +600,7 @@ def _get_standards_modules():
         ProductProfile,
         StandardCategory,
     )
+
     return {
         "get_all_standards": get_all_standards,
         "get_standard": get_standard,
@@ -583,29 +623,31 @@ async def list_supplemental_standards():
 
     standards = []
     for std_id, std in all_stds.items():
-        standards.append({
-            "standard_id": std.standard_id,
-            "name_en": std.name_en,
-            "name_zh": std.name_zh,
-            "category": std.category.value,
-            "version": std.version,
-            "is_universal": std.is_universal,
-            "primary_iso_clauses": std.primary_iso_clauses,
-            "clause_links": [
-                {
-                    "standard_clause": cl.standard_clause,
-                    "iso_13485_clause": cl.iso_13485_clause,
-                    "relationship": cl.relationship,
-                    "description_en": cl.description_en,
-                    "description_zh": cl.description_zh,
-                }
-                for cl in std.clause_links
-            ],
-            "regulatory_references": std.regulatory_references,
-            "audit_questions": std.audit_questions,
-            "detection_keywords_en": std.detection_keywords_en,
-            "detection_keywords_zh": std.detection_keywords_zh,
-        })
+        standards.append(
+            {
+                "standard_id": std.standard_id,
+                "name_en": std.name_en,
+                "name_zh": std.name_zh,
+                "category": std.category.value,
+                "version": std.version,
+                "is_universal": std.is_universal,
+                "primary_iso_clauses": std.primary_iso_clauses,
+                "clause_links": [
+                    {
+                        "standard_clause": cl.standard_clause,
+                        "iso_13485_clause": cl.iso_13485_clause,
+                        "relationship": cl.relationship,
+                        "description_en": cl.description_en,
+                        "description_zh": cl.description_zh,
+                    }
+                    for cl in std.clause_links
+                ],
+                "regulatory_references": std.regulatory_references,
+                "audit_questions": std.audit_questions,
+                "detection_keywords_en": std.detection_keywords_en,
+                "detection_keywords_zh": std.detection_keywords_zh,
+            }
+        )
 
     return JSONResponse(content={"standards": standards})
 
@@ -682,39 +724,43 @@ async def get_applicable_standards_endpoint(request: Request):
 
     results = []
     for std in applicable:
-        results.append({
-            "standard_id": std.standard_id,
-            "name_en": std.name_en,
-            "name_zh": std.name_zh,
-            "category": std.category.value,
-            "is_universal": std.is_universal,
-            "primary_iso_clauses": std.primary_iso_clauses,
-            "clause_links": [
-                {
-                    "standard_clause": cl.standard_clause,
-                    "iso_13485_clause": cl.iso_13485_clause,
-                    "relationship": cl.relationship,
-                    "description_en": cl.description_en,
-                    "description_zh": cl.description_zh,
-                }
-                for cl in std.clause_links
-            ],
-            "regulatory_references": std.regulatory_references,
-            "audit_questions": std.audit_questions,
-        })
+        results.append(
+            {
+                "standard_id": std.standard_id,
+                "name_en": std.name_en,
+                "name_zh": std.name_zh,
+                "category": std.category.value,
+                "is_universal": std.is_universal,
+                "primary_iso_clauses": std.primary_iso_clauses,
+                "clause_links": [
+                    {
+                        "standard_clause": cl.standard_clause,
+                        "iso_13485_clause": cl.iso_13485_clause,
+                        "relationship": cl.relationship,
+                        "description_en": cl.description_en,
+                        "description_zh": cl.description_zh,
+                    }
+                    for cl in std.clause_links
+                ],
+                "regulatory_references": std.regulatory_references,
+                "audit_questions": std.audit_questions,
+            }
+        )
 
-    return JSONResponse(content={
-        "product_profile": {
-            "has_software": body.get("has_software", False),
-            "has_electrical": body.get("has_electrical", False),
-            "is_implantable": body.get("is_implantable", False),
-            "is_sterile": body.get("is_sterile", False),
-            "sterilization_method": body.get("sterilization_method", ""),
-            "has_biological_contact": body.get("has_biological_contact", False),
-        },
-        "applicable_standards_count": len(results),
-        "applicable_standards": results,
-    })
+    return JSONResponse(
+        content={
+            "product_profile": {
+                "has_software": body.get("has_software", False),
+                "has_electrical": body.get("has_electrical", False),
+                "is_implantable": body.get("is_implantable", False),
+                "is_sterile": body.get("is_sterile", False),
+                "sterilization_method": body.get("sterilization_method", ""),
+                "has_biological_contact": body.get("has_biological_contact", False),
+            },
+            "applicable_standards_count": len(results),
+            "applicable_standards": results,
+        }
+    )
 
 
 @report_router.post("/standards/adjust")
@@ -765,6 +811,7 @@ async def adjust_standard_mapping(request: Request):
 # API Endpoints — Read (path-parameter routes MUST come AFTER
 # all static-path routes to avoid /{run_id} catching /crossref etc.)
 # ============================================================
+
 
 @report_router.get("/{run_id}")
 async def get_report(run_id: str):
@@ -909,7 +956,6 @@ async def get_row_history(run_id: str, row_id: str):
     )
 
 
-
 # ============================================================
 # Unified LLM-Assist Analysis (Human Intervention + LLM)
 # ============================================================
@@ -930,20 +976,24 @@ async def _llm_assist_analyze(
     """
     import re as _re
 
-    with _phoenix_report_span("llm_assist_analyze", {
-        "context_type": context_type,
-        "input_length": len(user_input),
-    }):
+    with _phoenix_report_span(
+        "llm_assist_analyze",
+        {
+            "context_type": context_type,
+            "input_length": len(user_input),
+        },
+    ):
         # 1. Extract URLs from input
-        url_pattern = _re.compile(r'https?://[^\s<>"\')\]]+') 
+        url_pattern = _re.compile(r'https?://[^\s<>"\')\]]+')
         found_urls = url_pattern.findall(user_input)
-        text_without_urls = url_pattern.sub('', user_input).strip()
+        text_without_urls = url_pattern.sub("", user_input).strip()
 
         # 2. Fetch URL content if any
         fetched_content = {}
         if found_urls:
             try:
                 from src.chainlit_app.app import _fetch_web_full_content
+
                 fetched_content = await _fetch_web_full_content(
                     found_urls, max_urls=3, timeout=15.0
                 )
@@ -951,7 +1001,10 @@ async def _llm_assist_analyze(
                 logger.warning(f"URL fetch failed in llm_assist: {e}")
                 try:
                     import httpx
-                    async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+
+                    async with httpx.AsyncClient(
+                        timeout=10.0, follow_redirects=True
+                    ) as client:
                         for url in found_urls[:3]:
                             try:
                                 resp = await client.get(url)
@@ -986,7 +1039,9 @@ async def _llm_assist_analyze(
             for url, content in fetched_content.items():
                 user_message_parts.append(f"\n### {url}\n{content[:3000]}")
 
-        user_message = "\n".join(user_message_parts) if user_message_parts else user_input
+        user_message = (
+            "\n".join(user_message_parts) if user_message_parts else user_input
+        )
         user_message += "\n\n請分析以上資訊並提供你的建議。如果使用者提供了算式，請驗證計算結果。回覆請使用繁體中文。"
 
         # 4. Call LLM
@@ -1000,7 +1055,7 @@ async def _llm_assist_analyze(
                 temperature=0.3,
                 max_tokens=2000,
             )
-            if hasattr(response, 'choices') and response.choices:
+            if hasattr(response, "choices") and response.choices:
                 analysis_text = response.choices[0].message.content
             else:
                 analysis_text = str(response)
@@ -1011,7 +1066,9 @@ async def _llm_assist_analyze(
         return {
             "analysis": analysis_text,
             "fetched_urls": list(fetched_content.keys()),
-            "fetched_content_lengths": {url: len(c) for url, c in fetched_content.items()},
+            "fetched_content_lengths": {
+                url: len(c) for url, c in fetched_content.items()
+            },
             "raw_input": user_input,
             "context_type": context_type,
             "timestamp": time.time(),
@@ -1048,11 +1105,16 @@ async def llm_assist_endpoint(request: Request):
             detail=f"Invalid context_type: {context_type}. Must be one of {valid_types}",
         )
 
-    with _phoenix_report_span("llm_assist_endpoint", {
-        "context_type": context_type,
-        "input_length": len(user_input),
-    }):
-        result = await _llm_assist_analyze(request, user_input, context_type, context_data)
+    with _phoenix_report_span(
+        "llm_assist_endpoint",
+        {
+            "context_type": context_type,
+            "input_length": len(user_input),
+        },
+    ):
+        result = await _llm_assist_analyze(
+            request, user_input, context_type, context_data
+        )
 
     return JSONResponse(content={"success": True, "result": result})
 
@@ -1069,7 +1131,9 @@ async def override_verdict(run_id: str, row_id: str, body: dict):
     Body:
         {"verdict": "full_compliance", "reason": "已確認文件內容符合要求"}
     """
-    with _phoenix_report_span("report_override_verdict", {"run_id": run_id, "row_id": row_id}):
+    with _phoenix_report_span(
+        "report_override_verdict", {"run_id": run_id, "row_id": row_id}
+    ):
         new_verdict = body.get("verdict")
         reason = body.get("reason", "")
         user_id = body.get("user_id", "ra_user")
@@ -1131,7 +1195,9 @@ async def add_note(run_id: str, row_id: str, body: dict):
 @report_router.post("/{run_id}/row/{row_id}/restore")
 async def restore_original(run_id: str, row_id: str):
     """Restore the LLM's original verdict (undo RA override)."""
-    with _phoenix_report_span("report_restore_original", {"run_id": run_id, "row_id": row_id}):
+    with _phoenix_report_span(
+        "report_restore_original", {"run_id": run_id, "row_id": row_id}
+    ):
         table = _load_table(run_id)
         updated = table.restore_llm_original(row_id)
         if updated is None:
@@ -1155,7 +1221,9 @@ async def preview_evidence_recalc(run_id: str, row_id: str, body: dict):
     if evidence_items is None:
         raise HTTPException(status_code=400, detail="Missing 'evidence_items' field")
 
-    with _phoenix_report_span("report_evidence_preview", {"run_id": run_id, "row_id": row_id}):
+    with _phoenix_report_span(
+        "report_evidence_preview", {"run_id": run_id, "row_id": row_id}
+    ):
         table = _load_table(run_id)
         result = table.preview_evidence_recalc(row_id, evidence_items)
         if result is None:
@@ -1173,7 +1241,9 @@ async def confirm_evidence_update(run_id: str, row_id: str, body: dict):
 
     user_id = body.get("user_id", "ra_user")
 
-    with _phoenix_report_span("report_evidence_confirm", {"run_id": run_id, "row_id": row_id}):
+    with _phoenix_report_span(
+        "report_evidence_confirm", {"run_id": run_id, "row_id": row_id}
+    ):
         table = _load_table(run_id)
         updated = table.update_evidence_items(row_id, evidence_items, user_id)
         if updated is None:
@@ -1189,7 +1259,9 @@ async def deep_recalc_evidence(run_id: str, row_id: str, body: dict = None):
     """Deep LLM recalculation — re-runs Phase 1+2+3 for this row."""
     user_id = (body or {}).get("user_id", "ra_user")
 
-    with _phoenix_report_span("report_evidence_deep_recalc", {"run_id": run_id, "row_id": row_id}):
+    with _phoenix_report_span(
+        "report_evidence_deep_recalc", {"run_id": run_id, "row_id": row_id}
+    ):
         table = _load_table(run_id)
         row = table._state.get_row(row_id)
         if row is None:
@@ -1227,7 +1299,9 @@ async def reset_for_rerun(run_id: str, row_id: str, body: dict = None):
     Body (optional):
         {"from_phase": "phase_1"}  (default: phase_1)
     """
-    with _phoenix_report_span("report_reset_for_rerun", {"run_id": run_id, "row_id": row_id}):
+    with _phoenix_report_span(
+        "report_reset_for_rerun", {"run_id": run_id, "row_id": row_id}
+    ):
         from_phase_str = (body or {}).get("from_phase", Phase.GAP_SCAN.value)
         try:
             from_phase = Phase(from_phase_str)
@@ -1300,9 +1374,12 @@ async def export_report(run_id: str, fmt: str):
             title.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
             from datetime import datetime
+
             meta = doc.add_paragraph()
             meta.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-            run = meta.add_run(f"分析 ID: {run_id}  |  匯出時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            run = meta.add_run(
+                f"分析 ID: {run_id}  |  匯出時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            )
             run.font.size = Pt(9)
             run.font.color.rgb = RGBColor(128, 128, 128)
 
@@ -1313,19 +1390,37 @@ async def export_report(run_id: str, fmt: str):
             # Detail table
             doc.add_heading("詳細分析結果", level=2)
             if flat_rows:
-                headers = ["條款", "文件", "稽核影響", "判定", "風險", "差距", "RA 標記"]
+                headers = [
+                    "條款",
+                    "文件",
+                    "稽核影響",
+                    "判定",
+                    "風險",
+                    "差距",
+                    "RA 標記",
+                ]
                 tbl = doc.add_table(rows=1 + len(flat_rows), cols=len(headers))
                 tbl.style = "Table Grid"
                 for i, h in enumerate(headers):
                     tbl.rows[0].cells[i].text = h
                 for ri, row in enumerate(flat_rows, 1):
-                    tbl.rows[ri].cells[0].text = f"{row.get('clause_id', '')} {row.get('clause_title', '')}"
+                    tbl.rows[ri].cells[
+                        0
+                    ].text = f"{row.get('clause_id', '')} {row.get('clause_title', '')}"
                     tbl.rows[ri].cells[1].text = f"{row.get('doc_id', '')}"
-                    tbl.rows[ri].cells[2].text = row.get('audit_impact', '')
-                    tbl.rows[ri].cells[3].text = f"{row.get('verdict_icon', '')} {row.get('verdict_label', '')}"
-                    tbl.rows[ri].cells[4].text = f"{row.get('risk_icon', '')} {row.get('risk_label', '')}"
-                    tbl.rows[ri].cells[5].text = row.get('gap_severity', '') or ''
-                    tbl.rows[ri].cells[6].text = '⚠️' if row.get('flagged_for_ra') else ''
+                    tbl.rows[ri].cells[2].text = row.get("audit_impact", "")
+                    tbl.rows[ri].cells[
+                        3
+                    ].text = (
+                        f"{row.get('verdict_icon', '')} {row.get('verdict_label', '')}"
+                    )
+                    tbl.rows[ri].cells[
+                        4
+                    ].text = f"{row.get('risk_icon', '')} {row.get('risk_label', '')}"
+                    tbl.rows[ri].cells[5].text = row.get("gap_severity", "") or ""
+                    tbl.rows[ri].cells[6].text = (
+                        "⚠️" if row.get("flagged_for_ra") else ""
+                    )
 
             safe_save_binary(filepath, doc.save)
 
@@ -1341,10 +1436,24 @@ async def export_report(run_id: str, fmt: str):
             ws.title = "合規分析"
 
             # Headers
-            headers = ["條款 ID", "條款名稱", "文件 ID", "文件標題", "稽核影響",
-                       "稽核問題", "判定", "風險等級", "差距嚴重度",
-                       "證據 (找到/總計)", "RA 標記", "RA 覆寫", "RA 備註"]
-            header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+            headers = [
+                "條款 ID",
+                "條款名稱",
+                "文件 ID",
+                "文件標題",
+                "稽核影響",
+                "稽核問題",
+                "判定",
+                "風險等級",
+                "差距嚴重度",
+                "證據 (找到/總計)",
+                "RA 標記",
+                "RA 覆寫",
+                "RA 備註",
+            ]
+            header_fill = PatternFill(
+                start_color="4472C4", end_color="4472C4", fill_type="solid"
+            )
             header_font = Font(bold=True, color="FFFFFF", size=10)
             for ci, h in enumerate(headers, 1):
                 cell = ws.cell(row=1, column=ci, value=h)
@@ -1353,24 +1462,44 @@ async def export_report(run_id: str, fmt: str):
                 cell.alignment = Alignment(horizontal="center")
 
             for ri, row in enumerate(flat_rows, 2):
-                ws.cell(row=ri, column=1, value=row.get('clause_id', ''))
-                ws.cell(row=ri, column=2, value=row.get('clause_title', ''))
-                ws.cell(row=ri, column=3, value=row.get('doc_id', ''))
-                ws.cell(row=ri, column=4, value=row.get('doc_title', ''))
-                ws.cell(row=ri, column=5, value=row.get('audit_impact', ''))
-                ws.cell(row=ri, column=6, value=row.get('audit_question', ''))
-                ws.cell(row=ri, column=7, value=f"{row.get('verdict_icon', '')} {row.get('verdict_label', '')}")
-                ws.cell(row=ri, column=8, value=f"{row.get('risk_icon', '')} {row.get('risk_label', '')}")
-                ws.cell(row=ri, column=9, value=row.get('gap_severity', '') or '')
-                ws.cell(row=ri, column=10, value=f"{row.get('evidence_found', 0)}/{row.get('evidence_total', 0)}")
-                ws.cell(row=ri, column=11, value='Y' if row.get('flagged_for_ra') else '')
-                override = row.get('ra_override')
-                ws.cell(row=ri, column=12, value=override.get('reason', '') if isinstance(override, dict) else '')
-                ws.cell(row=ri, column=13, value=row.get('ra_notes', '') or '')
+                ws.cell(row=ri, column=1, value=row.get("clause_id", ""))
+                ws.cell(row=ri, column=2, value=row.get("clause_title", ""))
+                ws.cell(row=ri, column=3, value=row.get("doc_id", ""))
+                ws.cell(row=ri, column=4, value=row.get("doc_title", ""))
+                ws.cell(row=ri, column=5, value=row.get("audit_impact", ""))
+                ws.cell(row=ri, column=6, value=row.get("audit_question", ""))
+                ws.cell(
+                    row=ri,
+                    column=7,
+                    value=f"{row.get('verdict_icon', '')} {row.get('verdict_label', '')}",
+                )
+                ws.cell(
+                    row=ri,
+                    column=8,
+                    value=f"{row.get('risk_icon', '')} {row.get('risk_label', '')}",
+                )
+                ws.cell(row=ri, column=9, value=row.get("gap_severity", "") or "")
+                ws.cell(
+                    row=ri,
+                    column=10,
+                    value=f"{row.get('evidence_found', 0)}/{row.get('evidence_total', 0)}",
+                )
+                ws.cell(
+                    row=ri, column=11, value="Y" if row.get("flagged_for_ra") else ""
+                )
+                override = row.get("ra_override")
+                ws.cell(
+                    row=ri,
+                    column=12,
+                    value=override.get("reason", "")
+                    if isinstance(override, dict)
+                    else "",
+                )
+                ws.cell(row=ri, column=13, value=row.get("ra_notes", "") or "")
 
             # Auto-width
             for col in ws.columns:
-                max_len = max((len(str(c.value or '')) for c in col), default=8)
+                max_len = max((len(str(c.value or "")) for c in col), default=8)
                 ws.column_dimensions[col[0].column_letter].width = min(max_len + 2, 50)
 
             safe_save_binary(filepath, wb.save)
@@ -1546,7 +1675,6 @@ def _build_export_assessment(flat_rows: list[dict], summary: dict) -> str:
     return "\n".join(lines)
 
 
-
 # ============================================================
 # SSE Event Streaming for Real-Time Cross-Examination
 # ============================================================
@@ -1561,6 +1689,7 @@ _event_queues: dict[str, list[asyncio.Queue]] = defaultdict(list)
 # The pause_event is SET when running, CLEARED when paused.
 _pipeline_controls: dict[str, dict] = {}
 _pipeline_controls_lock = threading.Lock()
+
 
 def register_pipeline_control(run_id: str) -> threading.Event:
     """Register a new pipeline run for pause/resume/inject control.
@@ -1706,10 +1835,12 @@ async def inject_human_message(run_id: str, body: dict):
         }
         emit_cross_exam_event(run_id, event)
 
-        return JSONResponse(content={
-            "success": True,
-            "message": "Human injection stored and broadcast",
-        })
+        return JSONResponse(
+            content={
+                "success": True,
+                "message": "Human injection stored and broadcast",
+            }
+        )
 
 
 @report_router.post("/{run_id}/pause")
@@ -1742,13 +1873,16 @@ async def get_crossexam_history():
     """List all cross-examination history records."""
     try:
         from src.database.crossexam_store import get_crossexam_store
+
         store = get_crossexam_store()
         records = store.get_all_records()
-        return JSONResponse(content={
-            "records": [r.to_dict() for r in records],
-            "total": len(records),
-            "needs_meta_analysis": store.needs_meta_analysis(),
-        })
+        return JSONResponse(
+            content={
+                "records": [r.to_dict() for r in records],
+                "total": len(records),
+                "needs_meta_analysis": store.needs_meta_analysis(),
+            }
+        )
     except Exception as e:
         logger.error(f"Failed to load crossexam history: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -1759,6 +1893,7 @@ async def get_crossexam_record(record_id: str):
     """Get a single cross-examination record by ID."""
     try:
         from src.database.crossexam_store import get_crossexam_store
+
         store = get_crossexam_store()
         record = store.get_record(record_id)
         if not record:
@@ -1781,6 +1916,7 @@ async def export_crossexam_record(record_id: str, fmt: str):
 
     try:
         from src.database.crossexam_store import get_crossexam_store
+
         store = get_crossexam_store()
         record = store.get_record(record_id)
         if not record:
@@ -1833,6 +1969,7 @@ async def export_deep_report(run_id: str, fmt: str):
     interactions = None
     try:
         from src.database.interaction_log import load_interaction_log
+
         ilog = load_interaction_log(run_id)
         if ilog:
             interactions = ilog.get_interactions()
@@ -1843,6 +1980,7 @@ async def export_deep_report(run_id: str, fmt: str):
     crossexam_record = None
     try:
         from src.database.crossexam_store import get_crossexam_store
+
         store = get_crossexam_store()
         record = store.get_record_by_run_id(run_id)
         if record:
@@ -1854,6 +1992,7 @@ async def export_deep_report(run_id: str, fmt: str):
     meta_analysis = None
     try:
         from src.analysis.crossexam_qa_agent import get_latest_meta_analysis
+
         ma = get_latest_meta_analysis()
         if ma:
             meta_analysis = ma.llm_response
@@ -1868,11 +2007,21 @@ async def export_deep_report(run_id: str, fmt: str):
 
         if fmt == "word":
             filepath = export_deep_report_word(
-                run_id, flat_rows, summary, interactions, crossexam_record, meta_analysis
+                run_id,
+                flat_rows,
+                summary,
+                interactions,
+                crossexam_record,
+                meta_analysis,
             )
         else:
             filepath = export_deep_report_excel(
-                run_id, flat_rows, summary, interactions, crossexam_record, meta_analysis
+                run_id,
+                flat_rows,
+                summary,
+                interactions,
+                crossexam_record,
+                meta_analysis,
             )
 
         content_type = (
@@ -1899,9 +2048,12 @@ async def get_meta_analysis():
     """Get the latest meta-analysis results."""
     try:
         from src.analysis.crossexam_qa_agent import get_latest_meta_analysis
+
         result = get_latest_meta_analysis()
         if not result:
-            return JSONResponse(content={"available": False, "message": "No meta-analysis available"})
+            return JSONResponse(
+                content={"available": False, "message": "No meta-analysis available"}
+            )
         return JSONResponse(content={"available": True, **result.to_dict()})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -1931,13 +2083,11 @@ async def export_meta_analysis(fmt: str):
         meta_analysis = result.llm_response
         if fmt == "word":
             filepath = export_deep_report_word(
-                f"meta_analysis_{result.analysis_id}",
-                [], {}, None, None, meta_analysis
+                f"meta_analysis_{result.analysis_id}", [], {}, None, None, meta_analysis
             )
         else:
             filepath = export_deep_report_excel(
-                f"meta_analysis_{result.analysis_id}",
-                [], {}, None, None, meta_analysis
+                f"meta_analysis_{result.analysis_id}", [], {}, None, None, meta_analysis
             )
 
         content_type = (
@@ -1958,6 +2108,7 @@ async def get_interaction_log(run_id: str):
     """Get all LLM interaction logs for a pipeline run."""
     try:
         from src.database.interaction_log import load_interaction_log
+
         ilog = load_interaction_log(run_id)
         if not ilog:
             return JSONResponse(content={"available": False, "interactions": []})
@@ -1967,12 +2118,79 @@ async def get_interaction_log(run_id: str):
 
 
 # ============================================================
+# Phase Configuration (custom phase skip)
+# ============================================================
+
+_custom_skip_phases: list[str] = []
+
+SKIPPABLE_PHASES = {"phase_2", "phase_4", "phase_5", "phase_6"}
+
+
+@report_router.post("/phase-config")
+async def set_phase_config(request: Request):
+    """Set which phases to skip. Only optional phases (P2, P4, P5, P6) allowed."""
+    global _custom_skip_phases
+    try:
+        body = await request.json()
+        requested = body.get("skip_phases", [])
+        validated = [p for p in requested if p in SKIPPABLE_PHASES]
+        _custom_skip_phases = validated
+        try:
+            from src.utils.user_settings import load_user_settings, save_user_settings
+
+            settings = load_user_settings()
+            settings["custom_skip_phases"] = _custom_skip_phases
+            save_user_settings(settings)
+        except Exception:
+            pass
+        return JSONResponse(content={"skip_phases": _custom_skip_phases})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@report_router.get("/phase-config")
+async def get_phase_config():
+    """Get current phase skip configuration."""
+    return JSONResponse(content={"skip_phases": _custom_skip_phases})
+
+
+def get_custom_skip_phases() -> list[str]:
+    """Get current custom skip phases (for pipeline runner integration)."""
+    return list(_custom_skip_phases)
+
+
+# ============================================================
 # MDSAP Cross-Exam Toggle
 # ============================================================
 
 
-# In-memory toggle state (persisted via user settings if available)
-_mdsap_verify_enabled: bool = True
+def _load_mdsap_from_settings() -> bool:
+    """Load MDSAP verify state from persisted user settings."""
+    try:
+        from src.utils.user_settings import load_user_settings
+
+        settings = load_user_settings()
+        return bool(settings.get("mdsap_verify_enabled", True))
+    except Exception:
+        return True
+
+
+_mdsap_verify_enabled: bool = _load_mdsap_from_settings()
+
+
+def _load_skip_phases_from_settings() -> list[str]:
+    """Load custom skip phases from persisted user settings."""
+    try:
+        from src.utils.user_settings import load_user_settings
+
+        settings = load_user_settings()
+        saved = settings.get("custom_skip_phases", [])
+        return [p for p in saved if p in SKIPPABLE_PHASES]
+    except Exception:
+        return []
+
+
+_custom_skip_phases = _load_skip_phases_from_settings()
 
 
 @report_router.post("/crossref/mdsap-verify")
@@ -1982,14 +2200,14 @@ async def set_mdsap_verify(request: Request):
     try:
         body = await request.json()
         _mdsap_verify_enabled = bool(body.get("enabled", True))
-        # Persist to user settings if possible
         try:
             from src.utils.user_settings import load_user_settings, save_user_settings
+
             settings = load_user_settings()
             settings["mdsap_verify_enabled"] = _mdsap_verify_enabled
             save_user_settings(settings)
         except Exception:
-            pass  # Non-critical
+            pass
         return JSONResponse(content={"enabled": _mdsap_verify_enabled})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -2011,11 +2229,14 @@ async def get_daily_audit_history(limit: int = Query(30, ge=1, le=365)):
     """Get daily audit history records."""
     try:
         from src.analysis.daily_audit import get_daily_audit_history
+
         records = get_daily_audit_history(limit=limit)
-        return JSONResponse(content={
-            "records": [r.to_dict() for r in records],
-            "count": len(records),
-        })
+        return JSONResponse(
+            content={
+                "records": [r.to_dict() for r in records],
+                "count": len(records),
+            }
+        )
     except ImportError:
         return JSONResponse(content={"records": [], "count": 0})
     except Exception as e:
@@ -2037,6 +2258,7 @@ async def run_daily_audit_endpoint(request: Request):
         lang = "zh-TW"
         try:
             from src.utils.user_settings import load_user_settings
+
             settings = load_user_settings()
             lang = settings.get("language", "zh-TW")
         except Exception:
@@ -2054,7 +2276,9 @@ async def run_daily_audit_endpoint(request: Request):
 
         return JSONResponse(content=result.to_dict())
     except ImportError as e:
-        raise HTTPException(status_code=501, detail=f"Daily audit module not available: {e}")
+        raise HTTPException(
+            status_code=501, detail=f"Daily audit module not available: {e}"
+        )
     except Exception as e:
         logger.error(f"Daily audit failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -2065,12 +2289,17 @@ async def get_meta_review():
     """Get the latest 10-day meta review results."""
     try:
         from src.analysis.daily_audit import get_latest_meta_review
+
         result = get_latest_meta_review()
         if not result:
-            return JSONResponse(content={"available": False, "message": "No meta review available"})
+            return JSONResponse(
+                content={"available": False, "message": "No meta review available"}
+            )
         return JSONResponse(content={"available": True, **result.to_dict()})
     except ImportError:
-        return JSONResponse(content={"available": False, "message": "Module not available"})
+        return JSONResponse(
+            content={"available": False, "message": "Module not available"}
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -2086,6 +2315,7 @@ async def run_meta_review_endpoint(request: Request):
         lang = "zh-TW"
         try:
             from src.utils.user_settings import load_user_settings
+
             settings = load_user_settings()
             lang = settings.get("language", "zh-TW")
         except Exception:
@@ -2102,7 +2332,9 @@ async def run_meta_review_endpoint(request: Request):
 
         return JSONResponse(content=result.to_dict())
     except ImportError as e:
-        raise HTTPException(status_code=501, detail=f"Daily audit module not available: {e}")
+        raise HTTPException(
+            status_code=501, detail=f"Daily audit module not available: {e}"
+        )
     except Exception as e:
         logger.error(f"Meta review failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -2130,7 +2362,9 @@ async def export_audit_record(audit_id: str, fmt: str):
                 break
 
         if not target:
-            raise HTTPException(status_code=404, detail=f"Audit record {audit_id} not found")
+            raise HTTPException(
+                status_code=404, detail=f"Audit record {audit_id} not found"
+            )
 
         if fmt == "word":
             filepath = export_daily_audit_word(target)
@@ -2229,18 +2463,19 @@ def _get_llm_completion_fn(request: Request):
     """Extract LLM completion function from app state."""
     # Try to get from app state (set by pipeline runner)
     app = request.app
-    llm_fn = getattr(app.state, 'llm_completion_fn', None)
+    llm_fn = getattr(app.state, "llm_completion_fn", None)
     if llm_fn:
         return llm_fn
 
     # Fallback: create a basic completion function
     try:
         from src.llm_providers import get_completion
+
         return get_completion
     except ImportError:
         raise HTTPException(
             status_code=503,
-            detail="LLM completion function not available. Run an analysis first."
+            detail="LLM completion function not available. Run an analysis first.",
         )
 
 
@@ -2248,12 +2483,14 @@ def _send_deviation_announcement(result) -> None:
     """Send deviation alert to Chainlit (same pattern as upload reminder)."""
     try:
         from src.analysis.pipeline_runner import _pipeline_send_message_fn
+
         send_fn = _pipeline_send_message_fn
         if send_fn is None:
             logger.info("No Chainlit send_fn available for deviation alert")
             return
 
         import asyncio
+
         msg = (
             f"\n\n⚠️ **稽核分數差異警告**\n\n"
             f"每日稽核分數出現偏差，請注意以下細節：\n"
@@ -2278,11 +2515,13 @@ def _send_meta_review_announcement(result) -> None:
     """Send meta review deviation summary to Chainlit."""
     try:
         from src.analysis.pipeline_runner import _pipeline_send_message_fn
+
         send_fn = _pipeline_send_message_fn
         if send_fn is None:
             return
 
         import asyncio
+
         msg = (
             f"\n\n🧠 **10日總檢報告**\n\n"
             f"過去 10 天的稽核結果已完成總檢：\n"
@@ -2299,7 +2538,6 @@ def _send_meta_review_announcement(result) -> None:
             loop.run_until_complete(send_fn(msg))
     except Exception as e:
         logger.warning(f"Failed to send meta review announcement: {e}")
-
 
 
 # ============================================================
@@ -2320,23 +2558,32 @@ async def submit_feedback(request: Request):
             if not feedback_text:
                 raise HTTPException(status_code=400, detail="feedback_text is required")
             if audit_type not in ("daily", "meta"):
-                raise HTTPException(status_code=400, detail="audit_type must be 'daily' or 'meta'")
+                raise HTTPException(
+                    status_code=400, detail="audit_type must be 'daily' or 'meta'"
+                )
 
             from src.analysis.daily_audit import save_feedback
-            fb = save_feedback(audit_type=audit_type, target_id=target_id, feedback_text=feedback_text)
+
+            fb = save_feedback(
+                audit_type=audit_type, target_id=target_id, feedback_text=feedback_text
+            )
 
             # Trigger re-evaluation with feedback context
             re_eval_result = None
             try:
-                re_eval_result = await _run_reeval_with_feedback(request, audit_type, fb)
+                re_eval_result = await _run_reeval_with_feedback(
+                    request, audit_type, fb
+                )
             except Exception as e:
                 logger.warning(f"Re-evaluation failed after feedback: {e}")
 
-            return JSONResponse(content={
-                "success": True,
-                "feedback": fb.to_dict(),
-                "re_evaluation": re_eval_result,
-            })
+            return JSONResponse(
+                content={
+                    "success": True,
+                    "feedback": fb.to_dict(),
+                    "re_evaluation": re_eval_result,
+                }
+            )
         except HTTPException:
             raise
         except Exception as e:
@@ -2349,11 +2596,14 @@ async def list_feedback():
     """List all active feedback records."""
     try:
         from src.analysis.daily_audit import get_all_feedback
+
         records = get_all_feedback()
-        return JSONResponse(content={
-            "records": [fb.to_dict() for fb in records],
-            "total": len(records),
-        })
+        return JSONResponse(
+            content={
+                "records": [fb.to_dict() for fb in records],
+                "total": len(records),
+            }
+        )
     except ImportError:
         return JSONResponse(content={"records": [], "total": 0})
     except Exception as e:
@@ -2370,9 +2620,12 @@ async def update_feedback_endpoint(feedback_id: str, request: Request):
             raise HTTPException(status_code=400, detail="feedback_text is required")
 
         from src.analysis.daily_audit import update_feedback
+
         fb = update_feedback(feedback_id, new_text)
         if fb is None:
-            raise HTTPException(status_code=404, detail=f"Feedback {feedback_id} not found")
+            raise HTTPException(
+                status_code=404, detail=f"Feedback {feedback_id} not found"
+            )
 
         return JSONResponse(content={"success": True, "feedback": fb.to_dict()})
     except HTTPException:
@@ -2386,15 +2639,17 @@ async def delete_feedback_endpoint(feedback_id: str):
     """Delete (soft) a feedback record."""
     try:
         from src.analysis.daily_audit import delete_feedback
+
         ok = delete_feedback(feedback_id)
         if not ok:
-            raise HTTPException(status_code=404, detail=f"Feedback {feedback_id} not found")
+            raise HTTPException(
+                status_code=404, detail=f"Feedback {feedback_id} not found"
+            )
         return JSONResponse(content={"success": True, "deleted": feedback_id})
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 
 @report_router.get("/daily-audit/feedback/export/{fmt}")
@@ -2406,6 +2661,7 @@ async def export_feedback_records(fmt: str):
     try:
         from datetime import datetime
         from src.analysis.daily_audit import get_all_feedback
+
         records = get_all_feedback()
         if not records:
             raise HTTPException(status_code=404, detail="No feedback records available")
@@ -2416,6 +2672,7 @@ async def export_feedback_records(fmt: str):
 
         if fmt == "word":
             from docx import Document
+
             doc = Document()
             doc.add_heading("使用者意見紀錄 (User Feedback Records)", level=1)
             doc.add_paragraph(f"匯出時間: {datetime.now().isoformat()[:19]}")
@@ -2443,23 +2700,38 @@ async def export_feedback_records(fmt: str):
 
         else:  # excel
             from openpyxl import Workbook
+
             wb = Workbook()
             ws = wb.active
             ws.title = "Feedback Records"
-            headers = ["ID", "類型", "目標", "意見內容", "建立時間", "更新時間", "狀態", "重新評估分數", "重新評估 ID"]
+            headers = [
+                "ID",
+                "類型",
+                "目標",
+                "意見內容",
+                "建立時間",
+                "更新時間",
+                "狀態",
+                "重新評估分數",
+                "重新評估 ID",
+            ]
             ws.append(headers)
             for fb in records:
-                ws.append([
-                    fb.feedback_id,
-                    fb.audit_type,
-                    fb.target_id or '',
-                    fb.feedback_text,
-                    fb.created_at,
-                    fb.updated_at,
-                    fb.status,
-                    fb.re_evaluation_score if fb.re_evaluation_score is not None else '',
-                    fb.re_evaluation_id or '',
-                ])
+                ws.append(
+                    [
+                        fb.feedback_id,
+                        fb.audit_type,
+                        fb.target_id or "",
+                        fb.feedback_text,
+                        fb.created_at,
+                        fb.updated_at,
+                        fb.status,
+                        fb.re_evaluation_score
+                        if fb.re_evaluation_score is not None
+                        else "",
+                        fb.re_evaluation_id or "",
+                    ]
+                )
             # Auto-width
             for col in ws.columns:
                 max_len = 0
@@ -2471,7 +2743,9 @@ async def export_feedback_records(fmt: str):
 
             filepath = EXPORT_DIR / f"feedback_records_{ts}.xlsx"
             wb.save(str(filepath))
-            content_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            content_type = (
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
 
         return FileResponse(filepath, media_type=content_type, filename=filepath.name)
 
@@ -2481,20 +2755,28 @@ async def export_feedback_records(fmt: str):
         logger.error(f"Export feedback failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-async def _run_reeval_with_feedback(request: Request, audit_type: str, fb) -> dict | None:
+
+async def _run_reeval_with_feedback(
+    request: Request, audit_type: str, fb
+) -> dict | None:
     """Re-run daily audit with user feedback context appended to prompts."""
     try:
         llm_fn = _get_llm_completion_fn(request)
         lang = "zh-TW"
         try:
             from src.utils.user_settings import load_user_settings
+
             settings = load_user_settings()
             lang = settings.get("language", "zh-TW")
         except Exception:
             pass
 
         if audit_type == "daily":
-            from src.analysis.daily_audit import run_daily_audit, get_active_feedback_context
+            from src.analysis.daily_audit import (
+                run_daily_audit,
+                get_active_feedback_context,
+            )
+
             feedback_ctx = get_active_feedback_context()
             result = run_daily_audit(
                 llm_completion_fn=llm_fn,
@@ -2506,6 +2788,7 @@ async def _run_reeval_with_feedback(request: Request, audit_type: str, fb) -> di
             fb.re_evaluation_score = result.overall_score
             from src.analysis.daily_audit import FEEDBACK_DIR
             from src.utils.safe_io import atomic_write_json
+
             atomic_write_json(FEEDBACK_DIR / f"{fb.feedback_id}.json", fb.to_dict())
 
             return {
@@ -2515,7 +2798,11 @@ async def _run_reeval_with_feedback(request: Request, audit_type: str, fb) -> di
                 "dim_b_score": result.dim_b_score,
             }
         elif audit_type == "meta":
-            from src.analysis.daily_audit import run_10day_meta_review, get_active_feedback_context
+            from src.analysis.daily_audit import (
+                run_10day_meta_review,
+                get_active_feedback_context,
+            )
+
             feedback_ctx = get_active_feedback_context()
             result = run_10day_meta_review(
                 llm_completion_fn=llm_fn,
@@ -2527,6 +2814,7 @@ async def _run_reeval_with_feedback(request: Request, audit_type: str, fb) -> di
             fb.re_evaluation_score = int((result.avg_dim_a + result.avg_dim_b) / 2)
             from src.analysis.daily_audit import FEEDBACK_DIR
             from src.utils.safe_io import atomic_write_json
+
             atomic_write_json(FEEDBACK_DIR / f"{fb.feedback_id}.json", fb.to_dict())
 
             return {
