@@ -387,6 +387,12 @@ class PipelineState:
     # Product docs paths (temporary, deleted after report)
     product_doc_paths: list[str] = field(default_factory=list)
 
+    # Custom phase skip configuration (user-selected phases to skip)
+    skipped_phases: list[str] = field(default_factory=list)
+
+    # Selected regulations for multi-regulation cross-exam (persisted for restart recovery)
+    selected_regulations: list[str] = field(default_factory=list)
+
     # Completion
     completed_at: Optional[float] = None
 
@@ -454,6 +460,7 @@ class PipelineState:
         for row in self.get_rows_by_phase(phase):
             groups.setdefault(row.doc_id, []).append(row)
         return groups
+
     # ---- Budget ----
 
     def get_budget(self) -> LLMBudget:

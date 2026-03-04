@@ -201,6 +201,7 @@ async def run_pipeline_analysis(
     phoenix_trace_ctx: Optional[Callable] = None,
     selected_regulations: list[str] | None = None,
     on_run_id_ready: Optional[Callable] = None,
+    custom_skip_phases: list[str] | None = None,
 ) -> PipelineRunResult:
     """Run the full analysis pipeline with async progress reporting.
 
@@ -229,7 +230,6 @@ async def run_pipeline_analysis(
     start_time = time.time()
 
     try:
-        # Initialize pipeline
         pipeline = AnalysisPipeline(
             llm_completion_fn=llm_completion_fn,
             model=model,
@@ -238,6 +238,11 @@ async def run_pipeline_analysis(
             standard=standard,
             selected_regulations=selected_regulations,
         )
+
+        if custom_skip_phases:
+            pipeline.state.skipped_phases = list(custom_skip_phases)
+        if selected_regulations:
+            pipeline.state.selected_regulations = list(selected_regulations)
 
         # Set up callbacks for progress reporting
         async def on_phase_complete(phase: Phase, state: PipelineState) -> None:

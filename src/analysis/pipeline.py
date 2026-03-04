@@ -47,7 +47,10 @@ from src.analysis.comparison_table import ComparisonTable
 from src.analysis.data_quality import run_data_quality_gate
 from src.analysis.reference_mapper import run_reference_mapping
 from src.analysis.gap_scanner import run_gap_scan_row, run_gap_scan_document
-from src.analysis.checklist_verifier import run_checklist_verify_row, run_checklist_verify_document
+from src.analysis.checklist_verifier import (
+    run_checklist_verify_row,
+    run_checklist_verify_document,
+)
 from src.analysis.remediation import run_remediation_row, run_remediation_document
 from src.analysis.verifier import run_verification_row, run_verification_document
 from src.analysis.source_checker import run_source_check
@@ -134,15 +137,18 @@ def _run_risk_assessment_row(row_state: RowState) -> None:
     phase_result.completed_at = time.time()
     row_state.set_phase_result(Phase.RISK_ASSESSMENT, phase_result)
 
+
 def _emit_phase3_event(run_id: str, event: dict) -> None:
     """Emit Phase 3 pipeline event to SSE listeners for real-time HTML viewing."""
     if not run_id:
         return
     try:
         from src.analysis.report_api import emit_cross_exam_event
+
         emit_cross_exam_event(run_id, event)
     except ImportError:
         pass
+
 
 # ============================================================
 # Pipeline orchestrator
@@ -210,7 +216,9 @@ class AnalysisPipeline:
             mode=mode.value,
             standard=standard,
         )
-        budget = LLMBudget(max_total_tokens=max_tokens_budget, max_time_seconds=max_time_seconds)
+        budget = LLMBudget(
+            max_total_tokens=max_tokens_budget, max_time_seconds=max_time_seconds
+        )
         self._state.update_budget(budget)
 
         # Comparison table wrapper
@@ -252,7 +260,8 @@ class AnalysisPipeline:
             Number of rows created
         """
         row_count = self._table.populate_from_scan(
-            scan_result, self._standard,
+            scan_result,
+            self._standard,
             llm_completion_fn=self._llm_fn,
             model=self._model,
         )
@@ -318,12 +327,16 @@ class AnalysisPipeline:
         # Emit pipeline start event for SSE
         try:
             from src.analysis.report_api import emit_cross_exam_event
-            emit_cross_exam_event(self._state.run_id, {
-                "type": "pipeline_started",
-                "run_id": self._state.run_id,
-                "mode": self._state.mode,
-                "total_rows": self._state.total_rows,
-            })
+
+            emit_cross_exam_event(
+                self._state.run_id,
+                {
+                    "type": "pipeline_started",
+                    "run_id": self._state.run_id,
+                    "mode": self._state.mode,
+                    "total_rows": self._state.total_rows,
+                },
+            )
         except ImportError:
             pass
 
@@ -393,12 +406,16 @@ class AnalysisPipeline:
             # Emit pipeline complete event for SSE
             try:
                 from src.analysis.report_api import emit_cross_exam_event
-                emit_cross_exam_event(self._state.run_id, {
-                    "type": "pipeline_complete",
-                    "run_id": self._state.run_id,
-                    "completed_rows": self._state.completed_rows,
-                    "total_rows": self._state.total_rows,
-                })
+
+                emit_cross_exam_event(
+                    self._state.run_id,
+                    {
+                        "type": "pipeline_complete",
+                        "run_id": self._state.run_id,
+                        "completed_rows": self._state.completed_rows,
+                        "total_rows": self._state.total_rows,
+                    },
+                )
             except ImportError:
                 pass
             self._save_state()
@@ -542,6 +559,7 @@ class AnalysisPipeline:
 
         self._notify_phase_complete(Phase.GAP_SCAN)
         self._advance_global_phase(Phase.CHECKLIST_VERIFY)
+
     def _execute_phase_2(self) -> None:
         """Phase 2: Checklist Verification (LLM) — per-document grouping."""
         logger.info("Executing Phase 2: Checklist Verification (per-document)")
@@ -571,28 +589,34 @@ class AnalysisPipeline:
 
         self._notify_phase_complete(Phase.CHECKLIST_VERIFY)
         self._advance_global_phase(Phase.RISK_ASSESSMENT)
+
     def _execute_phase_3(self) -> None:
         """Phase 3: Risk Assessment (rule engine, no LLM)."""
         logger.info("Executing Phase 3: Risk Assessment")
         self._state.current_phase = Phase.RISK_ASSESSMENT.value
 
-        run_id = getattr(self._state, 'run_id', None)
+        run_id = getattr(self._state, "run_id", None)
 
         # Group rows by document for SSE events (mirrors P4 pattern)
         doc_groups = self._state.group_rows_by_doc(Phase.RISK_ASSESSMENT)
         for doc_id, rows in doc_groups.items():
-            doc_title = rows[0].doc_title if rows and hasattr(rows[0], 'doc_title') else ''
-            clause_ids = [r.clause_id for r in rows if hasattr(r, 'clause_id')]
+            doc_title = (
+                rows[0].doc_title if rows and hasattr(rows[0], "doc_title") else ""
+            )
+            clause_ids = [r.clause_id for r in rows if hasattr(r, "clause_id")]
 
             # SSE: phase_3_start
-            _emit_phase3_event(run_id, {
-                "type": "phase_3_start",
-                "phase": "risk_assessment",
-                "doc_id": doc_id,
-                "doc_title": doc_title,
-                "clause_ids": clause_ids,
-                "clause_count": len(rows),
-            })
+            _emit_phase3_event(
+                run_id,
+                {
+                    "type": "phase_3_start",
+                    "phase": "risk_assessment",
+                    "doc_id": doc_id,
+                    "doc_title": doc_title,
+                    "clause_ids": clause_ids,
+                    "clause_count": len(rows),
+                },
+            )
 
             try:
                 for row in rows:
@@ -608,33 +632,41 @@ class AnalysisPipeline:
                 for row in rows:
                     pr = row.get_phase_result(Phase.RISK_ASSESSMENT)
                     if pr and pr.output:
-                        completed_results.append({
-                            "clause_id": getattr(row, 'clause_id', ''),
-                            "gap_severity": pr.output.get('gap_severity', ''),
-                            "risk_level": pr.output.get('risk_level', ''),
-                            "verdict": pr.output.get('verdict', ''),
-                            "evidence_stats": pr.output.get('evidence_stats', {}),
-                        })
+                        completed_results.append(
+                            {
+                                "clause_id": getattr(row, "clause_id", ""),
+                                "gap_severity": pr.output.get("gap_severity", ""),
+                                "risk_level": pr.output.get("risk_level", ""),
+                                "verdict": pr.output.get("verdict", ""),
+                                "evidence_stats": pr.output.get("evidence_stats", {}),
+                            }
+                        )
 
                 # SSE: phase_3_result
-                _emit_phase3_event(run_id, {
-                    "type": "phase_3_result",
-                    "phase": "risk_assessment",
-                    "doc_id": doc_id,
-                    "doc_title": doc_title,
-                    "clause_ids": clause_ids,
-                    "risk_details": completed_results,
-                    "clause_count": len(rows),
-                })
+                _emit_phase3_event(
+                    run_id,
+                    {
+                        "type": "phase_3_result",
+                        "phase": "risk_assessment",
+                        "doc_id": doc_id,
+                        "doc_title": doc_title,
+                        "clause_ids": clause_ids,
+                        "risk_details": completed_results,
+                        "clause_count": len(rows),
+                    },
+                )
 
             except Exception as e:
                 # SSE: phase_3_error
-                _emit_phase3_event(run_id, {
-                    "type": "phase_3_error",
-                    "phase": "risk_assessment",
-                    "doc_id": doc_id,
-                    "error": str(e)[:500],
-                })
+                _emit_phase3_event(
+                    run_id,
+                    {
+                        "type": "phase_3_error",
+                        "phase": "risk_assessment",
+                        "doc_id": doc_id,
+                        "error": str(e)[:500],
+                    },
+                )
 
             self._save_state()
 
@@ -671,12 +703,15 @@ class AnalysisPipeline:
 
         self._notify_phase_complete(Phase.REMEDIATION)
         self._advance_global_phase(Phase.VERIFICATION)
+
     def _execute_phase_5(self) -> None:
         """Phase 5: Independent Verification / Cross-examination (LLM) — per-document grouping.
 
         Parallelized: multiple document groups are processed concurrently via ThreadPoolExecutor.
         """
-        logger.info("Executing Phase 5: Independent Verification (per-document, parallel)")
+        logger.info(
+            "Executing Phase 5: Independent Verification (per-document, parallel)"
+        )
         self._state.current_phase = Phase.VERIFICATION.value
 
         doc_groups = self._state.group_rows_by_doc(Phase.VERIFICATION)
@@ -744,6 +779,7 @@ class AnalysisPipeline:
 
         self._notify_phase_complete(Phase.VERIFICATION)
         self._advance_global_phase(Phase.SOURCE_CHECK)
+
     def _execute_phase_6(self) -> None:
         """Phase 6: Source Verification (HTTP batch)."""
         logger.info("Executing Phase 6: Source Verification")
@@ -823,7 +859,9 @@ class AnalysisPipeline:
                 row.advance_to_next_phase()
 
         elif phase == Phase.GAP_SCAN:
-            result = run_gap_scan_row(row, self._state, self._llm_fn, self._model, lang=self._lang)
+            result = run_gap_scan_row(
+                row, self._state, self._llm_fn, self._model, lang=self._lang
+            )
             row.set_phase_result(Phase.GAP_SCAN, result)
             if result.status == PhaseStatus.COMPLETED.value:
                 row.advance_to_next_phase()
@@ -843,7 +881,9 @@ class AnalysisPipeline:
                 row.advance_to_next_phase()
 
         elif phase == Phase.REMEDIATION:
-            result = run_remediation_row(row, self._state, self._llm_fn, self._model, lang=self._lang)
+            result = run_remediation_row(
+                row, self._state, self._llm_fn, self._model, lang=self._lang
+            )
             row.set_phase_result(Phase.REMEDIATION, result)
             if result.status in (
                 PhaseStatus.COMPLETED.value,
@@ -890,10 +930,13 @@ class AnalysisPipeline:
         return False
 
     def _skip_phase_in_mode(self, phase: Phase) -> bool:
-        """Check if a phase should be skipped in current mode.
+        """Check if a phase should be skipped in current mode or by custom config.
 
         RISK_ONLY mode only runs: Phase 0, 0.5, 1, 3.
+        Custom skip: user-selected phases stored in state.skipped_phases.
         """
+        if phase.value in self._state.skipped_phases:
+            return True
         if self.mode != ExecutionMode.RISK_ONLY:
             return False
         return phase in (
