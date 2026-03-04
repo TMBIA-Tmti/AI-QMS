@@ -76,26 +76,37 @@ echo [OK] Python: %QMS_PYTHON%
 echo.
 
 :: Auto-accept Conda Terms of Service (required since Miniconda 25.1.1)
-:: This prevents CondaToSNonInteractiveError when creating/updating environments.
 where conda >nul 2>&1
 if not errorlevel 1 (
     echo [INFO] Accepting Conda Terms of Service...
-    call conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main >nul 2>&1
-    call conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r >nul 2>&1
-    call conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/msys2 >nul 2>&1
+    call conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main < nul >nul 2>&1
+    call conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r < nul >nul 2>&1
+    call conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/msys2 < nul >nul 2>&1
     echo [OK] Conda TOS accepted.
 )
 echo.
 
 :: Auto-update: always sync all packages from requirements.txt
 echo [INFO] Checking dependencies...
-"%QMS_PYTHON%" -m pip install -r "%PROJECT_DIR%requirements.txt" --quiet --disable-pip-version-check 2>nul
+"%QMS_PYTHON%" -m pip install -r "%PROJECT_DIR%requirements.txt" --quiet --disable-pip-version-check < nul 2>nul
 if errorlevel 1 (
     echo [WARN] Some packages failed to install. App will continue with available features.
 ) else (
     echo [OK] All dependencies up to date.
 )
 echo.
+
+:: Auto-cleanup: Kill orphaned Chainlit Python processes on ports 3000-3010
+:: This prevents port conflicts from previous sessions that were closed improperly
+for /L %%p in (3000,1,3010) do (
+    for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":%%p .*LISTENING"') do (
+        tasklist /FI "PID eq %%a" /FO CSV /NH 2>nul | findstr /I "python" >nul
+        if not errorlevel 1 (
+            echo [INFO] Found orphaned Python process on port %%p ^(PID %%a^). Cleaning up...
+            taskkill /PID %%a /F >nul 2>&1
+        )
+    )
+)
 
 :: Check if chainlit is installed
 "%QMS_PYTHON%" -c "import chainlit; print(f'[OK] Chainlit version: {chainlit.__version__}')" 2>nul
@@ -113,7 +124,7 @@ if errorlevel 1 (
 :: Check Ollama
 echo.
 echo [INFO] Checking Ollama...
-tasklist /FI "IMAGENAME eq ollama.exe" 2>NUL | find /I "ollama.exe" >NUL
+tasklist /FI "IMAGENAME eq ollama.exe" 2>NUL | findstr /I "ollama.exe" >NUL
 if errorlevel 1 (
     echo [INFO] Starting Ollama...
     where ollama >nul 2>&1
@@ -138,7 +149,7 @@ if errorlevel 1 (
 ) else (
     call :find_free_phoenix_port
     :: Check if Phoenix is already running on detected port
-    netstat -an 2>nul | find ":%PHOENIX_PORT%" | find "LISTENING" >nul 2>&1
+    netstat -an 2>nul | findstr ":%PHOENIX_PORT% .*LISTENING" >nul 2>&1
     if errorlevel 1 (
         echo [INFO] Starting Phoenix server on port %PHOENIX_PORT% (gRPC: %PHOENIX_GRPC_PORT%^)...
         start "Phoenix Server" /min "%QMS_PYTHON%" -m phoenix.server.main --port %PHOENIX_PORT% serve --grpc-port %PHOENIX_GRPC_PORT%
@@ -150,7 +161,6 @@ if errorlevel 1 (
 )
 
 :: Pass Phoenix port to Python app via environment variable
-:: This allows app.py to auto-connect to the correct Phoenix port
 set "PHOENIX_COLLECTOR_ENDPOINT=http://localhost:%PHOENIX_PORT%/v1/traces"
 
 :: Auto-detect free port for Chainlit
@@ -170,14 +180,13 @@ echo  Press Ctrl+C to stop
 echo ========================================================
 echo.
 
-:: Browser is auto-opened by Chainlit itself (no manual start needed)
-
 :: Run Chainlit from project directory
 cd /d "%PROJECT_DIR%"
 "%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port %CHAINLIT_PORT% -w
 
+echo.
+echo ========================================================
 if errorlevel 1 (
-    echo.
     echo [ERROR] Chainlit terminated with error.
     echo Check the messages above for details.
     echo.
@@ -185,104 +194,93 @@ if errorlevel 1 (
     echo   1. Port %CHAINLIT_PORT% already in use
     echo   2. Missing dependencies (run: pip install -r requirements.txt)
     echo   3. Chainlit version issue (need 2.9.4+)
-    echo.
+) else (
+    echo [INFO] Chainlit has stopped.
 )
-pause
+echo ========================================================
+echo.
+echo Press any key to exit...
+pause >nul
 goto :eof
 
 :: ============================================================
 :: Subroutine: Find a free port for Chainlit (3000-3010)
-:: Sets %CHAINLIT_PORT% to the first available port.
-:: If port 3000 is occupied by another process, warns user.
+:: Uses individual checks to avoid for/L + goto batch parser bugs
 :: ============================================================
 :find_free_port
 set "CHAINLIT_PORT=3000"
-:: First check if another Chainlit is already running on any port 3000-3010
-for /L %%p in (3000,1,3010) do (
-    for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| find ":%%p " ^| find "LISTENING"') do (
-        wmic process where "ProcessId=%%a" get CommandLine 2>nul | find "chainlit" >nul
-        if not errorlevel 1 (
-            echo [INFO] Chainlit is already running on port %%p (PID %%a^).
-            echo [INFO] URL: http://localhost:%%p
-            echo [INFO] If you want to restart, close the existing instance first.
-            set "CHAINLIT_PORT=%%p"
-            goto :port_display
-        )
-    )
-)
-:: No existing Chainlit found — find a free port
-for /L %%p in (3000,1,3010) do (
-    netstat -ano 2>nul | find ":%%p " | find "LISTENING" >nul
-    if errorlevel 1 (
-        set "CHAINLIT_PORT=%%p"
-        goto :port_found
-    )
-)
-:: All ports 3000-3010 occupied — use 3000 and let Chainlit report the error
+call :check_port 3000 && goto :port_found
+call :check_port 3001 && goto :port_found
+call :check_port 3002 && goto :port_found
+call :check_port 3003 && goto :port_found
+call :check_port 3004 && goto :port_found
+call :check_port 3005 && goto :port_found
+call :check_port 3006 && goto :port_found
+call :check_port 3007 && goto :port_found
+call :check_port 3008 && goto :port_found
+call :check_port 3009 && goto :port_found
+call :check_port 3010 && goto :port_found
 set "CHAINLIT_PORT=3000"
 echo [WARN] Ports 3000-3010 are all in use! Chainlit may fail to start.
-echo [WARN] Please free a port: netstat -ano ^| find "LISTENING" ^| find ":300"
 goto :port_display
 
 :port_found
 if "%CHAINLIT_PORT%"=="3000" goto :port_display
-
-:: Port 3000 was occupied — show warning with details
 echo.
-echo [WARN] Port 3000 is occupied by another process:
-for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| find ":3000 " ^| find "LISTENING"') do (
-    for /f "tokens=1,* delims=," %%n in ('wmic process where "ProcessId=%%a" get Name^,CommandLine /format:csv 2^>nul ^| find ","') do (
-        echo        PID %%a — %%n
-    )
-)
-echo [INFO] Auto-switching Chainlit to port %CHAINLIT_PORT%
+echo [WARN] Port 3000 is occupied. Auto-switching Chainlit to port %CHAINLIT_PORT%
 echo.
 
 :port_display
 exit /b 0
 
+:: Check if a single port is free. Sets CHAINLIT_PORT and returns 0 if free, 1 if busy.
+:check_port
+netstat -ano 2>nul | findstr ":%1 .*LISTENING" >nul
+if errorlevel 1 (
+    set "CHAINLIT_PORT=%1"
+    exit /b 0
+)
+exit /b 1
+
 :: ============================================================
 :: Subroutine: Find free ports for Phoenix
-:: Sets %PHOENIX_PORT% (HTTP 6006-6016) and %PHOENIX_GRPC_PORT% (gRPC 4317-4327)
 :: ============================================================
 :find_free_phoenix_port
 set "PHOENIX_PORT=6006"
 set "PHOENIX_GRPC_PORT=4317"
-:: Find free HTTP port
-for /L %%p in (6006,1,6016) do (
-    netstat -ano 2>nul | find ":%%p " | find "LISTENING" >nul
-    if errorlevel 1 (
-        set "PHOENIX_PORT=%%p"
-        goto :phoenix_http_found
-    )
-)
+call :check_phoenix_http 6006 && goto :phoenix_http_found
+call :check_phoenix_http 6007 && goto :phoenix_http_found
+call :check_phoenix_http 6008 && goto :phoenix_http_found
+call :check_phoenix_http 6009 && goto :phoenix_http_found
+call :check_phoenix_http 6010 && goto :phoenix_http_found
+call :check_phoenix_http 6011 && goto :phoenix_http_found
+call :check_phoenix_http 6012 && goto :phoenix_http_found
+call :check_phoenix_http 6013 && goto :phoenix_http_found
+call :check_phoenix_http 6014 && goto :phoenix_http_found
+call :check_phoenix_http 6015 && goto :phoenix_http_found
+call :check_phoenix_http 6016 && goto :phoenix_http_found
 set "PHOENIX_PORT=6006"
 echo [WARN] Ports 6006-6016 are all in use! Phoenix may fail to start.
 goto :phoenix_find_grpc
 
 :phoenix_http_found
 if "%PHOENIX_PORT%"=="6006" goto :phoenix_find_grpc
-echo.
-echo [WARN] Port 6006 is occupied by another process:
-for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| find ":6006 " ^| find "LISTENING"') do (
-    for /f "tokens=1,* delims=," %%n in ('wmic process where "ProcessId=%%a" get Name^,CommandLine /format:csv 2^>nul ^| find ","') do (
-        echo        PID %%a — %%n
-    )
-)
-echo [INFO] Auto-switching Phoenix HTTP to port %PHOENIX_PORT%
-echo.
+echo [WARN] Port 6006 is occupied. Auto-switching Phoenix to port %PHOENIX_PORT%
 
 :phoenix_find_grpc
-:: Find free gRPC port
-for /L %%p in (4317,1,4327) do (
-    netstat -ano 2>nul | find ":%%p " | find "LISTENING" >nul
-    if errorlevel 1 (
-        set "PHOENIX_GRPC_PORT=%%p"
-        goto :phoenix_grpc_found
-    )
-)
+call :check_phoenix_grpc 4317 && goto :phoenix_grpc_found
+call :check_phoenix_grpc 4318 && goto :phoenix_grpc_found
+call :check_phoenix_grpc 4319 && goto :phoenix_grpc_found
+call :check_phoenix_grpc 4320 && goto :phoenix_grpc_found
+call :check_phoenix_grpc 4321 && goto :phoenix_grpc_found
+call :check_phoenix_grpc 4322 && goto :phoenix_grpc_found
+call :check_phoenix_grpc 4323 && goto :phoenix_grpc_found
+call :check_phoenix_grpc 4324 && goto :phoenix_grpc_found
+call :check_phoenix_grpc 4325 && goto :phoenix_grpc_found
+call :check_phoenix_grpc 4326 && goto :phoenix_grpc_found
+call :check_phoenix_grpc 4327 && goto :phoenix_grpc_found
 set "PHOENIX_GRPC_PORT=4317"
-echo [WARN] gRPC ports 4317-4327 are all in use! Phoenix may fail to start.
+echo [WARN] gRPC ports 4317-4327 are all in use!
 goto :phoenix_port_display
 
 :phoenix_grpc_found
@@ -291,3 +289,19 @@ echo [INFO] Auto-switching Phoenix gRPC to port %PHOENIX_GRPC_PORT%
 
 :phoenix_port_display
 exit /b 0
+
+:check_phoenix_http
+netstat -ano 2>nul | findstr ":%1 .*LISTENING" >nul
+if errorlevel 1 (
+    set "PHOENIX_PORT=%1"
+    exit /b 0
+)
+exit /b 1
+
+:check_phoenix_grpc
+netstat -ano 2>nul | findstr ":%1 .*LISTENING" >nul
+if errorlevel 1 (
+    set "PHOENIX_GRPC_PORT=%1"
+    exit /b 0
+)
+exit /b 1

@@ -74,7 +74,7 @@ echo.
 
 :: Auto-update: always sync all packages from requirements.txt
 echo [INFO] Checking dependencies...
-"%QMS_PYTHON%" -m pip install -r "%PROJECT_DIR%requirements.txt" --quiet --disable-pip-version-check 2>nul
+"%QMS_PYTHON%" -m pip install -r "%PROJECT_DIR%requirements.txt" --quiet --disable-pip-version-check < nul 2>nul
 if errorlevel 1 (
     echo [WARN] Some packages failed to install. App will continue with available features.
 ) else (
@@ -98,8 +98,8 @@ if errorlevel 1 (
 :: Auto-detect free port for Phoenix
 call :find_free_phoenix_port
 
-:: Check if Phoenix is already running (HTTP port or gRPC port)
-netstat -ano 2>nul | find ":%PHOENIX_PORT%" | find "LISTENING" >nul
+:: Check if Phoenix is already running (HTTP port)
+netstat -ano 2>nul | findstr ":%PHOENIX_PORT% .*LISTENING" >nul
 if not errorlevel 1 (
     echo [INFO] Phoenix is already running on port %PHOENIX_PORT%
     echo [INFO] Dashboard: http://localhost:%PHOENIX_PORT%
@@ -137,19 +137,23 @@ goto :eof
 
 :: ============================================================
 :: Subroutine: Find free ports for Phoenix
-:: Sets %PHOENIX_PORT% (HTTP 6006-6016) and %PHOENIX_GRPC_PORT% (gRPC 4317-4327)
+:: Uses individual checks to avoid for/L + goto batch parser bugs
 :: ============================================================
 :find_free_phoenix_port
 set "PHOENIX_PORT=6006"
 set "PHOENIX_GRPC_PORT=4317"
 :: Find free HTTP port
-for /L %%p in (6006,1,6016) do (
-    netstat -ano 2>nul | find ":%%p " | find "LISTENING" >nul
-    if errorlevel 1 (
-        set "PHOENIX_PORT=%%p"
-        goto :phoenix_http_found
-    )
-)
+call :check_phoenix_http 6006 && goto :phoenix_http_found
+call :check_phoenix_http 6007 && goto :phoenix_http_found
+call :check_phoenix_http 6008 && goto :phoenix_http_found
+call :check_phoenix_http 6009 && goto :phoenix_http_found
+call :check_phoenix_http 6010 && goto :phoenix_http_found
+call :check_phoenix_http 6011 && goto :phoenix_http_found
+call :check_phoenix_http 6012 && goto :phoenix_http_found
+call :check_phoenix_http 6013 && goto :phoenix_http_found
+call :check_phoenix_http 6014 && goto :phoenix_http_found
+call :check_phoenix_http 6015 && goto :phoenix_http_found
+call :check_phoenix_http 6016 && goto :phoenix_http_found
 set "PHOENIX_PORT=6006"
 echo [WARN] Ports 6006-6016 are all in use! Phoenix may fail to start.
 goto :phoenix_find_grpc
@@ -157,24 +161,23 @@ goto :phoenix_find_grpc
 :phoenix_http_found
 if "%PHOENIX_PORT%"=="6006" goto :phoenix_find_grpc
 echo.
-echo [WARN] Port 6006 is occupied by another process:
-for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| find ":6006 " ^| find "LISTENING"') do (
-    for /f "tokens=1,* delims=," %%n in ('wmic process where "ProcessId=%%a" get Name^,CommandLine /format:csv 2^>nul ^| find ","') do (
-        echo        PID %%a — %%n
-    )
-)
+echo [WARN] Port 6006 is occupied by another process.
 echo [INFO] Auto-switching Phoenix HTTP to port %PHOENIX_PORT%
 echo.
 
 :phoenix_find_grpc
 :: Find free gRPC port
-for /L %%p in (4317,1,4327) do (
-    netstat -ano 2>nul | find ":%%p " | find "LISTENING" >nul
-    if errorlevel 1 (
-        set "PHOENIX_GRPC_PORT=%%p"
-        goto :phoenix_grpc_found
-    )
-)
+call :check_phoenix_grpc 4317 && goto :phoenix_grpc_found
+call :check_phoenix_grpc 4318 && goto :phoenix_grpc_found
+call :check_phoenix_grpc 4319 && goto :phoenix_grpc_found
+call :check_phoenix_grpc 4320 && goto :phoenix_grpc_found
+call :check_phoenix_grpc 4321 && goto :phoenix_grpc_found
+call :check_phoenix_grpc 4322 && goto :phoenix_grpc_found
+call :check_phoenix_grpc 4323 && goto :phoenix_grpc_found
+call :check_phoenix_grpc 4324 && goto :phoenix_grpc_found
+call :check_phoenix_grpc 4325 && goto :phoenix_grpc_found
+call :check_phoenix_grpc 4326 && goto :phoenix_grpc_found
+call :check_phoenix_grpc 4327 && goto :phoenix_grpc_found
 set "PHOENIX_GRPC_PORT=4317"
 echo [WARN] gRPC ports 4317-4327 are all in use! Phoenix may fail to start.
 goto :phoenix_port_display
@@ -185,3 +188,19 @@ echo [INFO] Auto-switching Phoenix gRPC to port %PHOENIX_GRPC_PORT%
 
 :phoenix_port_display
 exit /b 0
+
+:check_phoenix_http
+netstat -ano 2>nul | findstr ":%1 .*LISTENING" >nul
+if errorlevel 1 (
+    set "PHOENIX_PORT=%1"
+    exit /b 0
+)
+exit /b 1
+
+:check_phoenix_grpc
+netstat -ano 2>nul | findstr ":%1 .*LISTENING" >nul
+if errorlevel 1 (
+    set "PHOENIX_GRPC_PORT=%1"
+    exit /b 0
+)
+exit /b 1
