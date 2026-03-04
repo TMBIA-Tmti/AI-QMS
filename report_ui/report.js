@@ -2695,6 +2695,17 @@
                 addPhaseCard('2', '驗證', data, 'error');
                 break;
 
+            // ── Phase 3: Risk Assessment ──
+            case 'phase_3_start':
+                addPhaseCard('3', '風險評估', data, 'start');
+                break;
+            case 'phase_3_result':
+                addPhaseCard('3', '風險評估', data, 'result');
+                break;
+            case 'phase_3_error':
+                addPhaseCard('3', '風險評估', data, 'error');
+                break;
+
             // ── Phase 4: Remediation ──
             case 'phase_4_start':
                 addPhaseCard('4', '改善建議', data, 'start');
@@ -2790,7 +2801,7 @@
 
     /**
      * Add a phase card to the SSE feed.
-     * @param {string} phaseNum - '1', '2', '4', '5'
+     * @param {string} phaseNum - '1', '2', '3', '4', '5'
      * @param {string} phaseName - Display name
      * @param {object} data - SSE event data
      * @param {string} status - 'start', 'result', 'error'
@@ -2828,26 +2839,56 @@
                     <div class="llm-prompt-preview">${escapeHtml(data.prompt_preview)}</div>
                 </div>`;
         } else if (status === 'result') {
-            const summary = [];
-            if (data.evidence_summary) {
-                summary.push(`找到: ${data.evidence_summary.found || 0} | 未找到: ${data.evidence_summary.not_found || 0} | 不充分: ${data.evidence_summary.inadequate || 0}`);
-            }
-            if (data.total_suggestions !== undefined) {
-                summary.push(`建議數: ${data.total_suggestions}`);
-            }
-            if (data.total_agreed !== undefined) {
-                summary.push(`一致: ${data.total_agreed} | 標記: ${data.total_flagged || 0}`);
-            }
-            if (data.usage) {
-                summary.push(`Token: ${(data.usage.total_tokens || 0).toLocaleString()}`);
-            }
-            bodyHtml = summary.length > 0 ? `<div style="margin-bottom:6px">${summary.join(' | ')}</div>` : '';
-            if (data.llm_response) {
-                bodyHtml += `
-                    <span class="collapsible-toggle" onclick="this.nextElementSibling.classList.toggle('expanded')">📄 查看 LLM 回應</span>
+            // Phase 3 specific: risk_details (rule engine, no LLM)
+            if (data.risk_details && data.risk_details.length > 0) {
+                const riskRows = data.risk_details.map(d => {
+                    const stats = d.evidence_stats || {};
+                    return `<tr>
+                        <td style="font-weight:600">${escapeHtml(d.clause_id || '')}</td>
+                        <td>${escapeHtml(d.gap_severity || '')}</td>
+                        <td>${escapeHtml(d.risk_level || '')}</td>
+                        <td><span class="verdict-badge verdict-${(d.verdict || '').toLowerCase().replace(/\s+/g, '-')}">${escapeHtml(d.verdict || '')}</span></td>
+                        <td>${stats.found_adequate || 0}/${stats.total || 0}</td>
+                    </tr>`;
+                }).join('');
+                bodyHtml = `
+                    <div style="font-size:0.85rem;margin-bottom:6px">條款數: ${data.clause_count || data.risk_details.length} | 規則引擎 (Rule Engine)</div>
+                    <span class="collapsible-toggle" onclick="this.nextElementSibling.classList.toggle('expanded')">📊 查看風險評估結果</span>
                     <div class="collapsible-content">
-                        <div class="llm-response-preview">${escapeHtml(data.llm_response)}</div>
+                        <table class="risk-detail-table" style="width:100%;font-size:0.8rem;border-collapse:collapse">
+                            <thead><tr style="background:#f8fafc;text-align:left">
+                                <th style="padding:4px 6px">條款</th>
+                                <th style="padding:4px 6px">Gap 嚴重度</th>
+                                <th style="padding:4px 6px">風險等級</th>
+                                <th style="padding:4px 6px">判定</th>
+                                <th style="padding:4px 6px">證據</th>
+                            </tr></thead>
+                            <tbody>${riskRows}</tbody>
+                        </table>
                     </div>`;
+            } else {
+                // Generic result rendering for P1/P2/P4/P5
+                const summary = [];
+                if (data.evidence_summary) {
+                    summary.push(`找到: ${data.evidence_summary.found || 0} | 未找到: ${data.evidence_summary.not_found || 0} | 不充分: ${data.evidence_summary.inadequate || 0}`);
+                }
+                if (data.total_suggestions !== undefined) {
+                    summary.push(`建議數: ${data.total_suggestions}`);
+                }
+                if (data.total_agreed !== undefined) {
+                    summary.push(`一致: ${data.total_agreed} | 標記: ${data.total_flagged || 0}`);
+                }
+                if (data.usage) {
+                    summary.push(`Token: ${(data.usage.total_tokens || 0).toLocaleString()}`);
+                }
+                bodyHtml = summary.length > 0 ? `<div style="margin-bottom:6px">${summary.join(' | ')}</div>` : '';
+                if (data.llm_response) {
+                    bodyHtml += `
+                        <span class="collapsible-toggle" onclick="this.nextElementSibling.classList.toggle('expanded')">📄 查看 LLM 回應</span>
+                        <div class="collapsible-content">
+                            <div class="llm-response-preview">${escapeHtml(data.llm_response)}</div>
+                        </div>`;
+                }
             }
         } else if (status === 'error') {
             bodyHtml = `<div style="color:#dc2626">${escapeHtml(data.error || '未知錯誤')}</div>`;

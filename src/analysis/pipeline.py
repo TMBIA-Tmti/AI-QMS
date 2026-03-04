@@ -134,6 +134,15 @@ def _run_risk_assessment_row(row_state: RowState) -> None:
     phase_result.completed_at = time.time()
     row_state.set_phase_result(Phase.RISK_ASSESSMENT, phase_result)
 
+def _emit_phase3_event(run_id: str, event: dict) -> None:
+    """Emit Phase 3 pipeline event to SSE listeners for real-time HTML viewing."""
+    if not run_id:
+        return
+    try:
+        from src.analysis.report_api import emit_cross_exam_event
+        emit_cross_exam_event(run_id, event)
+    except ImportError:
+        pass
 
 # ============================================================
 # Pipeline orchestrator
@@ -567,14 +576,67 @@ class AnalysisPipeline:
         logger.info("Executing Phase 3: Risk Assessment")
         self._state.current_phase = Phase.RISK_ASSESSMENT.value
 
-        rows = self._state.get_rows_by_phase(Phase.RISK_ASSESSMENT)
-        for row in rows:
-            _run_risk_assessment_row(row)
-            if row.get_phase_result(Phase.RISK_ASSESSMENT):
-                result = row.get_phase_result(Phase.RISK_ASSESSMENT)
-                if result and result.status == PhaseStatus.COMPLETED.value:
-                    row.advance_to_next_phase()
-            self._state.update_row(row)
+        run_id = getattr(self._state, 'run_id', None)
+
+        # Group rows by document for SSE events (mirrors P4 pattern)
+        doc_groups = self._state.group_rows_by_doc(Phase.RISK_ASSESSMENT)
+        for doc_id, rows in doc_groups.items():
+            doc_title = rows[0].doc_title if rows and hasattr(rows[0], 'doc_title') else ''
+            clause_ids = [r.clause_id for r in rows if hasattr(r, 'clause_id')]
+
+            # SSE: phase_3_start
+            _emit_phase3_event(run_id, {
+                "type": "phase_3_start",
+                "phase": "risk_assessment",
+                "doc_id": doc_id,
+                "doc_title": doc_title,
+                "clause_ids": clause_ids,
+                "clause_count": len(rows),
+            })
+
+            try:
+                for row in rows:
+                    _run_risk_assessment_row(row)
+                    if row.get_phase_result(Phase.RISK_ASSESSMENT):
+                        result = row.get_phase_result(Phase.RISK_ASSESSMENT)
+                        if result and result.status == PhaseStatus.COMPLETED.value:
+                            row.advance_to_next_phase()
+                    self._state.update_row(row)
+
+                # Collect results for SSE emit
+                completed_results = []
+                for row in rows:
+                    pr = row.get_phase_result(Phase.RISK_ASSESSMENT)
+                    if pr and pr.output:
+                        completed_results.append({
+                            "clause_id": getattr(row, 'clause_id', ''),
+                            "gap_severity": pr.output.get('gap_severity', ''),
+                            "risk_level": pr.output.get('risk_level', ''),
+                            "verdict": pr.output.get('verdict', ''),
+                            "evidence_stats": pr.output.get('evidence_stats', {}),
+                        })
+
+                # SSE: phase_3_result
+                _emit_phase3_event(run_id, {
+                    "type": "phase_3_result",
+                    "phase": "risk_assessment",
+                    "doc_id": doc_id,
+                    "doc_title": doc_title,
+                    "clause_ids": clause_ids,
+                    "risk_details": completed_results,
+                    "clause_count": len(rows),
+                })
+
+            except Exception as e:
+                # SSE: phase_3_error
+                _emit_phase3_event(run_id, {
+                    "type": "phase_3_error",
+                    "phase": "risk_assessment",
+                    "doc_id": doc_id,
+                    "error": str(e)[:500],
+                })
+
+            self._save_state()
 
         self._notify_phase_complete(Phase.RISK_ASSESSMENT)
         self._advance_global_phase(Phase.REMEDIATION)

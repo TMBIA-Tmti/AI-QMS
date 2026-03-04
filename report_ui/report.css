@@ -1834,6 +1834,11 @@ body {
     color: #6b21a8;
 }
 
+.phase-badge.phase-3 {
+    background: #dcfce7;
+    color: #166534;
+}
+
 .phase-badge.phase-4 {
     background: #ffedd5;
     color: #c2410c;
