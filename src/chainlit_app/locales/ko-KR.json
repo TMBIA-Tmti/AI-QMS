@@ -285,5 +285,8 @@
     "웹 검색",
     "웹검색",
     "온라인 검색"
-  ]
+  ],
+  "source_label.regulatory_list": "규제 목록",
+  "source_label.regulatory_update": "규제 목록 업데이트",
+  "source_label.source": "소스 명령"
 }

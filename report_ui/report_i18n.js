@@ -352,6 +352,9 @@
             // ── Table display ──
             "table.showing": "顯示 {shown} / {total} 項",
             "table.emptyState": "載入中...",
+
+            "source.regulatory_list": "📋 法規清單",
+            "source.regulatory_update": "🔄 法規清單更新",
         },
 
         "en-US": {
@@ -670,6 +673,9 @@
 
             "table.showing": "Showing {shown} / {total} items",
             "table.emptyState": "Loading...",
+
+            "source.regulatory_list": "📋 Regulatory List",
+            "source.regulatory_update": "🔄 Regulatory List Update",
         },
 
         "ja-JP": {
@@ -988,6 +994,9 @@
 
             "table.showing": "{shown} / {total} 件を表示",
             "table.emptyState": "読み込み中...",
+
+            "source.regulatory_list": "📋 規制リスト",
+            "source.regulatory_update": "🔄 規制リスト更新",
         },
     };
 

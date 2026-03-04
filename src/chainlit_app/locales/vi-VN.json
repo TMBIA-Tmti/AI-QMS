@@ -278,5 +278,8 @@
     "/web",
     "tìm kiếm web",
     "tìm trên mạng"
-  ]
+  ],
+  "source_label.regulatory_list": "Danh sách quy định",
+  "source_label.regulatory_update": "Cập nhật danh sách quy định",
+  "source_label.source": "Lệnh nguồn"
 }

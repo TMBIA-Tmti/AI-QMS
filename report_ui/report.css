@@ -92,6 +92,24 @@ body {
     margin-left: 12px;
 }
 
+.source-command-badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 2px 10px;
+    border-radius: 12px;
+    margin-left: 8px;
+}
+
+.source-command-badge.source-list {
+    background: #e8f0fe;
+    color: #1a73e8;
+}
+
+.source-command-badge.source-update {
+    background: #fef7e0;
+    color: #e37400;
+}
+
 .header-right {
     display: flex;
     align-items: center;

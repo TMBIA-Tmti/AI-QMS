@@ -279,5 +279,8 @@
     "/web",
     "websuche",
     "online suchen"
-  ]
+  ],
+  "source_label.regulatory_list": "Regulierungsliste",
+  "source_label.regulatory_update": "Regulierungsliste Aktualisierung",
+  "source_label.source": "Quellbefehl"
 }

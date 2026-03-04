@@ -460,5 +460,9 @@
   "welcome.main.greeting": "您好，我是 Eira。歡迎使用本 AI 輔助系統，Eira 可協助您進行品質文件審查、醫療器材法規符合性評估，以及各國法規標準的查詢與分析。",
   "welcome.main.instructions": "**子系統：**\n• 📄 **文件管制** — 文件上傳、OCR、版本管理、簽章偵測、稽核紀錄、匯出\n• 🔍 **稽核管理** — CAPA、內部稽核、不符合事項管理（Phase 2 規劃中）\n\n**通用功能：** 狀態 · /web 搜尋 · 幫助 · 直接提問",
   "welcome.main.switch_hint": "💡 切換到「文件管制」Profile 可上傳文件進行 OCR 處理",
-  "welcome.main.title": "🏥 **TMBIA-Tmti AI-QMS 品質法規助理 (Eira)**"
+  "welcome.main.title": "🏥 **TMBIA-Tmti AI-QMS 品質法規助理 (Eira)**",
+
+  "source_label.regulatory_list": "法規清單",
+  "source_label.regulatory_update": "法規清單更新",
+  "source_label.source": "來源指令"
 }

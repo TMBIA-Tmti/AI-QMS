@@ -377,7 +377,13 @@
   "regulatory_export.detail_heading": "二、各文書引用明細",
   "regulatory_export.detail_sheet": "文書引用明細",
   "regulatory_export.detail_title": "各文書引用法規標準明細",
-  "regulatory_export.doc_headers": ["文書ID", "文書名称", "タイプ", "バージョン", "引用標準"],
+  "regulatory_export.doc_headers": [
+    "文書ID",
+    "文書名称",
+    "タイプ",
+    "バージョン",
+    "引用標準"
+  ],
   "regulatory_export.explicit_ref": "明確引用",
   "regulatory_export.export_time": "エクスポート時間",
   "regulatory_export.footer_regulatory": "本レポートは AI-QMS 品質管理システムにより自動生成されました。法規標準情報は文書 OCR コンテンツから抽出されたものであり、参考情報としてご利用ください。",
@@ -387,13 +393,29 @@
   "regulatory_export.no_refs_doc": "📋 他の文書が {doc_id} を引用していません。",
   "regulatory_export.no_refs_doc_word": "他の文書が {doc_id} を引用していません。",
   "regulatory_export.ref_count": "{doc_id} を引用する文書は合計 {count} 件",
-  "regulatory_export.ref_headers": ["#", "文書ID", "文書名称", "バージョン", "引用方式"],
+  "regulatory_export.ref_headers": [
+    "#",
+    "文書ID",
+    "文書名称",
+    "バージョン",
+    "引用方式"
+  ],
   "regulatory_export.ref_sheet": "引用リスト",
   "regulatory_export.ref_table_title": "📋 **文書引用リスト** — {doc_id} は以下の {count} 件の文書に引用されています",
-  "regulatory_export.ref_table_headers": ["文書ID", "文書名称", "タイプ", "バージョン", "引用方式"],
+  "regulatory_export.ref_table_headers": [
+    "文書ID",
+    "文書名称",
+    "タイプ",
+    "バージョン",
+    "引用方式"
+  ],
   "regulatory_export.std_count": "標準総数: {count} 項",
   "regulatory_export.std_coverage": "対象文書数: {count} 件",
-  "regulatory_export.std_headers": ["標準", "引用文書数", "引用文書"],
+  "regulatory_export.std_headers": [
+    "標準",
+    "引用文書数",
+    "引用文書"
+  ],
   "regulatory_export.std_summary": "標準集計",
   "regulatory_export.std_summary_heading": "一、標準集計",
   "regulatory_export.title_regulatory": "AI-QMS 法規標準引用リスト",
@@ -409,8 +431,22 @@
   "regulatory_update_export.summary_heading": "一、法規更新サマリー",
   "regulatory_update_export.summary_sheet": "更新サマリー",
   "regulatory_update_export.summary_table": "クロール結果サマリー",
-  "regulatory_update_export.table_headers": ["地域", "機関", "URL", "ステータス", "内容サマリー", "保存先", "QMS 対応"],
-  "regulatory_update_export.table_headers_md": ["地域", "機関", "ステータス", "内容サマリー", "QMS 対応"],
+  "regulatory_update_export.table_headers": [
+    "地域",
+    "機関",
+    "URL",
+    "ステータス",
+    "内容サマリー",
+    "保存先",
+    "QMS 対応"
+  ],
+  "regulatory_update_export.table_headers_md": [
+    "地域",
+    "機関",
+    "ステータス",
+    "内容サマリー",
+    "QMS 対応"
+  ],
   "regulatory_update_export.title": "AI-QMS 法規リスト更新レポート",
   "regulatory_update_export.unknown_reason": "不明な原因",
   "report.open_interactive": "インタラクティブレポートページを開く",
@@ -457,5 +493,8 @@
   "report_api.md_ra_override_label": "RA 上書き",
   "report_api.md_ra_notes_label": "RA メモ",
   "report_api.rerun_sse_msg": "条項 {row_id} が再分析のためリセットされました（{phase} から開始）",
-  "report_api.rerun_success_msg": "条項がリセットされました。Chainlit で「法規リスト」コマンドを実行して再分析を開始してください。"
+  "report_api.rerun_success_msg": "条項がリセットされました。Chainlit で「法規リスト」コマンドを実行して再分析を開始してください。",
+  "source_label.regulatory_list": "規制リスト",
+  "source_label.regulatory_update": "規制リスト更新",
+  "source_label.source": "ソースコマンド"
 }

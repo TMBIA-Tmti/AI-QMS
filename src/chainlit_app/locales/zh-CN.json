@@ -287,5 +287,8 @@
     "网络搜索",
     "上网搜索",
     "上网查询"
-  ]
+  ],
+  "source_label.regulatory_list": "法规清单",
+  "source_label.regulatory_update": "法规清单更新",
+  "source_label.source": "来源指令"
 }

@@ -280,5 +280,8 @@
     "/web",
     "pesquisa web",
     "pesquisar online"
-  ]
+  ],
+  "source_label.regulatory_list": "Lista regulatória",
+  "source_label.regulatory_update": "Atualização da lista regulatória",
+  "source_label.source": "Comando de origem"
 }

@@ -870,6 +870,19 @@
     function renderHeader(data) {
         els.headerRunId.textContent = data.run_id || "";
 
+        const sourceCmd = data.source_command || "regulatory_list";
+        const t = window.__i18n ? window.__i18n.t.bind(window.__i18n) : (k) => k;
+        const sourceCls = sourceCmd === "regulatory_update" ? "source-update" : "source-list";
+        const srcLabel = {
+            text: t(`source.${sourceCmd}`) || sourceCmd,
+            cls: sourceCls,
+        };
+        const srcEl = document.getElementById("headerSourceCommand");
+        if (srcEl) {
+            srcEl.textContent = srcLabel.text;
+            srcEl.className = `source-command-badge ${srcLabel.cls}`;
+        }
+
         const statusMap = {
             completed: { text: "✅ 已完成", cls: "status-completed" },
             running: { text: "⏳ 執行中", cls: "status-running" },

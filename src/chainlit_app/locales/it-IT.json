@@ -280,5 +280,8 @@
     "/web",
     "ricerca web",
     "cercare online"
-  ]
+  ],
+  "source_label.regulatory_list": "Elenco normativo",
+  "source_label.regulatory_update": "Aggiornamento elenco normativo",
+  "source_label.source": "Comando sorgente"
 }

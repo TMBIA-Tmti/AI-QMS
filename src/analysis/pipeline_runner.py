@@ -239,6 +239,8 @@ async def run_pipeline_analysis(
             selected_regulations=selected_regulations,
         )
 
+        pipeline.state.source_command = source_command
+
         if custom_skip_phases:
             pipeline.state.skipped_phases = list(custom_skip_phases)
         if selected_regulations:

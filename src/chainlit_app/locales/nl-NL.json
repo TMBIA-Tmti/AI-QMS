@@ -280,5 +280,8 @@
     "/web",
     "web zoeken",
     "online zoeken"
-  ]
+  ],
+  "source_label.regulatory_list": "Regelgevingslijst",
+  "source_label.regulatory_update": "Regelgevingslijst bijwerken",
+  "source_label.source": "Bronopdracht"
 }

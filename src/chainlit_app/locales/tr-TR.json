@@ -278,5 +278,8 @@
     "/web",
     "web arama",
     "çevrimiçi ara"
-  ]
+  ],
+  "source_label.regulatory_list": "Düzenleyici liste",
+  "source_label.regulatory_update": "Düzenleyici liste güncellemesi",
+  "source_label.source": "Kaynak komutu"
 }

@@ -364,6 +364,7 @@ class PipelineState:
     # Configuration
     mode: str = ExecutionMode.AUTO_RUN.value
     standard: str = "ISO_13485"  # Which standard is being analyzed
+    source_command: str = "regulatory_list"  # "regulatory_list" or "regulatory_update"
 
     # Status
     status: str = PhaseStatus.PENDING.value  # Overall pipeline status

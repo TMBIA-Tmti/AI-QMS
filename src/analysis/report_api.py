@@ -845,6 +845,7 @@ async def get_report(run_id: str):
             "status": state.status,
             "mode": state.mode,
             "standard": state.standard,
+            "source_command": getattr(state, "source_command", "regulatory_list"),
             "current_phase": state.current_phase,
             "rows": enriched,
             "summary": summary,
@@ -1360,17 +1361,24 @@ async def export_report(run_id: str, fmt: str):
     export_dir = Path("data/exports")
     export_dir.mkdir(parents=True, exist_ok=True)
 
+    source_cmd = getattr(table.state, "source_command", "regulatory_list")
+    source_labels = {
+        "regulatory_list": "法規清單",
+        "regulatory_update": "法規清單更新",
+    }
+    src_label = source_labels.get(source_cmd, source_cmd)
+
     try:
         if fmt == "word":
             from docx import Document
             from docx.shared import Pt, RGBColor
             from docx.enum.text import WD_ALIGN_PARAGRAPH
 
-            filepath = export_dir / f"compliance_report_{run_id}.docx"
+            filepath = export_dir / f"compliance_report_{source_cmd}_{run_id}.docx"
             assessment = _build_export_assessment(flat_rows, summary)
 
             doc = Document()
-            title = doc.add_heading("AI-QMS 合規性分析報告", level=1)
+            title = doc.add_heading(f"AI-QMS 合規性分析報告（{src_label}）", level=1)
             title.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
             from datetime import datetime
@@ -1378,7 +1386,7 @@ async def export_report(run_id: str, fmt: str):
             meta = doc.add_paragraph()
             meta.alignment = WD_ALIGN_PARAGRAPH.RIGHT
             run = meta.add_run(
-                f"分析 ID: {run_id}  |  匯出時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                f"分析 ID: {run_id}  |  來源指令: {src_label}  |  匯出時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
             )
             run.font.size = Pt(9)
             run.font.color.rgb = RGBColor(128, 128, 128)
@@ -1428,12 +1436,33 @@ async def export_report(run_id: str, fmt: str):
             from openpyxl import Workbook
             from openpyxl.styles import Font, Alignment, PatternFill
 
-            filepath = export_dir / f"compliance_report_{run_id}.xlsx"
+            filepath = export_dir / f"compliance_report_{source_cmd}_{run_id}.xlsx"
             assessment = _build_export_assessment(flat_rows, summary)
 
             wb = Workbook()
             ws = wb.active
             ws.title = "合規分析"
+
+            from datetime import datetime as _dt_xl
+
+            title_cell = ws.cell(
+                row=1,
+                column=1,
+                value=f"AI-QMS 合規性分析報告（{src_label}）",
+            )
+            title_cell.font = Font(bold=True, size=14)
+            ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=13)
+
+            meta_cell = ws.cell(
+                row=2,
+                column=1,
+                value=f"分析 ID: {run_id}  |  來源指令: {src_label}  |  匯出時間: {_dt_xl.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            )
+            meta_cell.font = Font(size=9, color="808080")
+            ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=13)
+
+            TITLE_ROWS = 3
+            data_start_row = TITLE_ROWS + 1
 
             # Headers
             headers = [
@@ -1456,12 +1485,12 @@ async def export_report(run_id: str, fmt: str):
             )
             header_font = Font(bold=True, color="FFFFFF", size=10)
             for ci, h in enumerate(headers, 1):
-                cell = ws.cell(row=1, column=ci, value=h)
+                cell = ws.cell(row=data_start_row, column=ci, value=h)
                 cell.fill = header_fill
                 cell.font = header_font
                 cell.alignment = Alignment(horizontal="center")
 
-            for ri, row in enumerate(flat_rows, 2):
+            for ri, row in enumerate(flat_rows, data_start_row + 1):
                 ws.cell(row=ri, column=1, value=row.get("clause_id", ""))
                 ws.cell(row=ri, column=2, value=row.get("clause_title", ""))
                 ws.cell(row=ri, column=3, value=row.get("doc_id", ""))

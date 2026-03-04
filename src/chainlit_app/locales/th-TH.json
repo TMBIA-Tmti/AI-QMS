@@ -276,5 +276,8 @@
     "/web",
     "ค้นหาเว็บ",
     "ค้นหาออนไลน์"
-  ]
+  ],
+  "source_label.regulatory_list": "รายการกฎระเบียบ",
+  "source_label.regulatory_update": "อัปเดตรายการกฎระเบียบ",
+  "source_label.source": "คำสั่งต้นทาง"
 }

@@ -278,5 +278,8 @@
     "/web",
     "بحث ويب",
     "بحث على الإنترنت"
-  ]
+  ],
+  "source_label.regulatory_list": "قائمة تنظيمية",
+  "source_label.regulatory_update": "تحديث القائمة التنظيمية",
+  "source_label.source": "أمر المصدر"
 }

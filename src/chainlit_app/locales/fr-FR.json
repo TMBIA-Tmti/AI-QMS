@@ -280,5 +280,8 @@
     "/web",
     "recherche web",
     "chercher en ligne"
-  ]
+  ],
+  "source_label.regulatory_list": "Liste réglementaire",
+  "source_label.regulatory_update": "Mise à jour de la liste réglementaire",
+  "source_label.source": "Commande source"
 }

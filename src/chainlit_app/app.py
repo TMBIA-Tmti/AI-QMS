@@ -3766,16 +3766,21 @@ async def handle_regulatory_list():
     store = get_regulatory_store()
     last_crawl = store.load_last_results()
 
-    if not last_crawl or not last_crawl.get("results"):
-        # No crawl data available — return base response only
-        return (
-            base_response
-            + "\n\n---\n\nℹ️ 尚未執行「法規清單更新」，無法提供 QMS 評估報告。請先輸入「法規清單更新」爬取最新法規資訊。"
-        )
+    has_crawl_data = last_crawl and last_crawl.get("results")
+
+    if not has_crawl_data:
+        # Inform user: no crawl data, but analysis will still proceed
+        try:
+            await cl.Message(
+                content="ℹ️ 尚未執行「法規清單更新」，將僅以本地文件進行合規性分析。\n"
+                "如需整合線上法規資訊，可另外執行「法規清單更新」。"
+            ).send()
+        except Exception:
+            pass
 
     # Build online data summary for LLM (enhanced: source labels + PDF info)
     online_parts = []
-    for r in last_crawl.get("results", []):
+    for r in (last_crawl or {}).get("results", []):
         if r.get("crawl_status") == "success":
             content_preview = r.get("content_markdown", "")[:1500]
             pdf_info = ""
@@ -3816,7 +3821,7 @@ async def handle_regulatory_list():
     else:
         # Fallback: derive from last crawl results if no config exists yet
         filter_regions = set()
-        for r in last_crawl.get("results", []):
+        for r in (last_crawl or {}).get("results", []):
             if r.get("crawl_status") == "success" and r.get("region"):
                 filter_regions.add(r["region"])
     reg_md_store = get_regulatory_markdown_store()
@@ -3948,8 +3953,12 @@ async def handle_regulatory_list():
     baseline_word_path = ""
     baseline_excel_path = ""
     try:
-        baseline_word_path = export_regulatory_to_word(scan_result, assessment=None)
-        baseline_excel_path = export_regulatory_to_excel(scan_result, assessment=None)
+        baseline_word_path = export_regulatory_to_word(
+            scan_result, assessment=None, source_command="regulatory_list"
+        )
+        baseline_excel_path = export_regulatory_to_excel(
+            scan_result, assessment=None, source_command="regulatory_list"
+        )
         save_analysis_cache(
             cache_id=_cache_id,
             command="regulatory_list",
@@ -4119,10 +4128,14 @@ async def handle_regulatory_list():
             scan_result_for_export = cl.user_session.get("last_regulatory_scan")
             if scan_result_for_export:
                 word_path = export_regulatory_to_word(
-                    scan_result_for_export, assessment=assessment
+                    scan_result_for_export,
+                    assessment=assessment,
+                    source_command="regulatory_list",
                 )
                 excel_path = export_regulatory_to_excel(
-                    scan_result_for_export, assessment=assessment
+                    scan_result_for_export,
+                    assessment=assessment,
+                    source_command="regulatory_list",
                 )
                 save_analysis_cache(
                     cache_id=_cache_id,
@@ -4204,11 +4217,15 @@ async def handle_regulatory_export(format_type: str):
 
     if format_type == "word":
         assessment = cl.user_session.get("last_regulatory_assessment")
-        filepath = export_regulatory_to_word(scan_result, assessment=assessment)
+        filepath = export_regulatory_to_word(
+            scan_result, assessment=assessment, source_command="regulatory_list"
+        )
         msg = t("regulatory.export_word", count=len(aggregate))
     elif format_type == "excel":
         assessment = cl.user_session.get("last_regulatory_assessment")
-        filepath = export_regulatory_to_excel(scan_result, assessment=assessment)
+        filepath = export_regulatory_to_excel(
+            scan_result, assessment=assessment, source_command="regulatory_list"
+        )
         msg = t("regulatory.export_excel", count=len(aggregate))
     else:
         return None, t("regulatory.export_hint")
@@ -4536,10 +4553,10 @@ async def handle_regulatory_update_rescan(selected_regions: list):
         )
 
         baseline_word_path_upd = export_regulatory_update_to_word(
-            crawl_results, assessment=None
+            crawl_results, assessment=None, source_command="regulatory_update"
         )
         baseline_excel_path_upd = export_regulatory_update_to_excel(
-            crawl_results, assessment=None
+            crawl_results, assessment=None, source_command="regulatory_update"
         )
         save_analysis_cache(
             cache_id=_cache_id_update,
@@ -4729,10 +4746,10 @@ async def handle_regulatory_update_rescan(selected_regions: list):
     if assessment and not assessment.startswith("⚠️"):
         try:
             word_path = export_regulatory_update_to_word(
-                crawl_results, assessment=assessment
+                crawl_results, assessment=assessment, source_command="regulatory_update"
             )
             excel_path = export_regulatory_update_to_excel(
-                crawl_results, assessment=assessment
+                crawl_results, assessment=assessment, source_command="regulatory_update"
             )
             save_analysis_cache(
                 cache_id=_cache_id_update,
@@ -4808,7 +4825,7 @@ async def _show_regulatory_update_export_buttons():
     elements = []
     try:
         word_path = export_regulatory_update_to_word(
-            crawl_results, assessment=assessment
+            crawl_results, assessment=assessment, source_command="regulatory_update"
         )
         if word_path and Path(word_path).exists():
             wname = re.sub(r"^\d{14}_", "", Path(word_path).name)
@@ -4817,7 +4834,7 @@ async def _show_regulatory_update_export_buttons():
         pass
     try:
         excel_path = export_regulatory_update_to_excel(
-            crawl_results, assessment=assessment
+            crawl_results, assessment=assessment, source_command="regulatory_update"
         )
         if excel_path and Path(excel_path).exists():
             ename = re.sub(r"^\d{14}_", "", Path(excel_path).name)
@@ -4846,13 +4863,13 @@ async def handle_regulatory_update_export(format_type: str):
     if format_type == "word":
         assessment = cl.user_session.get("last_regulatory_update_assessment")
         filepath = export_regulatory_update_to_word(
-            crawl_results, assessment=assessment
+            crawl_results, assessment=assessment, source_command="regulatory_update"
         )
         msg = t("regulatory_update.export_word", count=total)
     elif format_type == "excel":
         assessment = cl.user_session.get("last_regulatory_update_assessment")
         filepath = export_regulatory_update_to_excel(
-            crawl_results, assessment=assessment
+            crawl_results, assessment=assessment, source_command="regulatory_update"
         )
         msg = t("regulatory_update.export_excel", count=total)
     else:

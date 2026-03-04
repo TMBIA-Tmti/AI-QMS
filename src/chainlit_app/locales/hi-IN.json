@@ -277,5 +277,8 @@
     "/web",
     "वेब खोज",
     "ऑनलाइन खोज"
-  ]
+  ],
+  "source_label.regulatory_list": "नियामक सूची",
+  "source_label.regulatory_update": "नियामक सूची अपडेट",
+  "source_label.source": "स्रोत कमांड"
 }

@@ -205,11 +205,20 @@ def format_regulatory_update_markdown(
 # ============================================================
 
 
+def _source_label(source_command: str, lang: str = "zh-TW") -> str:
+    labels = {
+        "regulatory_list": _t("source_label.regulatory_list", lang),
+        "regulatory_update": _t("source_label.regulatory_update", lang),
+    }
+    return labels.get(source_command, source_command)
+
+
 def export_regulatory_update_to_word(
     crawl_results: dict,
     assessment: Optional[str] = None,
     verification_report: Optional[dict] = None,
     lang: str = "zh-TW",
+    source_command: str = "regulatory_update",
 ) -> str:
     """Export regulatory update results to Word (.docx).
 
@@ -224,17 +233,21 @@ def export_regulatory_update_to_word(
     failed = summary.get("failed_count", 0)
     duration = summary.get("crawl_duration_seconds", 0)
 
+    src_label = _source_label(source_command, lang)
     doc = Document()
 
     # Title
-    title = doc.add_heading(_t("regulatory_update_export.title", lang), level=1)
+    title = doc.add_heading(
+        f"{_t('regulatory_update_export.title', lang)}（{src_label}）", level=1
+    )
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     # Metadata
     meta = doc.add_paragraph()
     meta.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     run = meta.add_run(
-        f"{_t('regulatory_export.export_time', lang)}: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        f"{_t('regulatory_export.export_time', lang)}: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | "
+        f"{_t('source_label.source', lang)}: {src_label}"
     )
     run.font.size = Pt(9)
     run.font.color.rgb = RGBColor(128, 128, 128)
@@ -388,14 +401,18 @@ def export_regulatory_update_to_word(
     # Footer
     doc.add_paragraph()
     footer = doc.add_paragraph()
-    run = footer.add_run(_t("regulatory_update_export.footer", lang))
+    run = footer.add_run(
+        f"{_t('regulatory_update_export.footer', lang)} | "
+        f"{_t('source_label.source', lang)}: {src_label}"
+    )
     run.font.size = Pt(8)
     run.font.italic = True
     run.font.color.rgb = RGBColor(128, 128, 128)
 
     # Save
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"regulatory_update_{timestamp}.docx"
+    cmd_tag = "list" if source_command == "regulatory_list" else "update"
+    filename = f"regulatory_update_{cmd_tag}_{timestamp}.docx"
     filepath = EXPORT_DIR / filename
     doc.save(str(filepath))
     return str(filepath)
@@ -411,6 +428,7 @@ def export_regulatory_update_to_excel(
     assessment: Optional[str] = None,
     verification_report: Optional[dict] = None,
     lang: str = "zh-TW",
+    source_command: str = "regulatory_update",
 ) -> str:
     """Export regulatory update results to Excel (.xlsx).
 
@@ -425,6 +443,7 @@ def export_regulatory_update_to_excel(
     failed = summary.get("failed_count", 0)
     duration = summary.get("crawl_duration_seconds", 0)
 
+    src_label = _source_label(source_command, lang)
     wb = Workbook()
 
     # Sheet 1: Summary (enhanced with structured columns)
@@ -434,7 +453,7 @@ def export_regulatory_update_to_excel(
     # Title
     ws1.merge_cells("A1:G1")
     title_cell = ws1.cell(row=1, column=1)
-    title_cell.value = _t("regulatory_update_export.title", lang)
+    title_cell.value = f"{_t('regulatory_update_export.title', lang)}（{src_label}）"
     title_cell.font = Font(name="Microsoft JhengHei", size=14, bold=True)
     title_cell.alignment = Alignment(horizontal="center")
 
@@ -443,6 +462,7 @@ def export_regulatory_update_to_excel(
     meta_cell = ws1.cell(row=2, column=1)
     meta_cell.value = (
         f"{_t('regulatory_export.export_time', lang)}: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | "
+        f"{_t('source_label.source', lang)}: {src_label} | "
         + _t(
             "regulatory_update_export.meta_stats",
             lang,
@@ -541,14 +561,18 @@ def export_regulatory_update_to_excel(
     note_row = len(results) + 6
     ws1.merge_cells(f"A{note_row}:G{note_row}")
     note_cell = ws1.cell(row=note_row, column=1)
-    note_cell.value = _t("regulatory_update_export.footer", lang)
+    note_cell.value = (
+        f"{_t('regulatory_update_export.footer', lang)} | "
+        f"{_t('source_label.source', lang)}: {src_label}"
+    )
     note_cell.font = Font(
         name="Microsoft JhengHei", size=8, italic=True, color="808080"
     )
 
     # Save
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"regulatory_update_{timestamp}.xlsx"
+    cmd_tag = "list" if source_command == "regulatory_list" else "update"
+    filename = f"regulatory_update_{cmd_tag}_{timestamp}.xlsx"
     filepath = EXPORT_DIR / filename
     wb.save(str(filepath))
     return str(filepath)

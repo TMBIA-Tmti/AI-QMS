@@ -281,5 +281,8 @@
     "/web",
     "веб-поиск",
     "поиск в интернете"
-  ]
+  ],
+  "source_label.regulatory_list": "Нормативный список",
+  "source_label.regulatory_update": "Обновление нормативного списка",
+  "source_label.source": "Исходная команда"
 }

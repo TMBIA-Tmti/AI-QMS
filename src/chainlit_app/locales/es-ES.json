@@ -278,5 +278,8 @@
     "/web",
     "búsqueda web",
     "buscar en línea"
-  ]
+  ],
+  "source_label.regulatory_list": "Lista regulatoria",
+  "source_label.regulatory_update": "Actualización de lista regulatoria",
+  "source_label.source": "Comando fuente"
 }

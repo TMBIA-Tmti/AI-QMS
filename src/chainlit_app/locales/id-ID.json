@@ -277,5 +277,8 @@
     "/web",
     "pencarian web",
     "cari online"
-  ]
+  ],
+  "source_label.regulatory_list": "Daftar regulasi",
+  "source_label.regulatory_update": "Pembaruan daftar regulasi",
+  "source_label.source": "Perintah sumber"
 }

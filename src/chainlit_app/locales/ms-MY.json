@@ -277,5 +277,8 @@
     "/web",
     "carian web",
     "cari dalam talian"
-  ]
+  ],
+  "source_label.regulatory_list": "Senarai peraturan",
+  "source_label.regulatory_update": "Kemaskini senarai peraturan",
+  "source_label.source": "Arahan sumber"
 }

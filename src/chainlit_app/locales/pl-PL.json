@@ -279,5 +279,8 @@
     "/web",
     "wyszukiwanie web",
     "szukaj online"
-  ]
+  ],
+  "source_label.regulatory_list": "Lista regulacyjna",
+  "source_label.regulatory_update": "Aktualizacja listy regulacyjnej",
+  "source_label.source": "Polecenie źródłowe"
 }
