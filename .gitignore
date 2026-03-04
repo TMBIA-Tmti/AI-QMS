@@ -31,19 +31,12 @@ desktop.ini
 chainlit_*.log
 main_agent_*.log
 
-# Data (user-generated)
+# Data (user-generated, runtime data — NEVER commit)
 data/
-!data/.gitkeep
-uploads/*
-!uploads/.gitkeep
-markdown_storage/documents/*
-!markdown_storage/documents/.gitkeep
-markdown_storage/metadata/*.json
-!markdown_storage/metadata/.gitkeep
-markdown_storage/ocr_artifacts/*
-!markdown_storage/ocr_artifacts/.gitkeep
-markdown_storage/index/*
-!markdown_storage/index/.gitkeep
+uploads/
+markdown_storage/
+regulatory_analysis_storage/
+regulatory_markdown_storage/
 
 # Cache
 .ruff_cache/
@@ -68,9 +61,9 @@ chainlit_repo/
 # Changelog / document files
 CHANGELOG*.md
 CHANGELOG*.docx
-# Documentation (keep only demo video/animation)
-docs/*.md
-docs/**/*.md
+# Documentation — only keep QA docs
+docs/
+!docs/QA_*.md
 
 # Images & diagrams (not needed in release repo)
 *.png
@@ -86,3 +79,14 @@ docs/**/*.md
 # Exceptions: keep SVG icons required by Chainlit UI
 !public/*.svg
 !src/chainlit_app/public/*.svg
+
+# Video / media files
+*.mp4
+*.avi
+*.mov
+*.mkv
+
+# Backup files
+*.bak2
+*.bak3
+*.bak4

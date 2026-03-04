@@ -202,7 +202,7 @@
   "welcome.doc_control.doc_count": "📊 Documentos: {count}/{limit}",
   "welcome.doc_control.formats": "Formatos compatibles: PDF, Word, Excel, PowerPoint, Imágenes, Archivos de texto",
   "welcome.doc_control.greeting": "Hola, soy Eira. Bienvenido al sistema de control de documentos. Eira puede asistirle con la carga de documentos, procesamiento OCR, gestión de versiones, detección de firmas y gestión de registros de auditoría.",
-  "welcome.doc_control.instructions": "**Cómo usar:**\n• **Cargar archivos** → Arrastre y suelte o haga clic en cargar en el chat\n• **Lista de documentos** → Versiones formales actuales (con botones de exportación Word/Excel)\n• **Lista** → Todos los registros (incl. actualizaciones, obsoletos) (con botones de exportación Word/Excel)\n• **Buscar palabra clave** → Buscar en el contenido de documentos\n• **Descargar ID_doc** → Descargar archivo original\n• **Obsoleto ID_doc** → Marcar un documento como obsoleto\n• **Pista de auditoría** → Ver registros de operaciones\n• **Lista regulatoria** → Estándares referenciados (con botones de exportación Word/Excel)\n• **Actualización regulatoria** → Rastrear sitios regulatorios globales (con botones Word/Excel)\n• **Descargar actualización regulatoria word/excel** → Exportar informe\n• **Descargar regulatoria word/excel** → Exportar estándares\n• **Eliminar base de datos** → Eliminar todos los documentos (confirmación requerida)\n• **/web palabra clave** → Búsqueda web (ej: /web última versión ISO 13485)\n• **Estado** → Mostrar estado del sistema\n• **Ayuda** → Mostrar guía completa",
+  "welcome.doc_control.instructions": "**Cómo usar:**\n• **Cargar archivos** → Arrastre y suelte o haga clic en cargar en el chat\n• **Lista de documentos** → Versiones formales actuales (con botones de exportación Word/Excel)\n• **Lista** → Todos los registros (incl. actualizaciones, obsoletos) (con botones de exportación Word/Excel)\n• **Buscar palabra clave** → Buscar en el contenido de documentos\n• **Descargar ID_doc** → Descargar formularios (⚠️ Solo formularios de nivel 4; documentos nivel 1-3 solo visualización en línea)\n• **Ver ID_doc** → Ver en línea (todos los niveles; opción marca de agua)\n• **Obsoleto ID_doc** → Marcar un documento como obsoleto\n• **Pista de auditoría** → Ver registros de operaciones\n• **Lista regulatoria** → Estándares referenciados (con botones de exportación Word/Excel)\n• **Actualización regulatoria** → Rastrear sitios regulatorios globales (con botones Word/Excel)\n• **Descargar actualización regulatoria word/excel** → Exportar informe\n• **Descargar regulatoria word/excel** → Exportar estándares\n• **Eliminar base de datos** → Eliminar todos los documentos (confirmación requerida)\n• **/web palabra clave** → Búsqueda web (ej: /web última versión ISO 13485)\n• **Estado** → Mostrar estado del sistema\n• **Ayuda** → Mostrar guía completa",
   "welcome.doc_control.title": "📄 **TMBIA-Tmti AI-QMS Control de Documentos (Eira)**",
   "welcome.main.greeting": "Hola, soy Eira. Bienvenido al sistema de gestión de calidad asistido por IA. Eira puede ayudarle con la revisión de documentos de calidad, la evaluación del cumplimiento regulatorio de dispositivos médicos y la consulta y análisis de normas regulatorias.",
   "welcome.main.instructions": "**Subsistemas:**\n• 📄 **Control de documentos** — Carga, OCR, gestión de versiones, detección de firma, pista de auditoría, exportación\n• 🔍 **Gestión de auditoría** — CAPA, auditoría interna, gestión de no conformidades (Phase 2 planificado)\n\n**General:** Estado · /web búsqueda · Ayuda · Preguntar directamente",
@@ -281,5 +281,12 @@
   ],
   "source_label.regulatory_list": "Lista regulatoria",
   "source_label.regulatory_update": "Actualización de lista regulatoria",
-  "source_label.source": "Comando fuente"
+  "source_label.source": "Comando fuente",
+  "_commands.cmd.view_file": [
+    "ver en línea",
+    "ver",
+    "vista previa"
+  ],
+  "view.specify": "Eira: 📖 Please specify the document ID to view. {count} document(s) available:",
+  "view.example": "💡 Usage: **view QP-001**"
 }

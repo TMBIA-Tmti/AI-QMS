@@ -106,6 +106,7 @@ class MarkdownStoreService:
         ocr_provider: str = "unknown",
         ocr_confidence: float = 0.0,
         detected_version: Optional[str] = None,
+        sig_result: Optional[dict] = None,
     ) -> dict:
         """
         Save OCR result to Markdown storage.
@@ -124,7 +125,8 @@ class MarkdownStoreService:
             ocr_confidence: OCR confidence score
             detected_version: OCR-detected version (e.g., "1", "2", "1.1").
                 If provided, used as initial version instead of default "1.0".
-
+            sig_result: Signature/stamp detection result dict (detected, reason, etc).
+                If provided, persisted in document registry for audit trail.
         Returns:
             Dict with success status and document info
         """
@@ -145,6 +147,7 @@ class MarkdownStoreService:
             ocr_confidence=ocr_confidence,
             source_file_path=source_file_path,
             detected_version=detected_version,
+            sig_result=sig_result,
         )
 
     def search(

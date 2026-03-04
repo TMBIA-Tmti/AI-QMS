@@ -1582,3 +1582,396 @@ def get_region_display_info() -> list:
             }
         )
     return info
+
+
+# ============================================================
+# Regulation Freshness Check (Pre-Cross-Examination)
+# ============================================================
+
+# Known latest versions for baseline comparison
+_KNOWN_STANDARDS = {
+    "ISO_13485": {
+        "version": "2016",
+        "full_name": "ISO 13485:2016",
+        "full_name_zh": "ISO 13485:2016 醫療器材品質管理系統",
+        "check_urls": [
+            "https://www.iso.org/standard/59752.html",
+        ],
+        "sitemap_url": "https://www.iso.org/sitemap.xml",
+        "keywords": ["13485"],
+        "note": "ISO 13485 full text is behind a paywall; only version/lastmod can be checked.",
+    },
+    "MDSAP": {
+        "version": "current",
+        "full_name": "MDSAP (Medical Device Single Audit Program)",
+        "full_name_zh": "MDSAP（醫療器材單一稽核方案）",
+        "check_urls": [
+            "https://www.fda.gov/medical-devices/cdrh-international-programs/medical-device-single-audit-program-mdsap",
+            "https://www.tga.gov.au/how-we-regulate/manufacturing/manufacturer-audit-programs/medical-device-single-audit-program-mdsap",
+        ],
+        "sitemap_url": "https://www.fda.gov/sitemap.xml",
+        "keywords": ["mdsap", "single-audit"],
+    },
+}
+
+
+async def check_regulation_freshness(
+    standards: Optional[list] = None,
+) -> dict:
+    """Check if ISO 13485 and MDSAP regulation references are up-to-date.
+
+    Performs lightweight checks:
+      1. Sitemap lastmod scan for known standard URLs
+      2. HTTP HEAD request for Last-Modified headers
+      3. Compares against known baseline versions
+
+    Args:
+        standards: List of standard keys to check (default: all).
+                   Valid keys: 'ISO_13485', 'MDSAP'
+
+    Returns:
+        {
+            'checked_at': ISO timestamp,
+            'results': {
+                'ISO_13485': {
+                    'status': 'confirmed' | 'unconfirmed' | 'error',
+                    'known_version': '2016',
+                    'last_modified': '2024-...' or None,
+                    'message': str,
+                    'message_zh': str,
+                },
+                ...
+            },
+            'all_confirmed': bool,
+            'announcement_needed': bool,
+            'announcement_text': str,
+            'announcement_text_zh': str,
+        }
+    """
+    check_keys = standards or list(_KNOWN_STANDARDS.keys())
+    results = {}
+    crawler = get_regulatory_crawler()
+    await crawler._ensure_client()
+    client = crawler._client
+
+    for key in check_keys:
+        std = _KNOWN_STANDARDS.get(key)
+        if not std:
+            results[key] = {
+                "status": "error",
+                "message": f"Unknown standard: {key}",
+                "message_zh": f"未知的標準: {key}",
+            }
+            continue
+
+        last_modified = None
+        status = "unconfirmed"
+        detail = ""
+        detail_zh = ""
+
+        # Method 1: HTTP HEAD to check Last-Modified / response status
+        for url in std.get("check_urls", []):
+            try:
+                resp = await client.head(
+                    url,
+                    timeout=httpx.Timeout(10.0),
+                    follow_redirects=True,
+                )
+                if resp.status_code == 200:
+                    lm = resp.headers.get("last-modified", "")
+                    if lm:
+                        last_modified = lm
+                    status = "confirmed"
+                    detail = (
+                        f"{std['full_name']} page is accessible. "
+                        f"Known version: {std['version']}."
+                    )
+                    detail_zh = (
+                        f"{std['full_name_zh']} 頁面可存取。"
+                        f"已知版本: {std['version']}。"
+                    )
+                    if last_modified:
+                        detail += f" Last-Modified: {last_modified}."
+                        detail_zh += f" 最後修改: {last_modified}。"
+                    break  # First successful check is enough
+                elif resp.status_code == 403:
+                    detail = (
+                        f"{std['full_name']} returned 403 Forbidden. "
+                        "Content may be behind a paywall."
+                    )
+                    detail_zh = (
+                        f"{std['full_name_zh']} 返回 403 禁止存取。"
+                        "內容可能在付費牆後。"
+                    )
+                    # ISO standards are paywalled — this is expected
+                    if key == "ISO_13485":
+                        status = "confirmed"
+                        detail += " (Expected for ISO standards — version confirmed via known baseline.)"
+                        detail_zh += "（ISO標準預期行為 — 版本透過已知基線確認。）"
+            except Exception as e:
+                logger.debug(f"Freshness check failed for {url}: {e}")
+                detail = f"Connection error checking {std['full_name']}: {e}"
+                detail_zh = f"檢查 {std['full_name_zh']} 連線錯誤: {e}"
+
+        # Method 2: Sitemap lastmod check (if available)
+        if status == "unconfirmed" and std.get("sitemap_url"):
+            try:
+                scanner = SitemapScanner()
+                urls = await scanner.scan(
+                    client,
+                    std["sitemap_url"],
+                    keywords=std.get("keywords", []),
+                )
+                if urls:
+                    status = "confirmed"
+                    detail = (
+                        f"{std['full_name']} found in sitemap with "
+                        f"{len(urls)} matching URL(s)."
+                    )
+                    detail_zh = (
+                        f"{std['full_name_zh']} 在網站地圖中找到 "
+                        f"{len(urls)} 個匹配的URL。"
+                    )
+            except Exception as e:
+                logger.debug(f"Sitemap check failed: {e}")
+
+        results[key] = {
+            "status": status,
+            "known_version": std.get("version", ""),
+            "last_modified": last_modified,
+            "message": detail or f"Unable to confirm {std['full_name']} freshness.",
+            "message_zh": detail_zh or f"無法確認 {std['full_name_zh']} 的最新狀態。",
+        }
+
+    all_confirmed = all(r.get("status") == "confirmed" for r in results.values())
+    announcement_needed = not all_confirmed
+
+    # Build announcement text for unconfirmed standards
+    unconfirmed = [
+        f"- {_KNOWN_STANDARDS[k]['full_name']}: {results[k].get('message', '')}"
+        for k in results
+        if results[k].get("status") != "confirmed"
+    ]
+    unconfirmed_zh = [
+        f"- {_KNOWN_STANDARDS[k]['full_name_zh']}: {results[k].get('message_zh', '')}"
+        for k in results
+        if results[k].get("status") != "confirmed"
+    ]
+
+    if announcement_needed:
+        announcement = (
+            "⚠️ Regulation Freshness Notice\n"
+            "The following regulatory standards could not be confirmed as the latest version "
+            "before cross-examination. Results should be reviewed with this in mind:\n"
+            + "\n".join(unconfirmed)
+        )
+        announcement_zh = (
+            "⚠️ 法規最新性公告\n"
+            "以下法規標準在交叉詰問前無法確認為最新版本。"
+            "分析結果請參考此公告：\n"
+            + "\n".join(unconfirmed_zh)
+        )
+    else:
+        announcement = ""
+        announcement_zh = ""
+
+    # Also check 7-country data completeness in parallel
+    country_completeness = await check_country_data_completeness()
+    incomplete = country_completeness.get("incomplete_countries", [])
+
+    # Append per-country upload reminders to announcement if any incomplete
+    if incomplete:
+        announcement_needed = True
+        country_lines = []
+        country_lines_zh = []
+        for pid in incomplete:
+            info = country_completeness["countries"][pid]
+            country_lines.append(f"- {info['message']}")
+            country_lines_zh.append(f"- {info['message_zh']}")
+        upload_notice = (
+            "\n\n📤 Manual Upload Required\n"
+            "The following countries' regulation data could not be fully retrieved. "
+            "Please upload the latest regulation documents manually:\n"
+            + "\n".join(country_lines)
+        )
+        upload_notice_zh = (
+            "\n\n📤 需要手動上傳\n"
+            "以下國家的法規資料無法完整爬取。"
+            "請手動上傳最新法規文件：\n"
+            + "\n".join(country_lines_zh)
+        )
+        announcement = (announcement + upload_notice) if announcement else upload_notice.lstrip("\n")
+        announcement_zh = (announcement_zh + upload_notice_zh) if announcement_zh else upload_notice_zh.lstrip("\n")
+
+    return {
+        "checked_at": datetime.now(timezone.utc).isoformat(),
+        "results": results,
+        "all_confirmed": all_confirmed and country_completeness.get("all_complete", True),
+        "announcement_needed": announcement_needed,
+        "announcement_text": announcement,
+        "announcement_text_zh": announcement_zh,
+        "country_completeness": country_completeness,
+    }
+
+
+# ============================================================
+# Per-Country Data Completeness Check (7-Country Cross-Examination)
+# ============================================================
+
+# Mapping: cross-examination profile ID → REGION_SITES key
+# Static mapping for predefined 7 countries.
+# Dynamic countries are added via get_crossexam_country_map().
+_CROSSEXAM_COUNTRY_MAP_STATIC = {
+    "QMSR":   {"region": "美國 (USA)",       "name_en": "USA (FDA QMSR)",       "name_zh": "美國 (FDA QMSR)"},
+    "EU_MDR": {"region": "歐盟 (EU)",        "name_en": "EU (MDR 2017/745)",    "name_zh": "歐盟 (MDR 2017/745)"},
+    "TFDA":   {"region": "台灣 (Taiwan)",    "name_en": "Taiwan (TFDA)",        "name_zh": "台灣 (TFDA)"},
+    "HC":     {"region": "加拿大 (Canada)",  "name_en": "Canada (HC/MDSAP)",    "name_zh": "加拿大 (HC/MDSAP)"},
+    "PMDA":   {"region": "日本 (Japan)",     "name_en": "Japan (PMDA)",         "name_zh": "日本 (PMDA)"},
+    "ANVISA": {"region": "巴西 (Brazil)",    "name_en": "Brazil (ANVISA)",      "name_zh": "巴西 (ANVISA)"},
+    "TGA":    {"region": "澳洲 (Australia)", "name_en": "Australia (TGA)",      "name_zh": "澳洲 (TGA)"},
+}
+
+
+def get_crossexam_country_map() -> dict:
+    """Return the full cross-examination country map (static 7 + dynamic)."""
+    result = dict(_CROSSEXAM_COUNTRY_MAP_STATIC)
+
+    # Add dynamically registered profiles (from crawled regulations)
+    try:
+        from src.analysis.compliance_rules import PREDEFINED_REGULATIONS
+        for profile_id, profile in PREDEFINED_REGULATIONS.items():
+            if profile_id in result:
+                continue  # Already in static map
+            # Build dynamic entry from profile metadata
+            region_name = f"{profile.country_name_zh} ({profile.country_name_en})"
+            result[profile_id] = {
+                "region": region_name,
+                "name_en": f"{profile.country_name_en} ({profile_id})",
+                "name_zh": f"{profile.country_name_zh} ({profile_id})",
+            }
+    except Exception:
+        pass  # Non-critical — static map still available
+
+    return result
+
+_MIN_COMPLETE_CONTENT_LEN = 50  # same threshold as _crawl_tier2_httpx
+
+
+async def check_country_data_completeness() -> dict:
+    """Check whether each cross-examination country (predefined 7 + dynamic) has
+    complete regulation data available via crawler.
+
+    For each country:
+      1. Attempt a lightweight crawl of its configured sites
+      2. If ANY site returns ≥50 chars of content → data is 'complete'
+      3. If ALL sites fail or return empty content → 'incomplete',
+         user should be notified to manually upload
+
+    Returns:
+        {
+            'checked_at': ISO timestamp,
+            'countries': {
+                'QMSR': {
+                    'region': '美國 (USA)',
+                    'status': 'complete' | 'incomplete' | 'error',
+                    'needs_manual_upload': bool,
+                    'sites_checked': int,
+                    'sites_success': int,
+                    'message': str,
+                    'message_zh': str,
+                },
+                ...
+            },
+            'incomplete_countries': ['QMSR', ...],  # convenience list
+            'all_complete': bool,
+        }
+    """
+    crawler = get_regulatory_crawler()
+    await crawler._ensure_client()
+
+    countries_result = {}
+    incomplete_list = []
+
+    for profile_id, country_info in get_crossexam_country_map().items():
+        region_key = country_info["region"]
+        sites = REGION_SITES.get(region_key, [])
+
+        if not sites:
+            countries_result[profile_id] = {
+                "region": region_key,
+                "status": "error",
+                "needs_manual_upload": True,
+                "sites_checked": 0,
+                "sites_success": 0,
+                "message": f"No configured crawl sites for {country_info['name_en']}",
+                "message_zh": f"{country_info['name_zh']} 沒有設定爬蟲網站",
+            }
+            incomplete_list.append(profile_id)
+            continue
+
+        # Crawl all sites for this country in parallel
+        tasks = [crawler._crawl_single_site(site, region_key) for site in sites]
+        try:
+            raw = await asyncio.gather(*tasks, return_exceptions=True)
+        except Exception as e:
+            countries_result[profile_id] = {
+                "region": region_key,
+                "status": "error",
+                "needs_manual_upload": True,
+                "sites_checked": len(sites),
+                "sites_success": 0,
+                "message": f"Crawl error for {country_info['name_en']}: {e}",
+                "message_zh": f"{country_info['name_zh']} 爬蟲錯誤: {e}",
+            }
+            incomplete_list.append(profile_id)
+            continue
+
+        sites_checked = len(sites)
+        sites_success = 0
+        has_complete_content = False
+
+        for r in raw:
+            if isinstance(r, Exception):
+                continue
+            if not isinstance(r, dict):
+                continue
+            if r.get("crawl_status") == "success":
+                content = r.get("content_markdown", "")
+                if content and len(content.strip()) > _MIN_COMPLETE_CONTENT_LEN:
+                    sites_success += 1
+                    has_complete_content = True
+
+        if has_complete_content:
+            countries_result[profile_id] = {
+                "region": region_key,
+                "status": "complete",
+                "needs_manual_upload": False,
+                "sites_checked": sites_checked,
+                "sites_success": sites_success,
+                "message": f"{country_info['name_en']}: {sites_success}/{sites_checked} sites returned data",
+                "message_zh": f"{country_info['name_zh']}: {sites_success}/{sites_checked} 個網站取得資料",
+            }
+        else:
+            countries_result[profile_id] = {
+                "region": region_key,
+                "status": "incomplete",
+                "needs_manual_upload": True,
+                "sites_checked": sites_checked,
+                "sites_success": sites_success,
+                "message": (
+                    f"{country_info['name_en']}: crawler could not retrieve complete data "
+                    f"(0/{sites_checked} sites). Please upload regulation documents manually."
+                ),
+                "message_zh": (
+                    f"{country_info['name_zh']}: 爬蟲無法取得完整資料 "
+                    f"(0/{sites_checked} 個網站)。請手動上傳該國法規文件。"
+                ),
+            }
+            incomplete_list.append(profile_id)
+
+    return {
+        "checked_at": datetime.now(timezone.utc).isoformat(),
+        "countries": countries_result,
+        "incomplete_countries": incomplete_list,
+        "all_complete": len(incomplete_list) == 0,
+    }

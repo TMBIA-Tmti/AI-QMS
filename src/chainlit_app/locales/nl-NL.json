@@ -202,7 +202,7 @@
   "welcome.doc_control.doc_count": "📊 Documenten: {count}/{limit}",
   "welcome.doc_control.formats": "Ondersteunde formaten: PDF, Word, Excel, PowerPoint, Afbeeldingen, Tekstbestanden",
   "welcome.doc_control.greeting": "Hallo, ik ben Eira. Welkom bij het documentbeheersysteem. Eira kan u helpen bij het uploaden van documenten, OCR-verwerking, versiebeheer, handtekeningdetectie en het beheer van audittrails.",
-  "welcome.doc_control.instructions": "**Hoe te gebruiken:**\n• **Bestanden uploaden** → Sleep en plaats of klik op uploaden in het chatvenster\n• **Documentlijst** → Huidige formele versies\n• **Lijst** → Alle records (incl. updates, verouderd) (met Word/Excel-exportknoppen)\n• **Zoek trefwoord** → Documentinhoud doorzoeken\n• **Download doc-ID** → Origineel bestand downloaden\n• **Verouderd doc-ID** → Document als verouderd markeren\n• **Audit-trail** → Bewerkingsrecords bekijken\n• **Regelgevingslijst** → Referentiestandaarden (met Word/Excel-exportknoppen)\n• **Regelgeving update** → Scan wereldwijde regelgevingswebsites (met Word/Excel-exportknoppen)\n• **Download regelgeving update word/excel** → Exporteer rapport\n• **Download regelgeving word/excel** → Standaarden exporteren\n• **Database verwijderen** → Alle documenten verwijderen (bevestiging vereist)\n• **Status** → Systeemstatus weergeven\n• **Help** → Volledige handleiding tonen",
+  "welcome.doc_control.instructions": "**Hoe te gebruiken:**\n• **Bestanden uploaden** → Sleep en plaats of klik op uploaden in het chatvenster\n• **Documentlijst** → Huidige formele versies\n• **Lijst** → Alle records (incl. updates, verouderd) (met Word/Excel-exportknoppen)\n• **Zoek trefwoord** → Documentinhoud doorzoeken\n• **Download doc-ID** → Formulieren downloaden (⚠️ Alleen niveau 4 formulieren; niveau 1-3 alleen online bekijken)\n• **Bekijken doc-ID** → Online bekijken (alle niveaus; watermerk optie)\n• **Verouderd doc-ID** → Document als verouderd markeren\n• **Audit-trail** → Bewerkingsrecords bekijken\n• **Regelgevingslijst** → Referentiestandaarden (met Word/Excel-exportknoppen)\n• **Regelgeving update** → Scan wereldwijde regelgevingswebsites (met Word/Excel-exportknoppen)\n• **Download regelgeving update word/excel** → Exporteer rapport\n• **Download regelgeving word/excel** → Standaarden exporteren\n• **Database verwijderen** → Alle documenten verwijderen (bevestiging vereist)\n• **Status** → Systeemstatus weergeven\n• **Help** → Volledige handleiding tonen",
   "welcome.doc_control.title": "📄 **TMBIA-Tmti AI-QMS Documentbeheer (Eira)**",
   "welcome.main.greeting": "Hallo, ik ben Eira. Welkom bij het AI-ondersteunde kwaliteitsmanagementsysteem. Eira kan u helpen bij de beoordeling van kwaliteitsdocumenten, de evaluatie van de naleving van regelgeving voor medische hulpmiddelen en het onderzoek en de analyse van regelgevingsnormen.",
   "welcome.main.instructions": "**Subsystemen:**\n• 📄 **Documentbeheer** — Upload, OCR, versiebeheer, handtekeningdetectie, audit-trail, export\n• 🔍 **Auditbeheer** — CAPA, interne audit, afwijkingsbeheer (Phase 2 gepland)\n\n**Algemeen:** Status · /web zoeken · Help · Direct een vraag stellen",
@@ -283,5 +283,12 @@
   ],
   "source_label.regulatory_list": "Regelgevingslijst",
   "source_label.regulatory_update": "Regelgevingslijst bijwerken",
-  "source_label.source": "Bronopdracht"
+  "source_label.source": "Bronopdracht",
+  "_commands.cmd.view_file": [
+    "online bekijken",
+    "bekijken",
+    "voorbeeld"
+  ],
+  "view.specify": "Eira: 📖 Please specify the document ID to view. {count} document(s) available:",
+  "view.example": "💡 Usage: **view QP-001**"
 }

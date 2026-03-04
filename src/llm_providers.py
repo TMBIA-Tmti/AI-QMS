@@ -810,7 +810,7 @@ class LLMProviderManager:
             LiteLLM-formatted model name
         """
         provider = self.current_provider
-        model_name = model or provider["default_model"]
+        model_name = provider["default_model"] if (not model or model == "default") else model
 
         # LiteLLM model naming convention
         provider_id = provider["provider_id"]

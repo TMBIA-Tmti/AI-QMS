@@ -718,6 +718,180 @@ class RegulatoryMarkdownStorage:
             if d.get("status", "active") == "active"
         )
 
+    # ============================================================
+    # Upload reminders & regulation listing (for MdsapMarkdownStorage)
+    # ============================================================
+
+    # Mapping: cross-examination profile → region folder + display label
+    _EXPECTED_REGULATIONS = {
+        "QMSR":   {"region": "USA",       "name_en": "USA (FDA QMSR)",       "name_zh": "美國 (FDA QMSR)"},
+        "EU_MDR": {"region": "EU",        "name_en": "EU (MDR 2017/745)",    "name_zh": "歐盟 (MDR 2017/745)"},
+        "TFDA":   {"region": "Taiwan",    "name_en": "Taiwan (TFDA)",        "name_zh": "台灣 (TFDA)"},
+        "HC":     {"region": "Canada",    "name_en": "Canada (HC/MDSAP)",    "name_zh": "加拿大 (HC/MDSAP)"},
+        "PMDA":   {"region": "Japan",     "name_en": "Japan (PMDA)",         "name_zh": "日本 (PMDA)"},
+        "ANVISA": {"region": "Brazil",    "name_en": "Brazil (ANVISA)",      "name_zh": "巴西 (ANVISA)"},
+        "TGA":    {"region": "Australia", "name_en": "Australia (TGA)",      "name_zh": "澳洲 (TGA)"},
+        "ISO_13485": {"region": "ISO_Standards", "name_en": "ISO 13485:2016", "name_zh": "ISO 13485:2016"},
+    }
+
+    def get_upload_reminders(self) -> list[dict]:
+        """Get list of regulations that still need user-uploaded full text.
+
+        Checks each of the 7+1 expected regulations. If no uploaded document
+        exists under {region}/uploads/, it's added to the reminders list.
+
+        Returns:
+            List of dicts: [{"regulation_id", "name_en", "name_zh", "region", "has_uploaded": False}]
+        """
+        reminders = []
+        for reg_id, info in self._EXPECTED_REGULATIONS.items():
+            region_dir = self.documents_path / info["region"] / "uploads"
+            has_uploaded = False
+            if region_dir.exists():
+                # Any non-empty file counts as uploaded
+                for f in region_dir.iterdir():
+                    if f.is_file() and f.stat().st_size > 0:
+                        has_uploaded = True
+                        break
+            if not has_uploaded:
+                reminders.append({
+                    "regulation_id": reg_id,
+                    "name_en": info["name_en"],
+                    "name_zh": info["name_zh"],
+                    "region": info["region"],
+                    "has_uploaded": False,
+                })
+        return reminders
+
+    def list_all_regulations(self) -> list[dict]:
+        """List all 7+1 regulations with their availability status.
+
+        Returns:
+            List of dicts with regulation_id, name, region, status fields.
+        """
+        result = []
+        for reg_id, info in self._EXPECTED_REGULATIONS.items():
+            region_dir = self.documents_path / info["region"]
+            has_predefined = (region_dir / "predefined").exists() and any(
+                (region_dir / "predefined").iterdir()
+            ) if (region_dir / "predefined").exists() else False
+            has_uploaded = False
+            upload_dir = region_dir / "uploads"
+            if upload_dir.exists():
+                has_uploaded = any(
+                    f.is_file() and f.stat().st_size > 0
+                    for f in upload_dir.iterdir()
+                )
+            has_crawled = any(
+                doc.get("region", "").endswith(f"({info['region']})") or
+                doc.get("region", "") == info["region"]
+                for doc in self.registry.get("documents", [])
+                if doc.get("status") != "deleted"
+            )
+            result.append({
+                "regulation_id": reg_id,
+                "name_en": info["name_en"],
+                "name_zh": info["name_zh"],
+                "region": info["region"],
+                "has_predefined": has_predefined,
+                "has_uploaded": has_uploaded,
+                "has_crawled": has_crawled,
+                "status": "complete" if (has_uploaded or has_crawled) else "needs_upload",
+            })
+        return result
+
+    def save_uploaded_regulation(
+        self, regulation_id: str, filename: str, content: str
+    ) -> dict:
+        """Save a user-uploaded regulation document.
+
+        The file is placed under ``{region}/uploads/`` inside the unified
+        ``regulatory_markdown_storage/`` directory.
+
+        Args:
+            regulation_id: Profile ID (e.g. 'QMSR', 'EU_MDR', 'TFDA')
+            filename: Original filename
+            content: Markdown content
+
+        Returns:
+            dict with 'success', 'path', 'regulation_id'
+        """
+        info = self._EXPECTED_REGULATIONS.get(regulation_id)
+        if not info:
+            return {
+                "success": False,
+                "error": f"Unknown regulation_id: {regulation_id}",
+            }
+
+        upload_dir = self.documents_path / info["region"] / "uploads"
+        upload_dir.mkdir(parents=True, exist_ok=True)
+
+        # Sanitize filename
+        safe_name = self._sanitize_name(Path(filename).stem)
+        ts = datetime.now().strftime("%Y%m%d")
+        dest = upload_dir / f"{regulation_id}_uploaded_{ts}_{safe_name}.md"
+
+        self._atomic_write_text(dest, content)
+        logger.info(f"Saved uploaded regulation: {dest}")
+
+        return {
+            "success": True,
+            "path": str(dest),
+            "regulation_id": regulation_id,
+        }
+
+    def export_predefined_profiles(self) -> dict:
+        """Export all predefined regulation profiles as Markdown files.
+
+        Creates ``{country}/predefined/{REG_ID}_profile.md`` for each
+        profile registered in ``compliance_rules.PREDEFINED_REGULATIONS``.
+
+        Returns:
+            dict with 'exported_count', 'profiles' list
+        """
+        try:
+            from src.analysis.compliance_rules import get_all_profiles
+            profiles = get_all_profiles()
+        except ImportError:
+            return {"exported_count": 0, "profiles": [], "error": "compliance_rules not available"}
+
+        exported = []
+        for reg_id, profile in profiles.items():
+            info = self._EXPECTED_REGULATIONS.get(reg_id)
+            if not info:
+                continue
+            pred_dir = self.documents_path / info["region"] / "predefined"
+            pred_dir.mkdir(parents=True, exist_ok=True)
+            dest = pred_dir / f"{reg_id}_profile.md"
+
+            # Build markdown from profile
+            lines = [
+                f"# {profile.regulation_name}",
+                f"**Regulation ID**: {profile.regulation_id}",
+                f"**Country/Region**: {profile.country}",
+                "",
+                "## ISO 13485 Clause Mapping",
+                "",
+            ]
+            for clause_id, mapping in profile.clause_mappings.items():
+                lines.append(f"### {clause_id}")
+                lines.append(f"- **Local Requirement**: {mapping.local_requirement}")
+                lines.append(f"- **Mandatory**: {mapping.mandatory}")
+                if mapping.guidance_notes:
+                    lines.append(f"- **Notes**: {mapping.guidance_notes}")
+                lines.append("")
+
+            if profile.unique_requirements:
+                lines.append("## Unique Requirements")
+                lines.append("")
+                for req in profile.unique_requirements:
+                    lines.append(f"- {req}")
+                lines.append("")
+
+            self._atomic_write_text(dest, "\n".join(lines))
+            exported.append({"regulation_id": reg_id, "path": str(dest)})
+
+        return {"exported_count": len(exported), "profiles": exported}
 
 # ============================================================
 # Singleton accessor

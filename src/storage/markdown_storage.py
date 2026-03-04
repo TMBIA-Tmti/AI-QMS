@@ -320,6 +320,7 @@ class MarkdownStorageManager:
         ocr_confidence: float = 0.0,
         user_id: str = "system",
         explicit_version: str = None,
+        new_title: str = None,
     ) -> dict:
         """
         Add a new version to an existing document.
@@ -333,6 +334,8 @@ class MarkdownStorageManager:
             user_id: User who updated the document
             explicit_version: v2.5.2 - If provided, use this version instead of auto-incrementing
                               (from OCR-detected version number on the document)
+            new_title: If provided, update the document title to this value
+                       (so the registry reflects the latest version's title)
 
         Returns:
             Dict with 'success', 'path', 'version', 'previous_version' keys
@@ -386,6 +389,9 @@ class MarkdownStorageManager:
         # Update document entry
         doc_entry["versions"].append(version_entry)
         doc_entry["current_version"] = new_version
+        # Update title if a new title is provided from the new version
+        if new_title:
+            doc_entry["title"] = new_title
         self.registry["documents"][doc_index] = doc_entry
         self._save_registry()
 
@@ -744,6 +750,7 @@ class MarkdownStorageManager:
         user_id: str = "system",
         source_file_path: Optional[str] = None,
         detected_version: Optional[str] = None,
+        sig_result: Optional[dict] = None,
     ) -> dict:
         """
         Save OCR-processed document to Markdown storage.
@@ -822,6 +829,13 @@ class MarkdownStorageManager:
             result["doc_id"] = doc_id
             result["title"] = title
             result["source_sha256"] = source_sha256
+            # Persist signature detection result in registry
+            if sig_result is not None:
+                for doc in self.registry["documents"]:
+                    if doc["doc_id"] == doc_id:
+                        doc["sig_result"] = sig_result
+                        break
+                self._save_registry()
 
         return result
 

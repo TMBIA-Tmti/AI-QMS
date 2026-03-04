@@ -202,7 +202,7 @@
   "welcome.doc_control.doc_count": "📊 문서 수: {count}/{limit}",
   "welcome.doc_control.formats": "지원 형식: PDF, Word, Excel, PowerPoint, 이미지, 텍스트 파일",
   "welcome.doc_control.greeting": "안녕하세요, Eira입니다. 문서 관리 시스템에 오신 것을 환영합니다. Eira는 문서 업로드, OCR 처리, 버전 관리, 서명 감지 및 감사 추적 관리를 지원합니다.",
-  "welcome.doc_control.instructions": "**사용 방법:**\n• **파일 업로드** → 채팅에 드래그 앤 드롭 또는 업로드 클릭\n• **문서 목록** → 현행 정식 버전 (Word/Excel 내보내기 버튼 포함)\n• **목록** → 모든 기록 (버전 업데이트, 폐기 포함) (Word/Excel 내보내기 버튼 포함)\n• **검색 키워드** → 문서 내용 검색\n• **다운로드 문서ID** → 원본 파일 다운로드\n• **폐기 문서ID** → 문서 폐기\n• **감사 추적** → 작업 기록 보기\n• **감사 추적 다운로드 word/excel** → 기록 내보내기\n• **규정 목록** → 참조 표준 목록 (Word/Excel 내보내기 버튼 포함)\n• **규제 목록 업데이트** → 글로벌 규제 웹사이트 업데이트（Word/Excel 내보내기 버튼 포함）\n• **규제 업데이트 다운로드 word/excel** → 규제 업데이트 보고서 내보내기\n• **데이터베이스 삭제** → 모든 문서 삭제 (확인 필요)\n• **/web 키워드** → 웹 검색 (예: /web 최신 ISO 13485 버전)\n• **상태** → 시스템 상태 표시\n• **도움말** → 전체 가이드 표시",
+  "welcome.doc_control.instructions": "**사용 방법:**\n• **파일 업로드** → 채팅에 드래그 앤 드롭 또는 업로드 클릭\n• **문서 목록** → 현행 정식 버전 (Word/Excel 내보내기 버튼 포함)\n• **목록** → 모든 기록 (버전 업데이트, 폐기 포함) (Word/Excel 내보내기 버튼 포함)\n• **검색 키워드** → 문서 내용 검색\n• **다운로드 문서ID** → 양식 다운로드（⚠️ 4계층 양식만 다운로드 가능, 1-3계층 문서는 온라인 열람만 가능）\n• **온라인 보기 문서ID** → 온라인으로 문서 보기（모든 레벨 가능, 워터마크 옵션 있음）\n• **폐기 문서ID** → 문서 폐기\n• **감사 추적** → 작업 기록 보기\n• **감사 추적 다운로드 word/excel** → 기록 내보내기\n• **규정 목록** → 참조 표준 목록 (Word/Excel 내보내기 버튼 포함)\n• **규제 목록 업데이트** → 글로벌 규제 웹사이트 업데이트（Word/Excel 내보내기 버튼 포함）\n• **규제 업데이트 다운로드 word/excel** → 규제 업데이트 보고서 내보내기\n• **데이터베이스 삭제** → 모든 문서 삭제 (확인 필요)\n• **/web 키워드** → 웹 검색 (예: /web 최신 ISO 13485 버전)\n• **상태** → 시스템 상태 표시\n• **도움말** → 전체 가이드 표시",
   "welcome.doc_control.title": "📄 **TMBIA-Tmti AI-QMS 문서 관리 시스템 (Eira)**",
   "welcome.main.greeting": "안녕하세요, Eira입니다. AI 품질관리 지원 시스템에 오신 것을 환영합니다. Eira는 품질 문서 검토, 의료기기 법규 적합성 평가, 각국 법규 기준의 조회 및 분석을 지원합니다.",
   "welcome.main.instructions": "**서브시스템:**\n• 📄 **문서 관리** — 업로드, OCR, 버전 관리, 서명 감지, 감사 추적, 내보내기\n• 🔍 **감사 관리** — CAPA, 내부 감사, 부적합 관리 (Phase 2 계획 중)\n\n**일반 기능:** 상태 · /web 검색 · 도움말 · 직접 질문",
@@ -288,5 +288,13 @@
   ],
   "source_label.regulatory_list": "규제 목록",
   "source_label.regulatory_update": "규제 목록 업데이트",
-  "source_label.source": "소스 명령"
+  "source_label.source": "소스 명령",
+  "_commands.cmd.view_file": [
+    "온라인 보기",
+    "보기",
+    "미리보기",
+    "열람"
+  ],
+  "view.specify": "Eira: 📖 Please specify the document ID to view. {count} document(s) available:",
+  "view.example": "💡 Usage: **view QP-001**"
 }

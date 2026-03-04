@@ -413,9 +413,10 @@ class WatermarkEngine:
         scale = settings.get("scale", 1.0)
         position = settings.get("position", "center")
         repeat = settings.get("repeat", False)
+        color_tint = settings.get("color_tint", None)
 
-        # Pre-process image: apply opacity via Pillow
-        processed_path = self._prepare_image_with_opacity(image_path, opacity, scale)
+        # Pre-process image: apply opacity, scale, and color tint via Pillow
+        processed_path = self._prepare_image_with_opacity(image_path, opacity, scale, color_tint)
 
         try:
             img = Image.open(processed_path)
@@ -517,9 +518,10 @@ class WatermarkEngine:
         image_path: str,
         opacity: float,
         scale: float = 1.0,
+        color_tint: Optional[str] = None,
     ) -> str:
         """
-        Pre-process watermark image: apply opacity and scale via Pillow.
+        Pre-process watermark image: apply opacity, scale, and color tint via Pillow.
 
         Creates a temporary file with the processed image.
 
@@ -548,6 +550,22 @@ class WatermarkEngine:
                 # Multiply existing alpha by opacity
                 alpha = alpha.point(lambda p: int(p * opacity))
                 img.putalpha(alpha)
+
+            # Apply color tint (hex string like '#FF0000')
+            if color_tint:
+                try:
+                    hex_color = color_tint.lstrip('#')
+                    if len(hex_color) == 6:
+                        r_tint = int(hex_color[0:2], 16)
+                        g_tint = int(hex_color[2:4], 16)
+                        b_tint = int(hex_color[4:6], 16)
+                        r, g, b, a = img.split()
+                        r = r.point(lambda p: int(p * r_tint / 255))
+                        g = g.point(lambda p: int(p * g_tint / 255))
+                        b = b.point(lambda p: int(p * b_tint / 255))
+                        img = Image.merge('RGBA', (r, g, b, a))
+                except (ValueError, IndexError) as tint_err:
+                    logger.warning('Invalid color_tint %r: %s', color_tint, tint_err)
 
             # Save to temp file
             tmp_fd, tmp_path = tempfile.mkstemp(suffix=".png")

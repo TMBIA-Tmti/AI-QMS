@@ -2165,11 +2165,8 @@ async def set_phase_config(request: Request):
         validated = [p for p in requested if p in SKIPPABLE_PHASES]
         _custom_skip_phases = validated
         try:
-            from src.utils.user_settings import load_user_settings, save_user_settings
-
-            settings = load_user_settings()
-            settings["custom_skip_phases"] = _custom_skip_phases
-            save_user_settings(settings)
+            from src.utils.app_settings import set_app_setting
+            set_app_setting("custom_skip_phases", _custom_skip_phases)
         except Exception:
             pass
         return JSONResponse(content={"skip_phases": _custom_skip_phases})
@@ -2194,26 +2191,21 @@ def get_custom_skip_phases() -> list[str]:
 
 
 def _load_mdsap_from_settings() -> bool:
-    """Load MDSAP verify state from persisted user settings."""
+    """Load MDSAP verify state from persisted app settings."""
     try:
-        from src.utils.user_settings import load_user_settings
-
-        settings = load_user_settings()
-        return bool(settings.get("mdsap_verify_enabled", True))
+        from src.utils.app_settings import get_app_setting
+        return bool(get_app_setting("mdsap_verify_enabled", True))
     except Exception:
         return True
-
 
 _mdsap_verify_enabled: bool = _load_mdsap_from_settings()
 
 
 def _load_skip_phases_from_settings() -> list[str]:
-    """Load custom skip phases from persisted user settings."""
+    """Load custom skip phases from persisted app settings."""
     try:
-        from src.utils.user_settings import load_user_settings
-
-        settings = load_user_settings()
-        saved = settings.get("custom_skip_phases", [])
+        from src.utils.app_settings import get_app_setting
+        saved = get_app_setting("custom_skip_phases", [])
         return [p for p in saved if p in SKIPPABLE_PHASES]
     except Exception:
         return []
@@ -2230,11 +2222,8 @@ async def set_mdsap_verify(request: Request):
         body = await request.json()
         _mdsap_verify_enabled = bool(body.get("enabled", True))
         try:
-            from src.utils.user_settings import load_user_settings, save_user_settings
-
-            settings = load_user_settings()
-            settings["mdsap_verify_enabled"] = _mdsap_verify_enabled
-            save_user_settings(settings)
+            from src.utils.app_settings import set_app_setting
+            set_app_setting("mdsap_verify_enabled", _mdsap_verify_enabled)
         except Exception:
             pass
         return JSONResponse(content={"enabled": _mdsap_verify_enabled})
@@ -2274,10 +2263,25 @@ async def get_daily_audit_history(limit: int = Query(30, ge=1, le=365)):
 
 @report_router.post("/daily-audit/run")
 async def run_daily_audit_endpoint(request: Request):
-    """Trigger a daily audit run."""
+    """Trigger a daily audit run with pre-examination regulation freshness check."""
     try:
         from src.analysis.daily_audit import run_daily_audit
         from src.database.crossexam_store import get_crossexam_store
+        from src.services.regulatory_crawler import check_regulation_freshness
+
+        # Step 0: Pre-cross-examination regulation freshness check
+        # Requirement: 交叉詰問前要確認當前當作基準的ISO 13485與MDSAP為最新版
+        freshness = await check_regulation_freshness()
+        freshness_announcement = None
+        if freshness.get("announcement_needed"):
+            freshness_announcement = {
+                "en": freshness.get("announcement_text", ""),
+                "zh": freshness.get("announcement_text_zh", ""),
+            }
+            logger.warning(
+                "Regulation freshness check: announcement needed. %s",
+                freshness.get("announcement_text", "")
+            )
 
         # Get LLM completion function from app state
         llm_fn = _get_llm_completion_fn(request)
@@ -2293,23 +2297,65 @@ async def run_daily_audit_endpoint(request: Request):
         except Exception:
             pass
 
+        # Extract incomplete country data from freshness check
+        _incomplete_countries: list[str] = []
+        country_data = freshness.get("country_completeness", {})
+        _incomplete_countries = country_data.get("incomplete_countries", [])
+
         result = run_daily_audit(
             llm_completion_fn=llm_fn,
             lang=lang,
             store=store,
+            incomplete_countries=_incomplete_countries,
         )
 
         # Check for deviation and send Chainlit announcement if needed
         if result.deviation_detected:
             _send_deviation_announcement(result)
 
-        return JSONResponse(content=result.to_dict())
+        # Auto-trigger meta review if 10+ daily records since last meta review
+        meta_auto = None
+        try:
+            meta_auto = _maybe_auto_trigger_meta_review(llm_fn, lang)
+        except Exception as e:
+            logger.warning(f"Auto meta-review trigger failed (non-fatal): {e}")
+
+        response = result.to_dict()
+        # Attach freshness check results and announcement
+        response["regulation_freshness"] = freshness
+        if freshness_announcement:
+            response["freshness_announcement"] = freshness_announcement
+        # Attach per-country upload reminders from storage layer
+        try:
+            from src.storage.mdsap_markdown_storage import get_mdsap_markdown_store
+            upload_reminders = get_mdsap_markdown_store().get_upload_reminders()
+            if upload_reminders:
+                response["upload_reminders"] = upload_reminders
+        except Exception:
+            pass  # non-fatal
+        if meta_auto:
+            response["meta_review_auto_triggered"] = True
+            response["meta_review_summary"] = meta_auto
+        return JSONResponse(content=response)
     except ImportError as e:
         raise HTTPException(
             status_code=501, detail=f"Daily audit module not available: {e}"
         )
     except Exception as e:
         logger.error(f"Daily audit failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@report_router.get("/regulation-freshness")
+async def check_freshness_endpoint():
+    """Check regulation freshness (ISO 13485 + MDSAP) before cross-examination."""
+    try:
+        from src.services.regulatory_crawler import check_regulation_freshness
+
+        result = await check_regulation_freshness()
+        return JSONResponse(content=result)
+    except Exception as e:
+        logger.error(f"Regulation freshness check failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -2506,6 +2552,87 @@ def _get_llm_completion_fn(request: Request):
             status_code=503,
             detail="LLM completion function not available. Run an analysis first.",
         )
+
+def _get_llm_completion_fn_standalone():
+    """Get LLM completion function without a Request object.
+
+    Used by background schedulers that don't have an active HTTP request.
+    Creates an LLMProviderManager from saved user settings.
+    Returns None if no LLM function is available.
+    """
+    try:
+        from src.utils.user_settings import load_user_settings
+        from src.llm_providers import create_provider_manager
+
+        settings = load_user_settings()
+        provider_id = settings.get("provider_id") if settings else None
+        if not provider_id:
+            logger.debug("No provider_id in saved settings for standalone LLM fn")
+            return None
+
+        manager = create_provider_manager(provider_id)
+        return manager.completion
+    except Exception as e:
+        logger.debug(f"Failed to create standalone LLM fn: {e}")
+        return None
+
+def _maybe_auto_trigger_meta_review(llm_fn, lang: str = "zh-TW") -> dict | None:
+    """Auto-trigger 10-day meta review if enough daily records have accumulated.
+
+    Requirement: 10筆後的當天要顯示當天的交叉詰問與10天的交叉詰問報告
+    (After 10 records, display today's cross-examination AND
+     10-day cross-examination report with improvement recommendations.)
+
+    Returns meta review summary dict, or None if not triggered.
+    """
+    from src.analysis.daily_audit import (
+        get_daily_audit_history,
+        get_latest_meta_review,
+        run_10day_meta_review,
+    )
+
+    daily_records = get_daily_audit_history(limit=30)
+    if len(daily_records) < 10:
+        return None
+
+    # Check if a meta review has already been run that covers recent records
+    latest_meta = get_latest_meta_review()
+    if latest_meta:
+        # If the latest meta review's period_end covers the most recent daily record,
+        # no need to re-run. Only trigger if 10+ new records exist since last meta.
+        meta_end = latest_meta.period_end
+        records_since_meta = [
+            r for r in daily_records if r.audit_date > meta_end
+        ]
+        if len(records_since_meta) < 10:
+            return None
+
+    # We have >= 10 records since last meta review (or no prior meta review)
+    logger.info(
+        "Auto-triggering 10-day meta review: %d daily records available",
+        len(daily_records),
+    )
+
+    meta_result = run_10day_meta_review(
+        llm_completion_fn=llm_fn,
+        lang=lang,
+    )
+
+    # Send the meta review announcement via Chainlit
+    try:
+        _send_meta_review_announcement(meta_result)
+    except Exception as e:
+        logger.warning(f"Meta review announcement failed: {e}")
+
+    return {
+        "period_start": meta_result.period_start,
+        "period_end": meta_result.period_end,
+        "avg_dim_a": meta_result.avg_dim_a,
+        "avg_dim_b": meta_result.avg_dim_b,
+        "trend_analysis": meta_result.trend_analysis[:300],
+        "recommendations": meta_result.recommendations[:5],
+        "deviation_summary": meta_result.deviation_summary[:200],
+    }
 
 
 def _send_deviation_announcement(result) -> None:

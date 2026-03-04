@@ -202,7 +202,7 @@
   "welcome.doc_control.doc_count": "📊 Belgeler: {count}/{limit}",
   "welcome.doc_control.formats": "Desteklenen formatlar: PDF, Word, Excel, PowerPoint, Görseller, Metin dosyaları",
   "welcome.doc_control.greeting": "Merhaba, ben Eira. Doküman kontrol sistemine hoş geldiniz. Eira, belge yükleme, OCR işleme, versiyon yönetimi, imza tespiti ve denetim izi yönetiminde size yardımcı olabilir.",
-  "welcome.doc_control.instructions": "**Nasıl kullanılır:**\n• **Dosya yükle** → Sohbete sürükleyip bırakın veya yükle'ye tıklayın\n• **Belge listesi** → Mevcut resmi sürümler (Word/Excel dışa aktarma düğmeleriyle)\n• **Liste** → Tüm kayıtlar (güncellemeler, eskimiş dahil) (Word/Excel dışa aktarma düğmeleriyle)\n• **Ara anahtar kelime** → Belge içeriğinde ara\n• **İndir belge_id** → Orijinal dosyayı indir\n• **Eskimiş belge_id** → Belgeyi eskimiş olarak işaretle\n• **Denetim izi** → İşlem kayıtlarını görüntüle (Word/Excel dışa aktarma düğmeleriyle)\n• **İndir denetim word/excel** → Kayıtları dışa aktar\n• **Mevzuat listesi** → Referans standartlar (Word/Excel dışa aktarma düğmeleriyle)\n• **Mevzuat güncelleme** → Küresel mevzuat web sitelerini tara (Word/Excel dışa aktarma düğmeleriyle)\n• **Mevzuat güncelleme indir word/excel** → Raporu dışa aktar\n• **İndir mevzuat word/excel** → Standartları dışa aktar\n• **Veritabanını sil** → Tüm belgeleri sil (onay gerekli)\n• **Durum** → Sistem durumunu göster\n• **Yardım** → Tam kılavuzu göster",
+  "welcome.doc_control.instructions": "**Nasıl kullanılır:**\n• **Dosya yükle** → Sohbete sürükleyip bırakın veya yükle'ye tıklayın\n• **Belge listesi** → Mevcut resmi sürümler (Word/Excel dışa aktarma düğmeleriyle)\n• **Liste** → Tüm kayıtlar (güncellemeler, eskimiş dahil) (Word/Excel dışa aktarma düğmeleriyle)\n• **Ara anahtar kelime** → Belge içeriğinde ara\n• **İndir belge_id** → Formları indir (⚠️ Sadece seviye 4 formlar indirilebilir; seviye 1-3 sadece çevrimiçi görüntüleme)\n• **Görüntüle belge_ID** → Çevrimiçi görüntüle (tüm seviyeler; filigran seçeneği)\n• **Eskimiş belge_id** → Belgeyi eskimiş olarak işaretle\n• **Denetim izi** → İşlem kayıtlarını görüntüle (Word/Excel dışa aktarma düğmeleriyle)\n• **İndir denetim word/excel** → Kayıtları dışa aktar\n• **Mevzuat listesi** → Referans standartlar (Word/Excel dışa aktarma düğmeleriyle)\n• **Mevzuat güncelleme** → Küresel mevzuat web sitelerini tara (Word/Excel dışa aktarma düğmeleriyle)\n• **Mevzuat güncelleme indir word/excel** → Raporu dışa aktar\n• **İndir mevzuat word/excel** → Standartları dışa aktar\n• **Veritabanını sil** → Tüm belgeleri sil (onay gerekli)\n• **Durum** → Sistem durumunu göster\n• **Yardım** → Tam kılavuzu göster",
   "welcome.doc_control.title": "📄 **TMBIA-Tmti AI-QMS Doküman Kontrol (Eira)**",
   "welcome.main.greeting": "Merhaba, ben Eira. Yapay zeka destekli kalite yönetim sistemine hoş geldiniz. Eira, kalite belgelerinin incelenmesi, tıbbi cihaz mevzuatına uygunluk değerlendirmesi ve düzenleyici standartların araştırılması ve analizinde size yardımcı olabilir.",
   "welcome.main.instructions": "**Alt Sistemler:**\n• 📄 **Belge Kontrolü** — Yükleme, OCR, sürüm yönetimi, imza algılama, denetim izi, dışa aktarma\n• 🔍 **Denetim Yönetimi** — CAPA, iç denetim, uygunsuzluk yönetimi (Phase 2 planlanıyor)\n\n**Genel:** Durum · /web arama · Yardım · Doğrudan sorun",
@@ -281,5 +281,12 @@
   ],
   "source_label.regulatory_list": "Düzenleyici liste",
   "source_label.regulatory_update": "Düzenleyici liste güncellemesi",
-  "source_label.source": "Kaynak komutu"
+  "source_label.source": "Kaynak komutu",
+  "_commands.cmd.view_file": [
+    "çevrimiçi görüntüle",
+    "görüntüle",
+    "önizleme"
+  ],
+  "view.specify": "Eira: 📖 Please specify the document ID to view. {count} document(s) available:",
+  "view.example": "💡 Usage: **view QP-001**"
 }

@@ -141,8 +141,8 @@ def get_pending_reports() -> list:
     """Find analysis caches that have completed reports but user hasn't seen them.
 
     Returns list of cache entries where:
-    - status is "completed" or "baseline_ready"
-    - final or baseline Word/Excel paths exist
+    - status is "completed"
+    - final Word/Excel paths exist
     """
     if not _CACHE_DIR.exists():
         return []
@@ -153,7 +153,7 @@ def get_pending_reports() -> list:
             with open(cache_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             status = data.get("status", "")
-            if status in ("completed", "baseline_ready", "llm_failed"):
+            if status == "completed":
                 # Check if report files actually exist
                 has_final = (
                     data.get("final_word_path")

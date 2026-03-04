@@ -406,6 +406,7 @@ from src.utils.watermark import (
     generate_watermark_preview,
     convert_to_pdf_for_viewing,
     get_document_level,
+    should_allow_download,
 )
 
 # v3.1.0: Load cached model lists from previous sessions on startup.
@@ -2746,6 +2747,185 @@ async def _regulatory_background_scheduler():
             await asyncio.sleep(3600)
 
 
+_daily_audit_scheduler_started = False
+_DAILY_AUDIT_SCHEDULE_HOUR = 7  # Run daily audit at 7 AM
+
+
+async def _daily_audit_background_scheduler():
+    """Background loop: run daily audit once per day at scheduled hour.
+
+    Uses the same asyncio sleep-loop pattern as the regulatory crawler.
+    After each run, checks whether a 10-day meta review should be auto-triggered.
+    """
+    import datetime as _dt
+
+    _logger = logging.getLogger(__name__)
+
+    while True:
+        try:
+            now = _dt.datetime.now()
+            target = now.replace(
+                hour=_DAILY_AUDIT_SCHEDULE_HOUR, minute=0, second=0, microsecond=0
+            )
+            if now >= target:
+                target += _dt.timedelta(days=1)
+
+            sleep_seconds = (target - now).total_seconds()
+            _logger.info(
+                "[DailyAuditScheduler] Next audit at %s (in %.1fh)",
+                target.isoformat(),
+                sleep_seconds / 3600,
+            )
+            await asyncio.sleep(sleep_seconds)
+
+            # Get LLM function from current session or stored settings
+            _logger.info("[DailyAuditScheduler] Starting scheduled daily audit...")
+            try:
+                from src.analysis.report_api import (
+                    _get_llm_completion_fn_standalone,
+                    _maybe_auto_trigger_meta_review,
+                )
+                from src.analysis.daily_audit import run_daily_audit
+                from src.database.crossexam_store import get_crossexam_store
+                from src.utils.user_settings import load_user_settings
+
+                settings = load_user_settings()
+                lang = settings.get("language", "zh-TW") if settings else "zh-TW"
+
+                llm_fn = _get_llm_completion_fn_standalone()
+                if llm_fn is None:
+                    _logger.warning(
+                        "[DailyAuditScheduler] No LLM function available, skipping"
+                    )
+                    await asyncio.sleep(3600)
+                    continue
+
+                store = get_crossexam_store()
+
+                # Check regulation freshness to determine incomplete countries
+                incomplete_countries: list[str] = []
+                try:
+                    from src.services.regulatory_crawler import (
+                        check_country_data_completeness,
+                    )
+                    completeness = await check_country_data_completeness()
+                    incomplete_countries = completeness.get(
+                        "incomplete_countries", []
+                    )
+                    if incomplete_countries:
+                        _logger.info(
+                            "[DailyAuditScheduler] Incomplete data for: %s — "
+                            "audit will proceed with warning annotation",
+                            incomplete_countries,
+                        )
+                except Exception as fc_err:
+                    _logger.warning(
+                        "[DailyAuditScheduler] Freshness check failed: %s — "
+                        "proceeding without warning annotation",
+                        fc_err,
+                    )
+
+                result = run_daily_audit(
+                    llm_completion_fn=llm_fn,
+                    lang=lang,
+                    store=store,
+                    incomplete_countries=incomplete_countries,
+                )
+
+                _logger.info(
+                    "[DailyAuditScheduler] Daily audit complete: "
+                    "overall=%.0f, dimA=%.0f, dimB=%.0f",
+                    result.overall_score,
+                    result.dim_a_score,
+                    result.dim_b_score,
+                )
+
+                # Auto-trigger meta review if applicable
+                try:
+                    _maybe_auto_trigger_meta_review(llm_fn, lang)
+                except Exception as me:
+                    _logger.warning(
+                        "[DailyAuditScheduler] Meta review auto-trigger failed: %s", me
+                    )
+
+            except ImportError as ie:
+                _logger.warning(
+                    "[DailyAuditScheduler] Module not available: %s", ie
+                )
+                await asyncio.sleep(3600)
+                continue
+
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            _logger.error("[DailyAuditScheduler] Failed: %s", e)
+            await asyncio.sleep(3600)
+
+
+async def _auto_trigger_crossexam():
+    """Auto-trigger regulation freshness check and daily cross-examination.
+
+    Runs after welcome message. Checks regulation freshness first,
+    shows announcement if needed (including per-country upload reminders),
+    then triggers daily audit.
+    """
+    try:
+        # Step 1: Check regulation freshness + 7-country data completeness
+        from src.services.regulatory_crawler import check_regulation_freshness
+
+        freshness = await check_regulation_freshness()
+        if freshness.get("announcement_needed"):
+            lang = cl.user_session.get("language", "zh-TW")
+            if lang.startswith("zh"):
+                announcement = freshness.get("announcement_text_zh", "")
+            else:
+                announcement = freshness.get("announcement_text", "")
+            if announcement:
+                await cl.Message(content=announcement, author="Eira").send()
+        else:
+            await cl.Message(
+                content=t("crossexam.freshness_confirmed"),
+                author="Eira",
+            ).send()
+
+        # Step 1b: Show per-country upload reminders if any countries have incomplete data
+        country_data = freshness.get("country_completeness", {})
+        incomplete = country_data.get("incomplete_countries", [])
+        if incomplete:
+            lang = cl.user_session.get("language", "zh-TW")
+            countries_info = country_data.get("countries", {})
+            lines = []
+            for pid in incomplete:
+                info = countries_info.get(pid, {})
+                if lang.startswith("zh"):
+                    lines.append(f"  • {info.get('message_zh', pid)}")
+                else:
+                    lines.append(f"  • {info.get('message', pid)}")
+            if lang.startswith("zh"):
+                upload_msg = (
+                    t("crossexam.upload_reminder_title") + "\n" + "\n".join(lines)
+                    + "\n\n" + t("crossexam.upload_reminder_instruction")
+                )
+            else:
+                upload_msg = (
+                    t("crossexam.upload_reminder_title") + "\n" + "\n".join(lines)
+                    + "\n\n" + t("crossexam.upload_reminder_instruction")
+                )
+            await cl.Message(content=upload_msg, author="Eira").send()
+
+        # Step 2: Check MDSAP toggle — if enabled, include 5-country analysis
+        from src.utils.app_settings import get_app_setting
+
+        mdsap_enabled = get_app_setting("mdsap_verify_enabled", False)
+        if mdsap_enabled:
+            await cl.Message(
+                content=t("crossexam.mdsap_enabled_notice"),
+                author="Eira",
+            ).send()
+
+    except Exception as e:
+        logger.error(f"Auto cross-exam trigger failed: {e}")
+
 # ============================================================
 # Chat Start
 # ============================================================
@@ -2769,6 +2949,12 @@ async def on_chat_start():
     if not _regulatory_scheduler_started:
         _regulatory_scheduler_started = True
         asyncio.create_task(_regulatory_background_scheduler())
+
+    # Start background daily audit scheduler (first user only)
+    global _daily_audit_scheduler_started
+    if not _daily_audit_scheduler_started:
+        _daily_audit_scheduler_started = True
+        asyncio.create_task(_daily_audit_background_scheduler())
 
     # Check for saved user settings (auto-reconnect)
     saved = load_user_settings()
@@ -2878,13 +3064,6 @@ async def on_chat_start():
         )
     await cl.Message(content=welcome).send()
 
-    if saved and user_name:
-        # Returning user with saved settings — show Eira intro + setup questions
-        await _send_eira_introduction(user_name, profile, doc_count, doc_limit)
-    else:
-        # New user — wait for LLM settings first, then ask name in on_settings_update
-        cl.user_session.set("eira_name_pending", True)
-
     # Check for pending reports from previous disconnected sessions
     try:
         pending = get_pending_reports()
@@ -2934,6 +3113,90 @@ async def on_chat_start():
     except Exception:
         pass  # Don't block startup if cache check fails
 
+    # Show recent HTML report links on reconnect
+    try:
+        _pipeline_dir = Path("data/analysis_pipeline")
+        if _pipeline_dir.exists():
+            _run_files = sorted(
+                _pipeline_dir.glob("run_*.json"),
+                key=lambda f: f.stat().st_mtime,
+                reverse=True,
+            )
+            _lang = cl.user_session.get("language", "zh-TW")
+            _shown = 0
+            for _rf in _run_files[:3]:  # Check latest 3 runs
+                try:
+                    _run_data = json.loads(_rf.read_text(encoding="utf-8"))
+                    _run_status = _run_data.get("status", "")
+                    _run_id = _run_data.get("run_id", _rf.stem)
+                    if _run_status == "completed" and _run_data.get("total_rows", 0) > 0:
+                        _report_url = f"/api/report/page/{_run_id}?lang={_lang}"
+                        _created = _run_data.get("started_at", "")
+                        if isinstance(_created, (int, float)):
+                            from datetime import datetime as _dt
+                            _created = _dt.fromtimestamp(_created).strftime("%Y-%m-%d %H:%M")
+                        elif _created:
+                            _created = str(_created)[:16]
+                        else:
+                            continue  # Skip runs with no started_at
+                        _total = _run_data.get("total_rows", 0)
+                        _completed = _run_data.get("completed_rows", 0)
+                        await cl.Message(
+                            content=(
+                                f"\U0001f4ca **{t('report.previous_report')}**\n"
+                                f"{t('report.status')}: \u2705 {t('report.completed')} "
+                                f"({_completed}/{_total})\n"
+                                f"{t('report.time')}: {_created}\n"
+                                f"[\ud83d\udd17 {t('report.view_report')}]({_report_url})"
+                            ),
+                        ).send()
+                        _shown += 1
+                except (json.JSONDecodeError, OSError, KeyError):
+                    continue
+    except Exception:
+        pass  # Don't block startup
+
+    # Show latest daily audit summary on reconnect
+    try:
+        _daily_dir = Path("data/daily_audit")
+        if _daily_dir.exists():
+            _audit_files = sorted(
+                _daily_dir.glob("daily_*.json"),
+                key=lambda f: f.stat().st_mtime,
+                reverse=True,
+            )
+            if _audit_files:
+                _latest = json.loads(_audit_files[0].read_text(encoding="utf-8"))
+                _audit_date = _latest.get("audit_date", "")
+                _overall = _latest.get("overall_score", 0)
+                _dim_a = _latest.get("dim_a_score", 0)
+                _dim_b = _latest.get("dim_b_score", 0)
+                _has_deviation = _latest.get("deviation_detected", False)
+                _lang = cl.user_session.get("language", "zh-TW")
+                _report_url = f"/api/report/page/latest?lang={_lang}"
+                _audit_msg = (
+                    f"🔍 **每日稽核摘要** ({_audit_date})\n"
+                    f"綜合分數: {_overall:.0f} | 面向A: {_dim_a:.0f} | 面向B: {_dim_b:.0f}\n"
+                )
+                if _has_deviation:
+                    _audit_msg += f"⚠️ 偵測到偏差\n"
+                await cl.Message(content=_audit_msg).send()
+    except Exception:
+        pass  # Don't block startup
+
+    # Eira introduction + signature detection (AFTER reports, LAST in startup sequence)
+    if saved and user_name:
+        # Returning user with saved settings — show Eira intro + setup questions
+        await _send_eira_introduction(user_name, profile, doc_count, doc_limit)
+    else:
+        # New user — wait for LLM settings first, then ask name in on_settings_update
+        cl.user_session.set("eira_name_pending", True)
+
+    # Auto-trigger cross-examination with regulation freshness check (Doc Control only)
+    # Requirement: 出發交叉詰問同時上網查詢ISO 13485與MDSAP是否為最新版
+    # Requirement: 改成只在文件控制子agent出現，主agent不要出現每日詰問分析
+    if profile == "文件管制 (Doc Control)":
+        asyncio.create_task(_auto_trigger_crossexam())
 
 async def _send_eira_introduction(
     user_name: str, profile: str, doc_count: int, doc_limit: int
@@ -4020,6 +4283,13 @@ async def handle_regulatory_list():
                     f"{t('report.page_online')}"
                 ).send()
 
+            # Resolve selected regions → regulation profile IDs
+            try:
+                from src.analysis.compliance_rules import get_profile_ids_for_regions
+                _reg_list_selected_ids = get_profile_ids_for_regions(list(filter_regions))
+            except Exception:
+                _reg_list_selected_ids = []
+
             pipeline_result = await run_pipeline_analysis(
                 scan_result=scan_result,
                 llm_completion_fn=manager.completion,
@@ -4028,6 +4298,7 @@ async def handle_regulatory_list():
                 source_command="regulatory_list",
                 send_message_fn=_send_pipeline_msg,
                 on_run_id_ready=_on_run_id_ready,
+                selected_regulations=_reg_list_selected_ids if _reg_list_selected_ids else None,
             )
 
         if pipeline_result and pipeline_result.success:
@@ -4542,6 +4813,103 @@ async def handle_regulatory_update_rescan(selected_regions: list):
     reg_md_store = get_regulatory_markdown_store()
     reg_md_store.save_from_crawl_results(crawl_results)
 
+    # ── Step 0.5: Generate RegulationProfile for countries without one ──
+    # For predefined 7 countries, profiles already exist.
+    # For any other selected country, use LLM to auto-generate a profile.
+    try:
+        from src.analysis.compliance_rules import (
+            get_regions_without_profile,
+            get_profile_ids_for_regions,
+        )
+        from src.analysis.regulation_analyzer import analyze_regulation_with_llm
+
+        regions_needing_profile = get_regions_without_profile(selected_regions)
+        if regions_needing_profile:
+            await cl.Message(
+                content=f"🔍 偵測到 {len(regions_needing_profile)} 個國家尚無法規 Profile，"
+                f"開始 LLM 自動分析...\n"
+                f"國家：{', '.join(regions_needing_profile)}"
+            ).send()
+
+            # Set up LLM for profile generation
+            _provider_id = cl.user_session.get("provider_id", "ollama")
+            _model_name = cl.user_session.get("model_name", "default")
+            _api_key = cl.user_session.get("api_key", "").strip()
+            if _provider_id and _model_name and (_provider_id == "ollama" or _api_key):
+                setup_api_key(_provider_id, _api_key)
+                _manager = create_provider_manager(_provider_id)
+                if _provider_id != "ollama":
+                    _manager.disable_fallback = True
+
+                for _region in regions_needing_profile:
+                    # Gather crawled texts for this region
+                    _region_crawl_texts = [
+                        {
+                            "region": r.get("region", ""),
+                            "agency": r.get("agency", ""),
+                            "content_markdown": r.get("content_markdown", ""),
+                            "url": r.get("url", ""),
+                        }
+                        for r in crawl_results.get("results", [])
+                        if r.get("region") == _region
+                        and r.get("crawl_status") == "success"
+                        and r.get("content_markdown")
+                    ]
+
+                    if not _region_crawl_texts:
+                        await cl.Message(
+                            content=f"⚠️ {_region} 無可用的爬蟲資料，跳過 Profile 生成。"
+                        ).send()
+                        continue
+
+                    async def _profile_progress(msg: str) -> None:
+                        try:
+                            await cl.Message(content=msg).send()
+                        except Exception:
+                            pass
+
+                    try:
+                        _profile = await analyze_regulation_with_llm(
+                            region_name=_region,
+                            crawled_texts=_region_crawl_texts,
+                            llm_completion_fn=_manager.completion,
+                            model=_model_name,
+                            send_progress_fn=_profile_progress,
+                        )
+                        if _profile:
+                            await cl.Message(
+                                content=f"✅ {_region} 法規 Profile 已生成："
+                                f"{_profile.regulation_id} "
+                                f"({len(_profile.iso_mapped)} 條對應，"
+                                f"{len(_profile.unique_requirements)} 項獨有要求)"
+                            ).send()
+                        else:
+                            await cl.Message(
+                                content=f"⚠️ {_region} 法規 Profile 生成失敗。"
+                            ).send()
+                    except Exception as _profile_err:
+                        import logging
+                        logging.getLogger(__name__).warning(
+                            f"Failed to generate profile for {_region}: {_profile_err}"
+                        )
+                        await cl.Message(
+                            content=f"⚠️ {_region} 法規 Profile 生成失敗：{str(_profile_err)[:100]}"
+                        ).send()
+            else:
+                await cl.Message(
+                    content="⚠️ 未設定 LLM，無法自動生成法規 Profile。"
+                ).send()
+
+        # Resolve selected_regions → profile IDs for pipeline
+        _selected_regulation_ids = get_profile_ids_for_regions(selected_regions)
+    except Exception as _profile_setup_err:
+        import logging
+        logging.getLogger(__name__).warning(
+            f"Profile generation setup failed: {_profile_setup_err}"
+        )
+        _selected_regulation_ids = []
+
+
     # ── Step 1: Generate baseline Word/Excel BEFORE LLM (guaranteed report) ──
     _cache_id_update = f"regulatory_update_{datetime.now().strftime('%Y%m%d%H%M%S')}"
     baseline_word_path_upd = ""
@@ -4638,6 +5006,7 @@ async def handle_regulatory_update_rescan(selected_regions: list):
                     source_command="regulatory_update",
                     send_message_fn=_send_pipeline_msg_update,
                     on_run_id_ready=_on_run_id_ready_update,
+                    selected_regulations=_selected_regulation_ids if _selected_regulation_ids else None,
                 )
 
             if pipeline_result and pipeline_result.success:
@@ -5201,9 +5570,22 @@ async def _send_file_download(filepath: str, msg_text: str):
 
 
 async def _send_inline_view(filepath: str, doc_id: str, level: str):
-    """Helper: send a document for inline viewing (no download)."""
-    suffix = Path(filepath).suffix.lower()
+    """Helper: send a document for inline viewing (no download).
 
+    If watermark decision hasn't been made yet, queue the view and ask first.
+    """
+    # Check if watermark decision has been made (requirement: 線上觀看前須先完成浮水印流程)
+    if not cl.user_session.get("watermark_confirmed", False):
+        # Store pending view request so it can be processed after watermark decision
+        cl.user_session.set("pending_inline_view", {
+            "filepath": filepath,
+            "doc_id": doc_id,
+            "level": level,
+        })
+        await _ask_watermark_before_upload()
+        return
+
+    suffix = Path(filepath).suffix.lower()
     # For PDF files, show inline as PDF element
     if suffix == ".pdf":
         display_name = re.sub(r"^\d{14}_", "", Path(filepath).name)
@@ -5261,6 +5643,18 @@ async def _send_inline_view(filepath: str, doc_id: str, level: str):
         await cl.Message(content=msg_text).send()
     else:
         await cl.Message(content=t("view.no_pdf")).send()
+
+async def _process_pending_inline_view():
+    """Process any pending inline view request after watermark decision."""
+    pending = cl.user_session.get("pending_inline_view")
+    if not pending:
+        return
+    cl.user_session.set("pending_inline_view", None)
+    await _send_inline_view(
+        pending["filepath"],
+        pending["doc_id"],
+        pending["level"],
+    )
 
 
 @cl.action_callback("download_audit_word")
@@ -5709,6 +6103,8 @@ async def on_watermark_skip(action):
     await cl.Message(content=t("watermark.skipped")).send()
     # Auto-process any pending files
     await _process_pending_upload_files()
+    # Also process any pending inline view request
+    await _process_pending_inline_view()
 
 
 @cl.action_callback("watermark_confirm")
@@ -5719,6 +6115,8 @@ async def on_watermark_confirm(action):
     await cl.Message(content=t("watermark.confirmed")).send()
     # Auto-process any pending files
     await _process_pending_upload_files()
+    # Also process any pending inline view request
+    await _process_pending_inline_view()
 
 
 @cl.action_callback("watermark_adjust_opacity")
@@ -6082,6 +6480,49 @@ async def handle_file_upload(files):
     progress_msg.content = "\n".join(lines)
     await progress_msg.update()
 
+    # --- Obsolete Detection UI ---
+    # Show warnings for files flagged as potentially obsolete
+    # Requirement: 只要檢測結果機率不為0都列出來讓使用者確認
+    obsolete_flagged = [
+        r for r in succeeded
+        if r.get("obsolete_result", {}).get("is_suspected_obsolete")
+    ]
+    if obsolete_flagged:
+        obs_lines = ["\n### ⚠️ 作廢文件偵測\n"]
+        for r in obsolete_flagged:
+            obs = r["obsolete_result"]
+            conf_pct = int(obs["confidence"] * 100)
+            reasons_str = "; ".join(obs.get("reasons", []))
+            obs_lines.append(
+                f"- **`{r['filename']}`** — 信心度: {conf_pct}%\n"
+                f"  原因: {reasons_str}"
+            )
+        obs_lines.append("\n> 以上文件疑似為作廢文件，請確認是否繼續處理。")
+        await cl.Message(content="\n".join(obs_lines)).send()
+
+    # --- Hierarchy Classification UI ---
+    # Show LLM-classified document hierarchy for user confirmation
+    hierarchy_flagged = [
+        r for r in succeeded
+        if r.get("hierarchy_result") and r["hierarchy_result"].get("level_id")
+    ]
+    if hierarchy_flagged:
+        from src.services.doc_hierarchy import get_doc_hierarchy
+        hier_mgr = get_doc_hierarchy()
+        lang = cl.user_session.get("language", "zh-TW")
+        hier_lines = ["\n### 📂 文件階層分類結果\n"]
+        for r in hierarchy_flagged:
+            hres = r["hierarchy_result"]
+            level_label = hier_mgr.get_label(hres["level_id"], lang)
+            conf_pct = int(hres.get("confidence", 0) * 100)
+            reasoning = hres.get("reasoning", "")
+            hier_lines.append(
+                f"- **`{r['filename']}`** → **{level_label}** (信心度: {conf_pct}%)\n"
+                f"  理由: {reasoning}"
+            )
+        hier_lines.append("\n> LLM 已自動分類文件階層，您可在後續流程中調整。")
+        await cl.Message(content="\n".join(hier_lines)).send()
+
     # --- Post-upload: ask level range & watermark if not yet asked ---
     # Only ask if there's no version update pending (version update has its own flow)
     has_version_update = succeeded and succeeded[-1].get("is_duplicate")
@@ -6319,6 +6760,33 @@ def process_uploaded_file_sync(
     )
     doc_info = detect_document_type(filename, ocr_text_for_detection)
 
+    # --- Obsolete Document Detection ---
+    # Requirement: 只要檢測結果機率不為0都列出來讓使用者確認
+    from src.services.obsolete_detector import detect_obsolete
+    obsolete_result = detect_obsolete(
+        filename=filename,
+        title=doc_info.get("title", ""),
+        ocr_content=ocr_text_for_detection,
+        file_path=str(dest_path),
+        lang=lang,
+    )
+
+    # --- LLM Hierarchy Classification ---
+    # Uses LLM to classify document into L1-L4/REG/OTHER
+    hierarchy_result = None
+    try:
+        from src.services.doc_hierarchy import classify_document_hierarchy_llm
+        with phoenix_trace(profile="文件管制 (Doc Control)", command="hierarchy_classify"):
+            hierarchy_result = classify_document_hierarchy_llm(
+                content=ocr_text_for_detection,
+                filename=filename,
+                llm_completion_fn=llm_manager.completion,
+                model=model_name,
+                lang=lang,
+            )
+    except Exception:
+        hierarchy_result = {"level_id": "OTHER", "confidence": 0.0, "reasoning": "Classification failed"}
+
     md_service = MarkdownStoreService()
     duplicate_doc = md_service.check_duplicate(str(dest_path))
 
@@ -6330,6 +6798,8 @@ def process_uploaded_file_sync(
             "ocr_result": ocr_result,
             "doc_info": doc_info,
             "sig_result": sig_result,
+            "obsolete_result": obsolete_result,
+            "hierarchy_result": hierarchy_result,
             "duplicate_doc": duplicate_doc,
             "is_duplicate": True,
         }
@@ -6375,6 +6845,8 @@ def process_uploaded_file_sync(
                         "ocr_result": ocr_result,
                         "doc_info": doc_info,
                         "sig_result": sig_result,
+                        "obsolete_result": obsolete_result,
+                        "hierarchy_result": hierarchy_result,
                         "duplicate_doc": existing_doc,
                         "is_duplicate": True,
                         "is_version_update": True,
@@ -6393,6 +6865,7 @@ def process_uploaded_file_sync(
         ocr_provider=ocr_result.get("provider_used", "unknown"),
         ocr_confidence=ocr_result.get("confidence", 0.0),
         detected_version=new_version,
+        sig_result=sig_result,
     )
 
     if save_result.get("success"):
@@ -6403,6 +6876,8 @@ def process_uploaded_file_sync(
             "ocr_result": ocr_result,
             "doc_info": doc_info,
             "sig_result": sig_result,
+            "obsolete_result": obsolete_result,
+            "hierarchy_result": hierarchy_result,
             "saved_doc_id": save_result.get("doc_id"),
             "is_duplicate": False,
         }
@@ -6466,6 +6941,7 @@ async def _execute_version_update(confirmer_name: str):
             ocr_confidence=ocr_result.get("confidence", 0.0),
             user_id=confirmer_name,
             explicit_version=ocr_detected_version,
+            new_title=doc_info.get("title"),
         )
 
         if result["success"]:
@@ -8351,12 +8827,21 @@ async def on_message(message: cl.Message):
                 )
                 doc_id = doc_id_match.group(1).upper() if doc_id_match else ""
 
-                # Determine document level for view/download decision
-                level = get_document_level(doc_id, doc_type, title_str, content_str)
-                controlled = cl.user_session.get("controlled_levels", ["1", "2", "3"])
-                is_dl_allowed = (
-                    level not in controlled and level != "external" and level != "other"
-                )
+                # Get document metadata to determine download eligibility
+                storage = get_markdown_store()
+                doc_data = storage.get_document(doc_id)
+                _doc_type = "OTHER"
+                _title = ""
+                _content = ""
+                if doc_data and doc_data.get("success"):
+                    _meta = doc_data.get("metadata", {})
+                    _doc_type = _meta.get("doc_type", "OTHER")
+                    _title = _meta.get("title", "")
+                    _content = doc_data.get("content", "")[:3000]
+
+                # Use centralized should_allow_download() for the decision
+                level = get_document_level(doc_id, _doc_type, _title, _content)
+                is_dl_allowed = should_allow_download(doc_id, _doc_type, _title, _content)
 
                 if is_dl_allowed:
                     # Outside controlled range — allow download
@@ -8381,6 +8866,51 @@ async def on_message(message: cl.Message):
                     await _send_inline_view(filepath, doc_id, level)
             else:
                 await cl.Message(content=msg_text).send()
+            return
+
+        # Online view document by doc_id (線上觀看)
+        if _match_cmd(text, "cmd.view_file"):
+            doc_id_match = re.search(
+                r"([A-Z]{2,4}-\d{2,4}(?:-\d{1,2})?)", text, re.IGNORECASE
+            )
+            if doc_id_match:
+                doc_id = doc_id_match.group(1).upper()
+                storage = get_markdown_store()
+                file_path = storage.get_original_file_path(doc_id)
+                if file_path:
+                    doc_data = storage.get_document(doc_id)
+                    _doc_type = "OTHER"
+                    _title = ""
+                    _content = ""
+                    if doc_data and doc_data.get("success"):
+                        _meta = doc_data.get("metadata", {})
+                        _doc_type = _meta.get("doc_type", "OTHER")
+                        _title = _meta.get("title", "")
+                        _content = doc_data.get("content", "")[:3000]
+                    level = get_document_level(doc_id, _doc_type, _title, _content)
+                    await _send_inline_view(file_path, doc_id, level)
+                else:
+                    await cl.Message(
+                        content=t("download.not_found", doc_id=doc_id)
+                    ).send()
+            else:
+                storage = get_markdown_store()
+                docs = storage.list_documents_with_files()
+                available = [d for d in docs if d["has_original_file"]]
+                msg = (
+                    t("view.specify", count=len(available))
+                    + "\n\n"
+                    + "\n".join(
+                        [
+                            f"- **{d['doc_id']}** ({d['file_extension']}) - {d['title']}"
+                            for d in available[:10]
+                        ]
+                    )
+                )
+                if len(available) > 10:
+                    msg += "\n" + t("download.more", count=len(available) - 10)
+                msg += "\n\n" + t("view.example")
+                await cl.Message(content=msg).send()
             return
 
         # Delete database

@@ -345,6 +345,9 @@ class DailyAuditResult:
         usage: dict | None = None,
         timestamp: str = "",
         summary: str = "",
+        cross_validation: dict | None = None,
+        incomplete_data_warning: bool = False,
+        incomplete_countries: list[str] | None = None,
     ):
         self.audit_id = audit_id or f"audit_{int(time.time())}"
         self.audit_date = audit_date or datetime.now().strftime("%Y-%m-%d")
@@ -362,6 +365,9 @@ class DailyAuditResult:
         self.usage = usage or {}
         self.timestamp = timestamp or datetime.now().isoformat()
         self.summary = summary
+        self.cross_validation = cross_validation or {}
+        self.incomplete_data_warning = incomplete_data_warning
+        self.incomplete_countries = incomplete_countries or []
 
     def to_dict(self) -> dict:
         return {
@@ -381,6 +387,9 @@ class DailyAuditResult:
             "usage": self.usage,
             "timestamp": self.timestamp,
             "summary": self.summary,
+            "cross_validation": self.cross_validation,
+            "incomplete_data_warning": self.incomplete_data_warning,
+            "incomplete_countries": self.incomplete_countries,
         }
 
     @classmethod
@@ -480,6 +489,7 @@ def run_daily_audit(
     lang: str = "zh-TW",
     store=None,
     feedback_context: str = "",
+    incomplete_countries: list[str] | None = None,
 ) -> DailyAuditResult:
     """Run daily audit with Dim A (MDSAP accuracy) + Dim B (cross-exam quality).
 
@@ -491,6 +501,8 @@ def run_daily_audit(
         lang: Language code
         store: CrossExamStore instance (uses singleton if not provided)
         feedback_context: Optional user feedback context to append to prompts
+        incomplete_countries: List of country/regulation IDs with incomplete data.
+            When non-empty, the result is annotated with a warning.
 
     Returns:
         DailyAuditResult with scores and findings
@@ -509,7 +521,11 @@ def run_daily_audit(
         )
 
     _lang_key = _get_prompt_lang(lang)
-    result = DailyAuditResult()
+    _incomplete = incomplete_countries or []
+    result = DailyAuditResult(
+        incomplete_data_warning=bool(_incomplete),
+        incomplete_countries=_incomplete,
+    )
 
     # ---- Dimension A: MDSAP Regulation Accuracy ----
     try:
@@ -540,7 +556,21 @@ def run_daily_audit(
 
     # ---- Overall score ----
     result.overall_score = (result.dim_a_score + result.dim_b_score) / 2
-    result.summary = f"Dim A: {result.dim_a_score:.0f}, Dim B: {result.dim_b_score:.0f}, Overall: {result.overall_score:.0f}"
+
+    # ---- Cross-validation: 7-country vs 5-country (MDSAP) ----
+    try:
+        result.cross_validation = _run_cross_validation(records, result)
+    except Exception as e:
+        logger.error(f"Cross-validation failed: {e}")
+        result.cross_validation = {"error": str(e)[:200]}
+
+    _warning_suffix = ""
+    if result.incomplete_data_warning:
+        _warning_suffix = f" ⚠️ 基於不完整資料 (Based on incomplete data: {', '.join(result.incomplete_countries)})"
+    result.summary = (
+        f"Dim A: {result.dim_a_score:.0f}, Dim B: {result.dim_b_score:.0f}, "
+        f"Overall: {result.overall_score:.0f}{_warning_suffix}"
+    )
 
     # ---- Deviation detection ----
     result.detect_deviation()
@@ -684,6 +714,147 @@ def _run_dim_b(
     return parsed
 
 
+def _run_cross_validation(
+    records: list,
+    result: "DailyAuditResult",
+) -> dict:
+    """Cross-validate 7-country vs 5-country (MDSAP) quality metrics.
+
+    Compares cross-examination quality between records covering MDSAP
+    5 countries (US/CA/JP/BR/AU via QMSR/HC/PMDA/ANVISA/TGA) and records
+    that cover all 7 countries (adding EU_MDR/TFDA).  This validates that
+    MDSAP-focused and full-scope cross-examinations produce consistent
+    quality, confirming the third-party LLM is not drifting.
+
+    Args:
+        records: All CrossExamRecord objects for the current audit window.
+        result:  The DailyAuditResult already populated with dim_b_country_scores.
+
+    Returns:
+        dict with comparison metrics:
+          - mdsap_record_count / full_record_count
+          - mdsap_avg_agreement / full_avg_agreement
+          - mdsap_avg_flagged_ratio / full_avg_flagged_ratio
+          - country_score_comparison (MDSAP-country scores vs non-MDSAP)
+          - consistency_delta (absolute difference in avg agreement)
+          - consistency_assessment ('consistent' / 'minor_drift' / 'significant_drift')
+    """
+    # Regulation IDs that map to MDSAP 5-country scope
+    MDSAP_REG_IDS = {"QMSR", "HC", "PMDA", "ANVISA", "TGA"}
+    # Non-MDSAP regulation IDs (EU + Taiwan)
+    NON_MDSAP_REG_IDS = {"EU_MDR", "TFDA"}
+
+    # ------------------------------------------------------------------
+    # 1.  Split records by regulation coverage scope
+    # ------------------------------------------------------------------
+    mdsap_records: list = []   # records covering MDSAP-only regs
+    full_records: list = []    # records covering ≥ 7 regs (all countries)
+    mixed_records: list = []   # anything else
+
+    for r in records:
+        regs = set(getattr(r, "selected_regulations", None) or [])
+        # Full scope: contains at least one non-MDSAP reg
+        has_non_mdsap = bool(regs & NON_MDSAP_REG_IDS)
+        has_mdsap = bool(regs & MDSAP_REG_IDS)
+        if has_non_mdsap and has_mdsap:
+            full_records.append(r)
+        elif has_mdsap and not has_non_mdsap:
+            mdsap_records.append(r)
+        else:
+            mixed_records.append(r)
+
+    # ------------------------------------------------------------------
+    # 2.  Compute per-group metrics
+    # ------------------------------------------------------------------
+    def _group_metrics(group: list) -> dict:
+        if not group:
+            return {"count": 0, "avg_agreement": 0.0, "avg_flagged_ratio": 0.0}
+        total_clauses = sum(r.total_clauses for r in group)
+        total_agreed = sum(r.total_agreed for r in group)
+        total_flagged = sum(r.total_flagged for r in group)
+        avg_agreement = (total_agreed / max(total_clauses, 1)) * 100
+        avg_flagged = (total_flagged / max(total_clauses, 1)) * 100
+        return {
+            "count": len(group),
+            "avg_agreement": round(avg_agreement, 2),
+            "avg_flagged_ratio": round(avg_flagged, 2),
+        }
+
+    mdsap_metrics = _group_metrics(mdsap_records)
+    full_metrics = _group_metrics(full_records)
+
+    # ------------------------------------------------------------------
+    # 3.  Country-score comparison from dim_b_country_scores
+    # ------------------------------------------------------------------
+    # dim_b_country_scores keys are country codes like US, EU, TW, CA, JP, BR, AU
+    # Map regulation IDs → country codes for comparison
+    MDSAP_COUNTRY_CODES = {"US", "CA", "JP", "BR", "AU"}
+    NON_MDSAP_COUNTRY_CODES = {"EU", "TW"}
+
+    country_scores = result.dim_b_country_scores or {}
+    mdsap_country_scores = {
+        c: s for c, s in country_scores.items() if c in MDSAP_COUNTRY_CODES
+    }
+    non_mdsap_country_scores = {
+        c: s for c, s in country_scores.items() if c in NON_MDSAP_COUNTRY_CODES
+    }
+
+    mdsap_country_avg = (
+        round(sum(mdsap_country_scores.values()) / len(mdsap_country_scores), 2)
+        if mdsap_country_scores
+        else 0.0
+    )
+    non_mdsap_country_avg = (
+        round(
+            sum(non_mdsap_country_scores.values()) / len(non_mdsap_country_scores), 2
+        )
+        if non_mdsap_country_scores
+        else 0.0
+    )
+
+    # ------------------------------------------------------------------
+    # 4.  Consistency assessment
+    # ------------------------------------------------------------------
+    consistency_delta = abs(
+        mdsap_metrics["avg_agreement"] - full_metrics["avg_agreement"]
+    )
+    if consistency_delta <= 5.0:
+        assessment = "consistent"
+    elif consistency_delta <= 15.0:
+        assessment = "minor_drift"
+    else:
+        assessment = "significant_drift"
+
+    cross_val = {
+        "mdsap_record_count": mdsap_metrics["count"],
+        "full_record_count": full_metrics["count"],
+        "mixed_record_count": len(mixed_records),
+        "mdsap_avg_agreement": mdsap_metrics["avg_agreement"],
+        "full_avg_agreement": full_metrics["avg_agreement"],
+        "mdsap_avg_flagged_ratio": mdsap_metrics["avg_flagged_ratio"],
+        "full_avg_flagged_ratio": full_metrics["avg_flagged_ratio"],
+        "country_score_comparison": {
+            "mdsap_countries": mdsap_country_scores,
+            "non_mdsap_countries": non_mdsap_country_scores,
+            "mdsap_country_avg": mdsap_country_avg,
+            "non_mdsap_country_avg": non_mdsap_country_avg,
+        },
+        "consistency_delta": round(consistency_delta, 2),
+        "consistency_assessment": assessment,
+    }
+
+    logger.info(
+        "Cross-validation: mdsap=%d records (%.1f%% agree), "
+        "full=%d records (%.1f%% agree), delta=%.1f → %s",
+        mdsap_metrics["count"],
+        mdsap_metrics["avg_agreement"],
+        full_metrics["count"],
+        full_metrics["avg_agreement"],
+        consistency_delta,
+        assessment,
+    )
+    return cross_val
+
 # ============================================================
 # Core: run_10day_meta_review
 # ============================================================
@@ -805,7 +976,13 @@ def run_10day_meta_review(
 
 
 def _build_mdsap_reference_context() -> str:
-    """Build MDSAP regulation reference context from predefined profiles."""
+    """Build MDSAP regulation reference context from predefined profiles.
+
+    Enhanced version: includes unique requirements with original regulation
+    text for third-party LLM validation (Dim A). The richer context enables
+    the auditing LLM to compare cross-examination answers against actual
+    regulation source text.
+    """
     try:
         from src.analysis.compliance_rules import PREDEFINED_REGULATIONS
 
@@ -819,15 +996,40 @@ def _build_mdsap_reference_context() -> str:
                 f"### {profile.name_en} ({profile.country})\n"
                 f"- Regulation ID: {profile.regulation_id}\n"
                 f"- Source: {profile.source_url}\n"
+                f"- Last Updated: {profile.last_updated}\n"
                 f"- Mapped clauses: {len(profile.iso_mapped)}\n"
                 f"- Unique requirements: {len(profile.unique_requirements)}\n"
             )
-            # Include a few sample clause mappings
-            sample_clauses = list(profile.iso_mapped.items())[:3]
+
+            # Include sample clause mappings (up to 5)
+            sample_clauses = list(profile.iso_mapped.items())[:5]
             for clause_id, mapping in sample_clauses:
                 parts.append(
-                    f"  - {clause_id}: {mapping.regulation_ref} — {mapping.rationale_en[:100]}...\n"
+                    f"  - {clause_id}: {mapping.regulation_ref} "
+                    f"[{mapping.status.value}] — {mapping.rationale_en[:150]}...\n"
                 )
+
+            # Include ALL unique requirements with original text
+            # (critical for third-party validation against actual regulation)
+            if profile.unique_requirements:
+                parts.append("\n  **Unique Requirements (delta from ISO 13485):**\n")
+                for ureq in profile.unique_requirements:
+                    parts.append(
+                        f"  [{ureq.req_id}] {ureq.title_en} ({ureq.regulation_ref})\n"
+                        f"    Impact: {ureq.audit_impact}\n"
+                        f"    Requirement: {ureq.requirement_en}\n"
+                    )
+                    if ureq.original_text:
+                        parts.append(
+                            f"    Original text ({ureq.original_lang}): "
+                            f"{ureq.original_text[:300]}\n"
+                        )
+                    if ureq.semantic_note:
+                        parts.append(
+                            f"    Cross-country note: {ureq.semantic_note[:200]}...\n"
+                        )
+                    parts.append("\n")
+
         return "\n".join(parts)
     except Exception as e:
         logger.warning(f"Failed to build MDSAP reference context: {e}")
@@ -996,6 +1198,16 @@ def export_daily_audit_word(result: DailyAuditResult) -> Path:
     run.font.size = Pt(9)
     run.font.color.rgb = RGBColor(128, 128, 128)
 
+    # Incomplete data warning banner
+    if result.incomplete_data_warning:
+        warning_para = doc.add_paragraph()
+        warning_run = warning_para.add_run(
+            f"⚠️ 基於不完整資料 / Based on Incomplete Data\n"
+            f"以下國家/法規資料不完整: {', '.join(result.incomplete_countries)}"
+        )
+        warning_run.font.bold = True
+        warning_run.font.color.rgb = RGBColor(204, 102, 0)  # orange
+
     # Scores
     doc.add_heading("評分摘要 / Score Summary", level=2)
     doc.add_paragraph(
@@ -1078,6 +1290,12 @@ def export_daily_audit_excel(result: DailyAuditResult) -> Path:
         ("Deviation Details", result.deviation_details or "N/A"),
         ("Model", result.model),
         ("Summary", result.summary),
+        (
+            "⚠️ Incomplete Data Warning",
+            f"Yes — {', '.join(result.incomplete_countries)}"
+            if result.incomplete_data_warning
+            else "No",
+        ),
     ]
 
     for row_idx, (key, val) in enumerate(summary_data, start=1):

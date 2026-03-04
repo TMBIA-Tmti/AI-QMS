@@ -202,7 +202,7 @@
   "welcome.doc_control.doc_count": "📊 Dokumente: {count}/{limit}",
   "welcome.doc_control.formats": "Unterstützte Formate: PDF, Word, Excel, PowerPoint, Bilder, Textdateien",
   "welcome.doc_control.greeting": "Guten Tag, ich bin Eira. Willkommen im Dokumentenkontrollsystem. Eira unterstützt Sie beim Hochladen von Dokumenten, der OCR-Verarbeitung, Versionsverwaltung, Signaturerkennung und der Verwaltung von Audit-Trails.",
-  "welcome.doc_control.instructions": "**Anleitung:**\n• **Dateien hochladen** → Per Drag & Drop oder Upload im Chat\n• **Dokumentenliste** → Aktuelle formelle Versionen (mit Word/Excel-Export-Buttons)\n• **Liste** → Alle Einträge (inkl. Aktualisierungen, veraltet) (mit Word/Excel-Export-Buttons)\n• **Suche Schlüsselwort** → Dokumentinhalt durchsuchen\n• **Download Dok-ID** → Originaldatei herunterladen\n• **Veraltet Dok-ID** → Dokument als veraltet markieren\n• **Prüfprotokoll** → Vorgänge anzeigen\n• **Download Prüfprotokoll Word/Excel** → Einträge exportieren\n• **Regulierungsliste** → Referenzierte Standards\n• **Regulierungs-Update** → Bewertung und Analyse der neuesten Regulierungsinformationen (mit Word/Excel Export)\n• **Regulierungs-Update herunterladen word/excel** → Bericht exportieren\n• **Download Regulierung Word/Excel** → Standards exportieren\n• **Datenbank löschen** → Alle Dokumente löschen (Bestätigung erforderlich)\n• **/web Schlüsselwort** → Websuche (z.B. /web neueste ISO 13485 Version)\n• **Status** → Systemstatus anzeigen\n• **Hilfe** → Vollständige Anleitung anzeigen",
+  "welcome.doc_control.instructions": "**Anleitung:**\n• **Dateien hochladen** → Per Drag & Drop oder Upload im Chat\n• **Dokumentenliste** → Aktuelle formelle Versionen (mit Word/Excel-Export-Buttons)\n• **Liste** → Alle Einträge (inkl. Aktualisierungen, veraltet) (mit Word/Excel-Export-Buttons)\n• **Suche Schlüsselwort** → Dokumentinhalt durchsuchen\n• **Download Dok-ID** → Formulare herunterladen (⚠️ Nur Stufe-4-Formulare können heruntergeladen werden; Stufe 1-3 nur Online-Ansicht)\n• **Ansehen Dok-ID** → Online ansehen (alle Stufen; Wasserzeichen-Option)\n• **Veraltet Dok-ID** → Dokument als veraltet markieren\n• **Prüfprotokoll** → Vorgänge anzeigen\n• **Download Prüfprotokoll Word/Excel** → Einträge exportieren\n• **Regulierungsliste** → Referenzierte Standards\n• **Regulierungs-Update** → Bewertung und Analyse der neuesten Regulierungsinformationen (mit Word/Excel Export)\n• **Regulierungs-Update herunterladen word/excel** → Bericht exportieren\n• **Download Regulierung Word/Excel** → Standards exportieren\n• **Datenbank löschen** → Alle Dokumente löschen (Bestätigung erforderlich)\n• **/web Schlüsselwort** → Websuche (z.B. /web neueste ISO 13485 Version)\n• **Status** → Systemstatus anzeigen\n• **Hilfe** → Vollständige Anleitung anzeigen",
   "welcome.doc_control.title": "📄 **TMBIA-Tmti AI-QMS Dokumentenkontrolle (Eira)**",
   "welcome.main.greeting": "Guten Tag, ich bin Eira. Willkommen im AI-gestützten Qualitätsmanagementsystem. Eira unterstützt Sie bei der Prüfung von Qualitätsdokumenten, der Bewertung der Konformität mit Medizinprodukte-Vorschriften sowie der Recherche und Analyse regulatorischer Standards.",
   "welcome.main.instructions": "**Subsysteme:**\n• 📄 **Dokumentenkontrolle** — Upload, OCR, Versionsverwaltung, Signaturerkennung, Prüfprotokoll, Export\n• 🔍 **Auditmanagement** — CAPA, internes Audit, Abweichungsmanagement (Phase 2 geplant)\n\n**Allgemein:** Status · /web Suche · Hilfe · Direkt fragen",
@@ -282,5 +282,12 @@
   ],
   "source_label.regulatory_list": "Regulierungsliste",
   "source_label.regulatory_update": "Regulierungsliste Aktualisierung",
-  "source_label.source": "Quellbefehl"
+  "source_label.source": "Quellbefehl",
+  "_commands.cmd.view_file": [
+    "online ansehen",
+    "ansehen",
+    "vorschau"
+  ],
+  "view.specify": "Eira: 📖 Please specify the document ID to view. {count} document(s) available:",
+  "view.example": "💡 Usage: **view QP-001**"
 }

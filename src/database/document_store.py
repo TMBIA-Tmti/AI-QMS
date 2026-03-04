@@ -41,7 +41,8 @@ class DocumentStore:
             json.dump(data, f, ensure_ascii=False, indent=2)
     
     def save_document(self, doc_id: str, filename: str, filepath: str,
-                      version: str, is_new: bool = True) -> dict:
+                      version: str, is_new: bool = True,
+                      sig_result: dict | None = None) -> dict:
         """
         儲存文件資訊
         
@@ -51,6 +52,7 @@ class DocumentStore:
             filepath: 檔案路徑
             version: 版本號
             is_new: 是否為新文件
+            sig_result: 簽章偵測結果 (detected, reason, stamps, signatures, keyword_hits)
         
         Returns:
             儲存的文件資訊
@@ -64,13 +66,16 @@ class DocumentStore:
                 "version": version,
                 "filepath": filepath,
                 "uploaded_at": datetime.now().isoformat(),
-                "status": "effective"
+                "status": "effective",
+                "sig_result": sig_result,
             })
             # 標記舊版本為 superseded
             for v in doc["versions"][:-1]:
                 v["status"] = "superseded"
             doc["current_version"] = version
             doc["updated_at"] = datetime.now().isoformat()
+            if sig_result is not None:
+                doc["sig_result"] = sig_result
         else:
             # 新文件
             store["documents"][doc_id] = {
@@ -84,10 +89,11 @@ class DocumentStore:
                     "version": version,
                     "filepath": filepath,
                     "uploaded_at": datetime.now().isoformat(),
-                    "status": "effective"
-                }]
+                    "status": "effective",
+                    "sig_result": sig_result,
+                }],
+                "sig_result": sig_result,
             }
-        
         self._save_store(store)
         return store["documents"][doc_id]
     

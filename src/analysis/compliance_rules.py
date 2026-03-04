@@ -54,6 +54,11 @@ __all__ = [
     "load_crawled_regulation",
     "save_crawled_regulation",
     "map_unique_to_iso_clause",
+    "get_profile_id_for_region",
+    "get_region_for_profile",
+    "get_profile_ids_for_regions",
+    "get_regions_without_profile",
+    "generate_profile_id_from_region",
     # Supplemental Standards API
     "StandardCategory",
     "SupplementalStandardProfile",
@@ -2708,6 +2713,1233 @@ def _build_tfda_profile() -> RegulationProfile:
 
 
 # ============================================================
+# Predefined Regulation: Health Canada CMDR (SOR/98-282)
+# ============================================================
+
+def _build_hc_profile() -> RegulationProfile:
+    """Build the Health Canada (HC) regulation profile.
+
+    Canada Medical Devices Regulations (CMDR) SOR/98-282,
+    administered by Health Canada. MDSAP participant country.
+    Since January 1, 2019, MDSAP is the EXCLUSIVE pathway for QMS
+    certification of Class II-IV medical devices in Canada.
+    CMDCAS (Canadian Medical Devices Conformity Assessment System) has been
+    fully retired and replaced by MDSAP.
+    Canada requires ISO 13485 certification via MDSAP as a prerequisite
+    for Medical Device Licenses (MDL).
+
+    Mapping source: CMDR regulatory text (laws-lois.justice.gc.ca)
+    + MDSAP Companion Document for Canada
+    + Agile Licensing Amendments (Nov 29, 2024)
+    """
+    iso_mapped: dict[str, ClauseMapping] = {}
+
+    # HC CMDR — QMS compliance is exclusively via MDSAP since Jan 2019
+    # (CMDCAS retired). ISO 13485 certification is mandatory for Class II-IV devices.
+    hc_clause_map = {
+        "4.1": ("CMDR s.32(1)", "CMDR requires manufacturers of Class II-IV devices to hold a valid ISO 13485 certificate. Clause 4.1 general QMS requirements are fully adopted.", "CMDR要求II-IV類醫療器材製造商持有有效的ISO 13485證書。條款4.1一般QMS要求完全採用。"),
+        "4.2.1": ("CMDR s.32(2)", "Documentation requirements are covered through mandatory ISO 13485 certification.", "文件化要求通過強制性ISO 13485認證涵蓋。"),
+        "4.2.2": ("CMDR s.32(2)", "Quality manual requirements adopted via ISO 13485.", "品質手冊要求通過ISO 13485採用。"),
+        "4.2.3": ("CMDR s.32(2)", "Document control adopted via ISO 13485.", "文件管制通過ISO 13485採用。"),
+        "4.2.4": ("CMDR s.32(2) / s.56", "Record control adopted via ISO 13485. CMDR s.56 adds distribution record requirements.", "記錄管制通過ISO 13485採用。CMDR s.56增加配銷記錄要求。"),
+        "4.2.5": ("CMDR s.32(2)", "Medical device file requirements adopted via ISO 13485.", "醫療器材檔案要求通過ISO 13485採用。"),
+        "5.1": ("CMDR s.32(2)", "Management commitment adopted via ISO 13485.", "管理承諾通過ISO 13485採用。"),
+        "5.2": ("CMDR s.32(2)", "Customer focus adopted via ISO 13485.", "以顧客為重通過ISO 13485採用。"),
+        "5.3": ("CMDR s.32(2)", "Quality policy adopted via ISO 13485.", "品質政策通過ISO 13485採用。"),
+        "5.4.1": ("CMDR s.32(2)", "Quality objectives adopted via ISO 13485.", "品質目標通過ISO 13485採用。"),
+        "5.4.2": ("CMDR s.32(2)", "QMS planning adopted via ISO 13485.", "QMS規劃通過ISO 13485採用。"),
+        "5.5.1": ("CMDR s.32(2)", "Responsibility and authority adopted via ISO 13485.", "責任與權限通過ISO 13485採用。"),
+        "5.5.2": ("CMDR s.32(2)", "Management representative adopted via ISO 13485.", "管理代表通過ISO 13485採用。"),
+        "5.5.3": ("CMDR s.32(2)", "Internal communication adopted via ISO 13485.", "內部溝通通過ISO 13485採用。"),
+        "5.6.1": ("CMDR s.32(2)", "Management review adopted via ISO 13485.", "管理審查通過ISO 13485採用。"),
+        "5.6.2": ("CMDR s.32(2)", "Management review input adopted via ISO 13485.", "管理審查輸入通過ISO 13485採用。"),
+        "5.6.3": ("CMDR s.32(2)", "Management review output adopted via ISO 13485.", "管理審查輸出通過ISO 13485採用。"),
+        "6.1": ("CMDR s.32(2)", "Resource provision adopted via ISO 13485.", "資源提供通過ISO 13485採用。"),
+        "6.2": ("CMDR s.32(2)", "Human resources adopted via ISO 13485.", "人力資源通過ISO 13485採用。"),
+        "6.3": ("CMDR s.32(2)", "Infrastructure adopted via ISO 13485.", "基礎設施通過ISO 13485採用。"),
+        "6.4.1": ("CMDR s.32(2)", "Work environment adopted via ISO 13485.", "工作環境通過ISO 13485採用。"),
+        "6.4.2": ("CMDR s.32(2)", "Contamination control adopted via ISO 13485.", "污染管制通過ISO 13485採用。"),
+        "7.1": ("CMDR s.32(2)", "Product realization planning adopted via ISO 13485.", "產品實現規劃通過ISO 13485採用。"),
+        "7.2.1": ("CMDR s.10-20", "Determination of product requirements — CMDR sections 10-20 define device classification and licensing requirements that exceed ISO 13485.", "產品要求確定 — CMDR第10-20條定義器材分類和許可要求，超出ISO 13485。"),
+        "7.2.2": ("CMDR s.32(2)", "Review of product requirements adopted via ISO 13485.", "產品要求審查通過ISO 13485採用。"),
+        "7.2.3": ("CMDR s.32(2) / s.57-58", "Communication adopted via ISO 13485. CMDR s.57-58 add mandatory problem reporting to HC.", "溝通通過ISO 13485採用。CMDR s.57-58增加向HC強制性問題通報。"),
+        "7.3.1": ("CMDR s.32(2)", "Design planning adopted via ISO 13485.", "設計規劃通過ISO 13485採用。"),
+        "7.3.2": ("CMDR s.32(2)", "Design input adopted via ISO 13485.", "設計輸入通過ISO 13485採用。"),
+        "7.3.3": ("CMDR s.32(2)", "Design output adopted via ISO 13485.", "設計輸出通過ISO 13485採用。"),
+        "7.3.4": ("CMDR s.32(2)", "Design review adopted via ISO 13485.", "設計審查通過ISO 13485採用。"),
+        "7.3.5": ("CMDR s.32(2)", "Design verification adopted via ISO 13485.", "設計驗證通過ISO 13485採用。"),
+        "7.3.6": ("CMDR s.32(2)", "Design validation adopted via ISO 13485.", "設計確認通過ISO 13485採用。"),
+        "7.3.7": ("CMDR s.32(2)", "Design transfer adopted via ISO 13485.", "設計轉移通過ISO 13485採用。"),
+        "7.3.8": ("CMDR s.32(2)", "Design change control adopted via ISO 13485.", "設計變更管制通過ISO 13485採用。"),
+        "7.3.9": ("CMDR s.32(2)", "Design files adopted via ISO 13485.", "設計檔案通過ISO 13485採用。"),
+        "7.3.10": ("CMDR s.32(2)", "Design documentation adopted via ISO 13485.", "設計文件通過ISO 13485採用。"),
+        "7.4.1": ("CMDR s.32(2)", "Purchasing process adopted via ISO 13485.", "採購過程通過ISO 13485採用。"),
+        "7.4.2": ("CMDR s.32(2)", "Purchasing information adopted via ISO 13485.", "採購資訊通過ISO 13485採用。"),
+        "7.4.3": ("CMDR s.32(2)", "Verification of purchased product adopted via ISO 13485.", "採購產品驗證通過ISO 13485採用。"),
+        "7.5.1": ("CMDR s.32(2) / s.21-23", "Production control adopted via ISO 13485. CMDR s.21-23 add labeling requirements for Canadian market.", "生產管制通過ISO 13485採用。CMDR s.21-23增加加拿大市場標示要求。"),
+        "7.5.6": ("CMDR s.32(2)", "Process validation adopted via ISO 13485.", "過程確認通過ISO 13485採用。"),
+        "7.5.8": ("CMDR s.32(2)", "Identification adopted via ISO 13485.", "識別通過ISO 13485採用。"),
+        "7.5.9": ("CMDR s.32(2) / s.56", "Traceability adopted via ISO 13485. CMDR s.56 adds distribution record requirements.", "追溯性通過ISO 13485採用。CMDR s.56增加配銷記錄要求。"),
+        "7.5.11": ("CMDR s.32(2)", "Product preservation adopted via ISO 13485.", "產品防護通過ISO 13485採用。"),
+        "7.6": ("CMDR s.32(2)", "Monitoring equipment adopted via ISO 13485.", "監測設備通過ISO 13485採用。"),
+        "8.1": ("CMDR s.32(2)", "General measurement requirements adopted via ISO 13485.", "一般量測要求通過ISO 13485採用。"),
+        "8.2.1": ("CMDR s.32(2)", "Feedback adopted via ISO 13485.", "回饋通過ISO 13485採用。"),
+        "8.2.2": ("CMDR s.32(2) / s.57-58", "Complaint handling adopted via ISO 13485. CMDR s.57-58 add mandatory problem reporting.", "客訴處理通過ISO 13485採用。CMDR s.57-58增加強制性問題通報。"),
+        "8.2.3": ("CMDR s.57-58", "Regulatory reporting — CMDR s.57-58 mandate reporting of incidents and recalls to Health Canada within specific timelines.", "法規通報 — CMDR s.57-58要求在特定時限內向加拿大衛生部通報事故和召回。"),
+        "8.2.4": ("CMDR s.32(2)", "Internal audit adopted via ISO 13485.", "內部稽核通過ISO 13485採用。"),
+        "8.2.5": ("CMDR s.32(2)", "Process monitoring adopted via ISO 13485.", "過程監督通過ISO 13485採用。"),
+        "8.2.6": ("CMDR s.32(2)", "Product monitoring adopted via ISO 13485.", "產品監督通過ISO 13485採用。"),
+        "8.3": ("CMDR s.32(2)", "Nonconforming product adopted via ISO 13485.", "不合格品通過ISO 13485採用。"),
+        "8.4": ("CMDR s.32(2)", "Data analysis adopted via ISO 13485.", "數據分析通過ISO 13485採用。"),
+        "8.5.1": ("CMDR s.32(2)", "Improvement adopted via ISO 13485.", "改善通過ISO 13485採用。"),
+        "8.5.2": ("CMDR s.32(2) / s.57-58", "Corrective action adopted via ISO 13485. CMDR s.57-58 require mandatory corrective action for reported problems.", "矯正措施通過ISO 13485採用。CMDR s.57-58要求對已通報問題採取強制矯正措施。"),
+        "8.5.3": ("CMDR s.32(2)", "Preventive action adopted via ISO 13485.", "預防措施通過ISO 13485採用。"),
+    }
+
+    for clause_id, (ref, rationale_en, rationale_zh) in hc_clause_map.items():
+        iso_mapped[clause_id] = ClauseMapping(
+            iso_clause=clause_id,
+            status=MappingStatus.FULL,
+            regulation_ref=ref,
+            rationale_en=rationale_en,
+            rationale_zh=rationale_zh,
+            method=MappingMethod.OFFICIAL_CROSSREF,
+            confidence=0.90,
+            notes="CMDR SOR/98-282 (laws-lois.justice.gc.ca)",
+        )
+
+    # HC-specific unique requirements (delta from ISO 13485)
+    unique_reqs = [
+        UniqueRequirement(
+            req_id="HC-001",
+            regulation_ref="CMDR s.57-58",
+            title_en="Mandatory Problem Reporting",
+            title_zh="強制性問題通報",
+            requirement_en=(
+                "Manufacturers and importers must report incidents involving death, serious "
+                "deterioration in health, or device deficiency within 10 days (preliminary) "
+                "and 30 days (final) to Health Canada. Medical Device Problem Reporting form is mandatory."
+            ),
+            requirement_zh=(
+                "製造商和進口商必須在10天內（初步）和30天內（最終）向加拿大衛生部通報"
+                "涉及死亡、健康嚴重惡化或器材缺陷的事故。必須使用醫療器材問題通報表。"
+            ),
+            related_iso_clauses=["8.2.2", "8.2.3", "8.5.2"],
+            audit_impact="critical",
+            audit_question_en=(
+                "Does the problem reporting procedure include 10-day preliminary and 30-day "
+                "final reporting timelines to Health Canada per CMDR s.57-58?"
+            ),
+            audit_question_zh=(
+                "問題通報程序是否包含依CMDR s.57-58向加拿大衛生部的10天初步"
+                "及30天最終通報時限？"
+            ),
+            expected_evidence=[
+                "Problem reporting procedure with HC timelines / 含HC時限之問題通報程序",
+                "Completed Medical Device Problem Report forms / 已完成之醫療器材問題通報表",
+                "Incident tracking log / 事故追蹤記錄",
+            ],
+            rationale_en=(
+                "CMDR s.57-58 mandate specific timelines for reporting device problems. "
+                "ISO 13485 8.2.3 requires regulatory reporting but without specific day counts. "
+                "Related to 8.2.2 (complaint handling) and 8.5.2 (corrective action)."
+            ),
+            rationale_zh=(
+                "CMDR s.57-58規定器材問題通報的特定時限。"
+                "ISO 13485 8.2.3要求法規通報但無特定天數。"
+                "相關條款8.2.2（客訴處理）和8.5.2（矯正措施）。"
+            ),
+            method=MappingMethod.OFFICIAL_CROSSREF,
+            confidence=0.90,
+            original_text=(
+                "A manufacturer who becomes aware that a device may have caused or contributed to "
+                "the death or a serious deterioration in the state of health of a patient, user or other "
+                "person shall report the incident within 10 days (preliminary) and submit a final report "
+                "within 30 days."
+            ),
+            original_lang="en",
+            english_translation="",
+            semantic_note=(
+                "HC CMDR uses 10-day preliminary + 30-day final dual-stage reporting. "
+                "US FDA: 5 working days (death), 30 days (serious injury/malfunction). "
+                "EU MDR: 2 days (death/serious threat), 10 days (public health), 15 days (other). "
+                "Taiwan TFDA: 7 days (death/serious), 15 days (other). "
+                "Canada is unique in its dual-stage (preliminary + final) approach. "
+                "Most other jurisdictions require a single submission within their timeline."
+            ),
+        ),
+        UniqueRequirement(
+            req_id="HC-002",
+            regulation_ref="CMDR s.44-46",
+            title_en="Mandatory Recall Procedures",
+            title_zh="強制性召回程序",
+            requirement_en=(
+                "Health Canada may order a mandatory recall of devices. Manufacturers must have "
+                "documented recall procedures and maintain distribution records enabling "
+                "effective recall within 24 hours of decision. CMDR s.64-66 define recall "
+                "classification (Type I/II/III) and public communication requirements."
+            ),
+            requirement_zh=(
+                "加拿大衛生部可命令強制召回器材。製造商必須有文件化的召回程序，"
+                "並維持配銷記錄以便在決定後24小時內有效召回。CMDR s.64-66定義"
+                "召回分類（I/II/III類）和公眾溝通要求。"
+            ),
+            related_iso_clauses=["7.5.9", "8.2.3", "8.3.2"],
+            audit_impact="critical",
+            audit_question_en=(
+                "Is there a documented recall procedure enabling recalls within 24 hours, "
+                "with distribution records supporting traceability per CMDR s.44-46?"
+            ),
+            audit_question_zh=(
+                "是否有文件化的召回程序可在24小時內執行召回，"
+                "且配銷記錄支持追溯性？（CMDR s.44-46）"
+            ),
+            expected_evidence=[
+                "Recall procedure document / 召回程序書",
+                "Distribution records / 配銷記錄",
+                "Mock recall exercise records / 模擬召回演練記錄",
+            ],
+            rationale_en=(
+                "CMDR mandates recall capabilities with specific timing. "
+                "ISO 13485 8.3.2 covers post-delivery nonconformance but not recall specifics. "
+                "Related to 7.5.9 (traceability) for distribution records."
+            ),
+            rationale_zh=(
+                "CMDR要求具備特定時限的召回能力。"
+                "ISO 13485 8.3.2涵蓋交付後不合格但無召回細節。"
+                "相關條款7.5.9（追溯性）涉及配銷記錄。"
+            ),
+            method=MappingMethod.OFFICIAL_CROSSREF,
+            confidence=0.90,
+            original_text=(
+                "Where the Minister believes that a medical device poses a risk to the health or "
+                "safety of patients, users, or other persons, the Minister may order the manufacturer "
+                "to recall the device. The manufacturer shall maintain distribution records adequate "
+                "to permit a complete and rapid recall of the device."
+            ),
+            original_lang="en",
+            english_translation="",
+            semantic_note=(
+                "HC emphasizes 'complete and rapid recall' capability. US FDA 21 CFR 7 has voluntary "
+                "and mandatory recall classes (I/II/III). EU MDR Art 95 gives authorities power to "
+                "order recalls. Taiwan TFDA Act Art 58 mandates recalls. Canada's recall "
+                "classification system (Type I/II/III) mirrors FDA's but with different procedural "
+                "requirements. Key difference: HC's CMDR explicitly requires distribution records "
+                "that enable 'rapid' recall, which is a more prescriptive standard than ISO 13485."
+            ),
+        ),
+        UniqueRequirement(
+            req_id="HC-003",
+            regulation_ref="CMDR s.21-23 / SOR/2020-154",
+            title_en="Canadian Bilingual Labeling (English/French)",
+            title_zh="加拿大雙語標示（英文/法文）",
+            requirement_en=(
+                "All medical device labels and instructions for use must be in both English "
+                "and French (Canada's two official languages). This is a constitutional "
+                "requirement under the Official Languages Act and enforced through CMDR."
+            ),
+            requirement_zh=(
+                "所有醫療器材標籤和使用說明書必須以英文和法文（加拿大兩種官方語言）"
+                "提供。此為《官方語言法》下的憲法要求，通過CMDR執行。"
+            ),
+            related_iso_clauses=["7.5.1", "7.5.8"],
+            audit_impact="major",
+            audit_question_en=(
+                "Do all device labels and IFU include both English and French text "
+                "as required by CMDR s.21-23 and the Official Languages Act?"
+            ),
+            audit_question_zh=(
+                "所有器材標籤和使用說明書是否包含英文和法文文字？"
+                "（CMDR s.21-23及《官方語言法》要求）"
+            ),
+            expected_evidence=[
+                "Bilingual labels (EN/FR) / 雙語標籤（英文/法文）",
+                "Bilingual IFU / 雙語使用說明書",
+            ],
+            rationale_en=(
+                "Bilingual labeling is a Canadian constitutional requirement with no ISO 13485 equivalent. "
+                "Closest to 7.5.1 (production control includes labeling) and 7.5.8 (identification)."
+            ),
+            rationale_zh=(
+                "雙語標示是加拿大憲法要求，ISO 13485無對應。"
+                "最接近7.5.1（生產管制含標示）和7.5.8（識別）。"
+            ),
+            method=MappingMethod.OFFICIAL_CROSSREF,
+            confidence=0.95,
+            original_text=(
+                "All labeling, including device labels and instructions for use, must be provided "
+                "in both official languages of Canada (English and French)."
+            ),
+            original_lang="en",
+            english_translation="",
+            semantic_note=(
+                "Canada is unique in requiring BILINGUAL labeling (English + French). "
+                "US FDA requires English only. EU MDR requires member state language(s). "
+                "Taiwan TFDA requires Traditional Chinese as primary. Japan PMDA requires Japanese. "
+                "Brazil ANVISA requires Portuguese. Each jurisdiction has different language requirements "
+                "but Canada is the only MDSAP country requiring TWO languages on all labeling."
+            ),
+        ),
+        UniqueRequirement(
+            req_id="HC-004",
+            regulation_ref="CMDR s.32(3) / MDSAP",
+            title_en="MDSAP as Exclusive QMS Certification Pathway",
+            title_zh="MDSAP 作為唯一 QMS 認證途徑",
+            requirement_en=(
+                "Since January 1, 2019, the Medical Device Single Audit Program (MDSAP) is the "
+                "EXCLUSIVE pathway for QMS certification of Class II, III, and IV medical devices "
+                "in Canada. The previous CMDCAS (Canadian Medical Devices Conformity Assessment System) "
+                "has been fully retired. Manufacturers must obtain an MDSAP certificate from a "
+                "recognized Auditing Organization (AO) covering Canadian regulatory requirements. "
+                "The MDSAP audit integrates ISO 13485:2016 with CMDR-specific elements in a "
+                "single audit that can satisfy multiple jurisdictions (US, CA, JP, BR, AU)."
+            ),
+            requirement_zh=(
+                "自2019年1月1日起，醫療器材單一審核方案（MDSAP）是加拿大II、III、IV類"
+                "醫療器材QMS認證的唯一途徑。先前的CMDCAS（加拿大醫療器材合格評定系統）"
+                "已完全退役。製造商必須從認可的稽核組織（AO）獲得涵蓋加拿大法規要求的"
+                "MDSAP證書。MDSAP稽核將ISO 13485:2016與CMDR特定要素整合在單一稽核中，"
+                "可同時滿足多個司法管轄區（US, CA, JP, BR, AU）。"
+            ),
+            related_iso_clauses=["4.1", "8.2.4"],
+            audit_impact="critical",
+            audit_question_en=(
+                "Does the manufacturer hold a current MDSAP certificate issued by a "
+                "Health Canada-recognized Auditing Organization, covering Canadian "
+                "regulatory requirements per CMDR s.32?"
+            ),
+            audit_question_zh=(
+                "製造商是否持有加拿大衛生部認可的稽核組織所核發、涵蓋CMDR s.32"
+                "加拿大法規要求的有效MDSAP證書？"
+            ),
+            expected_evidence=[
+                "Current MDSAP certificate covering Canada / 涵蓋加拿大的現行MDSAP證書",
+                "MDSAP audit report / MDSAP稽核報告",
+                "Auditing Organization (AO) accreditation / 稽核組織認可資格",
+            ],
+            rationale_en=(
+                "MDSAP is the sole QMS certification pathway for Canada since 2019. "
+                "CMDCAS was retired. No ISO 13485 equivalent — this is a regulatory "
+                "infrastructure requirement. Related to 4.1 (QMS) and 8.2.4 (internal audit "
+                "as part of the broader audit framework)."
+            ),
+            rationale_zh=(
+                "自2019年起MDSAP是加拿大唯一的QMS認證途徑。CMDCAS已退役。"
+                "ISO 13485無對應——此為法規基礎設施要求。相關條款4.1（QMS）"
+                "及8.2.4（作為更廣泛稽核框架一部分的內部稽核）。"
+            ),
+            method=MappingMethod.OFFICIAL_CROSSREF,
+            confidence=0.95,
+            original_text=(
+                "Effective January 1, 2019, Health Canada requires manufacturers of Class II, III, "
+                "and IV medical devices to have a valid Medical Device Single Audit Program (MDSAP) "
+                "certificate to obtain or renew a Medical Device Licence (MDL). The CMDCAS program "
+                "has been retired and is no longer accepted as evidence of QMS compliance."
+            ),
+            original_lang="en",
+            english_translation="",
+            semantic_note=(
+                "Canada is the FIRST and MOST committed MDSAP country — making it the exclusive "
+                "pathway. Other MDSAP participants (US, JP, BR, AU) accept MDSAP as an ALTERNATIVE "
+                "but still allow traditional audit pathways. For Canada: no MDSAP certificate = "
+                "no Medical Device Licence = cannot sell in Canada. This makes Canada unique among "
+                "MDSAP participants in mandating single-audit exclusivity. "
+                "The 3-year MDSAP cycle (initial + 2 surveillance + recertification) replaces "
+                "the old CMDCAS annual audit requirement."
+            ),
+        ),
+    ]
+
+    return RegulationProfile(
+        regulation_id="HC",
+        name_en="Health Canada CMDR (SOR/98-282) — MDSAP Exclusive",
+        name_zh="加拿大衛生部 CMDR（SOR/98-282）— MDSAP 獨佔",
+        country="CA",
+        country_name_en="Canada",
+        country_name_zh="加拿大",
+        source="predefined",
+        source_url="https://laws-lois.justice.gc.ca/eng/regulations/SOR-98-282/",
+        last_updated="2024-11-29",
+        effective_date="1998-11-01",
+        iso_mapped=iso_mapped,
+        unique_requirements=unique_reqs,
+    )
+
+
+# ============================================================
+# Predefined Regulation: Japan PMDA (QMS省令 + PMD Act)
+# ============================================================
+
+def _build_pmda_profile() -> RegulationProfile:
+    """Build the Japan PMDA regulation profile.
+
+    Japan's QMS Ordinance (QMS省令, MHLW Ordinance No.169 of 2004, revised 2021)
+    and Pharmaceuticals and Medical Devices Act (PMD Act, 薬機法).
+    MDSAP participant country.
+    Japan's QMS Ordinance is structurally aligned with ISO 13485:2016.
+
+    Mapping source: QMS省令 regulatory text
+    + MDSAP Companion Document for Japan
+    """
+    iso_mapped: dict[str, ClauseMapping] = {}
+
+    # PMDA QMS Ordinance mirrors ISO 13485 structure closely
+    pmda_clause_map = {
+        "4.1": ("QMS省令 §5", "QMS Ordinance Article 5 establishes general QMS requirements, structurally aligned with ISO 13485 Clause 4.1.", "QMS省令第5條建立一般QMS要求，結構上與ISO 13485條款4.1對齊。"),
+        "4.2.1": ("QMS省令 §6", "Article 6 covers documentation requirements.", "第6條涵蓋文件化要求。"),
+        "4.2.2": ("QMS省令 §7", "Article 7 covers quality manual.", "第7條涵蓋品質手冊。"),
+        "4.2.3": ("QMS省令 §8", "Article 8 covers document control.", "第8條涵蓋文件管制。"),
+        "4.2.4": ("QMS省令 §9", "Article 9 covers record control.", "第9條涵蓋記錄管制。"),
+        "4.2.5": ("QMS省令 §10", "Article 10 covers medical device file.", "第10條涵蓋醫療器材檔案。"),
+        "5.1": ("QMS省令 §11", "Article 11 covers management commitment.", "第11條涵蓋管理承諾。"),
+        "5.2": ("QMS省令 §12", "Article 12 covers customer focus.", "第12條涵蓋以顧客為重。"),
+        "5.3": ("QMS省令 §13", "Article 13 covers quality policy.", "第13條涵蓋品質政策。"),
+        "5.4.1": ("QMS省令 §14", "Article 14 covers quality objectives.", "第14條涵蓋品質目標。"),
+        "5.4.2": ("QMS省令 §15", "Article 15 covers QMS planning.", "第15條涵蓋QMS規劃。"),
+        "5.5.1": ("QMS省令 §16", "Article 16 covers responsibility and authority.", "第16條涵蓋責任與權限。"),
+        "5.5.2": ("QMS省令 §17", "Article 17 covers management representative.", "第17條涵蓋管理代表。"),
+        "5.5.3": ("QMS省令 §18", "Article 18 covers internal communication.", "第18條涵蓋內部溝通。"),
+        "5.6.1": ("QMS省令 §19", "Article 19 covers management review.", "第19條涵蓋管理審查。"),
+        "5.6.2": ("QMS省令 §19", "Article 19 includes management review input.", "第19條包含管理審查輸入。"),
+        "5.6.3": ("QMS省令 §19", "Article 19 includes management review output.", "第19條包含管理審查輸出。"),
+        "6.1": ("QMS省令 §20", "Article 20 covers resource provision.", "第20條涵蓋資源提供。"),
+        "6.2": ("QMS省令 §21-22", "Articles 21-22 cover human resources and competence.", "第21-22條涵蓋人力資源和能力。"),
+        "6.3": ("QMS省令 §23", "Article 23 covers infrastructure.", "第23條涵蓋基礎設施。"),
+        "6.4.1": ("QMS省令 §24", "Article 24 covers work environment.", "第24條涵蓋工作環境。"),
+        "6.4.2": ("QMS省令 §25", "Article 25 covers contamination control.", "第25條涵蓋污染管制。"),
+        "7.1": ("QMS省令 §26", "Article 26 covers product realization planning.", "第26條涵蓋產品實現規劃。"),
+        "7.2.1": ("QMS省令 §27", "Article 27 covers determination of product requirements.", "第27條涵蓋產品要求確定。"),
+        "7.2.2": ("QMS省令 §28", "Article 28 covers review of product requirements.", "第28條涵蓋產品要求審查。"),
+        "7.2.3": ("QMS省令 §29", "Article 29 covers communication.", "第29條涵蓋溝通。"),
+        "7.3.1": ("QMS省令 §30", "Article 30 covers design planning.", "第30條涵蓋設計規劃。"),
+        "7.3.2": ("QMS省令 §31", "Article 31 covers design input.", "第31條涵蓋設計輸入。"),
+        "7.3.3": ("QMS省令 §32", "Article 32 covers design output.", "第32條涵蓋設計輸出。"),
+        "7.3.4": ("QMS省令 §33", "Article 33 covers design review.", "第33條涵蓋設計審查。"),
+        "7.3.5": ("QMS省令 §34", "Article 34 covers design verification.", "第34條涵蓋設計驗證。"),
+        "7.3.6": ("QMS省令 §35", "Article 35 covers design validation.", "第35條涵蓋設計確認。"),
+        "7.3.7": ("QMS省令 §36", "Article 36 covers design transfer.", "第36條涵蓋設計轉移。"),
+        "7.3.8": ("QMS省令 §37", "Article 37 covers design change control.", "第37條涵蓋設計變更管制。"),
+        "7.3.9": ("QMS省令 §38", "Article 38 covers design files.", "第38條涵蓋設計檔案。"),
+        "7.3.10": ("QMS省令 §38", "Article 38 includes design documentation.", "第38條包含設計文件。"),
+        "7.4.1": ("QMS省令 §39", "Article 39 covers purchasing process.", "第39條涵蓋採購過程。"),
+        "7.4.2": ("QMS省令 §40", "Article 40 covers purchasing information.", "第40條涵蓋採購資訊。"),
+        "7.4.3": ("QMS省令 §41", "Article 41 covers verification of purchased product.", "第41條涵蓋採購產品驗證。"),
+        "7.5.1": ("QMS省令 §42", "Article 42 covers production control.", "第42條涵蓋生產管制。"),
+        "7.5.6": ("QMS省令 §46", "Article 46 covers process validation.", "第46條涵蓋過程確認。"),
+        "7.5.8": ("QMS省令 §48", "Article 48 covers identification.", "第48條涵蓋識別。"),
+        "7.5.9": ("QMS省令 §49", "Article 49 covers traceability.", "第49條涵蓋追溯性。"),
+        "7.5.11": ("QMS省令 §51", "Article 51 covers product preservation.", "第51條涵蓋產品防護。"),
+        "7.6": ("QMS省令 §52", "Article 52 covers monitoring equipment.", "第52條涵蓋監測設備。"),
+        "8.1": ("QMS省令 §53", "Article 53 covers general measurement requirements.", "第53條涵蓋一般量測要求。"),
+        "8.2.1": ("QMS省令 §54", "Article 54 covers feedback.", "第54條涵蓋回饋。"),
+        "8.2.2": ("QMS省令 §55", "Article 55 covers complaint handling.", "第55條涵蓋客訴處理。"),
+        "8.2.3": ("QMS省令 §56", "Article 56 covers regulatory reporting.", "第56條涵蓋法規通報。"),
+        "8.2.4": ("QMS省令 §57", "Article 57 covers internal audit.", "第57條涵蓋內部稽核。"),
+        "8.2.5": ("QMS省令 §58", "Article 58 covers process monitoring.", "第58條涵蓋過程監督。"),
+        "8.2.6": ("QMS省令 §59", "Article 59 covers product monitoring.", "第59條涵蓋產品監督。"),
+        "8.3": ("QMS省令 §60", "Article 60 covers nonconforming product.", "第60條涵蓋不合格品。"),
+        "8.4": ("QMS省令 §62", "Article 62 covers data analysis.", "第62條涵蓋數據分析。"),
+        "8.5.1": ("QMS省令 §63", "Article 63 covers improvement.", "第63條涵蓋改善。"),
+        "8.5.2": ("QMS省令 §64", "Article 64 covers corrective action.", "第64條涵蓋矯正措施。"),
+        "8.5.3": ("QMS省令 §65", "Article 65 covers preventive action.", "第65條涵蓋預防措施。"),
+    }
+
+    for clause_id, (ref, rationale_en, rationale_zh) in pmda_clause_map.items():
+        iso_mapped[clause_id] = ClauseMapping(
+            iso_clause=clause_id,
+            status=MappingStatus.FULL,
+            regulation_ref=ref,
+            rationale_en=rationale_en,
+            rationale_zh=rationale_zh,
+            method=MappingMethod.CLAUSE_STRUCTURE,
+            confidence=0.90,
+            notes="QMS省令 (MHLW Ordinance No.169)",
+        )
+
+    # PMDA-specific unique requirements (delta from ISO 13485)
+    unique_reqs = [
+        UniqueRequirement(
+            req_id="PMDA-001",
+            regulation_ref="PMD Act Art.68-10 / QMS省令 §56",
+            title_en="Adverse Event Reporting — 15/30 Day Timelines",
+            title_zh="不良事件通報 — 15/30天時限",
+            requirement_en=(
+                "Manufacturers must report adverse events to PMDA/MHLW: 15 days for "
+                "serious events (death, life-threatening), 30 days for other reportable "
+                "events. Reports must be in Japanese language."
+            ),
+            requirement_zh=(
+                "製造商必須向PMDA/MHLW通報不良事件：嚴重事件（死亡、危及生命）15天，"
+                "其他應通報事件30天。通報必須使用日文。"
+            ),
+            related_iso_clauses=["8.2.2", "8.2.3"],
+            audit_impact="critical",
+            audit_question_en=(
+                "Does the adverse event reporting procedure specify 15-day (serious) "
+                "and 30-day (other) reporting timelines to PMDA per PMD Act Art.68-10?"
+            ),
+            audit_question_zh=(
+                "不良事件通報程序是否規定依PMD Act Art.68-10向PMDA的15天（嚴重）"
+                "和30天（其他）通報時限？"
+            ),
+            expected_evidence=[
+                "Adverse event reporting procedure with PMDA timelines / 含PMDA時限之不良事件通報程序",
+                "Japanese-language report forms / 日文通報表",
+            ],
+            rationale_en=(
+                "PMD Act specifies 15/30-day reporting timelines not in ISO 13485. "
+                "Related to 8.2.2 (complaints) and 8.2.3 (regulatory reporting)."
+            ),
+            rationale_zh=(
+                "PMD Act規定ISO 13485中沒有的15/30天通報時限。"
+                "相關條款8.2.2（客訴）和8.2.3（法規通報）。"
+            ),
+            method=MappingMethod.CLAUSE_STRUCTURE,
+            confidence=0.90,
+            original_text=(
+                "医薬品医療機器等法第68条の10：医療機器の製造販売業者は、その製造販売する"
+                "医療機器について、重篤な有害事象を知った場合は15日以内に、その他の有害事象は"
+                "30日以内に厚生労働大臣に報告しなければならない。"
+            ),
+            original_lang="ja",
+            english_translation=(
+                "PMD Act Art.68-10: MAH of medical devices, upon becoming aware of serious "
+                "adverse events involving their devices, shall report to MHLW within 15 days. "
+                "Other reportable adverse events shall be reported within 30 days."
+            ),
+            semantic_note=(
+                "Japan uses 15/30-day timelines. US FDA: 5 working days (death), 30 days (serious). "
+                "EU MDR: 2 days (death/serious threat), 15 days (other). "
+                "Taiwan TFDA: 7 days (death/serious), 15 days (other). "
+                "HC Canada: 10 days preliminary, 30 days final. "
+                "Japan's timelines are generally the most lenient among MDSAP countries. "
+                "Key difference: Japan requires Japanese-language reports."
+            ),
+        ),
+        UniqueRequirement(
+            req_id="PMDA-002",
+            regulation_ref="PMD Act Art.23-2-5 / QMS省令",
+            title_en="Marketing Authorization Holder (MAH) System",
+            title_zh="製造販売業者（MAH）制度",
+            requirement_en=(
+                "Japan requires a Marketing Authorization Holder (製造販売業者) who holds "
+                "the marketing authorization and bears full legal responsibility for the device. "
+                "The MAH must be a Japan-based entity and is separate from the manufacturer. "
+                "MAH must maintain their own QMS."
+            ),
+            requirement_zh=(
+                "日本要求製造販売業者持有上市許可並對器材承擔全部法律責任。"
+                "MAH必須是日本境內實體，與製造商分開。MAH必須維持自己的QMS。"
+            ),
+            related_iso_clauses=["5.5.1", "7.2.3", "4.1"],
+            audit_impact="critical",
+            audit_question_en=(
+                "Is a Japan-based MAH appointed with its own QMS, holding marketing "
+                "authorization per PMD Act Art.23-2-5?"
+            ),
+            audit_question_zh=(
+                "是否任命具有自己QMS的日本境內MAH，持有上市許可？"
+                "（PMD Act Art.23-2-5）"
+            ),
+            expected_evidence=[
+                "MAH registration certificate / MAH登記證書",
+                "MAH QMS documentation / MAH品質管理系統文件",
+                "MAH-manufacturer agreement / MAH與製造商之合約",
+            ],
+            rationale_en=(
+                "Japan's MAH system has no direct ISO 13485 equivalent. "
+                "Closest to 5.5.1 (responsibility), 7.2.3 (communication), 4.1 (QMS). "
+                "The MAH maintains a separate QMS that must comply with QMS省令."
+            ),
+            rationale_zh=(
+                "日本的MAH制度在ISO 13485中無直接對應。"
+                "最接近5.5.1（責任）、7.2.3（溝通）、4.1（QMS）。"
+                "MAH維持獨立的QMS，必須符合QMS省令。"
+            ),
+            method=MappingMethod.CLAUSE_STRUCTURE,
+            confidence=0.90,
+            original_text=(
+                "医薬品医療機器等法第23条の2の5：医療機器の製造販売をしようとする者は、"
+                "品目ごとにその製造販売についての厚生労働大臣の承認を受けなければならない。"
+                "製造販売業者は、品質管理の方法が基準に適合しなければならない。"
+            ),
+            original_lang="ja",
+            english_translation=(
+                "PMD Act Art.23-2-5: Any person who intends to manufacture and sell medical devices "
+                "shall obtain marketing authorization from MHLW for each product. "
+                "The MAH shall ensure quality management methods comply with the applicable standards."
+            ),
+            semantic_note=(
+                "Japan's MAH system is unique in requiring a SEPARATE entity (MAH) from the manufacturer. "
+                "EU MDR Art 11: Authorized Representative role, but for foreign manufacturers only. "
+                "US FDA: Establishment registration, no separate MAH concept. "
+                "Taiwan TFDA: Authorized representative for foreign manufacturers (Art 13). "
+                "HC Canada: MDEL holder. "
+                "Cross-country: Japan is the only jurisdiction where the entity holding marketing "
+                "authorization MUST be domestic and MUST maintain its own QMS independently."
+            ),
+        ),
+        UniqueRequirement(
+            req_id="PMDA-003",
+            regulation_ref="QMS省令 §8 / PMD Act",
+            title_en="Japanese Language Documentation Requirements",
+            title_zh="日文文件要求",
+            requirement_en=(
+                "All regulatory submissions, labeling, and instructions for use "
+                "must be in Japanese. QMS documentation submitted to PMDA during "
+                "inspections must be available in Japanese or with certified translations."
+            ),
+            requirement_zh=(
+                "所有法規提交文件、標籤和使用說明書必須以日文提供。"
+                "PMDA稽查時提交的QMS文件必須有日文版或經認證的翻譯。"
+            ),
+            related_iso_clauses=["4.2.3", "7.5.1", "7.5.8"],
+            audit_impact="major",
+            audit_question_en=(
+                "Are regulatory submissions, labels, and IFU available in Japanese? "
+                "Are QMS documents available in Japanese for PMDA inspections?"
+            ),
+            audit_question_zh=(
+                "法規提交文件、標籤和使用說明書是否有日文版？"
+                "QMS文件是否有日文版供PMDA稽查？"
+            ),
+            expected_evidence=[
+                "Japanese-language labels and IFU / 日文標籤和使用說明書",
+                "Japanese QMS documents or certified translations / 日文QMS文件或認證翻譯",
+            ],
+            rationale_en=(
+                "Japanese language requirement is a PMDA market access requirement. "
+                "ISO 13485 does not specify language. Closest to 4.2.3 (document control), "
+                "7.5.1 (production control), 7.5.8 (identification)."
+            ),
+            rationale_zh=(
+                "日文要求是PMDA市場准入要求。ISO 13485未規定語言。"
+                "最接近4.2.3（文件管制）、7.5.1（生產管制）、7.5.8（識別）。"
+            ),
+            method=MappingMethod.SEMANTIC_EN,
+            confidence=0.90,
+            original_text=(
+                "医療機器の添付文書、ラベル及び使用上の注意事項は日本語で記載しなければならない。"
+                "PMDA査察時に提示するQMS文書は日本語又は公的翻訳が必要。"
+            ),
+            original_lang="ja",
+            english_translation=(
+                "Medical device package inserts, labels, and precautions for use must be written "
+                "in Japanese. QMS documents presented during PMDA inspections must be in Japanese "
+                "or have certified translations."
+            ),
+            semantic_note=(
+                "Japan requires Japanese for ALL regulatory submissions and labeling. "
+                "US requires English. EU varies by member state. Taiwan requires Traditional Chinese. "
+                "Canada requires English + French bilingual. Brazil requires Portuguese. "
+                "Japan's requirement extends to QMS documents during inspections, meaning "
+                "foreign manufacturers must translate core QMS docs to Japanese."
+            ),
+        ),
+    ]
+
+    return RegulationProfile(
+        regulation_id="PMDA",
+        name_en="Japan PMDA QMS Ordinance (QMS省令)",
+        name_zh="日本 PMDA QMS省令",
+        country="JP",
+        country_name_en="Japan",
+        country_name_zh="日本",
+        source="predefined",
+        source_url="https://www.pmda.go.jp/",
+        last_updated="2021-03-26",
+        effective_date="2005-04-01",
+        iso_mapped=iso_mapped,
+        unique_requirements=unique_reqs,
+    )
+
+
+# ============================================================
+# Predefined Regulation: Brazil ANVISA (RDC 665:2022)
+# ============================================================
+
+def _build_anvisa_profile() -> RegulationProfile:
+    """Build the Brazil ANVISA regulation profile.
+
+    ANVISA RDC 665:2022 (formerly RDC 16:2013) establishes Good Manufacturing
+    Practices (GMP/BPF) for medical devices in Brazil.
+    MDSAP participant country.
+    Structurally modeled on ISO 13485, with additional Brazilian requirements.
+
+    Mapping source: RDC 665:2022 regulatory text
+    + MDSAP Companion Document for Brazil
+    """
+    iso_mapped: dict[str, ClauseMapping] = {}
+
+    # ANVISA RDC 665:2022 is closely aligned with ISO 13485
+    anvisa_clause_map = {
+        "4.1": ("RDC 665 Art.8", "RDC 665 Article 8 establishes general QMS/GMP requirements aligned with ISO 13485.", "RDC 665第8條建立與ISO 13485對齊的一般QMS/GMP要求。"),
+        "4.2.1": ("RDC 665 Art.9", "Article 9 covers documentation requirements.", "第9條涵蓋文件化要求。"),
+        "4.2.2": ("RDC 665 Art.10", "Article 10 covers quality manual.", "第10條涵蓋品質手冊。"),
+        "4.2.3": ("RDC 665 Art.11", "Article 11 covers document control.", "第11條涵蓋文件管制。"),
+        "4.2.4": ("RDC 665 Art.12", "Article 12 covers record control.", "第12條涵蓋記錄管制。"),
+        "4.2.5": ("RDC 665 Art.13", "Article 13 covers medical device file.", "第13條涵蓋醫療器材檔案。"),
+        "5.1": ("RDC 665 Art.14", "Article 14 covers management commitment.", "第14條涵蓋管理承諾。"),
+        "5.2": ("RDC 665 Art.15", "Article 15 covers customer focus.", "第15條涵蓋以顧客為重。"),
+        "5.3": ("RDC 665 Art.16", "Article 16 covers quality policy.", "第16條涵蓋品質政策。"),
+        "5.4.1": ("RDC 665 Art.17", "Article 17 covers quality objectives.", "第17條涵蓋品質目標。"),
+        "5.4.2": ("RDC 665 Art.18", "Article 18 covers QMS planning.", "第18條涵蓋QMS規劃。"),
+        "5.5.1": ("RDC 665 Art.19", "Article 19 covers responsibility and authority.", "第19條涵蓋責任與權限。"),
+        "5.5.2": ("RDC 665 Art.20", "Article 20 covers management representative.", "第20條涵蓋管理代表。"),
+        "5.5.3": ("RDC 665 Art.21", "Article 21 covers internal communication.", "第21條涵蓋內部溝通。"),
+        "5.6.1": ("RDC 665 Art.22", "Article 22 covers management review.", "第22條涵蓋管理審查。"),
+        "5.6.2": ("RDC 665 Art.22", "Article 22 includes management review input.", "第22條包含管理審查輸入。"),
+        "5.6.3": ("RDC 665 Art.22", "Article 22 includes management review output.", "第22條包含管理審查輸出。"),
+        "6.1": ("RDC 665 Art.23", "Article 23 covers resource provision.", "第23條涵蓋資源提供。"),
+        "6.2": ("RDC 665 Art.24", "Article 24 covers human resources.", "第24條涵蓋人力資源。"),
+        "6.3": ("RDC 665 Art.25", "Article 25 covers infrastructure.", "第25條涵蓋基礎設施。"),
+        "6.4.1": ("RDC 665 Art.26", "Article 26 covers work environment.", "第26條涵蓋工作環境。"),
+        "6.4.2": ("RDC 665 Art.27", "Article 27 covers contamination control.", "第27條涵蓋污染管制。"),
+        "7.1": ("RDC 665 Art.28", "Article 28 covers product realization planning.", "第28條涵蓋產品實現規劃。"),
+        "7.2.1": ("RDC 665 Art.29", "Article 29 covers determination of product requirements.", "第29條涵蓋產品要求確定。"),
+        "7.2.2": ("RDC 665 Art.30", "Article 30 covers review of product requirements.", "第30條涵蓋產品要求審查。"),
+        "7.2.3": ("RDC 665 Art.31", "Article 31 covers communication.", "第31條涵蓋溝通。"),
+        "7.3.1": ("RDC 665 Art.32", "Article 32 covers design planning.", "第32條涵蓋設計規劃。"),
+        "7.3.2": ("RDC 665 Art.33", "Article 33 covers design input.", "第33條涵蓋設計輸入。"),
+        "7.3.3": ("RDC 665 Art.34", "Article 34 covers design output.", "第34條涵蓋設計輸出。"),
+        "7.3.4": ("RDC 665 Art.35", "Article 35 covers design review.", "第35條涵蓋設計審查。"),
+        "7.3.5": ("RDC 665 Art.36", "Article 36 covers design verification.", "第36條涵蓋設計驗證。"),
+        "7.3.6": ("RDC 665 Art.37", "Article 37 covers design validation.", "第37條涵蓋設計確認。"),
+        "7.3.7": ("RDC 665 Art.38", "Article 38 covers design transfer.", "第38條涵蓋設計轉移。"),
+        "7.3.8": ("RDC 665 Art.39", "Article 39 covers design change control.", "第39條涵蓋設計變更管制。"),
+        "7.3.9": ("RDC 665 Art.40", "Article 40 covers design files.", "第40條涵蓋設計檔案。"),
+        "7.3.10": ("RDC 665 Art.40", "Article 40 includes design documentation.", "第40條包含設計文件。"),
+        "7.4.1": ("RDC 665 Art.41", "Article 41 covers purchasing process.", "第41條涵蓋採購過程。"),
+        "7.4.2": ("RDC 665 Art.42", "Article 42 covers purchasing information.", "第42條涵蓋採購資訊。"),
+        "7.4.3": ("RDC 665 Art.43", "Article 43 covers verification of purchased product.", "第43條涵蓋採購產品驗證。"),
+        "7.5.1": ("RDC 665 Art.44", "Article 44 covers production control.", "第44條涵蓋生產管制。"),
+        "7.5.6": ("RDC 665 Art.48", "Article 48 covers process validation.", "第48條涵蓋過程確認。"),
+        "7.5.8": ("RDC 665 Art.50", "Article 50 covers identification.", "第50條涵蓋識別。"),
+        "7.5.9": ("RDC 665 Art.51", "Article 51 covers traceability.", "第51條涵蓋追溯性。"),
+        "7.5.11": ("RDC 665 Art.53", "Article 53 covers product preservation.", "第53條涵蓋產品防護。"),
+        "7.6": ("RDC 665 Art.54", "Article 54 covers monitoring equipment.", "第54條涵蓋監測設備。"),
+        "8.1": ("RDC 665 Art.55", "Article 55 covers general measurement requirements.", "第55條涵蓋一般量測要求。"),
+        "8.2.1": ("RDC 665 Art.56", "Article 56 covers feedback.", "第56條涵蓋回饋。"),
+        "8.2.2": ("RDC 665 Art.57", "Article 57 covers complaint handling.", "第57條涵蓋客訴處理。"),
+        "8.2.3": ("RDC 665 Art.58", "Article 58 covers regulatory reporting to ANVISA.", "第58條涵蓋向ANVISA的法規通報。"),
+        "8.2.4": ("RDC 665 Art.59", "Article 59 covers internal audit.", "第59條涵蓋內部稽核。"),
+        "8.2.5": ("RDC 665 Art.60", "Article 60 covers process monitoring.", "第60條涵蓋過程監督。"),
+        "8.2.6": ("RDC 665 Art.61", "Article 61 covers product monitoring.", "第61條涵蓋產品監督。"),
+        "8.3": ("RDC 665 Art.62", "Article 62 covers nonconforming product.", "第62條涵蓋不合格品。"),
+        "8.4": ("RDC 665 Art.64", "Article 64 covers data analysis.", "第64條涵蓋數據分析。"),
+        "8.5.1": ("RDC 665 Art.65", "Article 65 covers improvement.", "第65條涵蓋改善。"),
+        "8.5.2": ("RDC 665 Art.66", "Article 66 covers corrective action.", "第66條涵蓋矯正措施。"),
+        "8.5.3": ("RDC 665 Art.67", "Article 67 covers preventive action.", "第67條涵蓋預防措施。"),
+    }
+
+    for clause_id, (ref, rationale_en, rationale_zh) in anvisa_clause_map.items():
+        iso_mapped[clause_id] = ClauseMapping(
+            iso_clause=clause_id,
+            status=MappingStatus.FULL,
+            regulation_ref=ref,
+            rationale_en=rationale_en,
+            rationale_zh=rationale_zh,
+            method=MappingMethod.CLAUSE_STRUCTURE,
+            confidence=0.85,
+            notes="ANVISA RDC 665:2022 (gov.br/anvisa)",
+        )
+
+    # ANVISA-specific unique requirements (delta from ISO 13485)
+    unique_reqs = [
+        UniqueRequirement(
+            req_id="ANVISA-001",
+            regulation_ref="RDC 551:2021 / Tecnovigilância",
+            title_en="Tecnovigilance — Adverse Event Reporting",
+            title_zh="技術警戒 — 不良事件通報",
+            requirement_en=(
+                "Brazil requires adverse event reporting through ANVISA's Tecnovigilance system "
+                "(NOTIVISA/VigiMed). Serious events must be reported within 10 calendar days. "
+                "Manufacturers must also submit periodic trend reports (Relatórios Periódicos). "
+                "Reports must be in Portuguese."
+            ),
+            requirement_zh=(
+                "巴西要求通過ANVISA的技術警戒系統（NOTIVISA/VigiMed）通報不良事件。"
+                "嚴重事件必須在10個日曆天內通報。製造商還必須提交定期趨勢報告"
+                "（Relatórios Periódicos）。通報必須使用葡萄牙文。"
+            ),
+            related_iso_clauses=["8.2.2", "8.2.3"],
+            audit_impact="critical",
+            audit_question_en=(
+                "Does the adverse event reporting procedure address ANVISA Tecnovigilance "
+                "requirements including 10-day serious event reporting via NOTIVISA/VigiMed?"
+            ),
+            audit_question_zh=(
+                "不良事件通報程序是否涵蓋ANVISA技術警戒要求，"
+                "包括通過NOTIVISA/VigiMed的10天嚴重事件通報？"
+            ),
+            expected_evidence=[
+                "Tecnovigilance reporting procedure / 技術警戒通報程序",
+                "NOTIVISA/VigiMed registration / NOTIVISA/VigiMed註冊",
+                "Periodic trend reports / 定期趨勢報告",
+            ],
+            rationale_en=(
+                "ANVISA Tecnovigilance system is Brazil-specific. ISO 13485 8.2.3 requires "
+                "regulatory reporting but not via a specific system with specific timelines. "
+                "Periodic trend reporting has no ISO 13485 equivalent."
+            ),
+            rationale_zh=(
+                "ANVISA技術警戒系統為巴西特有。ISO 13485 8.2.3要求法規通報但未規定"
+                "特定系統和時限。定期趨勢報告在ISO 13485中無對應。"
+            ),
+            method=MappingMethod.CLAUSE_STRUCTURE,
+            confidence=0.85,
+            original_text=(
+                "RDC 551:2021: O detentor de registro deve notificar à ANVISA queixas técnicas e eventos "
+                "adversos envolvendo produtos para saúde. Eventos adversos graves devem ser notificados "
+                "no prazo de 10 dias corridos. Relatórios periódicos de tendência devem ser submetidos."
+            ),
+            original_lang="pt",
+            english_translation=(
+                "RDC 551:2021: Registration holders must notify ANVISA of technical complaints and "
+                "adverse events involving health products. Serious adverse events must be notified "
+                "within 10 calendar days. Periodic trend reports must be submitted."
+            ),
+            semantic_note=(
+                "Brazil uses 'Tecnovigilância' system (NOTIVISA/VigiMed) — a dedicated adverse event "
+                "reporting platform. 10-day timeline for serious events. "
+                "US FDA: 5 working days (death), 30 days (serious). EU MDR: 2 days (death), 15 days (other). "
+                "Taiwan: 7 days (death/serious), 15 days (other). Canada: 10 days preliminary, 30 days final. "
+                "Japan: 15 days (serious), 30 days (other). "
+                "Brazil uniquely requires periodic TREND reports in addition to individual event reports. "
+                "All submissions must be in Portuguese."
+            ),
+        ),
+        UniqueRequirement(
+            req_id="ANVISA-002",
+            regulation_ref="RDC 185:2001 / ANVISA Registration",
+            title_en="ANVISA Product Registration (Registro)",
+            title_zh="ANVISA產品登記（Registro）",
+            requirement_en=(
+                "All medical devices marketed in Brazil require ANVISA registration (Registro) "
+                "or notification (Cadastro) depending on risk class. Class III/IV devices require "
+                "full registration with GMP certification (Certificado de Boas Práticas de Fabricação). "
+                "Brazilian Good Manufacturing Practice (BPF) certification involves ANVISA on-site inspection."
+            ),
+            requirement_zh=(
+                "所有在巴西銷售的醫療器材需ANVISA登記（Registro）或通報（Cadastro），"
+                "取決於風險分類。III/IV類器材需完整登記，附GMP認證"
+                "（Certificado de Boas Práticas de Fabricação）。BPF認證涉及ANVISA現場檢查。"
+            ),
+            related_iso_clauses=["4.1", "7.2.1"],
+            audit_impact="critical",
+            audit_question_en=(
+                "Does the company hold a valid ANVISA registration (Registro) or notification (Cadastro) "
+                "for devices marketed in Brazil, with current GMP/BPF certification where required?"
+            ),
+            audit_question_zh=(
+                "公司是否持有有效的ANVISA產品登記或通報，"
+                "以及所需的GMP/BPF認證？"
+            ),
+            expected_evidence=[
+                "ANVISA registration certificate (Registro) / ANVISA登記證書",
+                "BPF certificate / GMP認證（BPF）",
+                "ANVISA inspection reports / ANVISA稽查報告",
+            ],
+            rationale_en=(
+                "ANVISA product registration is a Brazilian market access requirement. "
+                "ISO 13485 does not address product registration. Closest to 4.1 (QMS) "
+                "and 7.2.1 (determination of product requirements)."
+            ),
+            rationale_zh=(
+                "ANVISA產品登記是巴西市場准入要求。ISO 13485未涉及產品登記。"
+                "最接近4.1（QMS）和7.2.1（產品要求確定）。"
+            ),
+            method=MappingMethod.CLAUSE_STRUCTURE,
+            confidence=0.85,
+            original_text=(
+                "RDC 185:2001: Todos os produtos para saúde classificados nas classes III e IV "
+                "devem obter registro junto à ANVISA antes de sua comercialização no Brasil. "
+                "O registro requer certificação de Boas Práticas de Fabricação (BPF)."
+            ),
+            original_lang="pt",
+            english_translation=(
+                "RDC 185:2001: All health products classified as Class III and IV must obtain "
+                "registration with ANVISA before marketing in Brazil. Registration requires "
+                "Good Manufacturing Practice (GMP/BPF) certification."
+            ),
+            semantic_note=(
+                "Brazil requires ANVISA on-site GMP inspection (BPF certification) for manufacturing sites, "
+                "including FOREIGN manufacturing sites. This means ANVISA inspectors travel internationally "
+                "to audit factories — a unique practice among MDSAP countries. "
+                "US FDA also conducts foreign inspections but does not tie them to product registration. "
+                "EU MDR: Notified Body audits, not regulatory authority directly. "
+                "Key difference: ANVISA BPF certification is a PREREQUISITE for product registration, "
+                "not just a QMS compliance check."
+            ),
+        ),
+        UniqueRequirement(
+            req_id="ANVISA-003",
+            regulation_ref="RDC 665:2022 / Portuguese Language",
+            title_en="Portuguese Language Requirements",
+            title_zh="葡萄牙文語言要求",
+            requirement_en=(
+                "All medical device labeling, instructions for use, and regulatory "
+                "submissions to ANVISA must be in Brazilian Portuguese. QMS documentation "
+                "must be available in Portuguese for ANVISA inspections."
+            ),
+            requirement_zh=(
+                "所有醫療器材標籤、使用說明書和向ANVISA的法規提交文件必須使用"
+                "巴西葡萄牙文。QMS文件在ANVISA稽查時必須有葡萄牙文版本。"
+            ),
+            related_iso_clauses=["4.2.3", "7.5.1", "7.5.8"],
+            audit_impact="major",
+            audit_question_en=(
+                "Are labels, IFU, and regulatory submissions in Brazilian Portuguese? "
+                "Are QMS documents available in Portuguese for ANVISA inspections?"
+            ),
+            audit_question_zh=(
+                "標籤、使用說明書和法規提交文件是否使用巴西葡萄牙文？"
+                "QMS文件是否有葡萄牙文版供ANVISA稽查？"
+            ),
+            expected_evidence=[
+                "Portuguese-language labels and IFU / 葡萄牙文標籤和使用說明書",
+                "Portuguese QMS documents / 葡萄牙文QMS文件",
+            ],
+            rationale_en=(
+                "Portuguese language is a Brazilian market access requirement. "
+                "ISO 13485 does not specify language. Closest to 4.2.3, 7.5.1, 7.5.8."
+            ),
+            rationale_zh=(
+                "葡萄牙文是巴西市場准入要求。ISO 13485未規定語言。"
+                "最接近4.2.3、7.5.1、7.5.8。"
+            ),
+            method=MappingMethod.SEMANTIC_EN,
+            confidence=0.90,
+            original_text=(
+                "A rotulagem e instruções de uso dos produtos para saúde devem ser redigidas "
+                "em língua portuguesa. Documentos do SGQ devem estar disponíveis em português "
+                "durante inspeções da ANVISA."
+            ),
+            original_lang="pt",
+            english_translation=(
+                "Labeling and instructions for use of health products must be written "
+                "in Portuguese. QMS documents must be available in Portuguese "
+                "during ANVISA inspections."
+            ),
+            semantic_note=(
+                "Brazil requires Brazilian Portuguese for all labeling and regulatory submissions. "
+                "Each MDSAP country has unique language requirements: US (English), Canada (English+French), "
+                "Japan (Japanese), Australia (English), Brazil (Portuguese). "
+                "Brazil and Japan both extend language requirements to QMS documents during inspections."
+            ),
+        ),
+    ]
+
+    return RegulationProfile(
+        regulation_id="ANVISA",
+        name_en="Brazil ANVISA RDC 665:2022",
+        name_zh="巴西 ANVISA RDC 665:2022",
+        country="BR",
+        country_name_en="Brazil",
+        country_name_zh="巴西",
+        source="predefined",
+        source_url="https://www.gov.br/anvisa/",
+        last_updated="2022-03-24",
+        effective_date="2022-05-01",
+        iso_mapped=iso_mapped,
+        unique_requirements=unique_reqs,
+    )
+
+
+# ============================================================
+# Predefined Regulation: Australia TGA (Therapeutic Goods Act 1989)
+# ============================================================
+
+def _build_tga_profile() -> RegulationProfile:
+    """Build the Australia TGA regulation profile.
+
+    Therapeutic Goods Act 1989 and Therapeutic Goods (Medical Devices)
+    Regulations 2002. Administered by the Therapeutic Goods Administration (TGA).
+    MDSAP participant country.
+    Australia's Essential Principles are harmonized with EU requirements.
+    ISO 13485 certification is a prerequisite for inclusion in the ARTG.
+
+    Mapping source: TG(MD)R 2002 regulatory text
+    + MDSAP Companion Document for Australia
+    """
+    iso_mapped: dict[str, ClauseMapping] = {}
+
+    # TGA requires ISO 13485 certification — all clauses are adopted
+    tga_clause_map = {
+        "4.1": ("TG(MD)R Sch.3 Part 1.2", "TGA requires ISO 13485 certification for ARTG inclusion. General QMS requirements fully adopted.", "TGA要求ISO 13485認證以納入ARTG。一般QMS要求完全採用。"),
+        "4.2.1": ("TG(MD)R Sch.3 Part 1.2", "Documentation requirements adopted via mandatory ISO 13485.", "文件化要求通過強制性ISO 13485採用。"),
+        "4.2.2": ("TG(MD)R Sch.3 Part 1.2", "Quality manual adopted via ISO 13485.", "品質手冊通過ISO 13485採用。"),
+        "4.2.3": ("TG(MD)R Sch.3 Part 1.2", "Document control adopted via ISO 13485.", "文件管制通過ISO 13485採用。"),
+        "4.2.4": ("TG(MD)R Sch.3 Part 1.2", "Record control adopted via ISO 13485.", "記錄管制通過ISO 13485採用。"),
+        "4.2.5": ("TG(MD)R Sch.3 Part 1.2", "Medical device file adopted via ISO 13485.", "醫療器材檔案通過ISO 13485採用。"),
+        "5.1": ("TG(MD)R Sch.3 Part 1.2", "Management commitment adopted via ISO 13485.", "管理承諾通過ISO 13485採用。"),
+        "5.2": ("TG(MD)R Sch.3 Part 1.2", "Customer focus adopted via ISO 13485.", "以顧客為重通過ISO 13485採用。"),
+        "5.3": ("TG(MD)R Sch.3 Part 1.2", "Quality policy adopted via ISO 13485.", "品質政策通過ISO 13485採用。"),
+        "5.4.1": ("TG(MD)R Sch.3 Part 1.2", "Quality objectives adopted via ISO 13485.", "品質目標通過ISO 13485採用。"),
+        "5.4.2": ("TG(MD)R Sch.3 Part 1.2", "QMS planning adopted via ISO 13485.", "QMS規劃通過ISO 13485採用。"),
+        "5.5.1": ("TG(MD)R Sch.3 Part 1.2", "Responsibility and authority adopted via ISO 13485.", "責任與權限通過ISO 13485採用。"),
+        "5.5.2": ("TG(MD)R Sch.3 Part 1.2", "Management representative adopted via ISO 13485.", "管理代表通過ISO 13485採用。"),
+        "5.5.3": ("TG(MD)R Sch.3 Part 1.2", "Internal communication adopted via ISO 13485.", "內部溝通通過ISO 13485採用。"),
+        "5.6.1": ("TG(MD)R Sch.3 Part 1.2", "Management review adopted via ISO 13485.", "管理審查通過ISO 13485採用。"),
+        "5.6.2": ("TG(MD)R Sch.3 Part 1.2", "Management review input adopted via ISO 13485.", "管理審查輸入通過ISO 13485採用。"),
+        "5.6.3": ("TG(MD)R Sch.3 Part 1.2", "Management review output adopted via ISO 13485.", "管理審查輸出通過ISO 13485採用。"),
+        "6.1": ("TG(MD)R Sch.3 Part 1.2", "Resource provision adopted via ISO 13485.", "資源提供通過ISO 13485採用。"),
+        "6.2": ("TG(MD)R Sch.3 Part 1.2", "Human resources adopted via ISO 13485.", "人力資源通過ISO 13485採用。"),
+        "6.3": ("TG(MD)R Sch.3 Part 1.2", "Infrastructure adopted via ISO 13485.", "基礎設施通過ISO 13485採用。"),
+        "6.4.1": ("TG(MD)R Sch.3 Part 1.2", "Work environment adopted via ISO 13485.", "工作環境通過ISO 13485採用。"),
+        "6.4.2": ("TG(MD)R Sch.3 Part 1.2", "Contamination control adopted via ISO 13485.", "污染管制通過ISO 13485採用。"),
+        "7.1": ("TG(MD)R Sch.3 Part 1.2", "Product realization planning adopted via ISO 13485.", "產品實現規劃通過ISO 13485採用。"),
+        "7.2.1": ("TG(MD)R Sch.3 Part 1.2 / Essential Principles", "Determination of product requirements — TGA Essential Principles add product safety requirements.", "產品要求確定 — TGA基本原則增加產品安全要求。"),
+        "7.2.2": ("TG(MD)R Sch.3 Part 1.2", "Review of product requirements adopted via ISO 13485.", "產品要求審查通過ISO 13485採用。"),
+        "7.2.3": ("TG(MD)R Sch.3 Part 1.2", "Communication adopted via ISO 13485.", "溝通通過ISO 13485採用。"),
+        "7.3.1": ("TG(MD)R Sch.3 Part 1.2", "Design planning adopted via ISO 13485.", "設計規劃通過ISO 13485採用。"),
+        "7.3.2": ("TG(MD)R Sch.3 Part 1.2", "Design input adopted via ISO 13485.", "設計輸入通過ISO 13485採用。"),
+        "7.3.3": ("TG(MD)R Sch.3 Part 1.2", "Design output adopted via ISO 13485.", "設計輸出通過ISO 13485採用。"),
+        "7.3.4": ("TG(MD)R Sch.3 Part 1.2", "Design review adopted via ISO 13485.", "設計審查通過ISO 13485採用。"),
+        "7.3.5": ("TG(MD)R Sch.3 Part 1.2", "Design verification adopted via ISO 13485.", "設計驗證通過ISO 13485採用。"),
+        "7.3.6": ("TG(MD)R Sch.3 Part 1.2", "Design validation adopted via ISO 13485.", "設計確認通過ISO 13485採用。"),
+        "7.3.7": ("TG(MD)R Sch.3 Part 1.2", "Design transfer adopted via ISO 13485.", "設計轉移通過ISO 13485採用。"),
+        "7.3.8": ("TG(MD)R Sch.3 Part 1.2", "Design change control adopted via ISO 13485.", "設計變更管制通過ISO 13485採用。"),
+        "7.3.9": ("TG(MD)R Sch.3 Part 1.2", "Design files adopted via ISO 13485.", "設計檔案通過ISO 13485採用。"),
+        "7.3.10": ("TG(MD)R Sch.3 Part 1.2", "Design documentation adopted via ISO 13485.", "設計文件通過ISO 13485採用。"),
+        "7.4.1": ("TG(MD)R Sch.3 Part 1.2", "Purchasing process adopted via ISO 13485.", "採購過程通過ISO 13485採用。"),
+        "7.4.2": ("TG(MD)R Sch.3 Part 1.2", "Purchasing information adopted via ISO 13485.", "採購資訊通過ISO 13485採用。"),
+        "7.4.3": ("TG(MD)R Sch.3 Part 1.2", "Verification of purchased product adopted via ISO 13485.", "採購產品驗證通過ISO 13485採用。"),
+        "7.5.1": ("TG(MD)R Sch.3 Part 1.2", "Production control adopted via ISO 13485.", "生產管制通過ISO 13485採用。"),
+        "7.5.6": ("TG(MD)R Sch.3 Part 1.2", "Process validation adopted via ISO 13485.", "過程確認通過ISO 13485採用。"),
+        "7.5.8": ("TG(MD)R Sch.3 Part 1.2", "Identification adopted via ISO 13485.", "識別通過ISO 13485採用。"),
+        "7.5.9": ("TG(MD)R Sch.3 Part 1.2", "Traceability adopted via ISO 13485.", "追溯性通過ISO 13485採用。"),
+        "7.5.11": ("TG(MD)R Sch.3 Part 1.2", "Product preservation adopted via ISO 13485.", "產品防護通過ISO 13485採用。"),
+        "7.6": ("TG(MD)R Sch.3 Part 1.2", "Monitoring equipment adopted via ISO 13485.", "監測設備通過ISO 13485採用。"),
+        "8.1": ("TG(MD)R Sch.3 Part 1.2", "General measurement requirements adopted via ISO 13485.", "一般量測要求通過ISO 13485採用。"),
+        "8.2.1": ("TG(MD)R Sch.3 Part 1.2", "Feedback adopted via ISO 13485.", "回饋通過ISO 13485採用。"),
+        "8.2.2": ("TG(MD)R Sch.3 Part 1.2 / TG Act s.41G", "Complaint handling adopted via ISO 13485. TG Act s.41G adds mandatory adverse event reporting to TGA.", "客訴處理通過ISO 13485採用。TG Act s.41G增加向TGA的強制性不良事件通報。"),
+        "8.2.3": ("TG Act s.41G-41K", "Regulatory reporting — TG Act mandates adverse event and recall reporting to TGA.", "法規通報 — TG Act要求向TGA進行不良事件和召回通報。"),
+        "8.2.4": ("TG(MD)R Sch.3 Part 1.2", "Internal audit adopted via ISO 13485.", "內部稽核通過ISO 13485採用。"),
+        "8.2.5": ("TG(MD)R Sch.3 Part 1.2", "Process monitoring adopted via ISO 13485.", "過程監督通過ISO 13485採用。"),
+        "8.2.6": ("TG(MD)R Sch.3 Part 1.2", "Product monitoring adopted via ISO 13485.", "產品監督通過ISO 13485採用。"),
+        "8.3": ("TG(MD)R Sch.3 Part 1.2", "Nonconforming product adopted via ISO 13485.", "不合格品通過ISO 13485採用。"),
+        "8.4": ("TG(MD)R Sch.3 Part 1.2", "Data analysis adopted via ISO 13485.", "數據分析通過ISO 13485採用。"),
+        "8.5.1": ("TG(MD)R Sch.3 Part 1.2", "Improvement adopted via ISO 13485.", "改善通過ISO 13485採用。"),
+        "8.5.2": ("TG(MD)R Sch.3 Part 1.2", "Corrective action adopted via ISO 13485.", "矯正措施通過ISO 13485採用。"),
+        "8.5.3": ("TG(MD)R Sch.3 Part 1.2", "Preventive action adopted via ISO 13485.", "預防措施通過ISO 13485採用。"),
+    }
+
+    for clause_id, (ref, rationale_en, rationale_zh) in tga_clause_map.items():
+        iso_mapped[clause_id] = ClauseMapping(
+            iso_clause=clause_id,
+            status=MappingStatus.FULL,
+            regulation_ref=ref,
+            rationale_en=rationale_en,
+            rationale_zh=rationale_zh,
+            method=MappingMethod.OFFICIAL_CROSSREF,
+            confidence=0.90,
+            notes="TG(MD)R 2002 Schedule 3 (legislation.gov.au)",
+        )
+
+    # TGA-specific unique requirements (delta from ISO 13485)
+    unique_reqs = [
+        UniqueRequirement(
+            req_id="TGA-001",
+            regulation_ref="TG Act s.41G-41K",
+            title_en="Mandatory Adverse Event Reporting to TGA",
+            title_zh="向TGA強制性不良事件通報",
+            requirement_en=(
+                "Sponsors (manufacturers/importers) must report adverse events to TGA: "
+                "2 days for events involving death or serious threat to public health, "
+                "10 days for serious deterioration in health, 30 days for other reportable events. "
+                "Reports are submitted through TGA's IRIS system."
+            ),
+            requirement_zh=(
+                "贊助商（製造商/進口商）必須向TGA通報不良事件："
+                "涉及死亡或嚴重公共衛生威脅2天、健康嚴重惡化10天、"
+                "其他應通報事件30天。通過TGA的IRIS系統提交報告。"
+            ),
+            related_iso_clauses=["8.2.2", "8.2.3"],
+            audit_impact="critical",
+            audit_question_en=(
+                "Does the adverse event reporting procedure specify 2-day (death/public health), "
+                "10-day (serious), and 30-day (other) reporting timelines to TGA per TG Act s.41G?"
+            ),
+            audit_question_zh=(
+                "不良事件通報程序是否規定依TG Act s.41G向TGA的2天（死亡/公共衛生）、"
+                "10天（嚴重）和30天（其他）通報時限？"
+            ),
+            expected_evidence=[
+                "Adverse event reporting procedure with TGA timelines / 含TGA時限之不良事件通報程序",
+                "TGA IRIS system registration / TGA IRIS系統註冊",
+                "Adverse event report records / 不良事件通報記錄",
+            ],
+            rationale_en=(
+                "TGA adverse event timelines are Australia-specific. ISO 13485 8.2.3 requires "
+                "regulatory reporting but without specific day counts. TGA uses a multi-tier "
+                "timeline system similar to EU MDR."
+            ),
+            rationale_zh=(
+                "TGA不良事件時限為澳洲特有。ISO 13485 8.2.3要求法規通報但無特定天數。"
+                "TGA使用與EU MDR類似的多層級時限系統。"
+            ),
+            method=MappingMethod.OFFICIAL_CROSSREF,
+            confidence=0.90,
+            original_text=(
+                "Therapeutic Goods Act 1989 s.41G: The sponsor of a kind of therapeutic goods "
+                "must, within 2 days (death/serious public health threat), 10 days (serious "
+                "deterioration), or 30 days (other), report to the Secretary any adverse event "
+                "involving those therapeutic goods."
+            ),
+            original_lang="en",
+            english_translation="",
+            semantic_note=(
+                "TGA uses a 3-tier timeline: 2/10/30 days, closely mirroring EU MDR (2/10/15 days). "
+                "US FDA: 5 working days (death), 30 days (serious). Canada: 10/30 days. "
+                "Japan: 15/30 days. Taiwan: 7/15 days. "
+                "Australia's 2-day deadline for death/public health threat matches EU as the strictest. "
+                "TGA uses IRIS system; EU uses EUDAMED; US uses MedWatch/eMDR. "
+                "Cross-country: Australia and EU are most stringent, Japan most lenient."
+            ),
+        ),
+        UniqueRequirement(
+            req_id="TGA-002",
+            regulation_ref="TG Act s.41FN-41FR / ARTG",
+            title_en="ARTG Inclusion (Australian Register of Therapeutic Goods)",
+            title_zh="ARTG納入（澳洲治療用品登記冊）",
+            requirement_en=(
+                "All medical devices must be included in the Australian Register of "
+                "Therapeutic Goods (ARTG) before marketing. ARTG inclusion requires: "
+                "ISO 13485 certification, compliance with Essential Principles (Schedule 1), "
+                "and an Australian Sponsor. Class IIb/III/AIMD devices require conformity "
+                "assessment by a TGA-recognized conformity assessment body."
+            ),
+            requirement_zh=(
+                "所有醫療器材在上市前必須納入澳洲治療用品登記冊（ARTG）。"
+                "ARTG納入要求：ISO 13485認證、符合基本原則（附表1）、"
+                "澳洲贊助商。IIb/III/AIMD類器材需由TGA認可的合格評定機構進行評估。"
+            ),
+            related_iso_clauses=["4.1", "7.2.1"],
+            audit_impact="critical",
+            audit_question_en=(
+                "Are all devices marketed in Australia included in the ARTG with current "
+                "ISO 13485 certification and Essential Principles compliance?"
+            ),
+            audit_question_zh=(
+                "所有在澳洲銷售的器材是否已納入ARTG，"
+                "具有現行ISO 13485認證和基本原則合規？"
+            ),
+            expected_evidence=[
+                "ARTG inclusion certificate / ARTG納入證書",
+                "ISO 13485 certificate / ISO 13485證書",
+                "Essential Principles compliance evidence / 基本原則合規證據",
+                "Australian Sponsor agreement / 澳洲贊助商合約",
+            ],
+            rationale_en=(
+                "ARTG inclusion is an Australian market access requirement. "
+                "ISO 13485 does not address product registration. Closest to 4.1 (QMS) "
+                "and 7.2.1 (determination of product requirements)."
+            ),
+            rationale_zh=(
+                "ARTG納入是澳洲市場准入要求。ISO 13485未涉及產品登記。"
+                "最接近4.1（QMS）和7.2.1（產品要求確定）。"
+            ),
+            method=MappingMethod.OFFICIAL_CROSSREF,
+            confidence=0.90,
+            original_text=(
+                "Therapeutic Goods Act 1989: A person must not import, export, or supply "
+                "therapeutic goods unless the goods are included in the ARTG. "
+                "Inclusion requires evidence of conformity with applicable Essential Principles "
+                "and a quality management system certificate."
+            ),
+            original_lang="en",
+            english_translation="",
+            semantic_note=(
+                "Australia's ARTG is similar to EU CE marking + product registration combined. "
+                "It requires BOTH QMS certification (ISO 13485) AND product-level evidence "
+                "(Essential Principles = similar to EU Essential Requirements). "
+                "US FDA: 510(k)/PMA is product-focused, establishment registration is separate. "
+                "Canada: MDEL for establishment + device license for product. "
+                "Key difference: TGA's Essential Principles are heavily derived from EU Essential "
+                "Requirements, reflecting Australia's historical regulatory alignment with EU."
+            ),
+        ),
+        UniqueRequirement(
+            req_id="TGA-003",
+            regulation_ref="TG Act s.41C / Sponsor Requirements",
+            title_en="Australian Sponsor Obligations",
+            title_zh="澳洲贊助商義務",
+            requirement_en=(
+                "An Australian Sponsor (person or company resident in Australia) is required "
+                "for all therapeutic goods. The Sponsor bears legal responsibility for "
+                "compliance, adverse event reporting, recall management, and post-market "
+                "surveillance. Foreign manufacturers cannot directly register devices."
+            ),
+            requirement_zh=(
+                "所有治療用品需要澳洲贊助商（在澳洲居住的個人或公司）。"
+                "贊助商承擔合規、不良事件通報、召回管理和上市後監督的法律責任。"
+                "外國製造商不能直接登記器材。"
+            ),
+            related_iso_clauses=["5.5.1", "7.2.3", "8.2.3"],
+            audit_impact="major",
+            audit_question_en=(
+                "Is an Australian Sponsor appointed who fulfills all regulatory obligations "
+                "including adverse event reporting and recall management per TG Act s.41C?"
+            ),
+            audit_question_zh=(
+                "是否任命澳洲贊助商履行所有法規義務，"
+                "包括不良事件通報和召回管理？（TG Act s.41C）"
+            ),
+            expected_evidence=[
+                "Sponsor agreement / 贊助商合約",
+                "Sponsor registration with TGA / 贊助商TGA登記",
+                "Sponsor post-market surveillance plan / 贊助商上市後監督計畫",
+            ],
+            rationale_en=(
+                "Australian Sponsor is a TGA market access requirement with no ISO 13485 equivalent. "
+                "Closest to 5.5.1 (responsibility), 7.2.3 (communication), 8.2.3 (regulatory reporting). "
+                "Sponsor bears broader obligations than EU AR or US Agent."
+            ),
+            rationale_zh=(
+                "澳洲贊助商是TGA市場准入要求，ISO 13485無對應。"
+                "最接近5.5.1（責任）、7.2.3（溝通）、8.2.3（法規通報）。"
+                "贊助商承擔比EU授權代表或US代理人更廣泛的義務。"
+            ),
+            method=MappingMethod.OFFICIAL_CROSSREF,
+            confidence=0.90,
+            original_text=(
+                "Therapeutic Goods Act 1989 s.41C: The sponsor of therapeutic goods included "
+                "in the ARTG is responsible for ensuring the goods comply with all applicable "
+                "requirements, including adverse event reporting, recall procedures, and "
+                "post-market surveillance."
+            ),
+            original_lang="en",
+            english_translation="",
+            semantic_note=(
+                "Australia's Sponsor role is the BROADEST local representative requirement among MDSAP countries. "
+                "The Sponsor bears full legal liability including criminal penalties. "
+                "EU MDR Art 11 AR: ensures compliance, communication contact. "
+                "US FDA: US Agent is only a communication contact (very limited role). "
+                "Canada: MDEL holder. Japan: MAH holds marketing authorization. "
+                "Taiwan: Authorized representative holds the license. "
+                "Cross-country: Australia > Taiwan ≈ Japan > EU > Canada > US in terms of "
+                "local representative legal liability scope."
+            ),
+        ),
+    ]
+
+    return RegulationProfile(
+        regulation_id="TGA",
+        name_en="Australia TGA Therapeutic Goods Act 1989",
+        name_zh="澳洲 TGA 治療用品法 1989",
+        country="AU",
+        country_name_en="Australia",
+        country_name_zh="澳洲",
+        source="predefined",
+        source_url="https://www.legislation.gov.au/Details/C2021C00376",
+        last_updated="2023-07-01",
+        effective_date="1991-02-15",
+        iso_mapped=iso_mapped,
+        unique_requirements=unique_reqs,
+    )
+
+# ============================================================
 # Build predefined profiles (loaded once at import time)
 # ============================================================
 
@@ -2720,9 +3952,171 @@ def _init_predefined() -> None:
     PREDEFINED_REGULATIONS["QMSR"] = _build_qmsr_profile()
     PREDEFINED_REGULATIONS["EU_MDR"] = _build_eu_mdr_profile()
     PREDEFINED_REGULATIONS["TFDA"] = _build_tfda_profile()
+    PREDEFINED_REGULATIONS["HC"] = _build_hc_profile()
+    PREDEFINED_REGULATIONS["PMDA"] = _build_pmda_profile()
+    PREDEFINED_REGULATIONS["ANVISA"] = _build_anvisa_profile()
+    PREDEFINED_REGULATIONS["TGA"] = _build_tga_profile()
 
 
 _init_predefined()
+
+# ============================================================
+# Region ↔ Profile ID Mapping (for crawler → profile resolution)
+# ============================================================
+
+# Static mapping for predefined 7-country profiles.
+# Key: REGION_SITES key (from regulatory_crawler.py)
+# Value: PREDEFINED_REGULATIONS key
+_REGION_TO_PROFILE_STATIC: dict[str, str] = {
+    "台灣 (Taiwan)": "TFDA",
+    "美國 (USA)": "QMSR",
+    "歐盟 (EU)": "EU_MDR",
+    "加拿大 (Canada)": "HC",
+    "日本 (Japan)": "PMDA",
+    "巴西 (Brazil)": "ANVISA",
+    "澳洲 (Australia)": "TGA",
+}
+
+
+def get_profile_id_for_region(region_name: str) -> Optional[str]:
+    """Resolve a crawler region name to a RegulationProfile ID.
+
+    Checks in order:
+      1. Static mapping (predefined 7 countries)
+      2. Dynamically loaded crawled profiles (by country_name_zh match)
+      3. None if no profile exists yet
+
+    Args:
+        region_name: REGION_SITES key, e.g., "新加坡 (Singapore)"
+
+    Returns:
+        Profile ID (e.g., "TFDA", "SG_HSA") or None
+    """
+    # 1. Check static mapping first (predefined 7)
+    if region_name in _REGION_TO_PROFILE_STATIC:
+        return _REGION_TO_PROFILE_STATIC[region_name]
+
+    # 2. Check dynamically registered profiles (crawled / loaded)
+    #    Match by country_name_zh which contains the region display name
+    for profile_id, profile in PREDEFINED_REGULATIONS.items():
+        if profile_id in _REGION_TO_PROFILE_STATIC.values():
+            continue  # Skip predefined — already checked
+        # Match: region "新加坡 (Singapore)" → profile.country_name_zh "新加坡"
+        region_zh = region_name.split(" (")[0] if " (" in region_name else region_name
+        if profile.country_name_zh == region_zh:
+            return profile_id
+        # Also try matching by English name in parentheses
+        if "(" in region_name and ")" in region_name:
+            region_en = region_name.split("(")[1].rstrip(")")
+            if profile.country_name_en.lower() == region_en.lower():
+                return profile_id
+
+    return None
+
+
+def get_region_for_profile(profile_id: str) -> Optional[str]:
+    """Reverse lookup: profile ID → crawler region name.
+
+    Args:
+        profile_id: e.g., "TFDA", "SG_HSA"
+
+    Returns:
+        Region name (e.g., "台灣 (Taiwan)") or None
+    """
+    # 1. Check static reverse mapping
+    for region, pid in _REGION_TO_PROFILE_STATIC.items():
+        if pid == profile_id:
+            return region
+
+    # 2. Check dynamically registered profiles
+    profile = PREDEFINED_REGULATIONS.get(profile_id)
+    if profile:
+        # Reconstruct region name format: "{zh_name} ({en_name})"
+        return f"{profile.country_name_zh} ({profile.country_name_en})"
+
+    return None
+
+
+def get_profile_ids_for_regions(region_names: list[str]) -> list[str]:
+    """Resolve a list of crawler region names to profile IDs.
+
+    Only returns IDs for regions that have a registered profile.
+    Regions without profiles are silently skipped.
+
+    Args:
+        region_names: List of REGION_SITES keys
+
+    Returns:
+        List of profile IDs (may be shorter than input)
+    """
+    result = []
+    for region in region_names:
+        pid = get_profile_id_for_region(region)
+        if pid:
+            result.append(pid)
+    return result
+
+
+def get_regions_without_profile(region_names: list[str]) -> list[str]:
+    """Find regions that do NOT have a registered RegulationProfile.
+
+    These regions need LLM analysis to generate a profile.
+
+    Args:
+        region_names: List of REGION_SITES keys
+
+    Returns:
+        List of region names that lack a profile
+    """
+    return [r for r in region_names if get_profile_id_for_region(r) is None]
+
+
+def generate_profile_id_from_region(region_name: str) -> str:
+    """Generate a regulation_id for a new country based on its region name.
+
+    Convention: {ISO2_COUNTRY_CODE}_{PRIMARY_AGENCY}
+    Fallback:   {EN_NAME_UPPER} if country code unknown
+
+    Examples:
+        "新加坡 (Singapore)" → "SG_HSA"
+        "韓國 (Korea)" → "KR_MFDS"
+        "印度 (India)" → "IN_CDSCO"
+    """
+    # Known country code + primary agency mapping
+    _REGION_TO_ID: dict[str, str] = {
+        "英國 (UK)": "UK_MHRA",
+        "中國 (China)": "CN_NMPA",
+        "韓國 (Korea)": "KR_MFDS",
+        "瑞士 (Switzerland)": "CH_SWISSMEDIC",
+        "國際標準 (International)": "INTL_STD",
+        "印度 (India)": "IN_CDSCO",
+        "新加坡 (Singapore)": "SG_HSA",
+        "沙烏地阿拉伯 (Saudi Arabia)": "SA_SFDA",
+        "泰國 (Thailand)": "TH_FDA",
+        "紐西蘭 (New Zealand)": "NZ_MEDSAFE",
+        "墨西哥 (Mexico)": "MX_COFEPRIS",
+        "阿根廷 (Argentina)": "AR_ANMAT",
+        "南非 (South Africa)": "ZA_SAHPRA",
+        "土耳其 (Turkey)": "TR_TITCK",
+        "印尼 (Indonesia)": "ID_BPOM",
+        "馬來西亞 (Malaysia)": "MY_MDA",
+        "以色列 (Israel)": "IL_AMAR",
+        "菲律賓 (Philippines)": "PH_FDA",
+        "越南 (Vietnam)": "VN_MOH",
+        "哥倫比亞 (Colombia)": "CO_INVIMA",
+        "俄羅斯 (Russia)": "RU_ROSZDRAVNADZOR",
+        "埃及 (Egypt)": "EG_EDA",
+        "智利 (Chile)": "CL_ISP",
+        "阿聯酋 (UAE)": "AE_MOHAP",
+    }
+    if region_name in _REGION_TO_ID:
+        return _REGION_TO_ID[region_name]
+
+    # Fallback: extract English name and uppercase
+    if "(" in region_name and ")" in region_name:
+        en_name = region_name.split("(")[1].rstrip(")")
+        return en_name.upper().replace(" ", "_")
+    return region_name.upper().replace(" ", "_")
 
 
 # ============================================================
@@ -3895,3 +5289,19 @@ def map_unique_to_iso_clause(
         matched_clauses,
         key=lambda x: [int(n) for n in x.split(".")],
     )
+
+
+# ============================================================
+# Auto-load crawled regulation profiles at import time
+# ============================================================
+# Must be at END of file because load_all_crawled_regulations()
+# is defined after _init_predefined() and the mapping helpers.
+try:
+    _loaded_crawled = load_all_crawled_regulations()
+    if _loaded_crawled > 0:
+        import logging as _logging
+        _logging.getLogger(__name__).info(
+            f"Loaded {_loaded_crawled} crawled regulation profile(s) from disk"
+        )
+except Exception:
+    pass  # Non-critical — predefined profiles still available

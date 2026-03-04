@@ -335,8 +335,9 @@ def detect_obsolete(
         lang=lang,
     )
 
-    # Threshold: suspect obsolete when confidence >= 0.40
-    is_suspected = confidence >= 0.40
+    # Threshold: list ALL non-zero results for user confirmation
+    # Requirement: 只要檢測結果機率不為0都列出來讓使用者確認
+    is_suspected = confidence > 0.0
 
     return {
         "is_suspected_obsolete": is_suspected,

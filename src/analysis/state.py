@@ -131,6 +131,7 @@ class PauseReason(str, Enum):
     LLM_BUDGET_EXCEEDED = "llm_budget_exceeded"  # Token budget hit
     USER_REQUESTED = "user_requested"  # Manual pause
     STEP_MODE_COMPLETE = "step_mode_complete"  # Step-by-step phase done
+    ALL_EVIDENCE_MISSING = "all_evidence_missing"  # Phase 1 found zero evidence across all rows
 
 
 # ============================================================
@@ -299,9 +300,21 @@ class LLMBudget:
     """Tracks LLM token usage against a configurable upper limit."""
 
     max_total_tokens: int = 500_000  # Default upper limit
+    max_time_seconds: int = 600  # Default 10 minute time limit
     prompt_tokens_used: int = 0
     completion_tokens_used: int = 0
     calls_made: int = 0
+    start_time: float = 0.0  # Set when pipeline starts
+
+    def __post_init__(self):
+        import time
+        if self.start_time == 0.0:
+            self.start_time = time.time()
+
+    def start_timer(self):
+        """Reset the start time for time-based budget tracking."""
+        import time
+        self.start_time = time.time()
 
     @property
     def total_tokens_used(self) -> int:
@@ -313,7 +326,10 @@ class LLMBudget:
 
     @property
     def exceeded(self) -> bool:
-        return self.total_tokens_used >= self.max_total_tokens
+        import time
+        token_exceeded = self.total_tokens_used >= self.max_total_tokens
+        time_exceeded = (time.time() - self.start_time) >= self.max_time_seconds if self.start_time > 0 else False
+        return token_exceeded or time_exceeded
 
     @property
     def usage_percent(self) -> float:
@@ -330,6 +346,7 @@ class LLMBudget:
     def to_dict(self) -> dict:
         return {
             "max_total_tokens": self.max_total_tokens,
+            "max_time_seconds": self.max_time_seconds,
             "prompt_tokens_used": self.prompt_tokens_used,
             "completion_tokens_used": self.completion_tokens_used,
             "total_tokens_used": self.total_tokens_used,
@@ -343,6 +360,7 @@ class LLMBudget:
     def from_dict(cls, data: dict) -> "LLMBudget":
         return cls(
             max_total_tokens=data.get("max_total_tokens", 500_000),
+            max_time_seconds=data.get("max_time_seconds", 600),
             prompt_tokens_used=data.get("prompt_tokens_used", 0),
             completion_tokens_used=data.get("completion_tokens_used", 0),
             calls_made=data.get("calls_made", 0),

@@ -202,7 +202,7 @@
   "welcome.doc_control.doc_count": "📊 Documenti: {count}/{limit}",
   "welcome.doc_control.formats": "Formati supportati: PDF, Word, Excel, PowerPoint, Immagini, File di testo",
   "welcome.doc_control.greeting": "Buongiorno, sono Eira. Benvenuto nel sistema di controllo documenti. Eira può assisterla nel caricamento dei documenti, nell'elaborazione OCR, nella gestione delle versioni, nel rilevamento delle firme e nella gestione delle tracce di audit.",
-  "welcome.doc_control.instructions": "**Come utilizzare:**\n• **Caricare file** → Trascinare e rilasciare o cliccare su carica nella chat\n• **Lista documenti** → Versioni formali attuali (con pulsanti di esportazione Word/Excel)\n• **Lista** → Tutti i record (incl. aggiornamenti, obsoleti) (con pulsanti di esportazione Word/Excel)\n• **Cerca parola chiave** → Cercare nel contenuto dei documenti\n• **Download ID_doc** → Scaricare file originale\n• **Obsoleto ID_doc** → Rendere un documento obsoleto\n• **Traccia di audit** → Visualizzare i record delle operazioni\n• **Lista normativa** → Standard di riferimento (con pulsanti di esportazione Word/Excel)\n• **Aggiornamento normativo** → Scansione siti normativi globali (con pulsanti Word/Excel)\n• **Scarica aggiornamento normativo word/excel** → Esporta rapporto\n• **Download normativa word/excel** → Esportare standard\n• **Elimina database** → Eliminare tutti i documenti (conferma richiesta)\n• **/web parola chiave** → Ricerca web (es: /web ultima versione ISO 13485)\n• **Stato** → Mostra stato del sistema\n• **Aiuto** → Mostrare la guida completa",
+  "welcome.doc_control.instructions": "**Come utilizzare:**\n• **Caricare file** → Trascinare e rilasciare o cliccare su carica nella chat\n• **Lista documenti** → Versioni formali attuali (con pulsanti di esportazione Word/Excel)\n• **Lista** → Tutti i record (incl. aggiornamenti, obsoleti) (con pulsanti di esportazione Word/Excel)\n• **Cerca parola chiave** → Cercare nel contenuto dei documenti\n• **Download ID_doc** → Scaricare moduli (⚠️ Solo moduli livello 4; livelli 1-3 solo consultazione online)\n• **Visualizza ID_doc** → Visualizza online (tutti i livelli; opzione filigrana)\n• **Obsoleto ID_doc** → Rendere un documento obsoleto\n• **Traccia di audit** → Visualizzare i record delle operazioni\n• **Lista normativa** → Standard di riferimento (con pulsanti di esportazione Word/Excel)\n• **Aggiornamento normativo** → Scansione siti normativi globali (con pulsanti Word/Excel)\n• **Scarica aggiornamento normativo word/excel** → Esporta rapporto\n• **Download normativa word/excel** → Esportare standard\n• **Elimina database** → Eliminare tutti i documenti (conferma richiesta)\n• **/web parola chiave** → Ricerca web (es: /web ultima versione ISO 13485)\n• **Stato** → Mostra stato del sistema\n• **Aiuto** → Mostrare la guida completa",
   "welcome.doc_control.title": "📄 **TMBIA-Tmti AI-QMS Controllo Documenti (Eira)**",
   "welcome.main.greeting": "Buongiorno, sono Eira. Benvenuto nel sistema di gestione qualità assistito da IA. Eira può assisterla nella revisione dei documenti di qualità, nella valutazione della conformità normativa dei dispositivi medici e nella ricerca e analisi degli standard normativi.",
   "welcome.main.instructions": "**Sottosistemi:**\n• 📄 **Controllo documenti** — Upload, OCR, gestione versioni, rilevamento firma, traccia di audit, esportazione\n• 🔍 **Gestione audit** — CAPA, audit interno, gestione non conformità (Phase 2 pianificato)\n\n**Generale:** Stato · /web ricerca · Aiuto · Chiedi direttamente",
@@ -283,5 +283,12 @@
   ],
   "source_label.regulatory_list": "Elenco normativo",
   "source_label.regulatory_update": "Aggiornamento elenco normativo",
-  "source_label.source": "Comando sorgente"
+  "source_label.source": "Comando sorgente",
+  "_commands.cmd.view_file": [
+    "visualizza online",
+    "visualizza",
+    "anteprima"
+  ],
+  "view.specify": "Eira: 📖 Please specify the document ID to view. {count} document(s) available:",
+  "view.example": "💡 Usage: **view QP-001**"
 }

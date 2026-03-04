@@ -202,7 +202,7 @@
   "welcome.doc_control.doc_count": "📊 Documents : {count}/{limit}",
   "welcome.doc_control.formats": "Formats pris en charge : PDF, Word, Excel, PowerPoint, Images, Fichiers texte",
   "welcome.doc_control.greeting": "Bonjour, je suis Eira. Bienvenue dans le système de contrôle documentaire. Eira peut vous assister dans le téléversement de documents, le traitement OCR, la gestion des versions, la détection des signatures et la gestion des pistes d'audit.",
-  "welcome.doc_control.instructions": "**Comment utiliser :**\n• **Liste des documents** → Versions formelles actuelles (avec boutons d'export Word/Excel)\n• **Liste** → Tous les enregistrements (mises à jour, obsolètes inclus) (avec boutons d'export Word/Excel)\n• **Rechercher mot-clé** → Rechercher dans le contenu des documents\n• **Obsolète ID_doc** → Rendre un document obsolète\n• **Piste d'audit** → Voir les enregistrements d'opérations\n• **Liste réglementaire** → Normes référencées (avec boutons d'export Word/Excel)\n• **Mise à jour réglementaire** → Explorer les sites réglementaires mondiaux (avec boutons export Word/Excel)\n• **Supprimer base de données** → Supprimer tous les documents (confirmation requise)\n• **/web mot-clé** → Recherche web (ex : /web dernière version ISO 13485)\n• **État** → Afficher l'état du système\n• **Aide** → Afficher le guide complet",
+  "welcome.doc_control.instructions": "**Comment utiliser :**\n• **Télécharger des fichiers** → Glisser-déposer ou cliquer dans le chat\n• **Télécharger ID_doc** → Télécharger les formulaires (⚠️ Niveau 4 uniquement; niveaux 1-3 consultation en ligne seulement)\n• **Consulter ID_doc** → Consulter en ligne (tous niveaux; option filigrane)\n• **Liste des documents** → Versions formelles actuelles (avec boutons d'export Word/Excel)\n• **Liste** → Tous les enregistrements (mises à jour, obsolètes inclus) (avec boutons d'export Word/Excel)\n• **Rechercher mot-clé** → Rechercher dans le contenu des documents\n• **Obsolète ID_doc** → Rendre un document obsolète\n• **Piste d'audit** → Voir les enregistrements d'opérations\n• **Liste réglementaire** → Normes référencées (avec boutons d'export Word/Excel)\n• **Mise à jour réglementaire** → Explorer les sites réglementaires mondiaux (avec boutons export Word/Excel)\n• **Supprimer base de données** → Supprimer tous les documents (confirmation requise)\n• **/web mot-clé** → Recherche web (ex : /web dernière version ISO 13485)\n• **État** → Afficher l'état du système\n• **Aide** → Afficher le guide complet",
   "welcome.doc_control.title": "📄 **TMBIA-Tmti AI-QMS Contrôle Documentaire (Eira)**",
   "welcome.main.greeting": "Bonjour, je suis Eira. Bienvenue dans le système d'assistance qualité par IA. Eira peut vous aider dans la revue des documents qualité, l'évaluation de la conformité réglementaire des dispositifs médicaux, ainsi que la recherche et l'analyse des normes réglementaires.",
   "welcome.main.instructions": "**Sous-systèmes :**\n• 📄 **Contrôle documentaire** — Upload, OCR, gestion des versions, détection de signature, piste d'audit, export\n• 🔍 **Gestion des audits** — CAPA, audit interne, gestion des non-conformités (Phase 2 prévu)\n\n**Général :** État · /web recherche · Aide · Poser une question",
@@ -283,5 +283,12 @@
   ],
   "source_label.regulatory_list": "Liste réglementaire",
   "source_label.regulatory_update": "Mise à jour de la liste réglementaire",
-  "source_label.source": "Commande source"
+  "source_label.source": "Commande source",
+  "_commands.cmd.view_file": [
+    "consulter",
+    "aperçu",
+    "voir en ligne"
+  ],
+  "view.specify": "Eira: 📖 Please specify the document ID to view. {count} document(s) available:",
+  "view.example": "💡 Usage: **view QP-001**"
 }

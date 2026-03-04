@@ -359,6 +359,10 @@ class AnalysisPipeline:
                 if self._should_stop_after_phase():
                     return self._state
 
+            # Sanity check: all evidence missing after Phase 1?
+            if self._check_all_evidence_missing():
+                return self._state
+
             # Phase 2: Checklist Verification (LLM)
             if not self._skip_phase_in_mode(Phase.CHECKLIST_VERIFY):
                 if not self._phase_already_done(Phase.CHECKLIST_VERIFY):
@@ -544,8 +548,8 @@ class AnalysisPipeline:
                 rows=rows,
                 state=self._state,
                 llm_completion_fn=self._llm_fn,
+                model=self._model,
                 run_id=self._state.run_id,
-                lang=self._lang,
             )
             for row in rows:
                 row.set_phase_result(Phase.GAP_SCAN, result)
@@ -574,8 +578,8 @@ class AnalysisPipeline:
                 rows=rows,
                 state=self._state,
                 llm_completion_fn=self._llm_fn,
+                model=self._model,
                 run_id=self._state.run_id,
-                lang=self._lang,
             )
             for row in rows:
                 row.set_phase_result(Phase.CHECKLIST_VERIFY, result)
@@ -688,8 +692,8 @@ class AnalysisPipeline:
                 rows=rows,
                 state=self._state,
                 llm_completion_fn=self._llm_fn,
+                model=self._model,
                 run_id=self._state.run_id,
-                lang=self._lang,
             )
             for row in rows:
                 row.set_phase_result(Phase.REMEDIATION, result)
@@ -743,7 +747,6 @@ class AnalysisPipeline:
                 model=self._model,
                 selected_regulations=self._selected_regulations,
                 run_id=self._state.run_id,
-                lang=self._lang,
             )
             return (doc_id, rows, result)
 
@@ -860,7 +863,7 @@ class AnalysisPipeline:
 
         elif phase == Phase.GAP_SCAN:
             result = run_gap_scan_row(
-                row, self._state, self._llm_fn, self._model, lang=self._lang
+                row, self._state, self._llm_fn, self._model
             )
             row.set_phase_result(Phase.GAP_SCAN, result)
             if result.status == PhaseStatus.COMPLETED.value:
@@ -868,7 +871,7 @@ class AnalysisPipeline:
 
         elif phase == Phase.CHECKLIST_VERIFY:
             result = run_checklist_verify_row(
-                row, self._state, self._llm_fn, self._model, lang=self._lang
+                row, self._state, self._llm_fn, self._model
             )
             row.set_phase_result(Phase.CHECKLIST_VERIFY, result)
             if result.status == PhaseStatus.COMPLETED.value:
@@ -882,7 +885,7 @@ class AnalysisPipeline:
 
         elif phase == Phase.REMEDIATION:
             result = run_remediation_row(
-                row, self._state, self._llm_fn, self._model, lang=self._lang
+                row, self._state, self._llm_fn, self._model
             )
             row.set_phase_result(Phase.REMEDIATION, result)
             if result.status in (
@@ -899,7 +902,6 @@ class AnalysisPipeline:
                 self._model,
                 selected_regulations=self._selected_regulations,
                 run_id=self._state.run_id,
-                lang=self._lang,
             )
             row.set_phase_result(Phase.VERIFICATION, result)
             if result.status in (
@@ -1002,6 +1004,59 @@ class AnalysisPipeline:
 
         return False
 
+    def _check_all_evidence_missing(self) -> bool:
+        """Post-Phase 1 sanity check: if ALL evidence items are 'not found',
+        something is likely wrong (bad model, empty docs, prompt failure).
+
+        Auto-pauses the pipeline so the user can investigate rather than
+        wasting LLM tokens on subsequent phases that will produce empty results.
+
+        Returns True if pipeline was paused.
+        """
+        from src.analysis.state import EvidenceItem
+
+        rows = self._state.get_all_rows()
+        rows_with_evidence = [r for r in rows if r.evidence_items]
+
+        if not rows_with_evidence:
+            # No evidence items at all — Phase 1 may have been skipped entirely
+            return False
+
+        total_items = 0
+        found_items = 0
+        for r in rows_with_evidence:
+            for e_dict in r.evidence_items:
+                total_items += 1
+                ei = EvidenceItem.from_dict(e_dict)
+                if ei.found:
+                    found_items += 1
+
+        if total_items == 0:
+            return False
+
+        if found_items == 0:
+            logger.warning(
+                "Phase 1 sanity check FAILED: 0/%d evidence items found across "
+                "%d rows — auto-pausing. Possible causes: wrong model, empty docs, "
+                "LLM prompt failure.",
+                total_items,
+                len(rows_with_evidence),
+            )
+            self.pause(PauseReason.ALL_EVIDENCE_MISSING)
+            return True
+
+        # Also warn (but don't pause) if found ratio is extremely low (< 5%)
+        found_ratio = found_items / total_items
+        if found_ratio < 0.05:
+            logger.warning(
+                "Phase 1 sanity check WARNING: only %d/%d (%.1f%%) evidence items found. "
+                "Results may be unreliable.",
+                found_items,
+                total_items,
+                found_ratio * 100,
+            )
+
+        return False
     def _advance_global_phase(self, next_phase: Phase) -> None:
         """Advance the global pipeline phase."""
         self._state.current_phase = next_phase.value

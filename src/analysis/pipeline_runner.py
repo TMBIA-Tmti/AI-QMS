@@ -153,6 +153,7 @@ async def _send_progress(
     phase: Phase,
     status: str,
     detail: str = "",
+    progress_pct: float | None = None,
 ) -> None:
     """Send a progress message via Chainlit (or any async callback)."""
     if msg_fn is None:
@@ -160,23 +161,24 @@ async def _send_progress(
 
     icon = _PHASE_ICONS.get(phase, "📋")
     phase_name = phase.display_name
+    pct_str = f" [{progress_pct:.0f}%]" if progress_pct is not None else ""
 
     if status == "start":
-        text = f"{icon} **{phase_name}** 執行中..."
+        text = f"{icon} **{phase_name}** 執行中...{pct_str}"
     elif status == "done":
-        text = f"{icon} **{phase_name}** ✅ 完成"
+        text = f"{icon} **{phase_name}** ✅ 完成{pct_str}"
         if detail:
             text += f" — {detail}"
     elif status == "skip":
-        text = f"{icon} **{phase_name}** ⏭️ 跳過"
+        text = f"{icon} **{phase_name}** ⏭️ 跳過{pct_str}"
         if detail:
             text += f" — {detail}"
     elif status == "fail":
-        text = f"{icon} **{phase_name}** ❌ 失敗"
+        text = f"{icon} **{phase_name}** ❌ 失敗{pct_str}"
         if detail:
             text += f" — {detail}"
     else:
-        text = f"{icon} **{phase_name}** {detail}"
+        text = f"{icon} **{phase_name}** {detail}{pct_str}"
 
     try:
         await msg_fn(text)
@@ -249,15 +251,16 @@ async def run_pipeline_analysis(
         # Set up callbacks for progress reporting
         async def on_phase_complete(phase: Phase, state: PipelineState) -> None:
             rows = state.get_all_rows()
+            pct = state.progress_percent
             if phase == Phase.DATA_QUALITY:
                 dq = state.data_quality_summary or {}
                 detail = (
                     f"{dq.get('rows_with_doc_content', 0)}/{dq.get('total_rows', 0)} "
                     f"項資料可用"
                 )
-                await _send_progress(send_message_fn, phase, "done", detail)
+                await _send_progress(send_message_fn, phase, "done", detail, pct)
             elif phase == Phase.REFERENCE_MAPPING:
-                await _send_progress(send_message_fn, phase, "done")
+                await _send_progress(send_message_fn, phase, "done", progress_pct=pct)
             elif phase == Phase.GAP_SCAN:
                 found = sum(
                     1
@@ -266,10 +269,10 @@ async def run_pipeline_analysis(
                     == "completed"
                 )
                 await _send_progress(
-                    send_message_fn, phase, "done", f"{found} 項完成證據搜尋"
+                    send_message_fn, phase, "done", f"{found} 項完成證據搜尋", pct
                 )
             elif phase == Phase.CHECKLIST_VERIFY:
-                await _send_progress(send_message_fn, phase, "done")
+                await _send_progress(send_message_fn, phase, "done", progress_pct=pct)
             elif phase == Phase.RISK_ASSESSMENT:
                 # Count verdicts
                 verdicts: dict[str, int] = {}
@@ -280,19 +283,19 @@ async def run_pipeline_analysis(
                 partial = verdicts.get(Verdict.PARTIAL_COMPLIANCE, 0)
                 full = verdicts.get(Verdict.FULL_COMPLIANCE, 0)
                 detail = f"✅ {full} | ⚠️ {partial} | ❌ {non_compliant}"
-                await _send_progress(send_message_fn, phase, "done", detail)
+                await _send_progress(send_message_fn, phase, "done", detail, pct)
             elif phase == Phase.REMEDIATION:
-                await _send_progress(send_message_fn, phase, "done")
+                await _send_progress(send_message_fn, phase, "done", progress_pct=pct)
             elif phase == Phase.VERIFICATION:
                 flagged = sum(1 for r in rows if r.flagged_for_ra)
                 detail = f"{flagged} 項需 RA 審查" if flagged else "所有項目驗證通過"
-                await _send_progress(send_message_fn, phase, "done", detail)
+                await _send_progress(send_message_fn, phase, "done", detail, pct)
             elif phase == Phase.SOURCE_CHECK:
                 sc = state.source_check_summary or {}
                 detail = (
                     f"{sc.get('accessible', 0)} 可存取 / {sc.get('broken', 0)} 失效"
                 )
-                await _send_progress(send_message_fn, phase, "done", detail)
+                await _send_progress(send_message_fn, phase, "done", detail, pct)
 
         # Sync callback wrapper for the pipeline (pipeline is sync, callbacks are async)
         # We need to bridge sync → async

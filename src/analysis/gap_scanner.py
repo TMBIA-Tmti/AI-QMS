@@ -311,6 +311,14 @@ def run_gap_scan_row(
         usage = response.get("usage", {})
         llm_model = response.get("model", model)
 
+        # 檢測 LLM 錯誤回應
+        if not response_text or response_text.startswith("[ERROR]") or response.get("all_failed"):
+            error_detail = response_text[:200] if response_text else "LLM 回應為空"
+            phase_result.status = PhaseStatus.FAILED.value
+            phase_result.error = f"LLM 呼叫失敗: {error_detail}"
+            phase_result.completed_at = time.time()
+            return phase_result
+
         # Track budget
         budget.record_usage(usage)
         state.update_budget(budget)
@@ -606,6 +614,20 @@ def run_gap_scan_document(
         response_text = response.get("content", "")
         usage = response.get("usage", {})
         llm_model = response.get("model", model)
+
+        # 檢測 LLM 錯誤回應
+        if not response_text or response_text.startswith("[ERROR]") or response.get("all_failed"):
+            error_detail = response_text[:200] if response_text else "LLM 回應為空"
+            phase_result.status = PhaseStatus.FAILED.value
+            phase_result.error = f"LLM 呼叫失敗: {error_detail}"
+            phase_result.completed_at = time.time()
+            _emit_pipeline_event(run_id, {
+                "type": "phase_1_error",
+                "phase": "gap_scan",
+                "doc_id": doc_id,
+                "error": f"LLM 呼叫失敗: {error_detail}",
+            })
+            return phase_result
 
         # Track budget
         budget.record_usage(usage)

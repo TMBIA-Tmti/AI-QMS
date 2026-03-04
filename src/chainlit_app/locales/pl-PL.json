@@ -202,7 +202,7 @@
   "welcome.doc_control.doc_count": "📊 Dokumenty: {count}/{limit}",
   "welcome.doc_control.formats": "Obsługiwane formaty: PDF, Word, Excel, PowerPoint, Obrazy, Pliki tekstowe",
   "welcome.doc_control.greeting": "Dzień dobry, jestem Eira. Witamy w systemie kontroli dokumentów. Eira może pomóc w przesyłaniu dokumentów, przetwarzaniu OCR, zarządzaniu wersjami, wykrywaniu podpisów i zarządzaniu śladami audytowymi.",
-  "welcome.doc_control.instructions": "**Jak używać:**\n• **Prześlij pliki** → Przeciągnij i upuść lub kliknij prześlij na czacie\n• **Lista dokumentów** → Bieżące wersje formalne (z przyciskami eksportu Word/Excel)\n• **Lista** → Wszystkie rekordy (wł. aktualizacje, przestarzałe) (z przyciskami eksportu Word/Excel)\n• **Szukaj słowo kluczowe** → Szukaj w treści dokumentów\n• **Pobierz id_dok** → Pobierz oryginalny plik\n• **Przestarzałe id_dok** → Oznacz dokument jako przestarzały\n• **Ścieżka audytu** → Zobacz rekordy operacji (z przyciskami eksportu Word/Excel)\n• **Lista regulacyjna** → Standardy referencyjne (z przyciskami eksportu Word/Excel)\n• **Aktualizacja regulacji** → Skanuj globalne strony regulacyjne (z przyciskami eksportu Word/Excel)\n• **Pobierz aktualizację regulacji word/excel** → Eksportuj raport\n• **Usuń bazę danych** → Usuń wszystkie dokumenty (wymagane potwierdzenie)\n• **Status** → Pokaż status systemu\n• **Pomoc** → Pokaż pełny przewodnik",
+  "welcome.doc_control.instructions": "**Jak używać:**\n• **Prześlij pliki** → Przeciągnij i upuść lub kliknij prześlij na czacie\n• **Lista dokumentów** → Bieżące wersje formalne (z przyciskami eksportu Word/Excel)\n• **Lista** → Wszystkie rekordy (wł. aktualizacje, przestarzałe) (z przyciskami eksportu Word/Excel)\n• **Szukaj słowo kluczowe** → Szukaj w treści dokumentów\n• **Pobierz id_dok** → Pobierz formularze (⚠️ Tylko formularze poziomu 4; poziomy 1-3 tylko podgląd online)\n• **Podgląd ID_dok** → Podgląd online (wszystkie poziomy; opcja znaku wodnego)\n• **Przestarzałe id_dok** → Oznacz dokument jako przestarzały\n• **Ścieżka audytu** → Zobacz rekordy operacji (z przyciskami eksportu Word/Excel)\n• **Lista regulacyjna** → Standardy referencyjne (z przyciskami eksportu Word/Excel)\n• **Aktualizacja regulacji** → Skanuj globalne strony regulacyjne (z przyciskami eksportu Word/Excel)\n• **Pobierz aktualizację regulacji word/excel** → Eksportuj raport\n• **Usuń bazę danych** → Usuń wszystkie dokumenty (wymagane potwierdzenie)\n• **Status** → Pokaż status systemu\n• **Pomoc** → Pokaż pełny przewodnik",
   "welcome.doc_control.title": "📄 **TMBIA-Tmti AI-QMS Kontrola Dokumentów (Eira)**",
   "welcome.main.greeting": "Dzień dobry, jestem Eira. Witamy w systemie zarządzania jakością wspomaganym przez AI. Eira może pomóc w przeglądzie dokumentów jakościowych, ocenie zgodności z przepisami dotyczącymi wyrobów medycznych oraz wyszukiwaniu i analizie norm regulacyjnych.",
   "welcome.main.instructions": "**Podsystemy:**\n• 📄 **Kontrola dokumentów** — Upload, OCR, zarządzanie wersjami, wykrywanie podpisów, ścieżka audytu, eksport\n• 🔍 **Zarządzanie audytem** — CAPA, audyt wewnętrzny, zarządzanie niezgodnościami (Phase 2 planowany)\n\n**Ogólne:** Status · /web wyszukiwanie · Pomoc · Zapytaj bezpośrednio",
@@ -282,5 +282,12 @@
   ],
   "source_label.regulatory_list": "Lista regulacyjna",
   "source_label.regulatory_update": "Aktualizacja listy regulacyjnej",
-  "source_label.source": "Polecenie źródłowe"
+  "source_label.source": "Polecenie źródłowe",
+  "_commands.cmd.view_file": [
+    "podgląd online",
+    "podgląd",
+    "wyświetl"
+  ],
+  "view.specify": "Eira: 📖 Please specify the document ID to view. {count} document(s) available:",
+  "view.example": "💡 Usage: **view QP-001**"
 }

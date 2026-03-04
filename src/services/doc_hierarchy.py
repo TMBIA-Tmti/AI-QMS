@@ -18,7 +18,9 @@ Each hierarchy level has:
 """
 
 import json
+import logging
 import os
+import re
 import threading
 from datetime import datetime
 from pathlib import Path
@@ -423,3 +425,111 @@ def get_doc_hierarchy() -> DocHierarchyManager:
             if _instance is None:
                 _instance = DocHierarchyManager()
     return _instance
+
+
+# ============================================================
+# LLM-based Document Hierarchy Classification
+# ============================================================
+
+_classify_logger = logging.getLogger(__name__)
+
+_CLASSIFY_SYSTEM_PROMPT = (
+    "You are a medical device QMS document classifier. "
+    "Given a document's filename and content excerpt, classify it into one of these hierarchy levels:\n"
+    "- L1: Quality Manual (品質手冊) — Top-level QMS policy document\n"
+    "- L2: Procedure (程序書/SOP) — Standard operating procedures\n"
+    "- L3: Work Instruction (作業指導書/WI) — Detailed work instructions or design history\n"
+    "- L4: Form (表單) — Forms, templates, checklists, records\n"
+    "- REG: External Regulation (外來法規文件) — External standards, regulations, laws\n"
+    "- OTHER: Other — Does not fit above categories\n\n"
+    "Respond in JSON only: {\"level_id\": \"L2\", \"confidence\": 0.85, \"reasoning\": \"brief reason\"}"
+)
+
+
+def classify_document_hierarchy_llm(
+    content: str,
+    filename: str,
+    llm_completion_fn,
+    model: str = "default",
+    lang: str = "zh-TW",
+) -> dict:
+    """Classify a document's hierarchy level using LLM analysis.
+
+    Uses the LLM to analyze document content and filename to determine
+    which QMS hierarchy level (L1-L4, REG, OTHER) the document belongs to.
+
+    Args:
+        content: Document text content (will be truncated to ~2000 chars).
+        filename: Original filename of the document.
+        llm_completion_fn: LLM completion function (sync).
+        model: LLM model name.
+        lang: UI language code.
+
+    Returns:
+        dict with keys:
+          - level_id: str — one of L1, L2, L3, L4, REG, OTHER
+          - confidence: float — 0.0 to 1.0
+          - reasoning: str — brief explanation
+    """
+    fallback = {"level_id": "OTHER", "confidence": 0.0, "reasoning": "Classification failed"}
+
+    if not content or not content.strip():
+        return {"level_id": "OTHER", "confidence": 0.0, "reasoning": "Empty content"}
+
+    # Truncate content to avoid token overflow
+    excerpt = content[:2000]
+    if len(content) > 2000:
+        excerpt += "\n... (truncated)"
+
+    user_prompt = (
+        f"Filename: {filename}\n\n"
+        f"Content excerpt:\n{excerpt}\n\n"
+        f"Classify this document into one of: L1, L2, L3, L4, REG, OTHER.\n"
+        f"Respond in JSON only."
+    )
+
+    try:
+        response = llm_completion_fn(
+            messages=[
+                {"role": "system", "content": _CLASSIFY_SYSTEM_PROMPT},
+                {"role": "user", "content": user_prompt},
+            ],
+            model=model,
+            temperature=0.2,
+            max_tokens=300,
+            stream=False,
+        )
+
+        response_text = response.get("content", "")
+        if not response_text:
+            return fallback
+
+        # Extract JSON from response
+        json_match = re.search(r"\{[^}]+\}", response_text)
+        if json_match:
+            parsed = json.loads(json_match.group())
+        else:
+            parsed = json.loads(response_text)
+
+        level_id = parsed.get("level_id", "OTHER")
+        # Validate level_id
+        valid_ids = {"L1", "L2", "L3", "L4", "REG", "OTHER"}
+        if level_id not in valid_ids:
+            level_id = "OTHER"
+
+        confidence = float(parsed.get("confidence", 0.5))
+        confidence = max(0.0, min(1.0, confidence))
+        reasoning = str(parsed.get("reasoning", ""))[:500]
+
+        return {
+            "level_id": level_id,
+            "confidence": round(confidence, 2),
+            "reasoning": reasoning,
+        }
+
+    except (json.JSONDecodeError, ValueError, KeyError) as e:
+        _classify_logger.warning("LLM hierarchy classification parse error: %s", e)
+        return fallback
+    except Exception as e:
+        _classify_logger.warning("LLM hierarchy classification failed: %s", e)
+        return fallback
