@@ -242,6 +242,7 @@ def run_gap_scan_row(
     model: str = "default",
     temperature: float = 0.1,
     max_tokens: int = 4096,
+    lang: str = "zh-TW",
 ) -> PhaseResult:
     """Execute Phase 1 gap scan for a single row.
 
@@ -354,6 +355,7 @@ def _emit_pipeline_event(run_id: str, event: dict) -> None:
         return
     try:
         from src.analysis.report_api import emit_cross_exam_event
+
         emit_cross_exam_event(run_id, event)
     except ImportError:
         pass
@@ -453,16 +455,18 @@ def _parse_doc_gap_scan_response(
             evidence_list = clause_data.get("evidence_results", [])
             items: list[EvidenceItem] = []
             for r in evidence_list:
-                items.append(EvidenceItem(
-                    evidence_name=r.get("evidence_name", ""),
-                    found=bool(r.get("found", False)),
-                    source_section=r.get("source_section"),
-                    source_quote=r.get("source_quote"),
-                    relevance_score=r.get("relevance_score"),
-                    is_inadequate=bool(r.get("is_inadequate", False)),
-                    is_outdated=bool(r.get("is_outdated", False)),
-                    llm_reasoning=r.get("reasoning"),
-                ))
+                items.append(
+                    EvidenceItem(
+                        evidence_name=r.get("evidence_name", ""),
+                        found=bool(r.get("found", False)),
+                        source_section=r.get("source_section"),
+                        source_quote=r.get("source_quote"),
+                        relevance_score=r.get("relevance_score"),
+                        is_inadequate=bool(r.get("is_inadequate", False)),
+                        is_outdated=bool(r.get("is_outdated", False)),
+                        llm_reasoning=r.get("reasoning"),
+                    )
+                )
             result[clause_id] = items
 
     except (json.JSONDecodeError, KeyError, TypeError):
@@ -509,6 +513,7 @@ def run_gap_scan_document(
     temperature: float = 0.1,
     max_tokens: int = 8192,
     run_id: str = "",
+    lang: str = "zh-TW",
 ) -> PhaseResult:
     """Execute Phase 1 gap scan for ALL clauses of one document in a single LLM call.
 
@@ -584,15 +589,18 @@ def run_gap_scan_document(
             return phase_result
 
         # SSE: emit before LLM call
-        _emit_pipeline_event(run_id, {
-            "type": "phase_1_start",
-            "phase": "gap_scan",
-            "doc_id": doc_id,
-            "doc_title": doc_title,
-            "clause_ids": [r.clause_id for r in rows],
-            "clause_count": len(rows),
-            "prompt_preview": user_prompt[:500],
-        })
+        _emit_pipeline_event(
+            run_id,
+            {
+                "type": "phase_1_start",
+                "phase": "gap_scan",
+                "doc_id": doc_id,
+                "doc_title": doc_title,
+                "clause_ids": [r.clause_id for r in rows],
+                "clause_count": len(rows),
+                "prompt_preview": user_prompt[:500],
+            },
+        )
 
         # Call LLM (non-streaming)
         response = llm_completion_fn(
@@ -638,30 +646,36 @@ def run_gap_scan_document(
         phase_result.llm_model = llm_model
 
         # SSE: emit after LLM call
-        _emit_pipeline_event(run_id, {
-            "type": "phase_1_result",
-            "phase": "gap_scan",
-            "doc_id": doc_id,
-            "doc_title": doc_title,
-            "clause_ids": [r.clause_id for r in rows],
-            "llm_response": response_text[:2000],
-            "evidence_summary": {
-                "found": total_found,
-                "not_found": total_not_found,
-                "inadequate": total_inadequate,
+        _emit_pipeline_event(
+            run_id,
+            {
+                "type": "phase_1_result",
+                "phase": "gap_scan",
+                "doc_id": doc_id,
+                "doc_title": doc_title,
+                "clause_ids": [r.clause_id for r in rows],
+                "llm_response": response_text[:2000],
+                "evidence_summary": {
+                    "found": total_found,
+                    "not_found": total_not_found,
+                    "inadequate": total_inadequate,
+                },
+                "usage": usage,
             },
-            "usage": usage,
-        })
+        )
 
     except Exception as e:
         phase_result.status = PhaseStatus.FAILED.value
         phase_result.error = str(e)
-        _emit_pipeline_event(run_id, {
-            "type": "phase_1_error",
-            "phase": "gap_scan",
-            "doc_id": doc_id,
-            "error": str(e)[:500],
-        })
+        _emit_pipeline_event(
+            run_id,
+            {
+                "type": "phase_1_error",
+                "phase": "gap_scan",
+                "doc_id": doc_id,
+                "error": str(e)[:500],
+            },
+        )
 
     phase_result.completed_at = time.time()
     return phase_result
