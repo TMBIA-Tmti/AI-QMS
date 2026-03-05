@@ -104,22 +104,34 @@ def export_crossexam_record_word(record_dict: dict) -> Path:
         for rd in clause.get("rounds", []):
             doc.add_heading(f"Round {rd.get('round', '?')}", level=4)
 
-            # Analyzer
             analyzer = rd.get("analyzer", {})
             p = doc.add_paragraph()
             r = p.add_run("🔍 分析者: ")
             r.bold = True
-            p.add_run(json.dumps(analyzer, ensure_ascii=False, indent=2)[:3000])
+            _render_role_content(p, analyzer)
 
-            # Verifier
             verifier = rd.get("verifier", {})
             p = doc.add_paragraph()
             r = p.add_run("⚖️ 驗證者: ")
             r.bold = True
-            p.add_run(json.dumps(verifier, ensure_ascii=False, indent=2)[:3000])
+            _render_role_content(p, verifier)
 
             agreement = verifier.get("agreement_level", "")
             doc.add_paragraph(f"Agreement: {agreement}")
+
+        qa = clause.get("qa_audit", {})
+        if qa:
+            doc.add_heading("🔎 第三方稽核", level=4)
+            doc.add_paragraph(
+                f"分數: {qa.get('score', 0)}/100  |  "
+                f"問題品質: {qa.get('question_quality', '')}  |  "
+                f"回答準確: {qa.get('answer_accuracy', '')}\n"
+                f"幻覺偵測: {'⚠️ 是' if qa.get('hallucination_detected') else '否'}"
+            )
+            issues = qa.get("issues", [])
+            if issues:
+                for iss in issues:
+                    doc.add_paragraph(f"  • {iss}")
 
     safe_save_binary(filepath, doc.save)
     return filepath
@@ -181,9 +193,14 @@ def export_crossexam_record_excel(record_dict: dict) -> Path:
         "同意",
         "RA 標記",
         "輪次數",
-        "Round 1 分析者",
-        "Round 1 驗證者",
-        "Round 1 Agreement",
+        "R1 分析者立場",
+        "R1 分析者信心",
+        "R1 驗證者評估",
+        "R1 Agreement",
+        "QA 分數",
+        "問題品質",
+        "回答準確",
+        "幻覺偵測",
     ]
     for ci, h in enumerate(headers, 1):
         c = ws_detail.cell(row=1, column=ci, value=h)
@@ -205,21 +222,43 @@ def export_crossexam_record_excel(record_dict: dict) -> Path:
         ws_detail.cell(row=ri, column=8, value=len(rounds))
         if rounds:
             r1 = rounds[0]
+            a = r1.get("analyzer", {})
+            v = r1.get("verifier", {})
             ws_detail.cell(
                 row=ri,
                 column=9,
-                value=json.dumps(r1.get("analyzer", {}), ensure_ascii=False)[:500],
+                value=_flatten_role_text(a, "position")[:500],
             )
             ws_detail.cell(
                 row=ri,
                 column=10,
-                value=json.dumps(r1.get("verifier", {}), ensure_ascii=False)[:500],
+                value=str(a.get("confidence", a.get("confidence_score", ""))),
             )
             ws_detail.cell(
                 row=ri,
                 column=11,
-                value=r1.get("verifier", {}).get("agreement_level", ""),
+                value=_flatten_role_text(v, "assessment")[:500],
             )
+            ws_detail.cell(
+                row=ri,
+                column=12,
+                value=v.get("agreement_level", ""),
+            )
+        qa = clause.get("qa_audit", {})
+        ws_detail.cell(row=ri, column=13, value=qa.get("score", "") if qa else "")
+        ws_detail.cell(
+            row=ri, column=14, value=qa.get("question_quality", "") if qa else ""
+        )
+        ws_detail.cell(
+            row=ri, column=15, value=qa.get("answer_accuracy", "") if qa else ""
+        )
+        ws_detail.cell(
+            row=ri,
+            column=16,
+            value="Yes"
+            if qa and qa.get("hallucination_detected")
+            else ("No" if qa else ""),
+        )
 
     # Auto-width
     for col in ws_detail.columns:
@@ -242,6 +281,7 @@ def export_deep_report_word(
     interactions: list[dict] | None = None,
     crossexam_record: dict | None = None,
     meta_analysis: dict | None = None,
+    qa_audit_summary: dict | None = None,
 ) -> Path:
     """Export a deep analysis report as Word document.
 
@@ -420,10 +460,8 @@ def export_deep_report_word(
                     r.bold = True
 
                     parsed = xi.get("parsed_response")
-                    if parsed:
-                        p.add_run(
-                            json.dumps(parsed, ensure_ascii=False, indent=2)[:3000]
-                        )
+                    if parsed and isinstance(parsed, dict):
+                        _render_role_content(p, parsed)
                     else:
                         resp = xi.get("llm_response", "")
                         p.add_run(resp[:3000])
@@ -435,7 +473,6 @@ def export_deep_report_word(
         else:
             doc.add_paragraph("（本次分析無 Phase 5 LLM 互動記錄）")
     elif crossexam_record:
-        # Fallback to crossexam record data
         for clause in crossexam_record.get("clauses", []):
             doc.add_heading(
                 f"{clause.get('clause_id', '')} — {clause.get('clause_title', '')}",
@@ -446,22 +483,77 @@ def export_deep_report_word(
                 p = doc.add_paragraph()
                 r = p.add_run("🔍 分析者: ")
                 r.bold = True
-                p.add_run(
-                    json.dumps(rd.get("analyzer", {}), ensure_ascii=False, indent=2)[
-                        :3000
-                    ]
-                )
+                _render_role_content(p, rd.get("analyzer", {}))
 
                 p = doc.add_paragraph()
                 r = p.add_run("⚖️ 驗證者: ")
                 r.bold = True
-                p.add_run(
-                    json.dumps(rd.get("verifier", {}), ensure_ascii=False, indent=2)[
-                        :3000
-                    ]
+                _render_role_content(p, rd.get("verifier", {}))
+
+                agreement = rd.get("verifier", {}).get("agreement_level", "")
+                if agreement:
+                    doc.add_paragraph(f"Agreement: {agreement}")
+
+            qa = clause.get("qa_audit", {})
+            if qa:
+                doc.add_heading("🔎 第三方稽核", level=4)
+                doc.add_paragraph(
+                    f"分數: {qa.get('score', 0)}/100  |  "
+                    f"問題品質: {qa.get('question_quality', '')}  |  "
+                    f"回答準確: {qa.get('answer_accuracy', '')}\n"
+                    f"幻覺偵測: {'⚠️ 是' if qa.get('hallucination_detected') else '否'}"
                 )
+                issues = qa.get("issues", [])
+                if issues:
+                    for iss in issues:
+                        doc.add_paragraph(f"  • {iss}")
     else:
         doc.add_paragraph("（無交叉詰問記錄可用）")
+
+    # ── Section 5.5: Third-Party QA Audit ──
+    doc.add_heading("第五章之二 第三方品質稽核 (Phase 5 Step 2)", level=2)
+    _qa_sum = qa_audit_summary
+    if not _qa_sum and crossexam_record:
+        _qa_sum = crossexam_record.get("qa_audit_summary")
+    if _qa_sum and not _qa_sum.get("skipped"):
+        score = _qa_sum.get("overall_score", 0)
+        doc.add_paragraph(
+            f"整體品質分數: {score}/100\n"
+            f"稽核條款數: {_qa_sum.get('clause_count', 0)}\n"
+            f"模型: {_qa_sum.get('llm_model', '')}"
+        )
+        qa_summary_text = _qa_sum.get("summary", "")
+        if qa_summary_text:
+            doc.add_heading("稽核摘要", level=3)
+            for chunk in _split_text(qa_summary_text, 3000):
+                doc.add_paragraph(chunk)
+        qa_recs = _qa_sum.get("recommendations", [])
+        if qa_recs:
+            doc.add_heading("稽核建議", level=3)
+            for rec in qa_recs:
+                doc.add_paragraph(f"• {rec}")
+        clause_audits = _qa_sum.get("clause_audits", [])
+        if clause_audits:
+            doc.add_heading("逐條稽核結果", level=3)
+            qa_tbl = doc.add_table(rows=1 + len(clause_audits), cols=6)
+            qa_tbl.style = "Table Grid"
+            qa_headers = ["條款", "分數", "問題品質", "回答準確", "幻覺偵測", "問題"]
+            for i, h in enumerate(qa_headers):
+                qa_tbl.rows[0].cells[i].text = h
+            for qi, ca in enumerate(clause_audits, 1):
+                qa_tbl.rows[qi].cells[0].text = ca.get("clause_id", "")
+                qa_tbl.rows[qi].cells[1].text = str(ca.get("score", 0))
+                qa_tbl.rows[qi].cells[2].text = ca.get("question_quality", "")
+                qa_tbl.rows[qi].cells[3].text = ca.get("answer_accuracy", "")
+                qa_tbl.rows[qi].cells[4].text = (
+                    "⚠️ 是" if ca.get("hallucination_detected") else "否"
+                )
+                issues = ca.get("issues", [])
+                qa_tbl.rows[qi].cells[5].text = "; ".join(issues) if issues else "無"
+    elif _qa_sum and _qa_sum.get("skipped"):
+        doc.add_paragraph(f"（已跳過：{_qa_sum.get('summary', '')}）")
+    else:
+        doc.add_paragraph("（無第三方品質稽核記錄）")
 
     # ── Section 6: Compliance Table ──
     doc.add_heading("第六章 合規性分析結果表", level=2)
@@ -538,6 +630,7 @@ def export_deep_report_excel(
     interactions: list[dict] | None = None,
     crossexam_record: dict | None = None,
     meta_analysis: dict | None = None,
+    qa_audit_summary: dict | None = None,
 ) -> Path:
     """Export a deep analysis report as Excel workbook.
 
@@ -681,8 +774,14 @@ def export_deep_report_excel(
             "同意",
             "RA 標記",
             "輪次數",
-            "Round 1 分析者",
-            "Round 1 驗證者",
+            "R1 分析者立場",
+            "R1 分析者信心",
+            "R1 驗證者評估",
+            "R1 Agreement",
+            "QA 分數",
+            "問題品質",
+            "回答準確",
+            "幻覺偵測",
         ]
         for ci, h in enumerate(xe_headers, 1):
             c = ws_xe.cell(row=1, column=ci, value=h)
@@ -700,20 +799,66 @@ def export_deep_report_excel(
             rounds = clause.get("rounds", [])
             ws_xe.cell(row=ri, column=7, value=len(rounds))
             if rounds:
+                r1_a = rounds[0].get("analyzer", {})
+                r1_v = rounds[0].get("verifier", {})
                 ws_xe.cell(
                     row=ri,
                     column=8,
-                    value=json.dumps(rounds[0].get("analyzer", {}), ensure_ascii=False)[
-                        :500
-                    ],
+                    value=_flatten_role_text(r1_a, "position")[:500],
                 )
                 ws_xe.cell(
                     row=ri,
                     column=9,
-                    value=json.dumps(rounds[0].get("verifier", {}), ensure_ascii=False)[
-                        :500
-                    ],
+                    value=str(r1_a.get("confidence", r1_a.get("confidence_score", ""))),
                 )
+                ws_xe.cell(
+                    row=ri,
+                    column=10,
+                    value=_flatten_role_text(r1_v, "assessment")[:500],
+                )
+                ws_xe.cell(
+                    row=ri,
+                    column=11,
+                    value=r1_v.get("agreement_level", ""),
+                )
+            qa = clause.get("qa_audit", {})
+            ws_xe.cell(row=ri, column=12, value=qa.get("score", "") if qa else "")
+            ws_xe.cell(
+                row=ri, column=13, value=qa.get("question_quality", "") if qa else ""
+            )
+            ws_xe.cell(
+                row=ri, column=14, value=qa.get("answer_accuracy", "") if qa else ""
+            )
+            ws_xe.cell(
+                row=ri,
+                column=15,
+                value="Yes"
+                if qa and qa.get("hallucination_detected")
+                else ("No" if qa else ""),
+            )
+
+    _qa_sum_xl = qa_audit_summary
+    if not _qa_sum_xl and crossexam_record:
+        _qa_sum_xl = crossexam_record.get("qa_audit_summary")
+    if _qa_sum_xl and not _qa_sum_xl.get("skipped"):
+        ws_qa = wb.create_sheet("第三方稽核")
+        qa_xl_headers = ["條款 ID", "分數", "問題品質", "回答準確", "幻覺偵測", "問題"]
+        for ci, h in enumerate(qa_xl_headers, 1):
+            c = ws_qa.cell(row=1, column=ci, value=h)
+            c.fill = header_fill
+            c.font = header_font
+        for qi, ca in enumerate(_qa_sum_xl.get("clause_audits", []), 2):
+            ws_qa.cell(row=qi, column=1, value=ca.get("clause_id", ""))
+            ws_qa.cell(row=qi, column=2, value=ca.get("score", 0))
+            ws_qa.cell(row=qi, column=3, value=ca.get("question_quality", ""))
+            ws_qa.cell(row=qi, column=4, value=ca.get("answer_accuracy", ""))
+            ws_qa.cell(
+                row=qi,
+                column=5,
+                value="Yes" if ca.get("hallucination_detected") else "No",
+            )
+            issues = ca.get("issues", [])
+            ws_qa.cell(row=qi, column=6, value="; ".join(issues) if issues else "")
 
     # ── Sheet 5: Meta-Analysis ──
     if meta_analysis:
@@ -749,7 +894,6 @@ def export_deep_report_excel(
 
 
 def _split_text(text: str, max_len: int = 3000) -> list[str]:
-    """Split long text into chunks for Word paragraphs."""
     if len(text) <= max_len:
         return [text]
     chunks = []
@@ -757,3 +901,50 @@ def _split_text(text: str, max_len: int = 3000) -> list[str]:
         chunks.append(text[:max_len])
         text = text[max_len:]
     return chunks
+
+
+def _render_role_content(paragraph, data: dict) -> None:
+    """Render Analyzer/Verifier structured data as readable text in a Word paragraph."""
+    if not data or not isinstance(data, dict):
+        paragraph.add_run("（無資料）")
+        return
+
+    parts = []
+    for key in (
+        "position",
+        "assessment",
+        "confidence",
+        "confidence_score",
+        "evidence",
+        "evidence_cited",
+        "reasoning",
+        "analysis",
+        "agreement_level",
+        "concerns",
+        "recommendation",
+    ):
+        val = data.get(key)
+        if val is None:
+            continue
+        if isinstance(val, list):
+            val = "; ".join(str(v) for v in val)
+        elif isinstance(val, dict):
+            val = json.dumps(val, ensure_ascii=False)
+        parts.append(f"{key}: {val}")
+
+    if parts:
+        paragraph.add_run("\n".join(parts)[:3000])
+    else:
+        paragraph.add_run(json.dumps(data, ensure_ascii=False, indent=2)[:3000])
+
+
+def _flatten_role_text(data: dict, primary_key: str) -> str:
+    """Extract primary field from Analyzer/Verifier data as a readable string."""
+    if not data or not isinstance(data, dict):
+        return ""
+    val = data.get(primary_key, "")
+    if isinstance(val, list):
+        return "; ".join(str(v) for v in val)
+    if isinstance(val, dict):
+        return json.dumps(val, ensure_ascii=False)
+    return str(val) if val else json.dumps(data, ensure_ascii=False)

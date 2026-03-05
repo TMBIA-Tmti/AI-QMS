@@ -37,6 +37,7 @@ from src.analysis.state import (
 __all__ = [
     "run_verification_row",
     "run_verification_document",
+    "run_qa_audit_document",
     "MAX_VERIFICATION_ROUNDS",
     "emit_verification_event",
 ]
@@ -1087,3 +1088,259 @@ def run_verification_document(
 
     phase_result.completed_at = time.time()
     return phase_result
+
+
+# ============================================================
+# Phase 5 Step 2: Third-Party QA Audit
+# ============================================================
+
+_QA_AUDITOR_SYSTEM_PROMPT = """你是品質管理系統的「第三方交叉詰問品質稽核員」。你的任務是獨立審查分析者（Analyzer）和驗證者（Verifier）之間的對話紀錄，判斷對話品質。
+
+你不是分析者或驗證者的任何一方 — 你是獨立的第三方稽核員。
+
+你需要檢查每一筆對話紀錄：
+1. **問題合理性**: 分析者提出的立場和證據引用是否合理？有無捏造或不存在的證據？
+2. **回答正確性**: 驗證者的質疑是否基於正確的法規內容？有無引用錯誤的條文或歪曲法規原意？
+3. **邏輯一致性**: 整個辯論過程的邏輯是否連貫？有無自相矛盾？
+4. **幻覺偵測**: 分析者或驗證者是否編造了不存在的文件、證據或法規條文？
+5. **深度充分性**: 討論是否足夠深入，還是流於表面應付？
+6. **最終結論合理性**: 最終的同意/不同意結論是否與辯論內容一致？
+
+回答使用以下 JSON 格式：
+{
+  "overall_score": 0-100,
+  "clause_audits": [
+    {
+      "clause_id": "條款編號",
+      "score": 0-100,
+      "question_quality": "good | acceptable | poor",
+      "answer_accuracy": "accurate | partially_accurate | inaccurate",
+      "hallucination_detected": false,
+      "hallucination_details": "幻覺具體內容（若有）",
+      "logic_consistency": "consistent | minor_issues | inconsistent",
+      "depth_sufficient": true,
+      "conclusion_reasonable": true,
+      "issues": ["具體問題描述"]
+    }
+  ],
+  "summary": "整體審查摘要（2-3 句話）",
+  "recommendations": ["改善建議"]
+}"""
+
+_QA_AUDITOR_USER_TEMPLATE = """## 第三方品質稽核任務
+
+請審查以下 {clause_count} 筆交叉詰問對話紀錄：
+
+**文件**: {doc_id} — {doc_title}
+**涉及法規**: {regulations}
+
+### 對話紀錄
+
+{debate_transcripts}
+
+請對每一筆對話給出品質評分和具體問題。"""
+
+
+def _build_debate_transcript(
+    clause_id: str,
+    clause_title: str,
+    audit_question: str,
+    verdict: str,
+    rounds: list[dict],
+    agreed: bool,
+) -> str:
+    parts = [
+        f"--- 條款 {clause_id}: {clause_title} ---",
+        f"稽核問題: {audit_question}",
+        f"判定結果: {verdict}",
+        f"最終結論: {'同意' if agreed else '不同意（標記 RA 覆審）'}",
+        "",
+    ]
+    for rd in rounds:
+        round_num = rd.get("round", "?")
+        analyzer = rd.get("analyzer", {})
+        verifier = rd.get("verifier", {})
+
+        a_position = str(analyzer.get("position", analyzer.get("response", "")))[:400]
+        a_confidence = analyzer.get(
+            "confidence", analyzer.get("revised_confidence", "N/A")
+        )
+        a_evidence = analyzer.get(
+            "key_evidence", analyzer.get("additional_evidence", [])
+        )
+
+        v_agreement = verifier.get("agreement_level", "N/A")
+        v_challenges = verifier.get(
+            "challenges", verifier.get("remaining_concerns", [])
+        )
+        v_assessment = verifier.get("overall_assessment", "")[:300]
+
+        parts.append(f"  輪次 {round_num}:")
+        parts.append(f"    分析者: confidence={a_confidence}")
+        parts.append(f"    立場: {a_position}")
+        if a_evidence:
+            parts.append(f"    證據: {', '.join(str(e)[:80] for e in a_evidence[:3])}")
+        parts.append(f"    驗證者: agreement={v_agreement}")
+        if isinstance(v_challenges, list) and v_challenges:
+            for ch in v_challenges[:2]:
+                if isinstance(ch, dict):
+                    parts.append(f"    質疑: {ch.get('point', str(ch))[:150]}")
+                else:
+                    parts.append(f"    質疑: {str(ch)[:150]}")
+        if v_assessment:
+            parts.append(f"    評語: {v_assessment}")
+        parts.append("")
+
+    return "\n".join(parts)
+
+
+def run_qa_audit_document(
+    doc_id: str,
+    rows: list,
+    state,
+    llm_completion_fn: callable,
+    model: str = "default",
+    temperature: float = 0.3,
+    max_tokens: int = 8192,
+    selected_regulations: list[str] | None = None,
+    run_id: str = "",
+) -> dict:
+    from src.analysis.risk_matrix import VERDICT_DISPLAY
+
+    rows_with_debates = [
+        r
+        for r in rows
+        if getattr(r, "verification_rounds", None) and len(r.verification_rounds) > 0
+    ]
+
+    if not rows_with_debates:
+        return {
+            "overall_score": 0,
+            "clause_audits": [],
+            "summary": "No debate transcripts to audit.",
+            "recommendations": [],
+            "skipped": True,
+        }
+
+    budget = state.get_budget()
+    if budget.exceeded:
+        return {
+            "overall_score": 0,
+            "clause_audits": [],
+            "summary": "Budget exceeded, QA audit skipped.",
+            "recommendations": [],
+            "skipped": True,
+        }
+
+    transcripts = []
+    for row in rows_with_debates:
+        verdict_info = VERDICT_DISPLAY.get(row.verdict or "", {})
+        verdict_label = verdict_info.get("label_zh", row.verdict or "未判定")
+        transcript = _build_debate_transcript(
+            clause_id=row.clause_id,
+            clause_title=row.clause_title,
+            audit_question=row.audit_question,
+            verdict=verdict_label,
+            rounds=row.verification_rounds,
+            agreed=row.verification_agreed or False,
+        )
+        transcripts.append(transcript)
+
+    combined_transcripts = "\n\n".join(transcripts)
+    if len(combined_transcripts) > 12000:
+        combined_transcripts = combined_transcripts[:12000] + "\n\n...（已截斷）"
+
+    doc_title = rows[0].doc_title if rows else doc_id
+    regulations_str = (
+        ", ".join(selected_regulations) if selected_regulations else "ISO 13485"
+    )
+
+    user_prompt = _QA_AUDITOR_USER_TEMPLATE.format(
+        clause_count=len(rows_with_debates),
+        doc_id=doc_id,
+        doc_title=doc_title,
+        regulations=regulations_str,
+        debate_transcripts=combined_transcripts,
+    )
+
+    if run_id:
+        emit_verification_event(
+            run_id,
+            {
+                "type": "qa_audit_start",
+                "doc_id": doc_id,
+                "clause_count": len(rows_with_debates),
+            },
+        )
+
+    try:
+        response, usage = _call_llm(
+            llm_completion_fn,
+            _QA_AUDITOR_SYSTEM_PROMPT,
+            user_prompt,
+            state,
+            model,
+            temperature,
+            max_tokens,
+        )
+
+        result = {
+            "overall_score": response.get("overall_score", 0),
+            "clause_audits": response.get("clause_audits", []),
+            "summary": response.get("summary", ""),
+            "recommendations": response.get("recommendations", []),
+            "llm_usage": usage,
+            "llm_model": model,
+            "doc_id": doc_id,
+            "clause_count": len(rows_with_debates),
+            "skipped": False,
+        }
+
+        audit_by_clause = {
+            a.get("clause_id", ""): a for a in response.get("clause_audits", [])
+        }
+        for row in rows_with_debates:
+            clause_audit = audit_by_clause.get(row.clause_id)
+            if clause_audit:
+                row.qa_audit = clause_audit
+            else:
+                row.qa_audit = {
+                    "clause_id": row.clause_id,
+                    "score": 0,
+                    "question_quality": "unknown",
+                    "answer_accuracy": "unknown",
+                    "hallucination_detected": False,
+                    "issues": ["No audit data returned for this clause"],
+                }
+
+        if run_id:
+            emit_verification_event(
+                run_id,
+                {
+                    "type": "qa_audit_complete",
+                    "doc_id": doc_id,
+                    "overall_score": result["overall_score"],
+                    "clause_count": len(rows_with_debates),
+                    "summary": result["summary"][:200],
+                },
+            )
+
+        return result
+
+    except RuntimeError:
+        return {
+            "overall_score": 0,
+            "clause_audits": [],
+            "summary": "QA audit failed: budget exceeded.",
+            "recommendations": [],
+            "skipped": True,
+        }
+    except Exception as e:
+        return {
+            "overall_score": 0,
+            "clause_audits": [],
+            "summary": f"QA audit failed: {str(e)[:200]}",
+            "recommendations": [],
+            "skipped": True,
+            "error": str(e)[:200],
+        }

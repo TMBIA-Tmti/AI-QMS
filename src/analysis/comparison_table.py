@@ -959,6 +959,7 @@ class ComparisonTable:
                     "ra_notes": r.ra_notes,
                     "verification_agreed": r.verification_agreed,
                     "verification_rounds": len(r.verification_rounds),
+                    "qa_audit": r.qa_audit,
                     "phase_status_summary": phase_status_summary,
                 }
             )

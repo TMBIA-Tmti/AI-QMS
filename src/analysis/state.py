@@ -131,7 +131,9 @@ class PauseReason(str, Enum):
     LLM_BUDGET_EXCEEDED = "llm_budget_exceeded"  # Token budget hit
     USER_REQUESTED = "user_requested"  # Manual pause
     STEP_MODE_COMPLETE = "step_mode_complete"  # Step-by-step phase done
-    ALL_EVIDENCE_MISSING = "all_evidence_missing"  # Phase 1 found zero evidence across all rows
+    ALL_EVIDENCE_MISSING = (
+        "all_evidence_missing"  # Phase 1 found zero evidence across all rows
+    )
 
 
 # ============================================================
@@ -245,6 +247,11 @@ class RowState:
     verification_agreed: Optional[bool] = None  # None = not yet verified
     flagged_for_ra: bool = False  # True if 3 rounds and still disagreeing
 
+    # Third-party QA audit of cross-examination (Phase 5 Step 2)
+    # Populated after Analyzer/Verifier debate completes.
+    # Contains per-clause assessment from an independent LLM auditor.
+    qa_audit: Optional[dict] = None  # {score, question_quality, answer_accuracy, ...}
+
     # Remediation (Phase 4)
     remediation_suggestion: Optional[str] = None
     remediation_regulation_cite: Optional[str] = None
@@ -308,12 +315,14 @@ class LLMBudget:
 
     def __post_init__(self):
         import time
+
         if self.start_time == 0.0:
             self.start_time = time.time()
 
     def start_timer(self):
         """Reset the start time for time-based budget tracking."""
         import time
+
         self.start_time = time.time()
 
     @property
@@ -327,8 +336,13 @@ class LLMBudget:
     @property
     def exceeded(self) -> bool:
         import time
+
         token_exceeded = self.total_tokens_used >= self.max_total_tokens
-        time_exceeded = (time.time() - self.start_time) >= self.max_time_seconds if self.start_time > 0 else False
+        time_exceeded = (
+            (time.time() - self.start_time) >= self.max_time_seconds
+            if self.start_time > 0
+            else False
+        )
         return token_exceeded or time_exceeded
 
     @property
@@ -402,6 +416,9 @@ class PipelineState:
 
     # Source verification summary (Phase 6 output)
     source_check_summary: Optional[dict] = None
+
+    # Third-party QA audit summary (Phase 5 Step 2 output, per-document aggregated)
+    qa_audit_summary: Optional[dict] = None
 
     # Product docs paths (temporary, deleted after report)
     product_doc_paths: list[str] = field(default_factory=list)

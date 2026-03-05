@@ -648,6 +648,40 @@ def run_checklist_verify_document(
             },
         )
 
+        # SSE: conversation-style event
+        _v_details = []
+        for row in rows:
+            l2_results = clause_verify.get(row.clause_id, [])
+            for vr in l2_results:
+                _v_details.append(
+                    {
+                        "clause_id": row.clause_id,
+                        "evidence_name": vr.get("evidence_name", ""),
+                        "adequacy": vr.get("adequacy", ""),
+                        "explanation": vr.get("explanation", "")[:200],
+                    }
+                )
+        _full_count = sum(1 for d in _v_details if d["adequacy"] == "full")
+        _partial_count = sum(1 for d in _v_details if d["adequacy"] == "partial")
+        _irrelevant_count = sum(1 for d in _v_details if d["adequacy"] == "irrelevant")
+        _emit_pipeline_event(
+            run_id,
+            {
+                "type": "phase_2_conversation",
+                "doc_id": doc_id,
+                "clause_ids": [r.clause_id for r in rows],
+                "question_summary": (
+                    f"請驗證文件「{doc_title}」({doc_id}) 中 {len(rows)} 個條款"
+                    f"的證據充分性。逐一檢查每項證據是否充分(full)、部分(partial)或不相關(irrelevant)。"
+                ),
+                "answer_summary": (
+                    f"驗證完成：共 {len(_v_details)} 項證據，"
+                    f"充分 {_full_count} ✅、部分 {_partial_count} ⚠️、不相關 {_irrelevant_count} ❌。"
+                ),
+                "details": {"clauses": _v_details},
+            },
+        )
+
     except Exception as e:
         phase_result.status = PhaseStatus.FAILED.value
         phase_result.error = str(e)

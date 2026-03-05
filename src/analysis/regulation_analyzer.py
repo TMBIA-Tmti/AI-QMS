@@ -135,7 +135,7 @@ async def analyze_regulation_with_llm(
                     messages=messages,
                     model=model,
                     temperature=0.1,
-                    max_tokens=8192,
+                    max_tokens=16384,
                     stream=False,
                 )
 
@@ -217,7 +217,8 @@ async def analyze_regulation_with_llm(
         messages = _build_unique_requirements_prompt(
             combined_text[:_MAX_UNIQUE_REQ_TEXT_CHARS], zh_name, en_name, profile_id
         )
-        response = llm_completion_fn(
+        response = await asyncio.to_thread(
+            llm_completion_fn,
             messages=messages,
             model=model,
             temperature=0.1,

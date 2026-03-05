@@ -297,7 +297,44 @@ async def list_regulations():
             }
         )
 
-    return JSONResponse(content={"regulations": regulations})
+    failed_regions = []
+    try:
+        crawl_results_path = Path("data") / "regulatory_crawl_results.json"
+        if crawl_results_path.exists():
+            with open(crawl_results_path, "r", encoding="utf-8") as f:
+                crawl_data = json.load(f)
+            available_profile_regions = set()
+            for profile in all_regs.values():
+                if profile.country_name_zh:
+                    available_profile_regions.add(profile.country_name_zh)
+                if profile.country_name_en:
+                    available_profile_regions.add(profile.country_name_en)
+            for cr in crawl_data.get("results", []):
+                if cr.get("crawl_status") != "success":
+                    region = cr.get("region", "")
+                    has_profile = any(
+                        region in str(available_profile_regions)
+                        or cr.get("agency", "") in (p.source or "")
+                        for p in all_regs.values()
+                    )
+                    if not has_profile:
+                        failed_regions.append(
+                            {
+                                "region": region,
+                                "agency": cr.get("agency", ""),
+                                "reason": cr.get("failure_reason", "未知錯誤"),
+                                "url": cr.get("url", ""),
+                            }
+                        )
+    except Exception:
+        pass
+
+    return JSONResponse(
+        content={
+            "regulations": regulations,
+            "failed_regions": failed_regions,
+        }
+    )
 
 
 @report_router.get("/crossref/table")
@@ -881,13 +918,17 @@ async def get_summary(run_id: str):
     summary = table.summary()
     progress = table.state.progress_summary()
     budget = table.state.get_budget().to_dict()
-    return JSONResponse(
-        content={
-            "summary": summary,
-            "progress": progress,
-            "llm_budget": budget,
-        }
-    )
+    qa_audit_summary = table.state.qa_audit_summary
+
+    resp = {
+        "summary": summary,
+        "progress": progress,
+        "llm_budget": budget,
+    }
+    if qa_audit_summary:
+        resp["qa_audit_summary"] = qa_audit_summary
+
+    return JSONResponse(content=resp)
 
 
 @report_router.get("/{run_id}/rows")
@@ -1348,11 +1389,11 @@ async def reset_for_rerun(run_id: str, row_id: str, body: dict = None):
 
 @report_router.get("/{run_id}/export/{fmt}")
 async def export_report(run_id: str, fmt: str):
-    """Export the report as Word or Excel.
+    """Export summary report (摘要匯出) as Word or Excel.
 
     fmt: "word" or "excel"
-    Deep report formats ("deep_word", "deep_excel") are forwarded
-    to export_deep_report to avoid FastAPI route-ordering conflicts.
+    Full report formats ("deep_word", "deep_excel") are forwarded
+    to export_deep_report (完整匯出) to avoid FastAPI route-ordering conflicts.
     """
     with _phoenix_report_span("report_export", {"run_id": run_id, "fmt": fmt}):
         pass  # span covers the export operation
@@ -1447,6 +1488,21 @@ async def export_report(run_id: str, fmt: str):
                     tbl.rows[ri].cells[6].text = (
                         "⚠️" if row.get("flagged_for_ra") else ""
                     )
+
+            _qa_sum = getattr(table.state, "qa_audit_summary", None)
+            if _qa_sum and not _qa_sum.get("skipped"):
+                doc.add_heading("交叉詰問品質稽核摘要", level=2)
+                doc.add_paragraph(
+                    f"整體品質分數: {_qa_sum.get('overall_score', 0)}/100\n"
+                    f"稽核條款數: {_qa_sum.get('clause_count', 0)}"
+                )
+                qa_sum_text = _qa_sum.get("summary", "")
+                if qa_sum_text:
+                    doc.add_paragraph(qa_sum_text)
+                qa_recs = _qa_sum.get("recommendations", [])
+                if qa_recs:
+                    for qr in qa_recs:
+                        doc.add_paragraph(f"• {qr}")
 
             safe_save_binary(filepath, doc.save)
 
@@ -1557,6 +1613,23 @@ async def export_report(run_id: str, fmt: str):
             for col in ws.columns:
                 max_len = max((len(str(c.value or "")) for c in col), default=8)
                 ws.column_dimensions[col[0].column_letter].width = min(max_len + 2, 50)
+
+            _qa_sum_xl = getattr(table.state, "qa_audit_summary", None)
+            if _qa_sum_xl and not _qa_sum_xl.get("skipped"):
+                ws_qa = wb.create_sheet("QA 稽核摘要")
+                qa_summary_data = [
+                    ("整體品質分數", f"{_qa_sum_xl.get('overall_score', 0)}/100"),
+                    ("稽核條款數", str(_qa_sum_xl.get("clause_count", 0))),
+                    ("摘要", _qa_sum_xl.get("summary", "")),
+                ]
+                qa_recs_xl = _qa_sum_xl.get("recommendations", [])
+                if qa_recs_xl:
+                    qa_summary_data.append(("建議", "; ".join(qa_recs_xl)))
+                for ri_qa, (k, v) in enumerate(qa_summary_data, 1):
+                    ws_qa.cell(row=ri_qa, column=1, value=k).font = Font(bold=True)
+                    ws_qa.cell(row=ri_qa, column=2, value=str(v))
+                ws_qa.column_dimensions["A"].width = 20
+                ws_qa.column_dimensions["B"].width = 80
 
             safe_save_binary(filepath, wb.save)
     except ImportError:
@@ -1924,16 +1997,36 @@ async def resume_cross_examination(run_id: str):
 
 @report_router.get("/crossexam/history")
 async def get_crossexam_history():
-    """List all cross-examination history records."""
+    """List all cross-examination history records (pipeline P5 + daily sampling)."""
     try:
         from src.database.crossexam_store import get_crossexam_store
 
         store = get_crossexam_store()
-        records = store.get_all_records()
+        pipeline_records = store.get_all_records()
+        all_records = []
+        for r in pipeline_records:
+            d = r.to_dict()
+            d["source"] = "pipeline"
+            all_records.append(d)
+
+        try:
+            from src.database.daily_crossexam_store import get_daily_crossexam_store
+
+            daily_store = get_daily_crossexam_store()
+            daily_records = daily_store.get_all_records()
+            for r in daily_records:
+                d = r.to_dict()
+                d["source"] = "daily"
+                all_records.append(d)
+        except Exception:
+            pass
+
+        all_records.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+
         return JSONResponse(
             content={
-                "records": [r.to_dict() for r in records],
-                "total": len(records),
+                "records": all_records,
+                "total": len(all_records),
                 "needs_meta_analysis": store.needs_meta_analysis(),
             }
         )
@@ -2008,7 +2101,10 @@ async def export_crossexam_record(record_id: str, fmt: str):
 
 @report_router.get("/{run_id}/export/deep_{fmt}")
 async def export_deep_report(run_id: str, fmt: str):
-    """Export a deep analysis report including ALL LLM interactions.
+    """Export a full report including ALL LLM interactions.
+
+    This is the "完整匯出" (Full Export) — includes comparison table,
+    LLM interaction logs, cross-examination dialogue, and meta analysis.
 
     fmt: 'word' or 'excel' (URL: /export/deep_word or /export/deep_excel)
     """
@@ -2053,6 +2149,8 @@ async def export_deep_report(run_id: str, fmt: str):
     except Exception:
         pass
 
+    qa_audit_summary = getattr(table.state, "qa_audit_summary", None)
+
     try:
         from src.utils.crossexam_export import (
             export_deep_report_word,
@@ -2067,6 +2165,7 @@ async def export_deep_report(run_id: str, fmt: str):
                 interactions,
                 crossexam_record,
                 meta_analysis,
+                qa_audit_summary,
             )
         else:
             filepath = export_deep_report_excel(
@@ -2076,6 +2175,7 @@ async def export_deep_report(run_id: str, fmt: str):
                 interactions,
                 crossexam_record,
                 meta_analysis,
+                qa_audit_summary,
             )
 
         content_type = (
@@ -2293,11 +2393,22 @@ async def get_daily_audit_history(limit: int = Query(30, ge=1, le=365)):
 
 @report_router.post("/daily-audit/run")
 async def run_daily_audit_endpoint(request: Request):
-    """Trigger a daily audit run with pre-examination regulation freshness check."""
+    """Trigger a daily audit run with pre-examination regulation freshness check.
+
+    Flow:
+      1. Freshness check (regulation versions)
+      2. Read MDSAP toggle from app_settings
+      3. Run daily sampling cross-exam (Phase 5 on 20% sample)
+      4. Run daily audit (Dim A + Dim B evaluation)
+    """
     try:
-        from src.analysis.daily_audit import run_daily_audit
+        from src.analysis.daily_audit import (
+            run_daily_audit,
+            run_daily_sampling_crossexam,
+        )
         from src.database.crossexam_store import get_crossexam_store
         from src.services.regulatory_crawler import check_regulation_freshness
+        from src.utils.app_settings import get_app_setting
 
         # Step 0: Pre-cross-examination regulation freshness check
         # Requirement: 交叉詰問前要確認當前當作基準的ISO 13485與MDSAP為最新版
@@ -2317,26 +2428,42 @@ async def run_daily_audit_endpoint(request: Request):
         llm_fn = _get_llm_completion_fn(request)
         store = get_crossexam_store()
 
-        # Get user language
+        # Get user language and model name
         lang = "zh-TW"
+        model_name = "default"
         try:
             from src.utils.user_settings import load_user_settings
 
             settings = load_user_settings()
             lang = settings.get("language", "zh-TW")
+            model_name = settings.get("model_name", "default")
         except Exception:
             pass
+
+        # Read MDSAP toggle state from persistent app settings
+        mdsap_on = get_app_setting("mdsap_verify_enabled", False)
 
         # Extract incomplete country data from freshness check
         _incomplete_countries: list[str] = []
         country_data = freshness.get("country_completeness", {})
         _incomplete_countries = country_data.get("incomplete_countries", [])
 
+        # Step 1: Run daily sampling cross-exam (Phase 5 on 20% sample)
+        # This produces fresh DailyCrossExamStore records with correct MDSAP flag
+        sampling_record = run_daily_sampling_crossexam(
+            llm_completion_fn=llm_fn,
+            model=model_name,
+            mdsap_enabled=mdsap_on,
+            lang=lang,
+        )
+
+        # Step 2: Run daily audit (Dim A + Dim B evaluation)
         result = run_daily_audit(
             llm_completion_fn=llm_fn,
             lang=lang,
             store=store,
             incomplete_countries=_incomplete_countries,
+            mdsap_enabled=mdsap_on,
         )
 
         # Check for deviation and send Chainlit announcement if needed

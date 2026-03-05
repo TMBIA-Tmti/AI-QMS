@@ -216,7 +216,7 @@
         downloads: {
             icon: '📂',
             title: '打開下載目錄 — 流覽所有可下載檔案',
-            desc: '顯示系統中所有可下載的報告與檔案目錄，包含合規報告、深度報告、稽核報告、交叉詰問記錄等。直接點擊發送即可打開。',
+            desc: '顯示系統中所有可下載的報告與檔案目錄，包含摘要報告、完整報告、稽核報告、交叉詰問記錄等。直接點擊發送即可打開。',
             examples: [
                 { input: '/downloads', effect: '→ 打開下載目錄彈窗，可一鍵下載各類報告' },
             ]
@@ -1042,12 +1042,23 @@
         const rounds = r.verification_rounds || 0;
         if (rounds === 0) return "";
         const agreed = r.verification_agreed;
+        let badge = "";
         if (agreed === true) {
-            return `<span class="crossexam-badge crossexam-agreed" title="交叉詰問 ${rounds} 輪一致">✅${rounds}R</span>`;
+            badge = `<span class="crossexam-badge crossexam-agreed" title="交叉詰問 ${rounds} 輪一致">✅${rounds}R</span>`;
         } else if (agreed === false) {
-            return `<span class="crossexam-badge crossexam-disagreed" title="交叉詰問 ${rounds} 輪不一致">❌${rounds}R</span>`;
+            badge = `<span class="crossexam-badge crossexam-disagreed" title="交叉詰問 ${rounds} 輪不一致">❌${rounds}R</span>`;
+        } else {
+            badge = `<span class="crossexam-badge crossexam-pending" title="交叉詰問進行中">⏳${rounds}R</span>`;
         }
-        return `<span class="crossexam-badge crossexam-pending" title="交叉詰問進行中">⏳${rounds}R</span>`;
+        const qa = r.qa_audit;
+        if (qa && qa.score != null) {
+            const s = qa.score;
+            const cls = s >= 80 ? 'qa-good' : s >= 60 ? 'qa-ok' : 'qa-poor';
+            const hIcon = qa.hallucination_detected ? '🚨' : '';
+            const titleKey = hIcon ? 'qa.badgeTitleHallucination' : 'qa.badgeTitle';
+            badge += `<span class="crossexam-badge ${cls}" title="${t(titleKey, {score: s})}" style="font-size:0.7rem;margin-left:2px">${hIcon}🔎${s}</span>`;
+        }
+        return badge;
     }
 
     function renderRow(r) {
@@ -1311,6 +1322,49 @@
                     html += `<div class="ra-override-info">
                         <strong>🚩 已標記待 RA 審查</strong>：交叉詰問 3 輪後仍有分歧
                     </div>`;
+                }
+
+                html += `</div>`;
+            }
+
+            // Third-party QA Audit (Phase 5 Step 2)
+            const qaAudit = row.qa_audit;
+            if (qaAudit) {
+                const qaScore = qaAudit.score || 0;
+                const qaScoreClass = qaScore >= 80 ? 'qa-good' : qaScore >= 60 ? 'qa-ok' : 'qa-poor';
+                html += `<div class="detail-section">
+                    <h3>${t('qa.title')}</h3>
+                    <div class="qa-audit-summary">
+                        <span class="qa-score ${qaScoreClass}">${qaScore}/100</span>
+                        <span class="qa-labels">`;
+
+                if (qaAudit.question_quality) {
+                    const qqIcon = qaAudit.question_quality === 'good' ? '✅' : qaAudit.question_quality === 'acceptable' ? '⚠️' : '❌';
+                    html += `<span class="qa-label" title="${t('qa.questionQuality')}">${qqIcon} ${t('qa.questionQuality')}: ${escapeHtml(qaAudit.question_quality)}</span>`;
+                }
+                if (qaAudit.answer_accuracy) {
+                    const aaIcon = qaAudit.answer_accuracy === 'accurate' ? '✅' : qaAudit.answer_accuracy === 'partially_accurate' ? '⚠️' : '❌';
+                    html += `<span class="qa-label" title="${t('qa.answerAccuracy')}">${aaIcon} ${t('qa.answerAccuracy')}: ${escapeHtml(qaAudit.answer_accuracy)}</span>`;
+                }
+                if (qaAudit.logic_consistency) {
+                    const lcIcon = qaAudit.logic_consistency === 'consistent' ? '✅' : qaAudit.logic_consistency === 'minor_issues' ? '⚠️' : '❌';
+                    html += `<span class="qa-label" title="${t('qa.logicConsistency')}">${lcIcon} ${t('qa.logicConsistency')}: ${escapeHtml(qaAudit.logic_consistency)}</span>`;
+                }
+                if (qaAudit.hallucination_detected) {
+                    html += `<span class="qa-label qa-hallucination" title="${t('qa.hallucination')}">${t('qa.hallucinationDetected')}</span>`;
+                }
+                html += `</span></div>`;
+
+                if (qaAudit.hallucination_detected && qaAudit.hallucination_details) {
+                    html += `<div class="qa-hallucination-detail">⚠️ ${escapeHtml(qaAudit.hallucination_details)}</div>`;
+                }
+
+                if (qaAudit.issues && qaAudit.issues.length > 0) {
+                    html += `<div class="qa-issues"><strong>${t('qa.issues')}:</strong><ul>`;
+                    for (const issue of qaAudit.issues) {
+                        html += `<li>${escapeHtml(issue)}</li>`;
+                    }
+                    html += `</ul></div>`;
                 }
 
                 html += `</div>`;
@@ -1809,6 +1863,64 @@
         return html;
     }
 
+    function formatPhaseResultContent(rawText) {
+        if (!rawText) return '';
+        const text = String(rawText).trim();
+        let data = null;
+        try {
+            let jsonStr = text;
+            const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+            if (fenceMatch) jsonStr = fenceMatch[1].trim();
+            data = JSON.parse(jsonStr);
+        } catch (e) {
+            return `<div class="llm-text">${escapeHtml(text)}</div>`;
+        }
+        if (!data || typeof data !== 'object') {
+            return `<div class="llm-text">${escapeHtml(text)}</div>`;
+        }
+
+        let html = '';
+
+        const clauseResults = data.clause_results || data;
+        const isClauseMap = Object.keys(clauseResults).some(k => /^\d/.test(k));
+
+        if (isClauseMap) {
+            html += '<div class="llm-structured">';
+            for (const [clauseId, cData] of Object.entries(clauseResults)) {
+                if (!cData || typeof cData !== 'object') continue;
+                const vr = cData.verification_results || cData.evidence_results || cData.results || [];
+                if (!Array.isArray(vr) || vr.length === 0) {
+                    html += `<div class="llm-section"><span class="llm-label">§${escapeHtml(clauseId)}</span></div>`;
+                    html += `<div class="llm-content">${escapeHtml(JSON.stringify(cData, null, 2).substring(0, 500))}</div>`;
+                    continue;
+                }
+                html += `<div class="llm-section"><span class="llm-label">§${escapeHtml(clauseId)}</span> <span style="color:#6b7280;font-size:0.85em">${vr.length} 項證據</span></div>`;
+                html += '<table style="width:100%;font-size:0.82rem;border-collapse:collapse;margin:4px 0 10px">';
+                html += '<thead><tr style="background:#f1f5f9;text-align:left"><th style="padding:3px 6px">證據</th><th style="padding:3px 6px">充分性</th><th style="padding:3px 6px">分數</th><th style="padding:3px 6px">說明</th></tr></thead><tbody>';
+                for (const ev of vr) {
+                    const adequacy = ev.adequacy || '';
+                    const adequacyIcon = adequacy === 'full' ? '✅' : adequacy === 'partial' ? '⚠️' : adequacy === 'irrelevant' ? '❌' : '❓';
+                    const adequacyLabel = adequacy === 'full' ? '充分' : adequacy === 'partial' ? '部分' : adequacy === 'irrelevant' ? '不相關' : adequacy;
+                    const score = ev.semantic_score != null ? (ev.semantic_score * 100).toFixed(0) + '%' : '';
+                    html += `<tr>
+                        <td style="padding:3px 6px;font-weight:500">${escapeHtml(ev.evidence_name || '')}</td>
+                        <td style="padding:3px 6px">${adequacyIcon} ${adequacyLabel}</td>
+                        <td style="padding:3px 6px">${score}</td>
+                        <td style="padding:3px 6px;max-width:400px;word-break:break-word">${escapeHtml((ev.explanation || '').substring(0, 300))}</td>
+                    </tr>`;
+                }
+                html += '</tbody></table>';
+            }
+            html += '</div>';
+        } else {
+            html = formatGenericJSON(data);
+        }
+
+        const rawId = 'raw-phase-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+        html += `<details class="llm-raw-json-toggle"><summary>🔧 原始 JSON</summary><pre class="llm-raw-json" id="${rawId}">${escapeHtml(JSON.stringify(data, null, 2))}</pre></details>`;
+        return html;
+    }
+
     function formatGenericJSON(obj) {
         let html = `<div class="llm-structured">`;
         for (const [key, val] of Object.entries(obj)) {
@@ -2221,6 +2333,13 @@
         els.countryCheckboxes.innerHTML = '<div class="loading-cell">✨ 載入法規清單中...</div>';
 
         try {
+            try {
+                const mdsapState = await apiFetch("/crossref/mdsap-verify");
+                mdsapVerifyEnabled = !!mdsapState.enabled;
+                const cb = document.getElementById('toggleMdsapVerify');
+                if (cb) cb.checked = mdsapVerifyEnabled;
+            } catch (_) {}
+
             const data = await apiFetch("/crossref/regulations");
             crossrefRegulations = data.regulations || [];
 
@@ -2246,6 +2365,16 @@
                     </div>
                 </label>`;
             }
+            const failedRegions = data.failed_regions || [];
+            if (failedRegions.length > 0) {
+                html += '<div class="crawl-failed-warning">';
+                html += `<div class="crawl-failed-title">⚠️ ${failedRegions.length} 個國家爬蟲失敗，無法生成法規 Profile</div>`;
+                for (const fr of failedRegions) {
+                    html += `<div class="crawl-failed-item">❌ ${escapeHtml(fr.region)} (${escapeHtml(fr.agency)}) — ${escapeHtml(fr.reason)}</div>`;
+                }
+                html += '</div>';
+            }
+
             els.countryCheckboxes.innerHTML = html;
 
             // Toggle checked class on click
@@ -2805,6 +2934,17 @@
                 addPhaseCard('4', '改善建議', data, 'error');
                 break;
 
+            // ── Phase 1/2/4 conversation-style events ──
+            case 'phase_1_conversation':
+                renderPhaseConversation('1', 'Gap Scan', data);
+                break;
+            case 'phase_2_conversation':
+                renderPhaseConversation('2', '驗證', data);
+                break;
+            case 'phase_4_conversation':
+                renderPhaseConversation('4', '改善建議', data);
+                break;
+
             // ── Phase 5: Cross-Examination ──
             case 'phase_5_start':
                 addPhaseCard('5', '交叉詰問', data, 'start');
@@ -2971,10 +3111,11 @@
                 }
                 bodyHtml = summary.length > 0 ? `<div style="margin-bottom:6px">${summary.join(' | ')}</div>` : '';
                 if (data.llm_response) {
+                    const formattedContent = formatPhaseResultContent(data.llm_response);
                     bodyHtml += `
                         <span class="collapsible-toggle" onclick="this.nextElementSibling.classList.toggle('expanded')">📄 查看 LLM 回應</span>
                         <div class="collapsible-content">
-                            <div class="llm-response-preview">${escapeHtml(data.llm_response)}</div>
+                            <div class="llm-response-preview">${formattedContent}</div>
                         </div>`;
                 }
             }
@@ -3002,6 +3143,96 @@
         if (data.doc_id) card.dataset.doc = data.doc_id;
 
         els.crossexamFeed.appendChild(card);
+    }
+
+    function renderPhaseConversation(phaseNum, phaseName, data) {
+        const docLabel = data.doc_id ? `📄 ${escapeHtml(data.doc_id)}` : '';
+        const clauseLabel = (data.clause_ids && data.clause_ids.length)
+            ? `§ ${data.clause_ids.join(', ')}`
+            : '';
+        const contextTag = [docLabel, clauseLabel].filter(Boolean).join(' │ ');
+
+        if (data.question_summary) {
+            const qDiv = document.createElement('div');
+            qDiv.className = 'exam-message msg-llm-question';
+            qDiv.dataset.phase = phaseNum;
+            if (activePhaseFilter !== 'all' && activePhaseFilter !== phaseNum) {
+                qDiv.style.display = 'none';
+            }
+            const timeStr = new Date().toLocaleTimeString();
+            qDiv.innerHTML = `
+                <div class="msg-header">
+                    <span class="msg-role role-llm-question">💻 系統 → P${phaseNum} ${escapeHtml(phaseName)}</span>
+                    <span><span class="msg-regulation">${contextTag}</span> <span class="msg-time">${timeStr}</span></span>
+                </div>
+                <div class="msg-body">${escapeHtml(data.question_summary)}</div>`;
+            els.crossexamFeed.appendChild(qDiv);
+        }
+
+        if (data.answer_summary) {
+            const aDiv = document.createElement('div');
+            aDiv.className = 'exam-message msg-llm-answer';
+            aDiv.dataset.phase = phaseNum;
+            if (activePhaseFilter !== 'all' && activePhaseFilter !== phaseNum) {
+                aDiv.style.display = 'none';
+            }
+            const timeStr = new Date().toLocaleTimeString();
+            let bodyHtml = escapeHtml(data.answer_summary);
+            if (data.details && typeof data.details === 'object') {
+                bodyHtml += formatPhaseConversationDetails(data.details, phaseNum);
+            }
+            aDiv.innerHTML = `
+                <div class="msg-header">
+                    <span class="msg-role role-llm-answer">🤖 LLM 回應 → P${phaseNum} ${escapeHtml(phaseName)}</span>
+                    <span class="msg-time">${timeStr}</span>
+                </div>
+                <div class="msg-body">${bodyHtml}</div>`;
+            els.crossexamFeed.appendChild(aDiv);
+        }
+
+        els.crossexamFeed.scrollTop = els.crossexamFeed.scrollHeight;
+    }
+
+    function formatPhaseConversationDetails(details, phaseNum) {
+        let html = '';
+        if (phaseNum === '1' && details.clauses) {
+            html += '<table style="width:100%;font-size:0.82rem;border-collapse:collapse;margin:8px 0 4px">';
+            html += '<thead><tr style="background:#f1f5f9;text-align:left"><th style="padding:3px 6px">條款</th><th style="padding:3px 6px">找到</th><th style="padding:3px 6px">未找到</th><th style="padding:3px 6px">不充分</th></tr></thead><tbody>';
+            for (const c of details.clauses) {
+                html += `<tr>
+                    <td style="padding:3px 6px;font-weight:500">${escapeHtml(c.clause_id || '')}</td>
+                    <td style="padding:3px 6px;color:#16a34a">${c.found || 0}</td>
+                    <td style="padding:3px 6px;color:#dc2626">${c.not_found || 0}</td>
+                    <td style="padding:3px 6px;color:#d97706">${c.inadequate || 0}</td>
+                </tr>`;
+            }
+            html += '</tbody></table>';
+        }
+        if (phaseNum === '2' && details.clauses) {
+            html += '<table style="width:100%;font-size:0.82rem;border-collapse:collapse;margin:8px 0 4px">';
+            html += '<thead><tr style="background:#f1f5f9;text-align:left"><th style="padding:3px 6px">條款</th><th style="padding:3px 6px">證據</th><th style="padding:3px 6px">充分性</th><th style="padding:3px 6px">說明</th></tr></thead><tbody>';
+            for (const c of details.clauses) {
+                const icon = c.adequacy === 'full' ? '✅' : c.adequacy === 'partial' ? '⚠️' : c.adequacy === 'irrelevant' ? '❌' : '❓';
+                html += `<tr>
+                    <td style="padding:3px 6px;font-weight:500">${escapeHtml(c.clause_id || '')}</td>
+                    <td style="padding:3px 6px">${escapeHtml(c.evidence_name || '')}</td>
+                    <td style="padding:3px 6px">${icon} ${escapeHtml(c.adequacy || '')}</td>
+                    <td style="padding:3px 6px;max-width:350px;word-break:break-word">${escapeHtml((c.explanation || '').substring(0, 200))}</td>
+                </tr>`;
+            }
+            html += '</tbody></table>';
+        }
+        if (phaseNum === '4' && details.clauses) {
+            html += '<div style="margin:8px 0 4px;font-size:0.82rem">';
+            for (const c of details.clauses) {
+                html += `<div style="margin-bottom:6px"><strong>§${escapeHtml(c.clause_id || '')}</strong>`;
+                if (c.suggestion) html += ` — ${escapeHtml(c.suggestion.substring(0, 300))}`;
+                if (c.regulation) html += `<br><span style="color:#6b7280;font-size:0.78rem">📜 ${escapeHtml(c.regulation)}</span>`;
+                html += `</div>`;
+            }
+            html += '</div>';
+        }
+        return html;
     }
 
     function addExamMessage(type, role, content, regulation, timestamp, phase) {
@@ -3315,10 +3546,26 @@
                 return;
             }
 
-            listEl.innerHTML = records.map(r => `
-                <div class="history-record-card">
+            listEl.innerHTML = records.map(r => {
+                const isDaily = r.source === 'daily';
+                const sourceTag = isDaily
+                    ? '<span class="badge badge-daily">📅 每日抽樣</span>'
+                    : '<span class="badge badge-pipeline">⚙️ Pipeline P5</span>';
+                const scoreHtml = isDaily && r.overall_score !== undefined
+                    ? `<div class="record-scores" style="margin-top:4px">
+                        <span>📜 Dim A: ${r.dim_a_score}/100</span>
+                        <span>💬 Dim B: ${r.dim_b_score}/100</span>
+                        <span style="font-weight:600">總分: ${r.overall_score}/100</span>
+                       </div>`
+                    : '';
+                const sampleInfo = isDaily && r.sample_rate
+                    ? `<div class="record-sample" style="font-size:0.8rem;color:#64748b;margin-top:2px">抽樣率: ${Math.round(r.sample_rate * 100)}% | MDSAP: ${r.mdsap_enabled ? '✅ 啟用' : '❌ 未啟用'}</div>`
+                    : '';
+                return `
+                <div class="history-record-card${isDaily ? ' daily-source' : ''}">
                     <div class="history-record-header">
                         <span class="record-id">📌 ${r.record_id}</span>
+                        ${sourceTag}
                         <span class="record-time">${r.timestamp ? r.timestamp.substring(0, 19) : ''}</span>
                     </div>
                     <div class="history-record-body">
@@ -3328,15 +3575,17 @@
                             <span>⚠️ RA: ${r.total_flagged}</span>
                             <span>🔄 輪次: ${r.total_rounds}</span>
                         </div>
+                        ${scoreHtml}
                         <div class="record-regs">法規: ${(r.selected_regulations || []).join(', ') || '無'}</div>
                         <div class="record-countries">國家: ${(r.countries || []).join(', ') || '無'}</div>
+                        ${sampleInfo}
                     </div>
                     <div class="history-record-actions">
                         <button class="btn btn-sm btn-outline" onclick="window.__report.exportHistoryRecord('${r.record_id}', 'word')">📄 Word</button>
                         <button class="btn btn-sm btn-outline" onclick="window.__report.exportHistoryRecord('${r.record_id}', 'excel')">📊 Excel</button>
                     </div>
-                </div>
-            `).join('');
+                </div>`;
+            }).join('');
 
         } catch (e) {
             listEl.innerHTML = `<div class="error-state">❗ 載入失敗: ${e.message || e}</div>`;
@@ -3456,17 +3705,32 @@
             let html = '<div class="history-records">';
             for (const r of records) {
                 const scoreColor = r.overall_score >= 80 ? '#27ae60' : r.overall_score >= 60 ? '#f39c12' : '#e74c3c';
+
+                let qaLine = '';
+                if (r.sampling_details && r.sampling_details.clauses_audited) {
+                    const sd = r.sampling_details;
+                    const qaAvg = sd.avg_qa_score || 0;
+                    const qaColor = qaAvg >= 80 ? '#27ae60' : qaAvg >= 60 ? '#f39c12' : '#e74c3c';
+                    const halCount = sd.hallucinations_found || 0;
+                    qaLine = `<div class="record-scores" style="margin-top:2px">
+                        <span>🔎 ${t('qa.title')}: ${sd.clauses_audited} ${t('qa.clausesAudited')}</span>
+                        <span style="color:${qaColor}">${t('qa.avgScore')}: ${qaAvg.toFixed(0)}/100</span>
+                        ${halCount > 0 ? `<span class="qa-hallucination">🚨 ${halCount}</span>` : ''}
+                    </div>`;
+                }
+
                 html += `
                     <div class="history-record-card">
                         <div class="record-header">
                             <span class="record-date">📅 ${r.audit_date || r.timestamp || ''}</span>
-                            <span class="record-score" style="color:${scoreColor}">總分: ${r.overall_score}/100</span>
+                            <span class="record-score" style="color:${scoreColor}">${t('card.overallScore')}: ${r.overall_score}/100</span>
                         </div>
                         <div class="record-scores">
-                            <span>📜 Dim A (法規準確度): ${r.dim_a_score}/100</span>
-                            <span>💬 Dim B (交叉詰問品質): ${r.dim_b_score}/100</span>
+                            <span>📜 ${t('card.dimA')}: ${r.dim_a_score}/100</span>
+                            <span>💬 ${t('card.dimB')}: ${r.dim_b_score}/100</span>
                         </div>
-                        ${r.deviation_detected ? '<div class="record-deviation">⚠️ 差異警告: ' + (r.deviation_details || '') + '</div>' : ''}
+                        ${qaLine}
+                        ${r.deviation_detected ? '<div class="record-deviation">⚠️ ' + t('audit.deviationTitle') + ': ' + (r.deviation_details || '') + '</div>' : ''}
                         <div class="record-actions">
                             <button class="btn btn-outline btn-sm" onclick="window.__report.exportAuditRecord('${r.audit_id}', 'word')">📄 Word</button>
                             <button class="btn btn-outline btn-sm" onclick="window.__report.exportAuditRecord('${r.audit_id}', 'excel')">📊 Excel</button>

@@ -59,6 +59,7 @@ __all__ = [
     "get_profile_ids_for_regions",
     "get_regions_without_profile",
     "generate_profile_id_from_region",
+    "cleanup_non_selected_crawled_profiles",
     # Supplemental Standards API
     "StandardCategory",
     "SupplementalStandardProfile",
@@ -1120,21 +1121,25 @@ def list_clauses(standard: str = "ISO_13485") -> list[str]:
 
 class MappingStatus(str, Enum):
     """How a country's regulation covers an ISO 13485 clause."""
-    FULL = "full"          # Regulation fully adopts / covers this clause
-    PARTIAL = "partial"    # Regulation partially covers (some gaps or additions)
+
+    FULL = "full"  # Regulation fully adopts / covers this clause
+    PARTIAL = "partial"  # Regulation partially covers (some gaps or additions)
     NOT_APPLICABLE = "na"  # Regulation does not address this clause area
-    EXCEEDS = "exceeds"    # Regulation exceeds ISO 13485 requirements for this clause
+    EXCEEDS = "exceeds"  # Regulation exceeds ISO 13485 requirements for this clause
 
 
 class MappingMethod(str, Enum):
     """How the mapping was determined — for explainability."""
-    OFFICIAL_CROSSREF = "official_crossref"    # Official mapping doc exists (e.g., FDA preamble, EN ISO 13485/A11 Annex ZA)
-    CLAUSE_STRUCTURE = "clause_structure"      # Same clause numbering/structure (e.g., TFDA 84 Articles mirror ISO 13485)
-    SEMANTIC_EN = "semantic_en"                # English semantic analysis of requirement text
-    SEMANTIC_ZH = "semantic_zh"                # Chinese semantic analysis of requirement text
-    KEYWORD_MATCH = "keyword_match"            # Keyword/term overlap between regulation and ISO clause
-    EXPERT_JUDGMENT = "expert_judgment"         # Domain expert manual classification
-    LLM_ANALYSIS = "llm_analysis"              # LLM-assisted analysis (for crawled regulations)
+
+    OFFICIAL_CROSSREF = "official_crossref"  # Official mapping doc exists (e.g., FDA preamble, EN ISO 13485/A11 Annex ZA)
+    CLAUSE_STRUCTURE = "clause_structure"  # Same clause numbering/structure (e.g., TFDA 84 Articles mirror ISO 13485)
+    SEMANTIC_EN = "semantic_en"  # English semantic analysis of requirement text
+    SEMANTIC_ZH = "semantic_zh"  # Chinese semantic analysis of requirement text
+    KEYWORD_MATCH = (
+        "keyword_match"  # Keyword/term overlap between regulation and ISO clause
+    )
+    EXPERT_JUDGMENT = "expert_judgment"  # Domain expert manual classification
+    LLM_ANALYSIS = "llm_analysis"  # LLM-assisted analysis (for crawled regulations)
 
 
 @dataclass
@@ -1145,19 +1150,21 @@ class ClauseMapping:
     what method was used, and confidence level.
     Also includes native-language regulatory text for cross-language comparison.
     """
-    iso_clause: str               # e.g., "4.2.3"
-    status: MappingStatus         # full / partial / na / exceeds
-    regulation_ref: str           # e.g., "§820.10 (adopts ISO 13485)" or "Article 10"
-    rationale_en: str             # WHY this mapping: English explanation
-    rationale_zh: str             # WHY this mapping: Chinese explanation
-    method: MappingMethod         # HOW determined: official crossref, semantic, etc.
-    confidence: float             # 0.0–1.0 how confident in this mapping
-    notes: str = ""               # Additional notes (e.g., "FDA removed exemption for mgmt review")
+
+    iso_clause: str  # e.g., "4.2.3"
+    status: MappingStatus  # full / partial / na / exceeds
+    regulation_ref: str  # e.g., "§820.10 (adopts ISO 13485)" or "Article 10"
+    rationale_en: str  # WHY this mapping: English explanation
+    rationale_zh: str  # WHY this mapping: Chinese explanation
+    method: MappingMethod  # HOW determined: official crossref, semantic, etc.
+    confidence: float  # 0.0–1.0 how confident in this mapping
+    notes: str = ""  # Additional notes (e.g., "FDA removed exemption for mgmt review")
     # Native-language fields for cross-language comparison
-    original_text: str = ""       # Regulatory clause text in its NATIVE language (法規原文)
-    original_lang: str = ""       # Language code: "en", "zh-TW", "de", "fr", etc.
-    english_translation: str = "" # English translation (if original is NOT English)
-    semantic_note: str = ""       # Interpretation: what this clause means in practice
+    original_text: str = ""  # Regulatory clause text in its NATIVE language (法規原文)
+    original_lang: str = ""  # Language code: "en", "zh-TW", "de", "fr", etc.
+    english_translation: str = ""  # English translation (if original is NOT English)
+    semantic_note: str = ""  # Interpretation: what this clause means in practice
+
 
 @dataclass
 class UniqueRequirement:
@@ -1167,26 +1174,28 @@ class UniqueRequirement:
     because quality documents are least likely to cover them.
     Includes native-language text for cross-language semantic comparison.
     """
-    req_id: str                   # e.g., "QMSR-001", "MDR-001", "TFDA-001"
-    regulation_ref: str           # e.g., "§820.35", "Article 15", "第33條"
-    title_en: str                 # English title
-    title_zh: str                 # Chinese title
-    requirement_en: str           # Full requirement description (English)
-    requirement_zh: str           # Full requirement description (Chinese)
+
+    req_id: str  # e.g., "QMSR-001", "MDR-001", "TFDA-001"
+    regulation_ref: str  # e.g., "§820.35", "Article 15", "第33條"
+    title_en: str  # English title
+    title_zh: str  # Chinese title
+    requirement_en: str  # Full requirement description (English)
+    requirement_zh: str  # Full requirement description (Chinese)
     related_iso_clauses: list[str]  # Which ISO 13485 clauses this is closest to
-    audit_impact: str             # "critical" / "major" / "minor"
-    audit_question_en: str        # Audit question in English
-    audit_question_zh: str        # Audit question in Chinese
+    audit_impact: str  # "critical" / "major" / "minor"
+    audit_question_en: str  # Audit question in English
+    audit_question_zh: str  # Audit question in Chinese
     expected_evidence: list[str]  # What evidence should exist
-    rationale_en: str             # WHY this is classified under these ISO clauses
-    rationale_zh: str             # WHY (Chinese)
-    method: MappingMethod         # HOW determined
-    confidence: float             # 0.0–1.0
+    rationale_en: str  # WHY this is classified under these ISO clauses
+    rationale_zh: str  # WHY (Chinese)
+    method: MappingMethod  # HOW determined
+    confidence: float  # 0.0–1.0
     # Native-language fields for cross-language comparison
-    original_text: str = ""       # Regulatory text in its NATIVE language (法規原文)
-    original_lang: str = ""       # Language code: "en", "zh-TW", "de", "fr", etc.
-    english_translation: str = "" # English translation (if original is NOT English)
-    semantic_note: str = ""       # Interpretation: what this means in practice, and how it differs across countries
+    original_text: str = ""  # Regulatory text in its NATIVE language (法規原文)
+    original_lang: str = ""  # Language code: "en", "zh-TW", "de", "fr", etc.
+    english_translation: str = ""  # English translation (if original is NOT English)
+    semantic_note: str = ""  # Interpretation: what this means in practice, and how it differs across countries
+
 
 @dataclass
 class RegulationProfile:
@@ -1198,16 +1207,17 @@ class RegulationProfile:
       2. Generate per-document cross-examination questions
       3. Feed the risk matrix for compliance verdicts
     """
-    regulation_id: str            # e.g., "QMSR", "EU_MDR", "TFDA", "PMDA"
-    name_en: str                  # e.g., "US FDA QMSR (21 CFR Part 820)"
-    name_zh: str                  # e.g., "美國 FDA QMSR（21 CFR 第820部分）"
-    country: str                  # e.g., "US", "EU", "TW", "JP"
-    country_name_en: str          # e.g., "United States"
-    country_name_zh: str          # e.g., "美國"
-    source: str                   # "predefined" or "crawled"
-    source_url: str = ""          # Official regulation URL
-    last_updated: str = ""       # ISO date of last update
-    effective_date: str = ""     # When regulation became effective
+
+    regulation_id: str  # e.g., "QMSR", "EU_MDR", "TFDA", "PMDA"
+    name_en: str  # e.g., "US FDA QMSR (21 CFR Part 820)"
+    name_zh: str  # e.g., "美國 FDA QMSR（21 CFR 第820部分）"
+    country: str  # e.g., "US", "EU", "TW", "JP"
+    country_name_en: str  # e.g., "United States"
+    country_name_zh: str  # e.g., "美國"
+    source: str  # "predefined" or "crawled"
+    source_url: str = ""  # Official regulation URL
+    last_updated: str = ""  # ISO date of last update
+    effective_date: str = ""  # When regulation became effective
     # Mapping: ISO 13485 clause → how this regulation covers it
     iso_mapped: dict[str, ClauseMapping] = field(default_factory=dict)
     # Delta: requirements UNIQUE to this country (not in ISO 13485)
@@ -1231,19 +1241,20 @@ class RegulationProfile:
 
 class StandardCategory(str, Enum):
     """Category of supplemental standard — determines where it fits."""
-    RISK_MANAGEMENT = "risk_management"          # ISO 14971
-    SOFTWARE = "software"                        # IEC 62304
-    USABILITY = "usability"                      # IEC 62366
-    ELECTRICAL_SAFETY = "electrical_safety"      # IEC 60601
-    STERILIZATION = "sterilization"              # ISO 11135/11137/17665
-    PACKAGING = "packaging"                      # ISO 11607
-    BIOCOMPATIBILITY = "biocompatibility"        # ISO 10993
-    IMPLANTABLE = "implantable"                  # ISO 14708
-    LABELING = "labeling"                        # ISO 15223
-    EMC = "emc"                                  # IEC 60601-1-2
-    CLINICAL = "clinical"                        # ISO 14155
-    PROCESS_VALIDATION = "process_validation"    # Process-specific validation
-    ENVIRONMENTAL = "environmental"              # IEC 60068
+
+    RISK_MANAGEMENT = "risk_management"  # ISO 14971
+    SOFTWARE = "software"  # IEC 62304
+    USABILITY = "usability"  # IEC 62366
+    ELECTRICAL_SAFETY = "electrical_safety"  # IEC 60601
+    STERILIZATION = "sterilization"  # ISO 11135/11137/17665
+    PACKAGING = "packaging"  # ISO 11607
+    BIOCOMPATIBILITY = "biocompatibility"  # ISO 10993
+    IMPLANTABLE = "implantable"  # ISO 14708
+    LABELING = "labeling"  # ISO 15223
+    EMC = "emc"  # IEC 60601-1-2
+    CLINICAL = "clinical"  # ISO 14155
+    PROCESS_VALIDATION = "process_validation"  # Process-specific validation
+    ENVIRONMENTAL = "environmental"  # IEC 60068
 
 
 @dataclass
@@ -1253,11 +1264,12 @@ class StandardClauseLink:
     Defines the 'HOW' relationship: the supplemental standard
     tells you HOW to satisfy a specific ISO 13485 requirement.
     """
-    standard_clause: str           # e.g., "ISO 14971 Clause 4"
-    iso_13485_clause: str          # e.g., "7.1"
-    relationship: str              # "elaborates" / "implements" / "supplements" / "verifies"
-    description_en: str            # What this link means
-    description_zh: str            # What this link means (Chinese)
+
+    standard_clause: str  # e.g., "ISO 14971 Clause 4"
+    iso_13485_clause: str  # e.g., "7.1"
+    relationship: str  # "elaborates" / "implements" / "supplements" / "verifies"
+    description_en: str  # What this link means
+    description_zh: str  # What this link means (Chinese)
 
 
 @dataclass
@@ -1275,12 +1287,13 @@ class SupplementalStandardProfile:
       4. User manual selection in HTML UI checkboxes
       5. Real-time correction during cross-examination dialog
     """
-    standard_id: str               # e.g., "ISO_14971", "IEC_62304"
-    name_en: str                   # e.g., "ISO 14971:2019 Risk Management"
-    name_zh: str                   # e.g., "ISO 14971:2019 風險管理"
+
+    standard_id: str  # e.g., "ISO_14971", "IEC_62304"
+    name_en: str  # e.g., "ISO 14971:2019 Risk Management"
+    name_zh: str  # e.g., "ISO 14971:2019 風險管理"
     category: StandardCategory
     version: str = ""
-    is_universal: bool = False     # True = applies to ALL products (e.g., ISO 14971)
+    is_universal: bool = False  # True = applies to ALL products (e.g., ISO 14971)
     # Keywords to detect in documents / uploaded files
     detection_keywords_en: list[str] = field(default_factory=list)
     detection_keywords_zh: list[str] = field(default_factory=list)
@@ -1310,28 +1323,37 @@ class ProductProfile:
     Each characteristic stores: (value, confidence, source)
     source: 'document_scan' / 'standards_list' / 'uploaded_file' / 'user_manual' / 'dialog_correction'
     """
+
     has_software: tuple[bool, float, str] = (False, 0.0, "")
     has_electrical: tuple[bool, float, str] = (False, 0.0, "")
     is_implantable: tuple[bool, float, str] = (False, 0.0, "")
     is_sterile: tuple[bool, float, str] = (False, 0.0, "")
-    sterilization_method: str = ""    # "eo" / "radiation" / "steam" / "other" / ""
+    sterilization_method: str = ""  # "eo" / "radiation" / "steam" / "other" / ""
     has_biological_contact: tuple[bool, float, str] = (False, 0.0, "")
     is_ivd: tuple[bool, float, str] = (False, 0.0, "")
     has_clinical_investigation: tuple[bool, float, str] = (False, 0.0, "")
     has_wireless_connectivity: tuple[bool, float, str] = (False, 0.0, "")
     # Risk class per regulation
-    risk_class: dict[str, str] = field(default_factory=dict)  # {"EU": "IIb", "US": "II", "TW": "2"}
+    risk_class: dict[str, str] = field(
+        default_factory=dict
+    )  # {"EU": "IIb", "US": "II", "TW": "2"}
     # User confirmation overrides
     user_confirmed_standards: list[str] = field(default_factory=list)
     user_rejected_standards: list[str] = field(default_factory=list)
     # Detection results
-    detected_standard_refs: list[str] = field(default_factory=list)  # Standards found in docs
-    uploaded_standard_files: list[str] = field(default_factory=list)  # ISO files user uploaded
+    detected_standard_refs: list[str] = field(
+        default_factory=list
+    )  # Standards found in docs
+    uploaded_standard_files: list[str] = field(
+        default_factory=list
+    )  # ISO files user uploaded
     detection_notes: str = ""
+
 
 # ============================================================
 # Predefined Regulation: US FDA QMSR
 # ============================================================
+
 
 def _build_qmsr_profile() -> RegulationProfile:
     """Build the US FDA QMSR regulation profile.
@@ -1693,6 +1715,7 @@ def _build_qmsr_profile() -> RegulationProfile:
 # Predefined Regulation: EU MDR 2017/745
 # ============================================================
 
+
 def _build_eu_mdr_profile() -> RegulationProfile:
     """Build the EU MDR 2017/745 regulation profile.
 
@@ -1708,62 +1731,190 @@ def _build_eu_mdr_profile() -> RegulationProfile:
 
     # Clauses where EU MDR fully aligns with ISO 13485 via Article 10(9)
     full_clauses = {
-        "4.1": ("Annex IX Sec 2.2 / Art 10(9)", "EU MDR Annex IX Section 2.2 requires a QMS. Article 10(9) lists QMS elements that align with ISO 13485 Clause 4.1 general requirements.", "EU MDR 附錄 IX 第2.2節要求建立QMS。第10(9)條列出的QMS要素與 ISO 13485 條款 4.1 一般要求對齊。"),
-        "4.2.1": ("Annex IX Sec 2.2 / Art 10(9)", "Technical documentation requirements (Annex II/III) align with QMS documentation needs.", "技術文件要求（附錄 II/III）與QMS文件化需求對齊。"),
-        "4.2.2": ("Annex IX Sec 2.2", "Quality manual requirements aligned.", "品質手冊要求對齊。"),
-        "4.2.3": ("Annex IX Sec 2.2", "Document control requirements aligned.", "文件管制要求對齊。"),
-        "4.2.4": ("Annex IX Sec 2.2", "Record control requirements aligned.", "記錄管制要求對齊。"),
-        "5.1": ("Art 10(9)(b)", "Management responsibility fully covered by Article 10(9)(b).", "管理責任完全由第10(9)(b)條涵蓋。"),
-        "5.2": ("Art 10(9)(a)", "Customer/regulatory focus via strategy for regulatory compliance.", "透過法規合規策略涵蓋顧客/法規關注。"),
-        "5.3": ("Art 10(9)(b)", "Quality policy under management responsibility.", "品質政策屬管理責任範疇。"),
-        "5.4.1": ("Art 10(9)(b)", "Quality objectives under management responsibility.", "品質目標屬管理責任範疇。"),
-        "5.4.2": ("Art 10(9)(b)", "QMS planning under management responsibility.", "QMS規劃屬管理責任範疇。"),
-        "5.5.1": ("Art 10(9)(b)", "Responsibility and authority aligned.", "責任與權限對齊。"),
-        "5.5.2": ("Art 10(9)(b)", "Management representative aligned.", "管理代表對齊。"),
+        "4.1": (
+            "Annex IX Sec 2.2 / Art 10(9)",
+            "EU MDR Annex IX Section 2.2 requires a QMS. Article 10(9) lists QMS elements that align with ISO 13485 Clause 4.1 general requirements.",
+            "EU MDR 附錄 IX 第2.2節要求建立QMS。第10(9)條列出的QMS要素與 ISO 13485 條款 4.1 一般要求對齊。",
+        ),
+        "4.2.1": (
+            "Annex IX Sec 2.2 / Art 10(9)",
+            "Technical documentation requirements (Annex II/III) align with QMS documentation needs.",
+            "技術文件要求（附錄 II/III）與QMS文件化需求對齊。",
+        ),
+        "4.2.2": (
+            "Annex IX Sec 2.2",
+            "Quality manual requirements aligned.",
+            "品質手冊要求對齊。",
+        ),
+        "4.2.3": (
+            "Annex IX Sec 2.2",
+            "Document control requirements aligned.",
+            "文件管制要求對齊。",
+        ),
+        "4.2.4": (
+            "Annex IX Sec 2.2",
+            "Record control requirements aligned.",
+            "記錄管制要求對齊。",
+        ),
+        "5.1": (
+            "Art 10(9)(b)",
+            "Management responsibility fully covered by Article 10(9)(b).",
+            "管理責任完全由第10(9)(b)條涵蓋。",
+        ),
+        "5.2": (
+            "Art 10(9)(a)",
+            "Customer/regulatory focus via strategy for regulatory compliance.",
+            "透過法規合規策略涵蓋顧客/法規關注。",
+        ),
+        "5.3": (
+            "Art 10(9)(b)",
+            "Quality policy under management responsibility.",
+            "品質政策屬管理責任範疇。",
+        ),
+        "5.4.1": (
+            "Art 10(9)(b)",
+            "Quality objectives under management responsibility.",
+            "品質目標屬管理責任範疇。",
+        ),
+        "5.4.2": (
+            "Art 10(9)(b)",
+            "QMS planning under management responsibility.",
+            "QMS規劃屬管理責任範疇。",
+        ),
+        "5.5.1": (
+            "Art 10(9)(b)",
+            "Responsibility and authority aligned.",
+            "責任與權限對齊。",
+        ),
+        "5.5.2": (
+            "Art 10(9)(b)",
+            "Management representative aligned.",
+            "管理代表對齊。",
+        ),
         "5.5.3": ("Art 10(9)(b)", "Internal communication aligned.", "內部溝通對齊。"),
         "5.6.1": ("Art 10(9)(b)", "Management review aligned.", "管理審查對齊。"),
-        "5.6.2": ("Art 10(9)(b)", "Management review input aligned.", "管理審查輸入對齊。"),
-        "5.6.3": ("Art 10(9)(b)", "Management review output aligned.", "管理審查輸出對齊。"),
+        "5.6.2": (
+            "Art 10(9)(b)",
+            "Management review input aligned.",
+            "管理審查輸入對齊。",
+        ),
+        "5.6.3": (
+            "Art 10(9)(b)",
+            "Management review output aligned.",
+            "管理審查輸出對齊。",
+        ),
         "6.1": ("Art 10(9)(c)", "Resource provision aligned.", "資源提供對齊。"),
-        "6.2": ("Art 10(9)(c)", "Human resources / competence aligned.", "人力資源/能力對齊。"),
+        "6.2": (
+            "Art 10(9)(c)",
+            "Human resources / competence aligned.",
+            "人力資源/能力對齊。",
+        ),
         "6.3": ("Art 10(9)(c)", "Infrastructure aligned.", "基礎設施對齊。"),
         "6.4.1": ("Art 10(9)(c)", "Work environment aligned.", "工作環境對齊。"),
         "6.4.2": ("Art 10(9)(c)", "Contamination control aligned.", "污染管制對齊。"),
-        "7.1": ("Art 10(9)(f)", "Product realization planning aligned.", "產品實現規劃對齊。"),
-        "7.2.1": ("Art 10(9)(f)", "Determination of product requirements aligned.", "產品要求確定對齊。"),
-        "7.2.2": ("Art 10(9)(f)", "Review of product requirements aligned.", "產品要求審查對齊。"),
-        "7.2.3": ("Art 10(9)(i)", "Communication with authorities and stakeholders aligned.", "與主管機關及利害關係人溝通對齊。"),
-        "7.4.1": ("Art 10(9)(c)", "Purchasing process aligned (suppliers/subcontractors).", "採購過程對齊（供應商/分包商）。"),
+        "7.1": (
+            "Art 10(9)(f)",
+            "Product realization planning aligned.",
+            "產品實現規劃對齊。",
+        ),
+        "7.2.1": (
+            "Art 10(9)(f)",
+            "Determination of product requirements aligned.",
+            "產品要求確定對齊。",
+        ),
+        "7.2.2": (
+            "Art 10(9)(f)",
+            "Review of product requirements aligned.",
+            "產品要求審查對齊。",
+        ),
+        "7.2.3": (
+            "Art 10(9)(i)",
+            "Communication with authorities and stakeholders aligned.",
+            "與主管機關及利害關係人溝通對齊。",
+        ),
+        "7.4.1": (
+            "Art 10(9)(c)",
+            "Purchasing process aligned (suppliers/subcontractors).",
+            "採購過程對齊（供應商/分包商）。",
+        ),
         "7.4.2": ("Art 10(9)(c)", "Purchasing information aligned.", "採購資訊對齊。"),
-        "7.4.3": ("Art 10(9)(c)", "Verification of purchased product aligned.", "採購產品驗證對齊。"),
+        "7.4.3": (
+            "Art 10(9)(c)",
+            "Verification of purchased product aligned.",
+            "採購產品驗證對齊。",
+        ),
         "7.5.1": ("Art 10(9)(f)", "Control of production aligned.", "生產管制對齊。"),
         "7.5.2": ("Art 10(9)(f)", "Product cleanliness aligned.", "產品潔淨對齊。"),
         "7.5.3": ("Art 10(9)(f)", "Installation activities aligned.", "安裝活動對齊。"),
         "7.5.4": ("Art 10(9)(f)", "Servicing activities aligned.", "服務活動對齊。"),
-        "7.5.5": ("Art 10(9)(f)", "Sterile device requirements aligned.", "無菌裝置要求對齊。"),
+        "7.5.5": (
+            "Art 10(9)(f)",
+            "Sterile device requirements aligned.",
+            "無菌裝置要求對齊。",
+        ),
         "7.5.6": ("Art 10(9)(f)", "Process validation aligned.", "過程確認對齊。"),
-        "7.5.7": ("Art 10(9)(f)", "Sterilization process validation aligned.", "滅菌過程確認對齊。"),
+        "7.5.7": (
+            "Art 10(9)(f)",
+            "Sterilization process validation aligned.",
+            "滅菌過程確認對齊。",
+        ),
         "7.5.8": ("Art 10(9)(f)", "Identification aligned.", "識別對齊。"),
         "7.5.9": ("Art 10(9)(f)", "Traceability aligned.", "追溯性對齊。"),
-        "7.5.9.1": ("Art 10(9)(f)", "Implant traceability aligned.", "植入物追溯性對齊。"),
+        "7.5.9.1": (
+            "Art 10(9)(f)",
+            "Implant traceability aligned.",
+            "植入物追溯性對齊。",
+        ),
         "7.5.10": ("Art 10(9)(f)", "Customer property aligned.", "顧客財產對齊。"),
         "7.5.11": ("Art 10(9)(f)", "Product preservation aligned.", "產品防護對齊。"),
-        "7.6": ("Art 10(9)(f)", "Monitoring and measuring equipment aligned.", "監督與量測設備對齊。"),
-        "8.1": ("Art 10(9)(k)", "General measurement and improvement aligned.", "一般量測與改善對齊。"),
+        "7.6": (
+            "Art 10(9)(f)",
+            "Monitoring and measuring equipment aligned.",
+            "監督與量測設備對齊。",
+        ),
+        "8.1": (
+            "Art 10(9)(k)",
+            "General measurement and improvement aligned.",
+            "一般量測與改善對齊。",
+        ),
         "8.2.4": ("Art 10(9)(k)", "Internal audit aligned.", "內部稽核對齊。"),
         "8.2.4.1": ("Art 10(9)(k)", "Audit criteria aligned.", "稽核準則對齊。"),
-        "8.2.4.2": ("Art 10(9)(k)", "Audit corrective actions aligned.", "稽核矯正措施對齊。"),
+        "8.2.4.2": (
+            "Art 10(9)(k)",
+            "Audit corrective actions aligned.",
+            "稽核矯正措施對齊。",
+        ),
         "8.2.5": ("Art 10(9)(k)", "Process monitoring aligned.", "過程監督對齊。"),
         "8.2.6": ("Art 10(9)(k)", "Product monitoring aligned.", "產品監督對齊。"),
-        "8.3": ("Art 10(9)(j)", "Nonconforming product control aligned.", "不合格品管制對齊。"),
-        "8.3.1": ("Art 10(9)(j)", "Pre-delivery nonconformance aligned.", "交付前不合格對齊。"),
-        "8.3.2": ("Art 10(9)(j)", "Post-delivery nonconformance aligned.", "交付後不合格對齊。"),
+        "8.3": (
+            "Art 10(9)(j)",
+            "Nonconforming product control aligned.",
+            "不合格品管制對齊。",
+        ),
+        "8.3.1": (
+            "Art 10(9)(j)",
+            "Pre-delivery nonconformance aligned.",
+            "交付前不合格對齊。",
+        ),
+        "8.3.2": (
+            "Art 10(9)(j)",
+            "Post-delivery nonconformance aligned.",
+            "交付後不合格對齊。",
+        ),
         "8.3.3": ("Art 10(9)(j)", "Concession control aligned.", "讓步管制對齊。"),
         "8.3.4": ("Art 10(9)(j)", "Rework control aligned.", "返工管制對齊。"),
         "8.4": ("Art 10(9)(k)", "Data analysis aligned.", "數據分析對齊。"),
         "8.5.1": ("Art 10(9)(k)", "Improvement aligned.", "改善對齊。"),
-        "8.5.2": ("Art 10(9)(j)", "Corrective action aligned with CAPA.", "矯正措施與CAPA對齊。"),
-        "8.5.3": ("Art 10(9)(j)", "Preventive action aligned with CAPA.", "預防措施與CAPA對齊。"),
+        "8.5.2": (
+            "Art 10(9)(j)",
+            "Corrective action aligned with CAPA.",
+            "矯正措施與CAPA對齊。",
+        ),
+        "8.5.3": (
+            "Art 10(9)(j)",
+            "Preventive action aligned with CAPA.",
+            "預防措施與CAPA對齊。",
+        ),
     }
     for clause_id, (ref, rationale_en, rationale_zh) in full_clauses.items():
         iso_mapped[clause_id] = ClauseMapping(
@@ -1779,19 +1930,84 @@ def _build_eu_mdr_profile() -> RegulationProfile:
 
     # Clauses where EU MDR EXCEEDS ISO 13485
     exceeds_clauses = {
-        "4.2.5": ("Annex II/III", MappingStatus.EXCEEDS, "EU MDR requires Technical Documentation per Annex II/III format which is more structured than ISO 13485 device file.", "EU MDR 要求按附錄 II/III 格式的技術文件，比 ISO 13485 的器材檔案更結構化。"),
-        "7.3.1": ("Art 10(9)(f) / Annex IX Sec 2.2(c)", MappingStatus.EXCEEDS, "Design planning must integrate clinical evaluation strategy and GSPR compliance demonstration.", "設計規劃必須整合臨床評估策略和GSPR合規展示。"),
-        "7.3.2": ("Art 10(9)(d) / Annex I", MappingStatus.EXCEEDS, "Design input must include GSPR (General Safety & Performance Requirements, Annex I) and risk management per Annex I Sec 3.", "設計輸入必須包含GSPR（一般安全與性能要求，附錄I）及按附錄I第3節之風險管理。"),
-        "7.3.3": ("Art 10(9)(f) / Annex II", MappingStatus.EXCEEDS, "Design output must demonstrate GSPR compliance via Technical Documentation (Annex II).", "設計輸出必須透過技術文件（附錄II）展示GSPR合規。"),
-        "7.3.4": ("Art 10(9)(f)", MappingStatus.EXCEEDS, "Design review must include clinical evidence review and GSPR gap assessment.", "設計審查必須包含臨床證據審查和GSPR差距評估。"),
-        "7.3.5": ("Art 10(9)(f)", MappingStatus.EXCEEDS, "Design verification must include biocompatibility, electrical safety per applicable standards.", "設計驗證必須包含生物相容性、電氣安全等適用標準。"),
-        "7.3.6": ("Art 10(9)(e) / Annex XIV", MappingStatus.EXCEEDS, "Design validation must include clinical evaluation per Annex XIV with PMCF plan. Goes far beyond ISO 13485 clinical requirement.", "設計確認必須包含按附錄XIV之臨床評估及PMCF計畫。遠超ISO 13485的臨床要求。"),
-        "7.3.7": ("Art 10(9)(e) / Annex XIV", MappingStatus.EXCEEDS, "Design transfer must integrate clinical evaluation lifecycle and PMCF considerations.", "設計轉移必須整合臨床評估生命週期及PMCF考量。"),
-        "7.3.8": ("Art 10(9)(f)", MappingStatus.EXCEEDS, "Design changes must assess impact on GSPR compliance and clinical evaluation.", "設計變更必須評估對GSPR合規及臨床評估之影響。"),
-        "7.5.9.2": ("Art 27", MappingStatus.EXCEEDS, "UDI assignment must comply with EU UDI rules and EUDAMED registration.", "UDI指派必須符合歐盟UDI規則及EUDAMED註冊。"),
-        "8.2.1": ("Art 10(9)(h) / Art 83-86", MappingStatus.EXCEEDS, "Post-market surveillance must include formal PMS Plan, PMS Report (PMSR) or PSUR. Far exceeds ISO 13485 feedback.", "上市後監督必須包含正式的PMS計畫、PMS報告（PMSR）或PSUR。遠超ISO 13485的回饋要求。"),
-        "8.2.2": ("Art 10(9)(j) / Art 87-92", MappingStatus.EXCEEDS, "Complaint handling must integrate with vigilance system and specific reporting timelines (15 days serious, 2 days death/life-threatening).", "客訴處理必須與警戒系統整合，並有特定通報時限（嚴重15天、死亡/危及生命2天）。"),
-        "8.2.3": ("Art 87-92", MappingStatus.EXCEEDS, "Regulatory reporting has strict timelines and specific formats. Must report to EUDAMED.", "法規通報有嚴格時限和特定格式。必須向EUDAMED通報。"),
+        "4.2.5": (
+            "Annex II/III",
+            MappingStatus.EXCEEDS,
+            "EU MDR requires Technical Documentation per Annex II/III format which is more structured than ISO 13485 device file.",
+            "EU MDR 要求按附錄 II/III 格式的技術文件，比 ISO 13485 的器材檔案更結構化。",
+        ),
+        "7.3.1": (
+            "Art 10(9)(f) / Annex IX Sec 2.2(c)",
+            MappingStatus.EXCEEDS,
+            "Design planning must integrate clinical evaluation strategy and GSPR compliance demonstration.",
+            "設計規劃必須整合臨床評估策略和GSPR合規展示。",
+        ),
+        "7.3.2": (
+            "Art 10(9)(d) / Annex I",
+            MappingStatus.EXCEEDS,
+            "Design input must include GSPR (General Safety & Performance Requirements, Annex I) and risk management per Annex I Sec 3.",
+            "設計輸入必須包含GSPR（一般安全與性能要求，附錄I）及按附錄I第3節之風險管理。",
+        ),
+        "7.3.3": (
+            "Art 10(9)(f) / Annex II",
+            MappingStatus.EXCEEDS,
+            "Design output must demonstrate GSPR compliance via Technical Documentation (Annex II).",
+            "設計輸出必須透過技術文件（附錄II）展示GSPR合規。",
+        ),
+        "7.3.4": (
+            "Art 10(9)(f)",
+            MappingStatus.EXCEEDS,
+            "Design review must include clinical evidence review and GSPR gap assessment.",
+            "設計審查必須包含臨床證據審查和GSPR差距評估。",
+        ),
+        "7.3.5": (
+            "Art 10(9)(f)",
+            MappingStatus.EXCEEDS,
+            "Design verification must include biocompatibility, electrical safety per applicable standards.",
+            "設計驗證必須包含生物相容性、電氣安全等適用標準。",
+        ),
+        "7.3.6": (
+            "Art 10(9)(e) / Annex XIV",
+            MappingStatus.EXCEEDS,
+            "Design validation must include clinical evaluation per Annex XIV with PMCF plan. Goes far beyond ISO 13485 clinical requirement.",
+            "設計確認必須包含按附錄XIV之臨床評估及PMCF計畫。遠超ISO 13485的臨床要求。",
+        ),
+        "7.3.7": (
+            "Art 10(9)(e) / Annex XIV",
+            MappingStatus.EXCEEDS,
+            "Design transfer must integrate clinical evaluation lifecycle and PMCF considerations.",
+            "設計轉移必須整合臨床評估生命週期及PMCF考量。",
+        ),
+        "7.3.8": (
+            "Art 10(9)(f)",
+            MappingStatus.EXCEEDS,
+            "Design changes must assess impact on GSPR compliance and clinical evaluation.",
+            "設計變更必須評估對GSPR合規及臨床評估之影響。",
+        ),
+        "7.5.9.2": (
+            "Art 27",
+            MappingStatus.EXCEEDS,
+            "UDI assignment must comply with EU UDI rules and EUDAMED registration.",
+            "UDI指派必須符合歐盟UDI規則及EUDAMED註冊。",
+        ),
+        "8.2.1": (
+            "Art 10(9)(h) / Art 83-86",
+            MappingStatus.EXCEEDS,
+            "Post-market surveillance must include formal PMS Plan, PMS Report (PMSR) or PSUR. Far exceeds ISO 13485 feedback.",
+            "上市後監督必須包含正式的PMS計畫、PMS報告（PMSR）或PSUR。遠超ISO 13485的回饋要求。",
+        ),
+        "8.2.2": (
+            "Art 10(9)(j) / Art 87-92",
+            MappingStatus.EXCEEDS,
+            "Complaint handling must integrate with vigilance system and specific reporting timelines (15 days serious, 2 days death/life-threatening).",
+            "客訴處理必須與警戒系統整合，並有特定通報時限（嚴重15天、死亡/危及生命2天）。",
+        ),
+        "8.2.3": (
+            "Art 87-92",
+            MappingStatus.EXCEEDS,
+            "Regulatory reporting has strict timelines and specific formats. Must report to EUDAMED.",
+            "法規通報有嚴格時限和特定格式。必須向EUDAMED通報。",
+        ),
     }
     for clause_id, (ref, status, rationale_en, rationale_zh) in exceeds_clauses.items():
         iso_mapped[clause_id] = ClauseMapping(
@@ -2091,8 +2307,7 @@ def _build_eu_mdr_profile() -> RegulationProfile:
                 "for serious incident reporting and FSCA?"
             ),
             audit_question_zh=(
-                "警戒系統是否符合 EU MDR 的嚴重事件通報時限（2/10/15天）"
-                "及 FSCA 要求？"
+                "警戒系統是否符合 EU MDR 的嚴重事件通報時限（2/10/15天）及 FSCA 要求？"
             ),
             expected_evidence=[
                 "Vigilance procedure with EU MDR timelines / 含 EU MDR 時限之警戒程序書",
@@ -2213,8 +2428,7 @@ def _build_eu_mdr_profile() -> RegulationProfile:
                 "Annex I requirements as part of the Technical Documentation?"
             ),
             audit_question_zh=(
-                "是否有 GSPR 檢查表作為技術文件的一部分，"
-                "展示符合所有適用的附錄I要求？"
+                "是否有 GSPR 檢查表作為技術文件的一部分，展示符合所有適用的附錄I要求？"
             ),
             expected_evidence=[
                 "GSPR checklist / GSPR 檢查表",
@@ -2278,6 +2492,7 @@ def _build_eu_mdr_profile() -> RegulationProfile:
 # Predefined Regulation: Taiwan TFDA
 # ============================================================
 
+
 def _build_tfda_profile() -> RegulationProfile:
     """Build the Taiwan TFDA regulation profile.
 
@@ -2292,77 +2507,297 @@ def _build_tfda_profile() -> RegulationProfile:
 
     # Article-to-clause mapping (from TFDA regulation structure)
     tfda_article_map = {
-        "4.1": ("Art. 6", "Article 6 establishes general QMS requirements, directly referencing ISO 13485 Clause 4.1.", "第6條建立一般QMS要求，直接引用ISO 13485條款4.1。"),
-        "4.2.1": ("Art. 7", "Article 7 covers documentation requirements.", "第7條涵蓋文件化要求。"),
+        "4.1": (
+            "Art. 6",
+            "Article 6 establishes general QMS requirements, directly referencing ISO 13485 Clause 4.1.",
+            "第6條建立一般QMS要求，直接引用ISO 13485條款4.1。",
+        ),
+        "4.2.1": (
+            "Art. 7",
+            "Article 7 covers documentation requirements.",
+            "第7條涵蓋文件化要求。",
+        ),
         "4.2.2": ("Art. 9", "Article 9 covers quality manual.", "第9條涵蓋品質手冊。"),
-        "4.2.3": ("Art. 10", "Article 10 covers document control.", "第10條涵蓋文件管制。"),
-        "4.2.4": ("Art. 11", "Article 11 covers record control.", "第11條涵蓋記錄管制。"),
-        "4.2.5": ("Art. 8", "Article 8 covers medical device file.", "第8條涵蓋醫療器材檔案。"),
-        "5.1": ("Art. 12", "Article 12 covers management commitment.", "第12條涵蓋管理承諾。"),
-        "5.2": ("Art. 13", "Article 13 covers customer focus.", "第13條涵蓋以顧客為重。"),
+        "4.2.3": (
+            "Art. 10",
+            "Article 10 covers document control.",
+            "第10條涵蓋文件管制。",
+        ),
+        "4.2.4": (
+            "Art. 11",
+            "Article 11 covers record control.",
+            "第11條涵蓋記錄管制。",
+        ),
+        "4.2.5": (
+            "Art. 8",
+            "Article 8 covers medical device file.",
+            "第8條涵蓋醫療器材檔案。",
+        ),
+        "5.1": (
+            "Art. 12",
+            "Article 12 covers management commitment.",
+            "第12條涵蓋管理承諾。",
+        ),
+        "5.2": (
+            "Art. 13",
+            "Article 13 covers customer focus.",
+            "第13條涵蓋以顧客為重。",
+        ),
         "5.3": ("Art. 14", "Article 14 covers quality policy.", "第14條涵蓋品質政策。"),
-        "5.4.1": ("Art. 15", "Article 15 covers quality objectives.", "第15條涵蓋品質目標。"),
+        "5.4.1": (
+            "Art. 15",
+            "Article 15 covers quality objectives.",
+            "第15條涵蓋品質目標。",
+        ),
         "5.4.2": ("Art. 16", "Article 16 covers QMS planning.", "第16條涵蓋QMS規劃。"),
-        "5.5.1": ("Art. 17", "Article 17 covers responsibility and authority.", "第17條涵蓋責任與權限。"),
-        "5.5.2": ("Art. 18", "Article 18 covers management representative.", "第18條涵蓋管理代表。"),
-        "5.5.3": ("Art. 19", "Article 19 covers internal communication.", "第19條涵蓋內部溝通。"),
-        "5.6.1": ("Art. 20", "Article 20 covers management review.", "第20條涵蓋管理審查。"),
-        "5.6.2": ("Art. 20", "Article 20 includes management review input.", "第20條包含管理審查輸入。"),
-        "5.6.3": ("Art. 20", "Article 20 includes management review output.", "第20條包含管理審查輸出。"),
-        "6.1": ("Art. 21", "Article 21 covers resource provision.", "第21條涵蓋資源提供。"),
-        "6.2": ("Art. 22", "Article 22 covers human resources.", "第22條涵蓋人力資源。"),
-        "6.3": ("Art. 23-24", "Articles 23-24 cover infrastructure.", "第23-24條涵蓋基礎設施。"),
-        "6.4.1": ("Art. 25", "Article 25 covers work environment.", "第25條涵蓋工作環境。"),
-        "6.4.2": ("Art. 26", "Article 26 covers contamination control.", "第26條涵蓋污染管制。"),
-        "7.1": ("Art. 27", "Article 27 covers product realization planning.", "第27條涵蓋產品實現規劃。"),
-        "7.2.1": ("Art. 28", "Article 28 covers determination of product requirements.", "第28條涵蓋產品要求確定。"),
-        "7.2.2": ("Art. 29", "Article 29 covers review of product requirements.", "第29條涵蓋產品要求審查。"),
+        "5.5.1": (
+            "Art. 17",
+            "Article 17 covers responsibility and authority.",
+            "第17條涵蓋責任與權限。",
+        ),
+        "5.5.2": (
+            "Art. 18",
+            "Article 18 covers management representative.",
+            "第18條涵蓋管理代表。",
+        ),
+        "5.5.3": (
+            "Art. 19",
+            "Article 19 covers internal communication.",
+            "第19條涵蓋內部溝通。",
+        ),
+        "5.6.1": (
+            "Art. 20",
+            "Article 20 covers management review.",
+            "第20條涵蓋管理審查。",
+        ),
+        "5.6.2": (
+            "Art. 20",
+            "Article 20 includes management review input.",
+            "第20條包含管理審查輸入。",
+        ),
+        "5.6.3": (
+            "Art. 20",
+            "Article 20 includes management review output.",
+            "第20條包含管理審查輸出。",
+        ),
+        "6.1": (
+            "Art. 21",
+            "Article 21 covers resource provision.",
+            "第21條涵蓋資源提供。",
+        ),
+        "6.2": (
+            "Art. 22",
+            "Article 22 covers human resources.",
+            "第22條涵蓋人力資源。",
+        ),
+        "6.3": (
+            "Art. 23-24",
+            "Articles 23-24 cover infrastructure.",
+            "第23-24條涵蓋基礎設施。",
+        ),
+        "6.4.1": (
+            "Art. 25",
+            "Article 25 covers work environment.",
+            "第25條涵蓋工作環境。",
+        ),
+        "6.4.2": (
+            "Art. 26",
+            "Article 26 covers contamination control.",
+            "第26條涵蓋污染管制。",
+        ),
+        "7.1": (
+            "Art. 27",
+            "Article 27 covers product realization planning.",
+            "第27條涵蓋產品實現規劃。",
+        ),
+        "7.2.1": (
+            "Art. 28",
+            "Article 28 covers determination of product requirements.",
+            "第28條涵蓋產品要求確定。",
+        ),
+        "7.2.2": (
+            "Art. 29",
+            "Article 29 covers review of product requirements.",
+            "第29條涵蓋產品要求審查。",
+        ),
         "7.2.3": ("Art. 30", "Article 30 covers communication.", "第30條涵蓋溝通。"),
-        "7.3.1": ("Art. 34", "Article 34 covers design planning.", "第34條涵蓋設計規劃。"),
+        "7.3.1": (
+            "Art. 34",
+            "Article 34 covers design planning.",
+            "第34條涵蓋設計規劃。",
+        ),
         "7.3.2": ("Art. 35", "Article 35 covers design input.", "第35條涵蓋設計輸入。"),
-        "7.3.3": ("Art. 36", "Article 36 covers design output.", "第36條涵蓋設計輸出。"),
-        "7.3.4": ("Art. 37", "Article 37 covers design review.", "第37條涵蓋設計審查。"),
-        "7.3.5": ("Art. 38", "Article 38 covers design verification.", "第38條涵蓋設計驗證。"),
-        "7.3.6": ("Art. 39", "Article 39 covers design validation.", "第39條涵蓋設計確認。"),
-        "7.3.7": ("Art. 40", "Article 40 covers design transfer.", "第40條涵蓋設計轉移。"),
-        "7.3.8": ("Art. 41", "Article 41 covers design change control.", "第41條涵蓋設計變更管制。"),
+        "7.3.3": (
+            "Art. 36",
+            "Article 36 covers design output.",
+            "第36條涵蓋設計輸出。",
+        ),
+        "7.3.4": (
+            "Art. 37",
+            "Article 37 covers design review.",
+            "第37條涵蓋設計審查。",
+        ),
+        "7.3.5": (
+            "Art. 38",
+            "Article 38 covers design verification.",
+            "第38條涵蓋設計驗證。",
+        ),
+        "7.3.6": (
+            "Art. 39",
+            "Article 39 covers design validation.",
+            "第39條涵蓋設計確認。",
+        ),
+        "7.3.7": (
+            "Art. 40",
+            "Article 40 covers design transfer.",
+            "第40條涵蓋設計轉移。",
+        ),
+        "7.3.8": (
+            "Art. 41",
+            "Article 41 covers design change control.",
+            "第41條涵蓋設計變更管制。",
+        ),
         "7.3.9": ("Art. 42", "Article 42 covers design files.", "第42條涵蓋設計檔案。"),
-        "7.3.10": ("Art. 43", "Article 43 covers design documentation.", "第43條涵蓋設計文件。"),
-        "7.4.1": ("Art. 44", "Article 44 covers purchasing process.", "第44條涵蓋採購過程。"),
-        "7.4.2": ("Art. 45", "Article 45 covers purchasing information.", "第45條涵蓋採購資訊。"),
-        "7.4.3": ("Art. 46", "Article 46 covers verification of purchased product.", "第46條涵蓋採購產品驗證。"),
-        "7.5.1": ("Art. 51", "Article 51 covers production control.", "第51條涵蓋生產管制。"),
-        "7.5.2": ("Art. 52", "Article 52 covers product cleanliness.", "第52條涵蓋產品潔淨。"),
+        "7.3.10": (
+            "Art. 43",
+            "Article 43 covers design documentation.",
+            "第43條涵蓋設計文件。",
+        ),
+        "7.4.1": (
+            "Art. 44",
+            "Article 44 covers purchasing process.",
+            "第44條涵蓋採購過程。",
+        ),
+        "7.4.2": (
+            "Art. 45",
+            "Article 45 covers purchasing information.",
+            "第45條涵蓋採購資訊。",
+        ),
+        "7.4.3": (
+            "Art. 46",
+            "Article 46 covers verification of purchased product.",
+            "第46條涵蓋採購產品驗證。",
+        ),
+        "7.5.1": (
+            "Art. 51",
+            "Article 51 covers production control.",
+            "第51條涵蓋生產管制。",
+        ),
+        "7.5.2": (
+            "Art. 52",
+            "Article 52 covers product cleanliness.",
+            "第52條涵蓋產品潔淨。",
+        ),
         "7.5.3": ("Art. 53", "Article 53 covers installation.", "第53條涵蓋安裝。"),
         "7.5.4": ("Art. 54", "Article 54 covers servicing.", "第54條涵蓋服務。"),
-        "7.5.5": ("Art. 55", "Article 55 covers sterile device requirements.", "第55條涵蓋無菌裝置要求。"),
-        "7.5.6": ("Art. 56", "Article 56 covers process validation.", "第56條涵蓋過程確認。"),
-        "7.5.7": ("Art. 57", "Article 57 covers sterilization validation.", "第57條涵蓋滅菌確認。"),
+        "7.5.5": (
+            "Art. 55",
+            "Article 55 covers sterile device requirements.",
+            "第55條涵蓋無菌裝置要求。",
+        ),
+        "7.5.6": (
+            "Art. 56",
+            "Article 56 covers process validation.",
+            "第56條涵蓋過程確認。",
+        ),
+        "7.5.7": (
+            "Art. 57",
+            "Article 57 covers sterilization validation.",
+            "第57條涵蓋滅菌確認。",
+        ),
         "7.5.8": ("Art. 58", "Article 58 covers identification.", "第58條涵蓋識別。"),
         "7.5.9": ("Art. 59", "Article 59 covers traceability.", "第59條涵蓋追溯性。"),
-        "7.5.9.1": ("Art. 60", "Article 60 covers implant traceability.", "第60條涵蓋植入物追溯性。"),
+        "7.5.9.1": (
+            "Art. 60",
+            "Article 60 covers implant traceability.",
+            "第60條涵蓋植入物追溯性。",
+        ),
         "7.5.9.2": ("Art. 61", "Article 61 covers UDI.", "第61條涵蓋UDI。"),
-        "7.5.10": ("Art. 47", "Article 47 covers customer property.", "第47條涵蓋顧客財產。"),
-        "7.5.11": ("Art. 48-50", "Articles 48-50 cover product preservation.", "第48-50條涵蓋產品防護。"),
-        "7.6": ("Art. 62", "Article 62 covers monitoring equipment.", "第62條涵蓋監測設備。"),
-        "8.1": ("Art. 63", "Article 63 covers general measurement requirements.", "第63條涵蓋一般量測要求。"),
+        "7.5.10": (
+            "Art. 47",
+            "Article 47 covers customer property.",
+            "第47條涵蓋顧客財產。",
+        ),
+        "7.5.11": (
+            "Art. 48-50",
+            "Articles 48-50 cover product preservation.",
+            "第48-50條涵蓋產品防護。",
+        ),
+        "7.6": (
+            "Art. 62",
+            "Article 62 covers monitoring equipment.",
+            "第62條涵蓋監測設備。",
+        ),
+        "8.1": (
+            "Art. 63",
+            "Article 63 covers general measurement requirements.",
+            "第63條涵蓋一般量測要求。",
+        ),
         "8.2.1": ("Art. 64", "Article 64 covers feedback.", "第64條涵蓋回饋。"),
-        "8.2.2": ("Art. 65", "Article 65 covers complaint handling.", "第65條涵蓋客訴處理。"),
-        "8.2.3": ("Art. 66", "Article 66 covers regulatory reporting.", "第66條涵蓋法規通報。"),
-        "8.2.4": ("Art. 67", "Article 67 covers internal audit.", "第67條涵蓋內部稽核。"),
-        "8.2.4.1": ("Art. 67", "Article 67 includes audit criteria.", "第67條包含稽核準則。"),
-        "8.2.4.2": ("Art. 68", "Article 68 covers audit corrective actions.", "第68條涵蓋稽核矯正措施。"),
-        "8.2.5": ("Art. 69", "Article 69 covers process monitoring.", "第69條涵蓋過程監督。"),
-        "8.2.6": ("Art. 70-71", "Articles 70-71 cover product monitoring.", "第70-71條涵蓋產品監督。"),
-        "8.3": ("Art. 72", "Article 72 covers nonconforming product.", "第72條涵蓋不合格品。"),
-        "8.3.1": ("Art. 73", "Article 73 covers pre-delivery nonconformance.", "第73條涵蓋交付前不合格。"),
-        "8.3.2": ("Art. 74", "Article 74 covers post-delivery nonconformance.", "第74條涵蓋交付後不合格。"),
+        "8.2.2": (
+            "Art. 65",
+            "Article 65 covers complaint handling.",
+            "第65條涵蓋客訴處理。",
+        ),
+        "8.2.3": (
+            "Art. 66",
+            "Article 66 covers regulatory reporting.",
+            "第66條涵蓋法規通報。",
+        ),
+        "8.2.4": (
+            "Art. 67",
+            "Article 67 covers internal audit.",
+            "第67條涵蓋內部稽核。",
+        ),
+        "8.2.4.1": (
+            "Art. 67",
+            "Article 67 includes audit criteria.",
+            "第67條包含稽核準則。",
+        ),
+        "8.2.4.2": (
+            "Art. 68",
+            "Article 68 covers audit corrective actions.",
+            "第68條涵蓋稽核矯正措施。",
+        ),
+        "8.2.5": (
+            "Art. 69",
+            "Article 69 covers process monitoring.",
+            "第69條涵蓋過程監督。",
+        ),
+        "8.2.6": (
+            "Art. 70-71",
+            "Articles 70-71 cover product monitoring.",
+            "第70-71條涵蓋產品監督。",
+        ),
+        "8.3": (
+            "Art. 72",
+            "Article 72 covers nonconforming product.",
+            "第72條涵蓋不合格品。",
+        ),
+        "8.3.1": (
+            "Art. 73",
+            "Article 73 covers pre-delivery nonconformance.",
+            "第73條涵蓋交付前不合格。",
+        ),
+        "8.3.2": (
+            "Art. 74",
+            "Article 74 covers post-delivery nonconformance.",
+            "第74條涵蓋交付後不合格。",
+        ),
         "8.3.3": ("Art. 75", "Article 75 covers concessions.", "第75條涵蓋讓步。"),
         "8.3.4": ("Art. 76", "Article 76 covers rework.", "第76條涵蓋返工。"),
         "8.4": ("Art. 77", "Article 77 covers data analysis.", "第77條涵蓋數據分析。"),
         "8.5.1": ("Art. 78", "Article 78 covers improvement.", "第78條涵蓋改善。"),
-        "8.5.2": ("Art. 79", "Article 79 covers corrective action.", "第79條涵蓋矯正措施。"),
-        "8.5.3": ("Art. 80", "Article 80 covers preventive action.", "第80條涵蓋預防措施。"),
+        "8.5.2": (
+            "Art. 79",
+            "Article 79 covers corrective action.",
+            "第79條涵蓋矯正措施。",
+        ),
+        "8.5.3": (
+            "Art. 80",
+            "Article 80 covers preventive action.",
+            "第80條涵蓋預防措施。",
+        ),
     }
     for clause_id, (ref, rationale_en, rationale_zh) in tfda_article_map.items():
         iso_mapped[clause_id] = ClauseMapping(
@@ -2459,8 +2894,7 @@ def _build_tfda_profile() -> RegulationProfile:
                 "as required by Taiwan Medical Device Act Article 33?"
             ),
             audit_question_zh=(
-                "器材標籤、使用說明書及包裝是否依醫療器材管理法第33條"
-                "包含繁體中文文字？"
+                "器材標籤、使用說明書及包裝是否依醫療器材管理法第33條包含繁體中文文字？"
             ),
             expected_evidence=[
                 "Chinese-language labels / 中文標籤",
@@ -2716,6 +3150,7 @@ def _build_tfda_profile() -> RegulationProfile:
 # Predefined Regulation: Health Canada CMDR (SOR/98-282)
 # ============================================================
 
+
 def _build_hc_profile() -> RegulationProfile:
     """Build the Health Canada (HC) regulation profile.
 
@@ -2737,63 +3172,291 @@ def _build_hc_profile() -> RegulationProfile:
     # HC CMDR — QMS compliance is exclusively via MDSAP since Jan 2019
     # (CMDCAS retired). ISO 13485 certification is mandatory for Class II-IV devices.
     hc_clause_map = {
-        "4.1": ("CMDR s.32(1)", "CMDR requires manufacturers of Class II-IV devices to hold a valid ISO 13485 certificate. Clause 4.1 general QMS requirements are fully adopted.", "CMDR要求II-IV類醫療器材製造商持有有效的ISO 13485證書。條款4.1一般QMS要求完全採用。"),
-        "4.2.1": ("CMDR s.32(2)", "Documentation requirements are covered through mandatory ISO 13485 certification.", "文件化要求通過強制性ISO 13485認證涵蓋。"),
-        "4.2.2": ("CMDR s.32(2)", "Quality manual requirements adopted via ISO 13485.", "品質手冊要求通過ISO 13485採用。"),
-        "4.2.3": ("CMDR s.32(2)", "Document control adopted via ISO 13485.", "文件管制通過ISO 13485採用。"),
-        "4.2.4": ("CMDR s.32(2) / s.56", "Record control adopted via ISO 13485. CMDR s.56 adds distribution record requirements.", "記錄管制通過ISO 13485採用。CMDR s.56增加配銷記錄要求。"),
-        "4.2.5": ("CMDR s.32(2)", "Medical device file requirements adopted via ISO 13485.", "醫療器材檔案要求通過ISO 13485採用。"),
-        "5.1": ("CMDR s.32(2)", "Management commitment adopted via ISO 13485.", "管理承諾通過ISO 13485採用。"),
-        "5.2": ("CMDR s.32(2)", "Customer focus adopted via ISO 13485.", "以顧客為重通過ISO 13485採用。"),
-        "5.3": ("CMDR s.32(2)", "Quality policy adopted via ISO 13485.", "品質政策通過ISO 13485採用。"),
-        "5.4.1": ("CMDR s.32(2)", "Quality objectives adopted via ISO 13485.", "品質目標通過ISO 13485採用。"),
-        "5.4.2": ("CMDR s.32(2)", "QMS planning adopted via ISO 13485.", "QMS規劃通過ISO 13485採用。"),
-        "5.5.1": ("CMDR s.32(2)", "Responsibility and authority adopted via ISO 13485.", "責任與權限通過ISO 13485採用。"),
-        "5.5.2": ("CMDR s.32(2)", "Management representative adopted via ISO 13485.", "管理代表通過ISO 13485採用。"),
-        "5.5.3": ("CMDR s.32(2)", "Internal communication adopted via ISO 13485.", "內部溝通通過ISO 13485採用。"),
-        "5.6.1": ("CMDR s.32(2)", "Management review adopted via ISO 13485.", "管理審查通過ISO 13485採用。"),
-        "5.6.2": ("CMDR s.32(2)", "Management review input adopted via ISO 13485.", "管理審查輸入通過ISO 13485採用。"),
-        "5.6.3": ("CMDR s.32(2)", "Management review output adopted via ISO 13485.", "管理審查輸出通過ISO 13485採用。"),
-        "6.1": ("CMDR s.32(2)", "Resource provision adopted via ISO 13485.", "資源提供通過ISO 13485採用。"),
-        "6.2": ("CMDR s.32(2)", "Human resources adopted via ISO 13485.", "人力資源通過ISO 13485採用。"),
-        "6.3": ("CMDR s.32(2)", "Infrastructure adopted via ISO 13485.", "基礎設施通過ISO 13485採用。"),
-        "6.4.1": ("CMDR s.32(2)", "Work environment adopted via ISO 13485.", "工作環境通過ISO 13485採用。"),
-        "6.4.2": ("CMDR s.32(2)", "Contamination control adopted via ISO 13485.", "污染管制通過ISO 13485採用。"),
-        "7.1": ("CMDR s.32(2)", "Product realization planning adopted via ISO 13485.", "產品實現規劃通過ISO 13485採用。"),
-        "7.2.1": ("CMDR s.10-20", "Determination of product requirements — CMDR sections 10-20 define device classification and licensing requirements that exceed ISO 13485.", "產品要求確定 — CMDR第10-20條定義器材分類和許可要求，超出ISO 13485。"),
-        "7.2.2": ("CMDR s.32(2)", "Review of product requirements adopted via ISO 13485.", "產品要求審查通過ISO 13485採用。"),
-        "7.2.3": ("CMDR s.32(2) / s.57-58", "Communication adopted via ISO 13485. CMDR s.57-58 add mandatory problem reporting to HC.", "溝通通過ISO 13485採用。CMDR s.57-58增加向HC強制性問題通報。"),
-        "7.3.1": ("CMDR s.32(2)", "Design planning adopted via ISO 13485.", "設計規劃通過ISO 13485採用。"),
-        "7.3.2": ("CMDR s.32(2)", "Design input adopted via ISO 13485.", "設計輸入通過ISO 13485採用。"),
-        "7.3.3": ("CMDR s.32(2)", "Design output adopted via ISO 13485.", "設計輸出通過ISO 13485採用。"),
-        "7.3.4": ("CMDR s.32(2)", "Design review adopted via ISO 13485.", "設計審查通過ISO 13485採用。"),
-        "7.3.5": ("CMDR s.32(2)", "Design verification adopted via ISO 13485.", "設計驗證通過ISO 13485採用。"),
-        "7.3.6": ("CMDR s.32(2)", "Design validation adopted via ISO 13485.", "設計確認通過ISO 13485採用。"),
-        "7.3.7": ("CMDR s.32(2)", "Design transfer adopted via ISO 13485.", "設計轉移通過ISO 13485採用。"),
-        "7.3.8": ("CMDR s.32(2)", "Design change control adopted via ISO 13485.", "設計變更管制通過ISO 13485採用。"),
-        "7.3.9": ("CMDR s.32(2)", "Design files adopted via ISO 13485.", "設計檔案通過ISO 13485採用。"),
-        "7.3.10": ("CMDR s.32(2)", "Design documentation adopted via ISO 13485.", "設計文件通過ISO 13485採用。"),
-        "7.4.1": ("CMDR s.32(2)", "Purchasing process adopted via ISO 13485.", "採購過程通過ISO 13485採用。"),
-        "7.4.2": ("CMDR s.32(2)", "Purchasing information adopted via ISO 13485.", "採購資訊通過ISO 13485採用。"),
-        "7.4.3": ("CMDR s.32(2)", "Verification of purchased product adopted via ISO 13485.", "採購產品驗證通過ISO 13485採用。"),
-        "7.5.1": ("CMDR s.32(2) / s.21-23", "Production control adopted via ISO 13485. CMDR s.21-23 add labeling requirements for Canadian market.", "生產管制通過ISO 13485採用。CMDR s.21-23增加加拿大市場標示要求。"),
-        "7.5.6": ("CMDR s.32(2)", "Process validation adopted via ISO 13485.", "過程確認通過ISO 13485採用。"),
-        "7.5.8": ("CMDR s.32(2)", "Identification adopted via ISO 13485.", "識別通過ISO 13485採用。"),
-        "7.5.9": ("CMDR s.32(2) / s.56", "Traceability adopted via ISO 13485. CMDR s.56 adds distribution record requirements.", "追溯性通過ISO 13485採用。CMDR s.56增加配銷記錄要求。"),
-        "7.5.11": ("CMDR s.32(2)", "Product preservation adopted via ISO 13485.", "產品防護通過ISO 13485採用。"),
-        "7.6": ("CMDR s.32(2)", "Monitoring equipment adopted via ISO 13485.", "監測設備通過ISO 13485採用。"),
-        "8.1": ("CMDR s.32(2)", "General measurement requirements adopted via ISO 13485.", "一般量測要求通過ISO 13485採用。"),
-        "8.2.1": ("CMDR s.32(2)", "Feedback adopted via ISO 13485.", "回饋通過ISO 13485採用。"),
-        "8.2.2": ("CMDR s.32(2) / s.57-58", "Complaint handling adopted via ISO 13485. CMDR s.57-58 add mandatory problem reporting.", "客訴處理通過ISO 13485採用。CMDR s.57-58增加強制性問題通報。"),
-        "8.2.3": ("CMDR s.57-58", "Regulatory reporting — CMDR s.57-58 mandate reporting of incidents and recalls to Health Canada within specific timelines.", "法規通報 — CMDR s.57-58要求在特定時限內向加拿大衛生部通報事故和召回。"),
-        "8.2.4": ("CMDR s.32(2)", "Internal audit adopted via ISO 13485.", "內部稽核通過ISO 13485採用。"),
-        "8.2.5": ("CMDR s.32(2)", "Process monitoring adopted via ISO 13485.", "過程監督通過ISO 13485採用。"),
-        "8.2.6": ("CMDR s.32(2)", "Product monitoring adopted via ISO 13485.", "產品監督通過ISO 13485採用。"),
-        "8.3": ("CMDR s.32(2)", "Nonconforming product adopted via ISO 13485.", "不合格品通過ISO 13485採用。"),
-        "8.4": ("CMDR s.32(2)", "Data analysis adopted via ISO 13485.", "數據分析通過ISO 13485採用。"),
-        "8.5.1": ("CMDR s.32(2)", "Improvement adopted via ISO 13485.", "改善通過ISO 13485採用。"),
-        "8.5.2": ("CMDR s.32(2) / s.57-58", "Corrective action adopted via ISO 13485. CMDR s.57-58 require mandatory corrective action for reported problems.", "矯正措施通過ISO 13485採用。CMDR s.57-58要求對已通報問題採取強制矯正措施。"),
-        "8.5.3": ("CMDR s.32(2)", "Preventive action adopted via ISO 13485.", "預防措施通過ISO 13485採用。"),
+        "4.1": (
+            "CMDR s.32(1)",
+            "CMDR requires manufacturers of Class II-IV devices to hold a valid ISO 13485 certificate. Clause 4.1 general QMS requirements are fully adopted.",
+            "CMDR要求II-IV類醫療器材製造商持有有效的ISO 13485證書。條款4.1一般QMS要求完全採用。",
+        ),
+        "4.2.1": (
+            "CMDR s.32(2)",
+            "Documentation requirements are covered through mandatory ISO 13485 certification.",
+            "文件化要求通過強制性ISO 13485認證涵蓋。",
+        ),
+        "4.2.2": (
+            "CMDR s.32(2)",
+            "Quality manual requirements adopted via ISO 13485.",
+            "品質手冊要求通過ISO 13485採用。",
+        ),
+        "4.2.3": (
+            "CMDR s.32(2)",
+            "Document control adopted via ISO 13485.",
+            "文件管制通過ISO 13485採用。",
+        ),
+        "4.2.4": (
+            "CMDR s.32(2) / s.56",
+            "Record control adopted via ISO 13485. CMDR s.56 adds distribution record requirements.",
+            "記錄管制通過ISO 13485採用。CMDR s.56增加配銷記錄要求。",
+        ),
+        "4.2.5": (
+            "CMDR s.32(2)",
+            "Medical device file requirements adopted via ISO 13485.",
+            "醫療器材檔案要求通過ISO 13485採用。",
+        ),
+        "5.1": (
+            "CMDR s.32(2)",
+            "Management commitment adopted via ISO 13485.",
+            "管理承諾通過ISO 13485採用。",
+        ),
+        "5.2": (
+            "CMDR s.32(2)",
+            "Customer focus adopted via ISO 13485.",
+            "以顧客為重通過ISO 13485採用。",
+        ),
+        "5.3": (
+            "CMDR s.32(2)",
+            "Quality policy adopted via ISO 13485.",
+            "品質政策通過ISO 13485採用。",
+        ),
+        "5.4.1": (
+            "CMDR s.32(2)",
+            "Quality objectives adopted via ISO 13485.",
+            "品質目標通過ISO 13485採用。",
+        ),
+        "5.4.2": (
+            "CMDR s.32(2)",
+            "QMS planning adopted via ISO 13485.",
+            "QMS規劃通過ISO 13485採用。",
+        ),
+        "5.5.1": (
+            "CMDR s.32(2)",
+            "Responsibility and authority adopted via ISO 13485.",
+            "責任與權限通過ISO 13485採用。",
+        ),
+        "5.5.2": (
+            "CMDR s.32(2)",
+            "Management representative adopted via ISO 13485.",
+            "管理代表通過ISO 13485採用。",
+        ),
+        "5.5.3": (
+            "CMDR s.32(2)",
+            "Internal communication adopted via ISO 13485.",
+            "內部溝通通過ISO 13485採用。",
+        ),
+        "5.6.1": (
+            "CMDR s.32(2)",
+            "Management review adopted via ISO 13485.",
+            "管理審查通過ISO 13485採用。",
+        ),
+        "5.6.2": (
+            "CMDR s.32(2)",
+            "Management review input adopted via ISO 13485.",
+            "管理審查輸入通過ISO 13485採用。",
+        ),
+        "5.6.3": (
+            "CMDR s.32(2)",
+            "Management review output adopted via ISO 13485.",
+            "管理審查輸出通過ISO 13485採用。",
+        ),
+        "6.1": (
+            "CMDR s.32(2)",
+            "Resource provision adopted via ISO 13485.",
+            "資源提供通過ISO 13485採用。",
+        ),
+        "6.2": (
+            "CMDR s.32(2)",
+            "Human resources adopted via ISO 13485.",
+            "人力資源通過ISO 13485採用。",
+        ),
+        "6.3": (
+            "CMDR s.32(2)",
+            "Infrastructure adopted via ISO 13485.",
+            "基礎設施通過ISO 13485採用。",
+        ),
+        "6.4.1": (
+            "CMDR s.32(2)",
+            "Work environment adopted via ISO 13485.",
+            "工作環境通過ISO 13485採用。",
+        ),
+        "6.4.2": (
+            "CMDR s.32(2)",
+            "Contamination control adopted via ISO 13485.",
+            "污染管制通過ISO 13485採用。",
+        ),
+        "7.1": (
+            "CMDR s.32(2)",
+            "Product realization planning adopted via ISO 13485.",
+            "產品實現規劃通過ISO 13485採用。",
+        ),
+        "7.2.1": (
+            "CMDR s.10-20",
+            "Determination of product requirements — CMDR sections 10-20 define device classification and licensing requirements that exceed ISO 13485.",
+            "產品要求確定 — CMDR第10-20條定義器材分類和許可要求，超出ISO 13485。",
+        ),
+        "7.2.2": (
+            "CMDR s.32(2)",
+            "Review of product requirements adopted via ISO 13485.",
+            "產品要求審查通過ISO 13485採用。",
+        ),
+        "7.2.3": (
+            "CMDR s.32(2) / s.57-58",
+            "Communication adopted via ISO 13485. CMDR s.57-58 add mandatory problem reporting to HC.",
+            "溝通通過ISO 13485採用。CMDR s.57-58增加向HC強制性問題通報。",
+        ),
+        "7.3.1": (
+            "CMDR s.32(2)",
+            "Design planning adopted via ISO 13485.",
+            "設計規劃通過ISO 13485採用。",
+        ),
+        "7.3.2": (
+            "CMDR s.32(2)",
+            "Design input adopted via ISO 13485.",
+            "設計輸入通過ISO 13485採用。",
+        ),
+        "7.3.3": (
+            "CMDR s.32(2)",
+            "Design output adopted via ISO 13485.",
+            "設計輸出通過ISO 13485採用。",
+        ),
+        "7.3.4": (
+            "CMDR s.32(2)",
+            "Design review adopted via ISO 13485.",
+            "設計審查通過ISO 13485採用。",
+        ),
+        "7.3.5": (
+            "CMDR s.32(2)",
+            "Design verification adopted via ISO 13485.",
+            "設計驗證通過ISO 13485採用。",
+        ),
+        "7.3.6": (
+            "CMDR s.32(2)",
+            "Design validation adopted via ISO 13485.",
+            "設計確認通過ISO 13485採用。",
+        ),
+        "7.3.7": (
+            "CMDR s.32(2)",
+            "Design transfer adopted via ISO 13485.",
+            "設計轉移通過ISO 13485採用。",
+        ),
+        "7.3.8": (
+            "CMDR s.32(2)",
+            "Design change control adopted via ISO 13485.",
+            "設計變更管制通過ISO 13485採用。",
+        ),
+        "7.3.9": (
+            "CMDR s.32(2)",
+            "Design files adopted via ISO 13485.",
+            "設計檔案通過ISO 13485採用。",
+        ),
+        "7.3.10": (
+            "CMDR s.32(2)",
+            "Design documentation adopted via ISO 13485.",
+            "設計文件通過ISO 13485採用。",
+        ),
+        "7.4.1": (
+            "CMDR s.32(2)",
+            "Purchasing process adopted via ISO 13485.",
+            "採購過程通過ISO 13485採用。",
+        ),
+        "7.4.2": (
+            "CMDR s.32(2)",
+            "Purchasing information adopted via ISO 13485.",
+            "採購資訊通過ISO 13485採用。",
+        ),
+        "7.4.3": (
+            "CMDR s.32(2)",
+            "Verification of purchased product adopted via ISO 13485.",
+            "採購產品驗證通過ISO 13485採用。",
+        ),
+        "7.5.1": (
+            "CMDR s.32(2) / s.21-23",
+            "Production control adopted via ISO 13485. CMDR s.21-23 add labeling requirements for Canadian market.",
+            "生產管制通過ISO 13485採用。CMDR s.21-23增加加拿大市場標示要求。",
+        ),
+        "7.5.6": (
+            "CMDR s.32(2)",
+            "Process validation adopted via ISO 13485.",
+            "過程確認通過ISO 13485採用。",
+        ),
+        "7.5.8": (
+            "CMDR s.32(2)",
+            "Identification adopted via ISO 13485.",
+            "識別通過ISO 13485採用。",
+        ),
+        "7.5.9": (
+            "CMDR s.32(2) / s.56",
+            "Traceability adopted via ISO 13485. CMDR s.56 adds distribution record requirements.",
+            "追溯性通過ISO 13485採用。CMDR s.56增加配銷記錄要求。",
+        ),
+        "7.5.11": (
+            "CMDR s.32(2)",
+            "Product preservation adopted via ISO 13485.",
+            "產品防護通過ISO 13485採用。",
+        ),
+        "7.6": (
+            "CMDR s.32(2)",
+            "Monitoring equipment adopted via ISO 13485.",
+            "監測設備通過ISO 13485採用。",
+        ),
+        "8.1": (
+            "CMDR s.32(2)",
+            "General measurement requirements adopted via ISO 13485.",
+            "一般量測要求通過ISO 13485採用。",
+        ),
+        "8.2.1": (
+            "CMDR s.32(2)",
+            "Feedback adopted via ISO 13485.",
+            "回饋通過ISO 13485採用。",
+        ),
+        "8.2.2": (
+            "CMDR s.32(2) / s.57-58",
+            "Complaint handling adopted via ISO 13485. CMDR s.57-58 add mandatory problem reporting.",
+            "客訴處理通過ISO 13485採用。CMDR s.57-58增加強制性問題通報。",
+        ),
+        "8.2.3": (
+            "CMDR s.57-58",
+            "Regulatory reporting — CMDR s.57-58 mandate reporting of incidents and recalls to Health Canada within specific timelines.",
+            "法規通報 — CMDR s.57-58要求在特定時限內向加拿大衛生部通報事故和召回。",
+        ),
+        "8.2.4": (
+            "CMDR s.32(2)",
+            "Internal audit adopted via ISO 13485.",
+            "內部稽核通過ISO 13485採用。",
+        ),
+        "8.2.5": (
+            "CMDR s.32(2)",
+            "Process monitoring adopted via ISO 13485.",
+            "過程監督通過ISO 13485採用。",
+        ),
+        "8.2.6": (
+            "CMDR s.32(2)",
+            "Product monitoring adopted via ISO 13485.",
+            "產品監督通過ISO 13485採用。",
+        ),
+        "8.3": (
+            "CMDR s.32(2)",
+            "Nonconforming product adopted via ISO 13485.",
+            "不合格品通過ISO 13485採用。",
+        ),
+        "8.4": (
+            "CMDR s.32(2)",
+            "Data analysis adopted via ISO 13485.",
+            "數據分析通過ISO 13485採用。",
+        ),
+        "8.5.1": (
+            "CMDR s.32(2)",
+            "Improvement adopted via ISO 13485.",
+            "改善通過ISO 13485採用。",
+        ),
+        "8.5.2": (
+            "CMDR s.32(2) / s.57-58",
+            "Corrective action adopted via ISO 13485. CMDR s.57-58 require mandatory corrective action for reported problems.",
+            "矯正措施通過ISO 13485採用。CMDR s.57-58要求對已通報問題採取強制矯正措施。",
+        ),
+        "8.5.3": (
+            "CMDR s.32(2)",
+            "Preventive action adopted via ISO 13485.",
+            "預防措施通過ISO 13485採用。",
+        ),
     }
 
     for clause_id, (ref, rationale_en, rationale_zh) in hc_clause_map.items():
@@ -3070,6 +3733,7 @@ def _build_hc_profile() -> RegulationProfile:
 # Predefined Regulation: Japan PMDA (QMS省令 + PMD Act)
 # ============================================================
 
+
 def _build_pmda_profile() -> RegulationProfile:
     """Build the Japan PMDA regulation profile.
 
@@ -3085,63 +3749,283 @@ def _build_pmda_profile() -> RegulationProfile:
 
     # PMDA QMS Ordinance mirrors ISO 13485 structure closely
     pmda_clause_map = {
-        "4.1": ("QMS省令 §5", "QMS Ordinance Article 5 establishes general QMS requirements, structurally aligned with ISO 13485 Clause 4.1.", "QMS省令第5條建立一般QMS要求，結構上與ISO 13485條款4.1對齊。"),
-        "4.2.1": ("QMS省令 §6", "Article 6 covers documentation requirements.", "第6條涵蓋文件化要求。"),
-        "4.2.2": ("QMS省令 §7", "Article 7 covers quality manual.", "第7條涵蓋品質手冊。"),
-        "4.2.3": ("QMS省令 §8", "Article 8 covers document control.", "第8條涵蓋文件管制。"),
-        "4.2.4": ("QMS省令 §9", "Article 9 covers record control.", "第9條涵蓋記錄管制。"),
-        "4.2.5": ("QMS省令 §10", "Article 10 covers medical device file.", "第10條涵蓋醫療器材檔案。"),
-        "5.1": ("QMS省令 §11", "Article 11 covers management commitment.", "第11條涵蓋管理承諾。"),
-        "5.2": ("QMS省令 §12", "Article 12 covers customer focus.", "第12條涵蓋以顧客為重。"),
-        "5.3": ("QMS省令 §13", "Article 13 covers quality policy.", "第13條涵蓋品質政策。"),
-        "5.4.1": ("QMS省令 §14", "Article 14 covers quality objectives.", "第14條涵蓋品質目標。"),
-        "5.4.2": ("QMS省令 §15", "Article 15 covers QMS planning.", "第15條涵蓋QMS規劃。"),
-        "5.5.1": ("QMS省令 §16", "Article 16 covers responsibility and authority.", "第16條涵蓋責任與權限。"),
-        "5.5.2": ("QMS省令 §17", "Article 17 covers management representative.", "第17條涵蓋管理代表。"),
-        "5.5.3": ("QMS省令 §18", "Article 18 covers internal communication.", "第18條涵蓋內部溝通。"),
-        "5.6.1": ("QMS省令 §19", "Article 19 covers management review.", "第19條涵蓋管理審查。"),
-        "5.6.2": ("QMS省令 §19", "Article 19 includes management review input.", "第19條包含管理審查輸入。"),
-        "5.6.3": ("QMS省令 §19", "Article 19 includes management review output.", "第19條包含管理審查輸出。"),
-        "6.1": ("QMS省令 §20", "Article 20 covers resource provision.", "第20條涵蓋資源提供。"),
-        "6.2": ("QMS省令 §21-22", "Articles 21-22 cover human resources and competence.", "第21-22條涵蓋人力資源和能力。"),
-        "6.3": ("QMS省令 §23", "Article 23 covers infrastructure.", "第23條涵蓋基礎設施。"),
-        "6.4.1": ("QMS省令 §24", "Article 24 covers work environment.", "第24條涵蓋工作環境。"),
-        "6.4.2": ("QMS省令 §25", "Article 25 covers contamination control.", "第25條涵蓋污染管制。"),
-        "7.1": ("QMS省令 §26", "Article 26 covers product realization planning.", "第26條涵蓋產品實現規劃。"),
-        "7.2.1": ("QMS省令 §27", "Article 27 covers determination of product requirements.", "第27條涵蓋產品要求確定。"),
-        "7.2.2": ("QMS省令 §28", "Article 28 covers review of product requirements.", "第28條涵蓋產品要求審查。"),
-        "7.2.3": ("QMS省令 §29", "Article 29 covers communication.", "第29條涵蓋溝通。"),
-        "7.3.1": ("QMS省令 §30", "Article 30 covers design planning.", "第30條涵蓋設計規劃。"),
-        "7.3.2": ("QMS省令 §31", "Article 31 covers design input.", "第31條涵蓋設計輸入。"),
-        "7.3.3": ("QMS省令 §32", "Article 32 covers design output.", "第32條涵蓋設計輸出。"),
-        "7.3.4": ("QMS省令 §33", "Article 33 covers design review.", "第33條涵蓋設計審查。"),
-        "7.3.5": ("QMS省令 §34", "Article 34 covers design verification.", "第34條涵蓋設計驗證。"),
-        "7.3.6": ("QMS省令 §35", "Article 35 covers design validation.", "第35條涵蓋設計確認。"),
-        "7.3.7": ("QMS省令 §36", "Article 36 covers design transfer.", "第36條涵蓋設計轉移。"),
-        "7.3.8": ("QMS省令 §37", "Article 37 covers design change control.", "第37條涵蓋設計變更管制。"),
-        "7.3.9": ("QMS省令 §38", "Article 38 covers design files.", "第38條涵蓋設計檔案。"),
-        "7.3.10": ("QMS省令 §38", "Article 38 includes design documentation.", "第38條包含設計文件。"),
-        "7.4.1": ("QMS省令 §39", "Article 39 covers purchasing process.", "第39條涵蓋採購過程。"),
-        "7.4.2": ("QMS省令 §40", "Article 40 covers purchasing information.", "第40條涵蓋採購資訊。"),
-        "7.4.3": ("QMS省令 §41", "Article 41 covers verification of purchased product.", "第41條涵蓋採購產品驗證。"),
-        "7.5.1": ("QMS省令 §42", "Article 42 covers production control.", "第42條涵蓋生產管制。"),
-        "7.5.6": ("QMS省令 §46", "Article 46 covers process validation.", "第46條涵蓋過程確認。"),
-        "7.5.8": ("QMS省令 §48", "Article 48 covers identification.", "第48條涵蓋識別。"),
-        "7.5.9": ("QMS省令 §49", "Article 49 covers traceability.", "第49條涵蓋追溯性。"),
-        "7.5.11": ("QMS省令 §51", "Article 51 covers product preservation.", "第51條涵蓋產品防護。"),
-        "7.6": ("QMS省令 §52", "Article 52 covers monitoring equipment.", "第52條涵蓋監測設備。"),
-        "8.1": ("QMS省令 §53", "Article 53 covers general measurement requirements.", "第53條涵蓋一般量測要求。"),
+        "4.1": (
+            "QMS省令 §5",
+            "QMS Ordinance Article 5 establishes general QMS requirements, structurally aligned with ISO 13485 Clause 4.1.",
+            "QMS省令第5條建立一般QMS要求，結構上與ISO 13485條款4.1對齊。",
+        ),
+        "4.2.1": (
+            "QMS省令 §6",
+            "Article 6 covers documentation requirements.",
+            "第6條涵蓋文件化要求。",
+        ),
+        "4.2.2": (
+            "QMS省令 §7",
+            "Article 7 covers quality manual.",
+            "第7條涵蓋品質手冊。",
+        ),
+        "4.2.3": (
+            "QMS省令 §8",
+            "Article 8 covers document control.",
+            "第8條涵蓋文件管制。",
+        ),
+        "4.2.4": (
+            "QMS省令 §9",
+            "Article 9 covers record control.",
+            "第9條涵蓋記錄管制。",
+        ),
+        "4.2.5": (
+            "QMS省令 §10",
+            "Article 10 covers medical device file.",
+            "第10條涵蓋醫療器材檔案。",
+        ),
+        "5.1": (
+            "QMS省令 §11",
+            "Article 11 covers management commitment.",
+            "第11條涵蓋管理承諾。",
+        ),
+        "5.2": (
+            "QMS省令 §12",
+            "Article 12 covers customer focus.",
+            "第12條涵蓋以顧客為重。",
+        ),
+        "5.3": (
+            "QMS省令 §13",
+            "Article 13 covers quality policy.",
+            "第13條涵蓋品質政策。",
+        ),
+        "5.4.1": (
+            "QMS省令 §14",
+            "Article 14 covers quality objectives.",
+            "第14條涵蓋品質目標。",
+        ),
+        "5.4.2": (
+            "QMS省令 §15",
+            "Article 15 covers QMS planning.",
+            "第15條涵蓋QMS規劃。",
+        ),
+        "5.5.1": (
+            "QMS省令 §16",
+            "Article 16 covers responsibility and authority.",
+            "第16條涵蓋責任與權限。",
+        ),
+        "5.5.2": (
+            "QMS省令 §17",
+            "Article 17 covers management representative.",
+            "第17條涵蓋管理代表。",
+        ),
+        "5.5.3": (
+            "QMS省令 §18",
+            "Article 18 covers internal communication.",
+            "第18條涵蓋內部溝通。",
+        ),
+        "5.6.1": (
+            "QMS省令 §19",
+            "Article 19 covers management review.",
+            "第19條涵蓋管理審查。",
+        ),
+        "5.6.2": (
+            "QMS省令 §19",
+            "Article 19 includes management review input.",
+            "第19條包含管理審查輸入。",
+        ),
+        "5.6.3": (
+            "QMS省令 §19",
+            "Article 19 includes management review output.",
+            "第19條包含管理審查輸出。",
+        ),
+        "6.1": (
+            "QMS省令 §20",
+            "Article 20 covers resource provision.",
+            "第20條涵蓋資源提供。",
+        ),
+        "6.2": (
+            "QMS省令 §21-22",
+            "Articles 21-22 cover human resources and competence.",
+            "第21-22條涵蓋人力資源和能力。",
+        ),
+        "6.3": (
+            "QMS省令 §23",
+            "Article 23 covers infrastructure.",
+            "第23條涵蓋基礎設施。",
+        ),
+        "6.4.1": (
+            "QMS省令 §24",
+            "Article 24 covers work environment.",
+            "第24條涵蓋工作環境。",
+        ),
+        "6.4.2": (
+            "QMS省令 §25",
+            "Article 25 covers contamination control.",
+            "第25條涵蓋污染管制。",
+        ),
+        "7.1": (
+            "QMS省令 §26",
+            "Article 26 covers product realization planning.",
+            "第26條涵蓋產品實現規劃。",
+        ),
+        "7.2.1": (
+            "QMS省令 §27",
+            "Article 27 covers determination of product requirements.",
+            "第27條涵蓋產品要求確定。",
+        ),
+        "7.2.2": (
+            "QMS省令 §28",
+            "Article 28 covers review of product requirements.",
+            "第28條涵蓋產品要求審查。",
+        ),
+        "7.2.3": (
+            "QMS省令 §29",
+            "Article 29 covers communication.",
+            "第29條涵蓋溝通。",
+        ),
+        "7.3.1": (
+            "QMS省令 §30",
+            "Article 30 covers design planning.",
+            "第30條涵蓋設計規劃。",
+        ),
+        "7.3.2": (
+            "QMS省令 §31",
+            "Article 31 covers design input.",
+            "第31條涵蓋設計輸入。",
+        ),
+        "7.3.3": (
+            "QMS省令 §32",
+            "Article 32 covers design output.",
+            "第32條涵蓋設計輸出。",
+        ),
+        "7.3.4": (
+            "QMS省令 §33",
+            "Article 33 covers design review.",
+            "第33條涵蓋設計審查。",
+        ),
+        "7.3.5": (
+            "QMS省令 §34",
+            "Article 34 covers design verification.",
+            "第34條涵蓋設計驗證。",
+        ),
+        "7.3.6": (
+            "QMS省令 §35",
+            "Article 35 covers design validation.",
+            "第35條涵蓋設計確認。",
+        ),
+        "7.3.7": (
+            "QMS省令 §36",
+            "Article 36 covers design transfer.",
+            "第36條涵蓋設計轉移。",
+        ),
+        "7.3.8": (
+            "QMS省令 §37",
+            "Article 37 covers design change control.",
+            "第37條涵蓋設計變更管制。",
+        ),
+        "7.3.9": (
+            "QMS省令 §38",
+            "Article 38 covers design files.",
+            "第38條涵蓋設計檔案。",
+        ),
+        "7.3.10": (
+            "QMS省令 §38",
+            "Article 38 includes design documentation.",
+            "第38條包含設計文件。",
+        ),
+        "7.4.1": (
+            "QMS省令 §39",
+            "Article 39 covers purchasing process.",
+            "第39條涵蓋採購過程。",
+        ),
+        "7.4.2": (
+            "QMS省令 §40",
+            "Article 40 covers purchasing information.",
+            "第40條涵蓋採購資訊。",
+        ),
+        "7.4.3": (
+            "QMS省令 §41",
+            "Article 41 covers verification of purchased product.",
+            "第41條涵蓋採購產品驗證。",
+        ),
+        "7.5.1": (
+            "QMS省令 §42",
+            "Article 42 covers production control.",
+            "第42條涵蓋生產管制。",
+        ),
+        "7.5.6": (
+            "QMS省令 §46",
+            "Article 46 covers process validation.",
+            "第46條涵蓋過程確認。",
+        ),
+        "7.5.8": (
+            "QMS省令 §48",
+            "Article 48 covers identification.",
+            "第48條涵蓋識別。",
+        ),
+        "7.5.9": (
+            "QMS省令 §49",
+            "Article 49 covers traceability.",
+            "第49條涵蓋追溯性。",
+        ),
+        "7.5.11": (
+            "QMS省令 §51",
+            "Article 51 covers product preservation.",
+            "第51條涵蓋產品防護。",
+        ),
+        "7.6": (
+            "QMS省令 §52",
+            "Article 52 covers monitoring equipment.",
+            "第52條涵蓋監測設備。",
+        ),
+        "8.1": (
+            "QMS省令 §53",
+            "Article 53 covers general measurement requirements.",
+            "第53條涵蓋一般量測要求。",
+        ),
         "8.2.1": ("QMS省令 §54", "Article 54 covers feedback.", "第54條涵蓋回饋。"),
-        "8.2.2": ("QMS省令 §55", "Article 55 covers complaint handling.", "第55條涵蓋客訴處理。"),
-        "8.2.3": ("QMS省令 §56", "Article 56 covers regulatory reporting.", "第56條涵蓋法規通報。"),
-        "8.2.4": ("QMS省令 §57", "Article 57 covers internal audit.", "第57條涵蓋內部稽核。"),
-        "8.2.5": ("QMS省令 §58", "Article 58 covers process monitoring.", "第58條涵蓋過程監督。"),
-        "8.2.6": ("QMS省令 §59", "Article 59 covers product monitoring.", "第59條涵蓋產品監督。"),
-        "8.3": ("QMS省令 §60", "Article 60 covers nonconforming product.", "第60條涵蓋不合格品。"),
-        "8.4": ("QMS省令 §62", "Article 62 covers data analysis.", "第62條涵蓋數據分析。"),
+        "8.2.2": (
+            "QMS省令 §55",
+            "Article 55 covers complaint handling.",
+            "第55條涵蓋客訴處理。",
+        ),
+        "8.2.3": (
+            "QMS省令 §56",
+            "Article 56 covers regulatory reporting.",
+            "第56條涵蓋法規通報。",
+        ),
+        "8.2.4": (
+            "QMS省令 §57",
+            "Article 57 covers internal audit.",
+            "第57條涵蓋內部稽核。",
+        ),
+        "8.2.5": (
+            "QMS省令 §58",
+            "Article 58 covers process monitoring.",
+            "第58條涵蓋過程監督。",
+        ),
+        "8.2.6": (
+            "QMS省令 §59",
+            "Article 59 covers product monitoring.",
+            "第59條涵蓋產品監督。",
+        ),
+        "8.3": (
+            "QMS省令 §60",
+            "Article 60 covers nonconforming product.",
+            "第60條涵蓋不合格品。",
+        ),
+        "8.4": (
+            "QMS省令 §62",
+            "Article 62 covers data analysis.",
+            "第62條涵蓋數據分析。",
+        ),
         "8.5.1": ("QMS省令 §63", "Article 63 covers improvement.", "第63條涵蓋改善。"),
-        "8.5.2": ("QMS省令 §64", "Article 64 covers corrective action.", "第64條涵蓋矯正措施。"),
-        "8.5.3": ("QMS省令 §65", "Article 65 covers preventive action.", "第65條涵蓋預防措施。"),
+        "8.5.2": (
+            "QMS省令 §64",
+            "Article 64 covers corrective action.",
+            "第64條涵蓋矯正措施。",
+        ),
+        "8.5.3": (
+            "QMS省令 §65",
+            "Article 65 covers preventive action.",
+            "第65條涵蓋預防措施。",
+        ),
     }
 
     for clause_id, (ref, rationale_en, rationale_zh) in pmda_clause_map.items():
@@ -3238,8 +4122,7 @@ def _build_pmda_profile() -> RegulationProfile:
                 "authorization per PMD Act Art.23-2-5?"
             ),
             audit_question_zh=(
-                "是否任命具有自己QMS的日本境內MAH，持有上市許可？"
-                "（PMD Act Art.23-2-5）"
+                "是否任命具有自己QMS的日本境內MAH，持有上市許可？（PMD Act Art.23-2-5）"
             ),
             expected_evidence=[
                 "MAH registration certificate / MAH登記證書",
@@ -3358,6 +4241,7 @@ def _build_pmda_profile() -> RegulationProfile:
 # Predefined Regulation: Brazil ANVISA (RDC 665:2022)
 # ============================================================
 
+
 def _build_anvisa_profile() -> RegulationProfile:
     """Build the Brazil ANVISA regulation profile.
 
@@ -3373,63 +4257,287 @@ def _build_anvisa_profile() -> RegulationProfile:
 
     # ANVISA RDC 665:2022 is closely aligned with ISO 13485
     anvisa_clause_map = {
-        "4.1": ("RDC 665 Art.8", "RDC 665 Article 8 establishes general QMS/GMP requirements aligned with ISO 13485.", "RDC 665第8條建立與ISO 13485對齊的一般QMS/GMP要求。"),
-        "4.2.1": ("RDC 665 Art.9", "Article 9 covers documentation requirements.", "第9條涵蓋文件化要求。"),
-        "4.2.2": ("RDC 665 Art.10", "Article 10 covers quality manual.", "第10條涵蓋品質手冊。"),
-        "4.2.3": ("RDC 665 Art.11", "Article 11 covers document control.", "第11條涵蓋文件管制。"),
-        "4.2.4": ("RDC 665 Art.12", "Article 12 covers record control.", "第12條涵蓋記錄管制。"),
-        "4.2.5": ("RDC 665 Art.13", "Article 13 covers medical device file.", "第13條涵蓋醫療器材檔案。"),
-        "5.1": ("RDC 665 Art.14", "Article 14 covers management commitment.", "第14條涵蓋管理承諾。"),
-        "5.2": ("RDC 665 Art.15", "Article 15 covers customer focus.", "第15條涵蓋以顧客為重。"),
-        "5.3": ("RDC 665 Art.16", "Article 16 covers quality policy.", "第16條涵蓋品質政策。"),
-        "5.4.1": ("RDC 665 Art.17", "Article 17 covers quality objectives.", "第17條涵蓋品質目標。"),
-        "5.4.2": ("RDC 665 Art.18", "Article 18 covers QMS planning.", "第18條涵蓋QMS規劃。"),
-        "5.5.1": ("RDC 665 Art.19", "Article 19 covers responsibility and authority.", "第19條涵蓋責任與權限。"),
-        "5.5.2": ("RDC 665 Art.20", "Article 20 covers management representative.", "第20條涵蓋管理代表。"),
-        "5.5.3": ("RDC 665 Art.21", "Article 21 covers internal communication.", "第21條涵蓋內部溝通。"),
-        "5.6.1": ("RDC 665 Art.22", "Article 22 covers management review.", "第22條涵蓋管理審查。"),
-        "5.6.2": ("RDC 665 Art.22", "Article 22 includes management review input.", "第22條包含管理審查輸入。"),
-        "5.6.3": ("RDC 665 Art.22", "Article 22 includes management review output.", "第22條包含管理審查輸出。"),
-        "6.1": ("RDC 665 Art.23", "Article 23 covers resource provision.", "第23條涵蓋資源提供。"),
-        "6.2": ("RDC 665 Art.24", "Article 24 covers human resources.", "第24條涵蓋人力資源。"),
-        "6.3": ("RDC 665 Art.25", "Article 25 covers infrastructure.", "第25條涵蓋基礎設施。"),
-        "6.4.1": ("RDC 665 Art.26", "Article 26 covers work environment.", "第26條涵蓋工作環境。"),
-        "6.4.2": ("RDC 665 Art.27", "Article 27 covers contamination control.", "第27條涵蓋污染管制。"),
-        "7.1": ("RDC 665 Art.28", "Article 28 covers product realization planning.", "第28條涵蓋產品實現規劃。"),
-        "7.2.1": ("RDC 665 Art.29", "Article 29 covers determination of product requirements.", "第29條涵蓋產品要求確定。"),
-        "7.2.2": ("RDC 665 Art.30", "Article 30 covers review of product requirements.", "第30條涵蓋產品要求審查。"),
-        "7.2.3": ("RDC 665 Art.31", "Article 31 covers communication.", "第31條涵蓋溝通。"),
-        "7.3.1": ("RDC 665 Art.32", "Article 32 covers design planning.", "第32條涵蓋設計規劃。"),
-        "7.3.2": ("RDC 665 Art.33", "Article 33 covers design input.", "第33條涵蓋設計輸入。"),
-        "7.3.3": ("RDC 665 Art.34", "Article 34 covers design output.", "第34條涵蓋設計輸出。"),
-        "7.3.4": ("RDC 665 Art.35", "Article 35 covers design review.", "第35條涵蓋設計審查。"),
-        "7.3.5": ("RDC 665 Art.36", "Article 36 covers design verification.", "第36條涵蓋設計驗證。"),
-        "7.3.6": ("RDC 665 Art.37", "Article 37 covers design validation.", "第37條涵蓋設計確認。"),
-        "7.3.7": ("RDC 665 Art.38", "Article 38 covers design transfer.", "第38條涵蓋設計轉移。"),
-        "7.3.8": ("RDC 665 Art.39", "Article 39 covers design change control.", "第39條涵蓋設計變更管制。"),
-        "7.3.9": ("RDC 665 Art.40", "Article 40 covers design files.", "第40條涵蓋設計檔案。"),
-        "7.3.10": ("RDC 665 Art.40", "Article 40 includes design documentation.", "第40條包含設計文件。"),
-        "7.4.1": ("RDC 665 Art.41", "Article 41 covers purchasing process.", "第41條涵蓋採購過程。"),
-        "7.4.2": ("RDC 665 Art.42", "Article 42 covers purchasing information.", "第42條涵蓋採購資訊。"),
-        "7.4.3": ("RDC 665 Art.43", "Article 43 covers verification of purchased product.", "第43條涵蓋採購產品驗證。"),
-        "7.5.1": ("RDC 665 Art.44", "Article 44 covers production control.", "第44條涵蓋生產管制。"),
-        "7.5.6": ("RDC 665 Art.48", "Article 48 covers process validation.", "第48條涵蓋過程確認。"),
-        "7.5.8": ("RDC 665 Art.50", "Article 50 covers identification.", "第50條涵蓋識別。"),
-        "7.5.9": ("RDC 665 Art.51", "Article 51 covers traceability.", "第51條涵蓋追溯性。"),
-        "7.5.11": ("RDC 665 Art.53", "Article 53 covers product preservation.", "第53條涵蓋產品防護。"),
-        "7.6": ("RDC 665 Art.54", "Article 54 covers monitoring equipment.", "第54條涵蓋監測設備。"),
-        "8.1": ("RDC 665 Art.55", "Article 55 covers general measurement requirements.", "第55條涵蓋一般量測要求。"),
+        "4.1": (
+            "RDC 665 Art.8",
+            "RDC 665 Article 8 establishes general QMS/GMP requirements aligned with ISO 13485.",
+            "RDC 665第8條建立與ISO 13485對齊的一般QMS/GMP要求。",
+        ),
+        "4.2.1": (
+            "RDC 665 Art.9",
+            "Article 9 covers documentation requirements.",
+            "第9條涵蓋文件化要求。",
+        ),
+        "4.2.2": (
+            "RDC 665 Art.10",
+            "Article 10 covers quality manual.",
+            "第10條涵蓋品質手冊。",
+        ),
+        "4.2.3": (
+            "RDC 665 Art.11",
+            "Article 11 covers document control.",
+            "第11條涵蓋文件管制。",
+        ),
+        "4.2.4": (
+            "RDC 665 Art.12",
+            "Article 12 covers record control.",
+            "第12條涵蓋記錄管制。",
+        ),
+        "4.2.5": (
+            "RDC 665 Art.13",
+            "Article 13 covers medical device file.",
+            "第13條涵蓋醫療器材檔案。",
+        ),
+        "5.1": (
+            "RDC 665 Art.14",
+            "Article 14 covers management commitment.",
+            "第14條涵蓋管理承諾。",
+        ),
+        "5.2": (
+            "RDC 665 Art.15",
+            "Article 15 covers customer focus.",
+            "第15條涵蓋以顧客為重。",
+        ),
+        "5.3": (
+            "RDC 665 Art.16",
+            "Article 16 covers quality policy.",
+            "第16條涵蓋品質政策。",
+        ),
+        "5.4.1": (
+            "RDC 665 Art.17",
+            "Article 17 covers quality objectives.",
+            "第17條涵蓋品質目標。",
+        ),
+        "5.4.2": (
+            "RDC 665 Art.18",
+            "Article 18 covers QMS planning.",
+            "第18條涵蓋QMS規劃。",
+        ),
+        "5.5.1": (
+            "RDC 665 Art.19",
+            "Article 19 covers responsibility and authority.",
+            "第19條涵蓋責任與權限。",
+        ),
+        "5.5.2": (
+            "RDC 665 Art.20",
+            "Article 20 covers management representative.",
+            "第20條涵蓋管理代表。",
+        ),
+        "5.5.3": (
+            "RDC 665 Art.21",
+            "Article 21 covers internal communication.",
+            "第21條涵蓋內部溝通。",
+        ),
+        "5.6.1": (
+            "RDC 665 Art.22",
+            "Article 22 covers management review.",
+            "第22條涵蓋管理審查。",
+        ),
+        "5.6.2": (
+            "RDC 665 Art.22",
+            "Article 22 includes management review input.",
+            "第22條包含管理審查輸入。",
+        ),
+        "5.6.3": (
+            "RDC 665 Art.22",
+            "Article 22 includes management review output.",
+            "第22條包含管理審查輸出。",
+        ),
+        "6.1": (
+            "RDC 665 Art.23",
+            "Article 23 covers resource provision.",
+            "第23條涵蓋資源提供。",
+        ),
+        "6.2": (
+            "RDC 665 Art.24",
+            "Article 24 covers human resources.",
+            "第24條涵蓋人力資源。",
+        ),
+        "6.3": (
+            "RDC 665 Art.25",
+            "Article 25 covers infrastructure.",
+            "第25條涵蓋基礎設施。",
+        ),
+        "6.4.1": (
+            "RDC 665 Art.26",
+            "Article 26 covers work environment.",
+            "第26條涵蓋工作環境。",
+        ),
+        "6.4.2": (
+            "RDC 665 Art.27",
+            "Article 27 covers contamination control.",
+            "第27條涵蓋污染管制。",
+        ),
+        "7.1": (
+            "RDC 665 Art.28",
+            "Article 28 covers product realization planning.",
+            "第28條涵蓋產品實現規劃。",
+        ),
+        "7.2.1": (
+            "RDC 665 Art.29",
+            "Article 29 covers determination of product requirements.",
+            "第29條涵蓋產品要求確定。",
+        ),
+        "7.2.2": (
+            "RDC 665 Art.30",
+            "Article 30 covers review of product requirements.",
+            "第30條涵蓋產品要求審查。",
+        ),
+        "7.2.3": (
+            "RDC 665 Art.31",
+            "Article 31 covers communication.",
+            "第31條涵蓋溝通。",
+        ),
+        "7.3.1": (
+            "RDC 665 Art.32",
+            "Article 32 covers design planning.",
+            "第32條涵蓋設計規劃。",
+        ),
+        "7.3.2": (
+            "RDC 665 Art.33",
+            "Article 33 covers design input.",
+            "第33條涵蓋設計輸入。",
+        ),
+        "7.3.3": (
+            "RDC 665 Art.34",
+            "Article 34 covers design output.",
+            "第34條涵蓋設計輸出。",
+        ),
+        "7.3.4": (
+            "RDC 665 Art.35",
+            "Article 35 covers design review.",
+            "第35條涵蓋設計審查。",
+        ),
+        "7.3.5": (
+            "RDC 665 Art.36",
+            "Article 36 covers design verification.",
+            "第36條涵蓋設計驗證。",
+        ),
+        "7.3.6": (
+            "RDC 665 Art.37",
+            "Article 37 covers design validation.",
+            "第37條涵蓋設計確認。",
+        ),
+        "7.3.7": (
+            "RDC 665 Art.38",
+            "Article 38 covers design transfer.",
+            "第38條涵蓋設計轉移。",
+        ),
+        "7.3.8": (
+            "RDC 665 Art.39",
+            "Article 39 covers design change control.",
+            "第39條涵蓋設計變更管制。",
+        ),
+        "7.3.9": (
+            "RDC 665 Art.40",
+            "Article 40 covers design files.",
+            "第40條涵蓋設計檔案。",
+        ),
+        "7.3.10": (
+            "RDC 665 Art.40",
+            "Article 40 includes design documentation.",
+            "第40條包含設計文件。",
+        ),
+        "7.4.1": (
+            "RDC 665 Art.41",
+            "Article 41 covers purchasing process.",
+            "第41條涵蓋採購過程。",
+        ),
+        "7.4.2": (
+            "RDC 665 Art.42",
+            "Article 42 covers purchasing information.",
+            "第42條涵蓋採購資訊。",
+        ),
+        "7.4.3": (
+            "RDC 665 Art.43",
+            "Article 43 covers verification of purchased product.",
+            "第43條涵蓋採購產品驗證。",
+        ),
+        "7.5.1": (
+            "RDC 665 Art.44",
+            "Article 44 covers production control.",
+            "第44條涵蓋生產管制。",
+        ),
+        "7.5.6": (
+            "RDC 665 Art.48",
+            "Article 48 covers process validation.",
+            "第48條涵蓋過程確認。",
+        ),
+        "7.5.8": (
+            "RDC 665 Art.50",
+            "Article 50 covers identification.",
+            "第50條涵蓋識別。",
+        ),
+        "7.5.9": (
+            "RDC 665 Art.51",
+            "Article 51 covers traceability.",
+            "第51條涵蓋追溯性。",
+        ),
+        "7.5.11": (
+            "RDC 665 Art.53",
+            "Article 53 covers product preservation.",
+            "第53條涵蓋產品防護。",
+        ),
+        "7.6": (
+            "RDC 665 Art.54",
+            "Article 54 covers monitoring equipment.",
+            "第54條涵蓋監測設備。",
+        ),
+        "8.1": (
+            "RDC 665 Art.55",
+            "Article 55 covers general measurement requirements.",
+            "第55條涵蓋一般量測要求。",
+        ),
         "8.2.1": ("RDC 665 Art.56", "Article 56 covers feedback.", "第56條涵蓋回饋。"),
-        "8.2.2": ("RDC 665 Art.57", "Article 57 covers complaint handling.", "第57條涵蓋客訴處理。"),
-        "8.2.3": ("RDC 665 Art.58", "Article 58 covers regulatory reporting to ANVISA.", "第58條涵蓋向ANVISA的法規通報。"),
-        "8.2.4": ("RDC 665 Art.59", "Article 59 covers internal audit.", "第59條涵蓋內部稽核。"),
-        "8.2.5": ("RDC 665 Art.60", "Article 60 covers process monitoring.", "第60條涵蓋過程監督。"),
-        "8.2.6": ("RDC 665 Art.61", "Article 61 covers product monitoring.", "第61條涵蓋產品監督。"),
-        "8.3": ("RDC 665 Art.62", "Article 62 covers nonconforming product.", "第62條涵蓋不合格品。"),
-        "8.4": ("RDC 665 Art.64", "Article 64 covers data analysis.", "第64條涵蓋數據分析。"),
-        "8.5.1": ("RDC 665 Art.65", "Article 65 covers improvement.", "第65條涵蓋改善。"),
-        "8.5.2": ("RDC 665 Art.66", "Article 66 covers corrective action.", "第66條涵蓋矯正措施。"),
-        "8.5.3": ("RDC 665 Art.67", "Article 67 covers preventive action.", "第67條涵蓋預防措施。"),
+        "8.2.2": (
+            "RDC 665 Art.57",
+            "Article 57 covers complaint handling.",
+            "第57條涵蓋客訴處理。",
+        ),
+        "8.2.3": (
+            "RDC 665 Art.58",
+            "Article 58 covers regulatory reporting to ANVISA.",
+            "第58條涵蓋向ANVISA的法規通報。",
+        ),
+        "8.2.4": (
+            "RDC 665 Art.59",
+            "Article 59 covers internal audit.",
+            "第59條涵蓋內部稽核。",
+        ),
+        "8.2.5": (
+            "RDC 665 Art.60",
+            "Article 60 covers process monitoring.",
+            "第60條涵蓋過程監督。",
+        ),
+        "8.2.6": (
+            "RDC 665 Art.61",
+            "Article 61 covers product monitoring.",
+            "第61條涵蓋產品監督。",
+        ),
+        "8.3": (
+            "RDC 665 Art.62",
+            "Article 62 covers nonconforming product.",
+            "第62條涵蓋不合格品。",
+        ),
+        "8.4": (
+            "RDC 665 Art.64",
+            "Article 64 covers data analysis.",
+            "第64條涵蓋數據分析。",
+        ),
+        "8.5.1": (
+            "RDC 665 Art.65",
+            "Article 65 covers improvement.",
+            "第65條涵蓋改善。",
+        ),
+        "8.5.2": (
+            "RDC 665 Art.66",
+            "Article 66 covers corrective action.",
+            "第66條涵蓋矯正措施。",
+        ),
+        "8.5.3": (
+            "RDC 665 Art.67",
+            "Article 67 covers preventive action.",
+            "第67條涵蓋預防措施。",
+        ),
     }
 
     for clause_id, (ref, rationale_en, rationale_zh) in anvisa_clause_map.items():
@@ -3532,8 +4640,7 @@ def _build_anvisa_profile() -> RegulationProfile:
                 "for devices marketed in Brazil, with current GMP/BPF certification where required?"
             ),
             audit_question_zh=(
-                "公司是否持有有效的ANVISA產品登記或通報，"
-                "以及所需的GMP/BPF認證？"
+                "公司是否持有有效的ANVISA產品登記或通報，以及所需的GMP/BPF認證？"
             ),
             expected_evidence=[
                 "ANVISA registration certificate (Registro) / ANVISA登記證書",
@@ -3650,6 +4757,7 @@ def _build_anvisa_profile() -> RegulationProfile:
 # Predefined Regulation: Australia TGA (Therapeutic Goods Act 1989)
 # ============================================================
 
+
 def _build_tga_profile() -> RegulationProfile:
     """Build the Australia TGA regulation profile.
 
@@ -3666,63 +4774,291 @@ def _build_tga_profile() -> RegulationProfile:
 
     # TGA requires ISO 13485 certification — all clauses are adopted
     tga_clause_map = {
-        "4.1": ("TG(MD)R Sch.3 Part 1.2", "TGA requires ISO 13485 certification for ARTG inclusion. General QMS requirements fully adopted.", "TGA要求ISO 13485認證以納入ARTG。一般QMS要求完全採用。"),
-        "4.2.1": ("TG(MD)R Sch.3 Part 1.2", "Documentation requirements adopted via mandatory ISO 13485.", "文件化要求通過強制性ISO 13485採用。"),
-        "4.2.2": ("TG(MD)R Sch.3 Part 1.2", "Quality manual adopted via ISO 13485.", "品質手冊通過ISO 13485採用。"),
-        "4.2.3": ("TG(MD)R Sch.3 Part 1.2", "Document control adopted via ISO 13485.", "文件管制通過ISO 13485採用。"),
-        "4.2.4": ("TG(MD)R Sch.3 Part 1.2", "Record control adopted via ISO 13485.", "記錄管制通過ISO 13485採用。"),
-        "4.2.5": ("TG(MD)R Sch.3 Part 1.2", "Medical device file adopted via ISO 13485.", "醫療器材檔案通過ISO 13485採用。"),
-        "5.1": ("TG(MD)R Sch.3 Part 1.2", "Management commitment adopted via ISO 13485.", "管理承諾通過ISO 13485採用。"),
-        "5.2": ("TG(MD)R Sch.3 Part 1.2", "Customer focus adopted via ISO 13485.", "以顧客為重通過ISO 13485採用。"),
-        "5.3": ("TG(MD)R Sch.3 Part 1.2", "Quality policy adopted via ISO 13485.", "品質政策通過ISO 13485採用。"),
-        "5.4.1": ("TG(MD)R Sch.3 Part 1.2", "Quality objectives adopted via ISO 13485.", "品質目標通過ISO 13485採用。"),
-        "5.4.2": ("TG(MD)R Sch.3 Part 1.2", "QMS planning adopted via ISO 13485.", "QMS規劃通過ISO 13485採用。"),
-        "5.5.1": ("TG(MD)R Sch.3 Part 1.2", "Responsibility and authority adopted via ISO 13485.", "責任與權限通過ISO 13485採用。"),
-        "5.5.2": ("TG(MD)R Sch.3 Part 1.2", "Management representative adopted via ISO 13485.", "管理代表通過ISO 13485採用。"),
-        "5.5.3": ("TG(MD)R Sch.3 Part 1.2", "Internal communication adopted via ISO 13485.", "內部溝通通過ISO 13485採用。"),
-        "5.6.1": ("TG(MD)R Sch.3 Part 1.2", "Management review adopted via ISO 13485.", "管理審查通過ISO 13485採用。"),
-        "5.6.2": ("TG(MD)R Sch.3 Part 1.2", "Management review input adopted via ISO 13485.", "管理審查輸入通過ISO 13485採用。"),
-        "5.6.3": ("TG(MD)R Sch.3 Part 1.2", "Management review output adopted via ISO 13485.", "管理審查輸出通過ISO 13485採用。"),
-        "6.1": ("TG(MD)R Sch.3 Part 1.2", "Resource provision adopted via ISO 13485.", "資源提供通過ISO 13485採用。"),
-        "6.2": ("TG(MD)R Sch.3 Part 1.2", "Human resources adopted via ISO 13485.", "人力資源通過ISO 13485採用。"),
-        "6.3": ("TG(MD)R Sch.3 Part 1.2", "Infrastructure adopted via ISO 13485.", "基礎設施通過ISO 13485採用。"),
-        "6.4.1": ("TG(MD)R Sch.3 Part 1.2", "Work environment adopted via ISO 13485.", "工作環境通過ISO 13485採用。"),
-        "6.4.2": ("TG(MD)R Sch.3 Part 1.2", "Contamination control adopted via ISO 13485.", "污染管制通過ISO 13485採用。"),
-        "7.1": ("TG(MD)R Sch.3 Part 1.2", "Product realization planning adopted via ISO 13485.", "產品實現規劃通過ISO 13485採用。"),
-        "7.2.1": ("TG(MD)R Sch.3 Part 1.2 / Essential Principles", "Determination of product requirements — TGA Essential Principles add product safety requirements.", "產品要求確定 — TGA基本原則增加產品安全要求。"),
-        "7.2.2": ("TG(MD)R Sch.3 Part 1.2", "Review of product requirements adopted via ISO 13485.", "產品要求審查通過ISO 13485採用。"),
-        "7.2.3": ("TG(MD)R Sch.3 Part 1.2", "Communication adopted via ISO 13485.", "溝通通過ISO 13485採用。"),
-        "7.3.1": ("TG(MD)R Sch.3 Part 1.2", "Design planning adopted via ISO 13485.", "設計規劃通過ISO 13485採用。"),
-        "7.3.2": ("TG(MD)R Sch.3 Part 1.2", "Design input adopted via ISO 13485.", "設計輸入通過ISO 13485採用。"),
-        "7.3.3": ("TG(MD)R Sch.3 Part 1.2", "Design output adopted via ISO 13485.", "設計輸出通過ISO 13485採用。"),
-        "7.3.4": ("TG(MD)R Sch.3 Part 1.2", "Design review adopted via ISO 13485.", "設計審查通過ISO 13485採用。"),
-        "7.3.5": ("TG(MD)R Sch.3 Part 1.2", "Design verification adopted via ISO 13485.", "設計驗證通過ISO 13485採用。"),
-        "7.3.6": ("TG(MD)R Sch.3 Part 1.2", "Design validation adopted via ISO 13485.", "設計確認通過ISO 13485採用。"),
-        "7.3.7": ("TG(MD)R Sch.3 Part 1.2", "Design transfer adopted via ISO 13485.", "設計轉移通過ISO 13485採用。"),
-        "7.3.8": ("TG(MD)R Sch.3 Part 1.2", "Design change control adopted via ISO 13485.", "設計變更管制通過ISO 13485採用。"),
-        "7.3.9": ("TG(MD)R Sch.3 Part 1.2", "Design files adopted via ISO 13485.", "設計檔案通過ISO 13485採用。"),
-        "7.3.10": ("TG(MD)R Sch.3 Part 1.2", "Design documentation adopted via ISO 13485.", "設計文件通過ISO 13485採用。"),
-        "7.4.1": ("TG(MD)R Sch.3 Part 1.2", "Purchasing process adopted via ISO 13485.", "採購過程通過ISO 13485採用。"),
-        "7.4.2": ("TG(MD)R Sch.3 Part 1.2", "Purchasing information adopted via ISO 13485.", "採購資訊通過ISO 13485採用。"),
-        "7.4.3": ("TG(MD)R Sch.3 Part 1.2", "Verification of purchased product adopted via ISO 13485.", "採購產品驗證通過ISO 13485採用。"),
-        "7.5.1": ("TG(MD)R Sch.3 Part 1.2", "Production control adopted via ISO 13485.", "生產管制通過ISO 13485採用。"),
-        "7.5.6": ("TG(MD)R Sch.3 Part 1.2", "Process validation adopted via ISO 13485.", "過程確認通過ISO 13485採用。"),
-        "7.5.8": ("TG(MD)R Sch.3 Part 1.2", "Identification adopted via ISO 13485.", "識別通過ISO 13485採用。"),
-        "7.5.9": ("TG(MD)R Sch.3 Part 1.2", "Traceability adopted via ISO 13485.", "追溯性通過ISO 13485採用。"),
-        "7.5.11": ("TG(MD)R Sch.3 Part 1.2", "Product preservation adopted via ISO 13485.", "產品防護通過ISO 13485採用。"),
-        "7.6": ("TG(MD)R Sch.3 Part 1.2", "Monitoring equipment adopted via ISO 13485.", "監測設備通過ISO 13485採用。"),
-        "8.1": ("TG(MD)R Sch.3 Part 1.2", "General measurement requirements adopted via ISO 13485.", "一般量測要求通過ISO 13485採用。"),
-        "8.2.1": ("TG(MD)R Sch.3 Part 1.2", "Feedback adopted via ISO 13485.", "回饋通過ISO 13485採用。"),
-        "8.2.2": ("TG(MD)R Sch.3 Part 1.2 / TG Act s.41G", "Complaint handling adopted via ISO 13485. TG Act s.41G adds mandatory adverse event reporting to TGA.", "客訴處理通過ISO 13485採用。TG Act s.41G增加向TGA的強制性不良事件通報。"),
-        "8.2.3": ("TG Act s.41G-41K", "Regulatory reporting — TG Act mandates adverse event and recall reporting to TGA.", "法規通報 — TG Act要求向TGA進行不良事件和召回通報。"),
-        "8.2.4": ("TG(MD)R Sch.3 Part 1.2", "Internal audit adopted via ISO 13485.", "內部稽核通過ISO 13485採用。"),
-        "8.2.5": ("TG(MD)R Sch.3 Part 1.2", "Process monitoring adopted via ISO 13485.", "過程監督通過ISO 13485採用。"),
-        "8.2.6": ("TG(MD)R Sch.3 Part 1.2", "Product monitoring adopted via ISO 13485.", "產品監督通過ISO 13485採用。"),
-        "8.3": ("TG(MD)R Sch.3 Part 1.2", "Nonconforming product adopted via ISO 13485.", "不合格品通過ISO 13485採用。"),
-        "8.4": ("TG(MD)R Sch.3 Part 1.2", "Data analysis adopted via ISO 13485.", "數據分析通過ISO 13485採用。"),
-        "8.5.1": ("TG(MD)R Sch.3 Part 1.2", "Improvement adopted via ISO 13485.", "改善通過ISO 13485採用。"),
-        "8.5.2": ("TG(MD)R Sch.3 Part 1.2", "Corrective action adopted via ISO 13485.", "矯正措施通過ISO 13485採用。"),
-        "8.5.3": ("TG(MD)R Sch.3 Part 1.2", "Preventive action adopted via ISO 13485.", "預防措施通過ISO 13485採用。"),
+        "4.1": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "TGA requires ISO 13485 certification for ARTG inclusion. General QMS requirements fully adopted.",
+            "TGA要求ISO 13485認證以納入ARTG。一般QMS要求完全採用。",
+        ),
+        "4.2.1": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Documentation requirements adopted via mandatory ISO 13485.",
+            "文件化要求通過強制性ISO 13485採用。",
+        ),
+        "4.2.2": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Quality manual adopted via ISO 13485.",
+            "品質手冊通過ISO 13485採用。",
+        ),
+        "4.2.3": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Document control adopted via ISO 13485.",
+            "文件管制通過ISO 13485採用。",
+        ),
+        "4.2.4": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Record control adopted via ISO 13485.",
+            "記錄管制通過ISO 13485採用。",
+        ),
+        "4.2.5": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Medical device file adopted via ISO 13485.",
+            "醫療器材檔案通過ISO 13485採用。",
+        ),
+        "5.1": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Management commitment adopted via ISO 13485.",
+            "管理承諾通過ISO 13485採用。",
+        ),
+        "5.2": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Customer focus adopted via ISO 13485.",
+            "以顧客為重通過ISO 13485採用。",
+        ),
+        "5.3": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Quality policy adopted via ISO 13485.",
+            "品質政策通過ISO 13485採用。",
+        ),
+        "5.4.1": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Quality objectives adopted via ISO 13485.",
+            "品質目標通過ISO 13485採用。",
+        ),
+        "5.4.2": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "QMS planning adopted via ISO 13485.",
+            "QMS規劃通過ISO 13485採用。",
+        ),
+        "5.5.1": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Responsibility and authority adopted via ISO 13485.",
+            "責任與權限通過ISO 13485採用。",
+        ),
+        "5.5.2": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Management representative adopted via ISO 13485.",
+            "管理代表通過ISO 13485採用。",
+        ),
+        "5.5.3": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Internal communication adopted via ISO 13485.",
+            "內部溝通通過ISO 13485採用。",
+        ),
+        "5.6.1": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Management review adopted via ISO 13485.",
+            "管理審查通過ISO 13485採用。",
+        ),
+        "5.6.2": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Management review input adopted via ISO 13485.",
+            "管理審查輸入通過ISO 13485採用。",
+        ),
+        "5.6.3": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Management review output adopted via ISO 13485.",
+            "管理審查輸出通過ISO 13485採用。",
+        ),
+        "6.1": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Resource provision adopted via ISO 13485.",
+            "資源提供通過ISO 13485採用。",
+        ),
+        "6.2": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Human resources adopted via ISO 13485.",
+            "人力資源通過ISO 13485採用。",
+        ),
+        "6.3": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Infrastructure adopted via ISO 13485.",
+            "基礎設施通過ISO 13485採用。",
+        ),
+        "6.4.1": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Work environment adopted via ISO 13485.",
+            "工作環境通過ISO 13485採用。",
+        ),
+        "6.4.2": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Contamination control adopted via ISO 13485.",
+            "污染管制通過ISO 13485採用。",
+        ),
+        "7.1": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Product realization planning adopted via ISO 13485.",
+            "產品實現規劃通過ISO 13485採用。",
+        ),
+        "7.2.1": (
+            "TG(MD)R Sch.3 Part 1.2 / Essential Principles",
+            "Determination of product requirements — TGA Essential Principles add product safety requirements.",
+            "產品要求確定 — TGA基本原則增加產品安全要求。",
+        ),
+        "7.2.2": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Review of product requirements adopted via ISO 13485.",
+            "產品要求審查通過ISO 13485採用。",
+        ),
+        "7.2.3": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Communication adopted via ISO 13485.",
+            "溝通通過ISO 13485採用。",
+        ),
+        "7.3.1": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Design planning adopted via ISO 13485.",
+            "設計規劃通過ISO 13485採用。",
+        ),
+        "7.3.2": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Design input adopted via ISO 13485.",
+            "設計輸入通過ISO 13485採用。",
+        ),
+        "7.3.3": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Design output adopted via ISO 13485.",
+            "設計輸出通過ISO 13485採用。",
+        ),
+        "7.3.4": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Design review adopted via ISO 13485.",
+            "設計審查通過ISO 13485採用。",
+        ),
+        "7.3.5": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Design verification adopted via ISO 13485.",
+            "設計驗證通過ISO 13485採用。",
+        ),
+        "7.3.6": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Design validation adopted via ISO 13485.",
+            "設計確認通過ISO 13485採用。",
+        ),
+        "7.3.7": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Design transfer adopted via ISO 13485.",
+            "設計轉移通過ISO 13485採用。",
+        ),
+        "7.3.8": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Design change control adopted via ISO 13485.",
+            "設計變更管制通過ISO 13485採用。",
+        ),
+        "7.3.9": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Design files adopted via ISO 13485.",
+            "設計檔案通過ISO 13485採用。",
+        ),
+        "7.3.10": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Design documentation adopted via ISO 13485.",
+            "設計文件通過ISO 13485採用。",
+        ),
+        "7.4.1": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Purchasing process adopted via ISO 13485.",
+            "採購過程通過ISO 13485採用。",
+        ),
+        "7.4.2": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Purchasing information adopted via ISO 13485.",
+            "採購資訊通過ISO 13485採用。",
+        ),
+        "7.4.3": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Verification of purchased product adopted via ISO 13485.",
+            "採購產品驗證通過ISO 13485採用。",
+        ),
+        "7.5.1": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Production control adopted via ISO 13485.",
+            "生產管制通過ISO 13485採用。",
+        ),
+        "7.5.6": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Process validation adopted via ISO 13485.",
+            "過程確認通過ISO 13485採用。",
+        ),
+        "7.5.8": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Identification adopted via ISO 13485.",
+            "識別通過ISO 13485採用。",
+        ),
+        "7.5.9": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Traceability adopted via ISO 13485.",
+            "追溯性通過ISO 13485採用。",
+        ),
+        "7.5.11": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Product preservation adopted via ISO 13485.",
+            "產品防護通過ISO 13485採用。",
+        ),
+        "7.6": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Monitoring equipment adopted via ISO 13485.",
+            "監測設備通過ISO 13485採用。",
+        ),
+        "8.1": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "General measurement requirements adopted via ISO 13485.",
+            "一般量測要求通過ISO 13485採用。",
+        ),
+        "8.2.1": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Feedback adopted via ISO 13485.",
+            "回饋通過ISO 13485採用。",
+        ),
+        "8.2.2": (
+            "TG(MD)R Sch.3 Part 1.2 / TG Act s.41G",
+            "Complaint handling adopted via ISO 13485. TG Act s.41G adds mandatory adverse event reporting to TGA.",
+            "客訴處理通過ISO 13485採用。TG Act s.41G增加向TGA的強制性不良事件通報。",
+        ),
+        "8.2.3": (
+            "TG Act s.41G-41K",
+            "Regulatory reporting — TG Act mandates adverse event and recall reporting to TGA.",
+            "法規通報 — TG Act要求向TGA進行不良事件和召回通報。",
+        ),
+        "8.2.4": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Internal audit adopted via ISO 13485.",
+            "內部稽核通過ISO 13485採用。",
+        ),
+        "8.2.5": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Process monitoring adopted via ISO 13485.",
+            "過程監督通過ISO 13485採用。",
+        ),
+        "8.2.6": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Product monitoring adopted via ISO 13485.",
+            "產品監督通過ISO 13485採用。",
+        ),
+        "8.3": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Nonconforming product adopted via ISO 13485.",
+            "不合格品通過ISO 13485採用。",
+        ),
+        "8.4": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Data analysis adopted via ISO 13485.",
+            "數據分析通過ISO 13485採用。",
+        ),
+        "8.5.1": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Improvement adopted via ISO 13485.",
+            "改善通過ISO 13485採用。",
+        ),
+        "8.5.2": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Corrective action adopted via ISO 13485.",
+            "矯正措施通過ISO 13485採用。",
+        ),
+        "8.5.3": (
+            "TG(MD)R Sch.3 Part 1.2",
+            "Preventive action adopted via ISO 13485.",
+            "預防措施通過ISO 13485採用。",
+        ),
     }
 
     for clause_id, (ref, rationale_en, rationale_zh) in tga_clause_map.items():
@@ -3939,6 +5275,7 @@ def _build_tga_profile() -> RegulationProfile:
         unique_requirements=unique_reqs,
     )
 
+
 # ============================================================
 # Build predefined profiles (loaded once at import time)
 # ============================================================
@@ -4143,10 +5480,24 @@ def _build_predefined_standards() -> dict[str, SupplementalStandardProfile]:
         category=StandardCategory.RISK_MANAGEMENT,
         version="2019",
         is_universal=True,  # Applies to ALL medical devices
-        detection_keywords_en=["risk management", "risk analysis", "risk evaluation",
-            "risk control", "hazard", "14971", "risk-based approach"],
-        detection_keywords_zh=["風險管理", "風險分析", "風險評估",
-            "風險控制", "危害", "14971", "風險基礎方法"],
+        detection_keywords_en=[
+            "risk management",
+            "risk analysis",
+            "risk evaluation",
+            "risk control",
+            "hazard",
+            "14971",
+            "risk-based approach",
+        ],
+        detection_keywords_zh=[
+            "風險管理",
+            "風險分析",
+            "風險評估",
+            "風險控制",
+            "危害",
+            "14971",
+            "風險基礎方法",
+        ],
         primary_iso_clauses=["7.1", "7.3.3", "7.3.9", "8.2.1", "8.5.2"],
         clause_links=[
             StandardClauseLink(
@@ -4184,11 +5535,18 @@ def _build_predefined_standards() -> dict[str, SupplementalStandardProfile]:
             "TW": "TFDA 醫療器材品質管理系統準則要求依循 ISO 14971 執行產品實現之風險管理",
         },
         audit_questions=[
-            {"question_zh": "組織是否建立並維持風險管理過程，包含風險分析、風險評估、風險控制及殘餘風險評價？",
-             "question_en": "Has the organization established and maintained a risk management process including risk analysis, evaluation, control, and residual risk assessment?",
-             "expected_evidence": ["風險管理計畫 / Risk management plan", "風險管理報告 / Risk management report",
-                                  "風險管理檔案 / Risk management file", "FMEA / FTA / HAZOP 分析紀錄"],
-             "audit_impact": "critical", "iso_clause": "7.1"},
+            {
+                "question_zh": "組織是否建立並維持風險管理過程，包含風險分析、風險評估、風險控制及殘餘風險評價？",
+                "question_en": "Has the organization established and maintained a risk management process including risk analysis, evaluation, control, and residual risk assessment?",
+                "expected_evidence": [
+                    "風險管理計畫 / Risk management plan",
+                    "風險管理報告 / Risk management report",
+                    "風險管理檔案 / Risk management file",
+                    "FMEA / FTA / HAZOP 分析紀錄",
+                ],
+                "audit_impact": "critical",
+                "iso_clause": "7.1",
+            },
         ],
     )
 
@@ -4199,13 +5557,40 @@ def _build_predefined_standards() -> dict[str, SupplementalStandardProfile]:
         name_zh="IEC 62304:2006+A1:2015 醫療器材軟體 — 軟體生命週期過程",
         category=StandardCategory.SOFTWARE,
         version="2006+A1:2015",
-        detection_keywords_en=["software", "SaMD", "software as medical device",
-            "62304", "software lifecycle", "software development", "firmware",
-            "software unit", "software system", "SOUP"],
-        detection_keywords_zh=["軟體", "韌體", "軟體醫療器材",
-            "62304", "軟體生命週期", "軟體開發", "軟體單元", "SOUP"],
-        primary_iso_clauses=["7.3", "7.3.1", "7.3.2", "7.3.3", "7.3.4", "7.3.5",
-            "7.3.6", "7.3.7", "4.1.6", "7.5.6"],
+        detection_keywords_en=[
+            "software",
+            "SaMD",
+            "software as medical device",
+            "62304",
+            "software lifecycle",
+            "software development",
+            "firmware",
+            "software unit",
+            "software system",
+            "SOUP",
+        ],
+        detection_keywords_zh=[
+            "軟體",
+            "韌體",
+            "軟體醫療器材",
+            "62304",
+            "軟體生命週期",
+            "軟體開發",
+            "軟體單元",
+            "SOUP",
+        ],
+        primary_iso_clauses=[
+            "7.3",
+            "7.3.1",
+            "7.3.2",
+            "7.3.3",
+            "7.3.4",
+            "7.3.5",
+            "7.3.6",
+            "7.3.7",
+            "4.1.6",
+            "7.5.6",
+        ],
         clause_links=[
             StandardClauseLink(
                 standard_clause="Clause 5 (Software development process)",
@@ -4242,12 +5627,18 @@ def _build_predefined_standards() -> dict[str, SupplementalStandardProfile]:
             "TW": "TFDA 醫療器材軟體製造業者品質管理系統指導文件建議參考",
         },
         audit_questions=[
-            {"question_zh": "軟體開發過程是否依循 IEC 62304 建立軟體開發計畫、架構設計、單元測試、整合測試及系統測試？",
-             "question_en": "Does the software development process follow IEC 62304 with development plan, architecture, unit testing, integration testing, and system testing?",
-             "expected_evidence": ["軟體開發計畫 / Software development plan",
-                                  "軟體架構文件 / Software architecture document",
-                                  "SOUP 清單 / SOUP list", "軟體測試紀錄 / Software test records"],
-             "audit_impact": "critical", "iso_clause": "7.3"},
+            {
+                "question_zh": "軟體開發過程是否依循 IEC 62304 建立軟體開發計畫、架構設計、單元測試、整合測試及系統測試？",
+                "question_en": "Does the software development process follow IEC 62304 with development plan, architecture, unit testing, integration testing, and system testing?",
+                "expected_evidence": [
+                    "軟體開發計畫 / Software development plan",
+                    "軟體架構文件 / Software architecture document",
+                    "SOUP 清單 / SOUP list",
+                    "軟體測試紀錄 / Software test records",
+                ],
+                "audit_impact": "critical",
+                "iso_clause": "7.3",
+            },
         ],
     )
 
@@ -4258,10 +5649,24 @@ def _build_predefined_standards() -> dict[str, SupplementalStandardProfile]:
         name_zh="IEC 62366-1:2015+A1:2020 醫療器材 — 可用性工程之應用",
         category=StandardCategory.USABILITY,
         version="2015+A1:2020",
-        detection_keywords_en=["usability", "human factors", "62366", "use error",
-            "user interface", "formative evaluation", "summative evaluation"],
-        detection_keywords_zh=["可用性", "人因工程", "62366", "使用錯誤",
-            "使用者介面", "形成性評估", "總結性評估"],
+        detection_keywords_en=[
+            "usability",
+            "human factors",
+            "62366",
+            "use error",
+            "user interface",
+            "formative evaluation",
+            "summative evaluation",
+        ],
+        detection_keywords_zh=[
+            "可用性",
+            "人因工程",
+            "62366",
+            "使用錯誤",
+            "使用者介面",
+            "形成性評估",
+            "總結性評估",
+        ],
         primary_iso_clauses=["7.3.3", "7.3.6", "7.3.10"],
         clause_links=[
             StandardClauseLink(
@@ -4293,11 +5698,27 @@ def _build_predefined_standards() -> dict[str, SupplementalStandardProfile]:
         name_zh="IEC 60601-1:2005+A1:2012+A2:2020 醫用電氣設備 — 基本安全與必要性能的一般要求",
         category=StandardCategory.ELECTRICAL_SAFETY,
         version="2005+A1:2012+A2:2020",
-        detection_keywords_en=["electrical", "60601", "ME equipment", "medical electrical",
-            "basic safety", "essential performance", "leakage current",
-            "dielectric strength", "protective earth"],
-        detection_keywords_zh=["電氣安全", "60601", "醫用電氣", "醫用電子",
-            "基本安全", "必要性能", "漏電流", "介電強度"],
+        detection_keywords_en=[
+            "electrical",
+            "60601",
+            "ME equipment",
+            "medical electrical",
+            "basic safety",
+            "essential performance",
+            "leakage current",
+            "dielectric strength",
+            "protective earth",
+        ],
+        detection_keywords_zh=[
+            "電氣安全",
+            "60601",
+            "醫用電氣",
+            "醫用電子",
+            "基本安全",
+            "必要性能",
+            "漏電流",
+            "介電強度",
+        ],
         primary_iso_clauses=["7.3.3", "7.3.5", "7.3.6", "4.2.5"],
         clause_links=[
             StandardClauseLink(
@@ -4329,10 +5750,23 @@ def _build_predefined_standards() -> dict[str, SupplementalStandardProfile]:
         name_zh="IEC 60601-1-2:2014+A1:2020 醫用電氣設備 — 電磁相容性要求與測試",
         category=StandardCategory.EMC,
         version="2014+A1:2020",
-        detection_keywords_en=["EMC", "electromagnetic compatibility", "60601-1-2",
-            "emissions", "immunity", "electromagnetic", "RF interference"],
-        detection_keywords_zh=["電磁相容性", "EMC", "60601-1-2",
-            "電磁放射", "電磁免疫", "射頻干擾"],
+        detection_keywords_en=[
+            "EMC",
+            "electromagnetic compatibility",
+            "60601-1-2",
+            "emissions",
+            "immunity",
+            "electromagnetic",
+            "RF interference",
+        ],
+        detection_keywords_zh=[
+            "電磁相容性",
+            "EMC",
+            "60601-1-2",
+            "電磁放射",
+            "電磁免疫",
+            "射頻干擾",
+        ],
         primary_iso_clauses=["7.3.3", "7.3.6"],
         clause_links=[
             StandardClauseLink(
@@ -4357,12 +5791,30 @@ def _build_predefined_standards() -> dict[str, SupplementalStandardProfile]:
         name_zh="ISO 10993 系列 — 醫療器材的生物評估",
         category=StandardCategory.BIOCOMPATIBILITY,
         version="2018 (Part 1)",
-        detection_keywords_en=["biocompatibility", "10993", "biological evaluation",
-            "cytotoxicity", "sensitization", "irritation", "implantation",
-            "body contact", "tissue contact", "blood contact"],
-        detection_keywords_zh=["生物相容性", "10993", "生物評估",
-            "細胞毒性", "致敏", "刺激", "植入",
-            "身體接觸", "組織接觸", "血液接觸"],
+        detection_keywords_en=[
+            "biocompatibility",
+            "10993",
+            "biological evaluation",
+            "cytotoxicity",
+            "sensitization",
+            "irritation",
+            "implantation",
+            "body contact",
+            "tissue contact",
+            "blood contact",
+        ],
+        detection_keywords_zh=[
+            "生物相容性",
+            "10993",
+            "生物評估",
+            "細胞毒性",
+            "致敏",
+            "刺激",
+            "植入",
+            "身體接觸",
+            "組織接觸",
+            "血液接觸",
+        ],
         primary_iso_clauses=["7.3.3", "7.3.5", "7.3.6"],
         clause_links=[
             StandardClauseLink(
@@ -4394,10 +5846,22 @@ def _build_predefined_standards() -> dict[str, SupplementalStandardProfile]:
         name_zh="ISO 11135:2014 醫療保健產品滅菌 — 環氧乙烷 (EO)",
         category=StandardCategory.STERILIZATION,
         version="2014",
-        detection_keywords_en=["EO sterilization", "ethylene oxide", "11135",
-            "EO residuals", "EtO", "gas sterilization"],
-        detection_keywords_zh=["EO滅菌", "環氧乙烷", "11135",
-            "EO殘留", "氣體滅菌", "環氧乙烷滅菌"],
+        detection_keywords_en=[
+            "EO sterilization",
+            "ethylene oxide",
+            "11135",
+            "EO residuals",
+            "EtO",
+            "gas sterilization",
+        ],
+        detection_keywords_zh=[
+            "EO滅菌",
+            "環氧乙烷",
+            "11135",
+            "EO殘留",
+            "氣體滅菌",
+            "環氧乙烷滅菌",
+        ],
         primary_iso_clauses=["7.5.6", "7.5.7"],
         clause_links=[
             StandardClauseLink(
@@ -4422,10 +5886,22 @@ def _build_predefined_standards() -> dict[str, SupplementalStandardProfile]:
         name_zh="ISO 11137 系列 — 醫療保健產品滅菌 — 輻射",
         category=StandardCategory.STERILIZATION,
         version="2006 (Part 1/2), 2017 (Part 3)",
-        detection_keywords_en=["radiation sterilization", "gamma", "electron beam",
-            "11137", "irradiation", "dose audit"],
-        detection_keywords_zh=["輻射滅菌", "伽瑪", "電子束",
-            "11137", "照射", "劑量稽核"],
+        detection_keywords_en=[
+            "radiation sterilization",
+            "gamma",
+            "electron beam",
+            "11137",
+            "irradiation",
+            "dose audit",
+        ],
+        detection_keywords_zh=[
+            "輻射滅菌",
+            "伽瑪",
+            "電子束",
+            "11137",
+            "照射",
+            "劑量稽核",
+        ],
         primary_iso_clauses=["7.5.6", "7.5.7"],
         clause_links=[
             StandardClauseLink(
@@ -4450,10 +5926,20 @@ def _build_predefined_standards() -> dict[str, SupplementalStandardProfile]:
         name_zh="ISO 17665-1:2006 醫療保健產品滅菌 — 濕熱",
         category=StandardCategory.STERILIZATION,
         version="2006",
-        detection_keywords_en=["steam sterilization", "moist heat", "17665",
-            "autoclave", "steam sterilizer"],
-        detection_keywords_zh=["蒸氣滅菌", "濕熱滅菌", "17665",
-            "高壓滅菌", "高壓蒸氣滅菌鍋"],
+        detection_keywords_en=[
+            "steam sterilization",
+            "moist heat",
+            "17665",
+            "autoclave",
+            "steam sterilizer",
+        ],
+        detection_keywords_zh=[
+            "蒸氣滅菌",
+            "濕熱滅菌",
+            "17665",
+            "高壓滅菌",
+            "高壓蒸氣滅菌鍋",
+        ],
         primary_iso_clauses=["7.5.6", "7.5.7"],
         clause_links=[
             StandardClauseLink(
@@ -4478,12 +5964,26 @@ def _build_predefined_standards() -> dict[str, SupplementalStandardProfile]:
         name_zh="ISO 11607 系列 — 最終滅菌醫療器材之包裝",
         category=StandardCategory.PACKAGING,
         version="2019",
-        detection_keywords_en=["sterile barrier", "11607", "packaging validation",
-            "seal strength", "package integrity", "peel test",
-            "sterile packaging", "Tyvek"],
-        detection_keywords_zh=["無菌屏障", "11607", "包裝確效",
-            "密封強度", "包裝完整性", "剥離測試",
-            "無菌包裝", "Tyvek"],
+        detection_keywords_en=[
+            "sterile barrier",
+            "11607",
+            "packaging validation",
+            "seal strength",
+            "package integrity",
+            "peel test",
+            "sterile packaging",
+            "Tyvek",
+        ],
+        detection_keywords_zh=[
+            "無菌屏障",
+            "11607",
+            "包裝確效",
+            "密封強度",
+            "包裝完整性",
+            "剥離測試",
+            "無菌包裝",
+            "Tyvek",
+        ],
         primary_iso_clauses=["7.5.1", "7.5.5", "7.5.11"],
         clause_links=[
             StandardClauseLink(
@@ -4515,10 +6015,25 @@ def _build_predefined_standards() -> dict[str, SupplementalStandardProfile]:
         name_zh="ISO 14708 系列 — 手術植入物 — 主動式植入醫療器材",
         category=StandardCategory.IMPLANTABLE,
         version="2014 (Part 1)",
-        detection_keywords_en=["implantable", "implant", "14708", "active implant",
-            "pacemaker", "cochlear", "neurostimulator", "cardiac"],
-        detection_keywords_zh=["植入式", "植入物", "14708", "主動植入",
-            "心律調整器", "人工耳蜘", "神經刺激器"],
+        detection_keywords_en=[
+            "implantable",
+            "implant",
+            "14708",
+            "active implant",
+            "pacemaker",
+            "cochlear",
+            "neurostimulator",
+            "cardiac",
+        ],
+        detection_keywords_zh=[
+            "植入式",
+            "植入物",
+            "14708",
+            "主動植入",
+            "心律調整器",
+            "人工耳蜘",
+            "神經刺激器",
+        ],
         primary_iso_clauses=["7.3.3", "7.3.6", "7.5.9", "7.5.9.1"],
         clause_links=[
             StandardClauseLink(
@@ -4550,10 +6065,20 @@ def _build_predefined_standards() -> dict[str, SupplementalStandardProfile]:
         name_zh="ISO 15223-1:2021 醫療器材 — 製造商提供資訊所用的符號",
         category=StandardCategory.LABELING,
         version="2021",
-        detection_keywords_en=["15223", "labeling symbols", "medical device symbols",
-            "graphical symbols", "label symbols"],
-        detection_keywords_zh=["15223", "標示符號", "醫療器材符號",
-            "圖形符號", "標籤符號"],
+        detection_keywords_en=[
+            "15223",
+            "labeling symbols",
+            "medical device symbols",
+            "graphical symbols",
+            "label symbols",
+        ],
+        detection_keywords_zh=[
+            "15223",
+            "標示符號",
+            "醫療器材符號",
+            "圖形符號",
+            "標籤符號",
+        ],
         primary_iso_clauses=["7.5.1", "7.5.8"],
         clause_links=[
             StandardClauseLink(
@@ -4578,12 +6103,26 @@ def _build_predefined_standards() -> dict[str, SupplementalStandardProfile]:
         name_zh="ISO 14155:2020 醫療器材人體臨床試驗 — 優良臨床規範",
         category=StandardCategory.CLINICAL,
         version="2020",
-        detection_keywords_en=["clinical investigation", "clinical trial", "14155",
-            "GCP", "good clinical practice", "clinical study",
-            "informed consent", "clinical evidence"],
-        detection_keywords_zh=["臨床試驗", "臨床調查", "14155",
-            "GCP", "優良臨床規範", "臨床研究",
-            "知情同意", "臨床證據"],
+        detection_keywords_en=[
+            "clinical investigation",
+            "clinical trial",
+            "14155",
+            "GCP",
+            "good clinical practice",
+            "clinical study",
+            "informed consent",
+            "clinical evidence",
+        ],
+        detection_keywords_zh=[
+            "臨床試驗",
+            "臨床調查",
+            "14155",
+            "GCP",
+            "優良臨床規範",
+            "臨床研究",
+            "知情同意",
+            "臨床證據",
+        ],
         primary_iso_clauses=["7.3.6", "7.3.7"],
         clause_links=[
             StandardClauseLink(
@@ -4604,7 +6143,9 @@ def _build_predefined_standards() -> dict[str, SupplementalStandardProfile]:
     return standards
 
 
-PREDEFINED_STANDARDS: dict[str, SupplementalStandardProfile] = _build_predefined_standards()
+PREDEFINED_STANDARDS: dict[str, SupplementalStandardProfile] = (
+    _build_predefined_standards()
+)
 
 
 def get_standard(standard_id: str) -> Optional[SupplementalStandardProfile]:
@@ -4619,6 +6160,7 @@ def get_standard(standard_id: str) -> Optional[SupplementalStandardProfile]:
 def get_all_standards() -> dict[str, SupplementalStandardProfile]:
     """Return all available supplemental standard profiles."""
     return dict(PREDEFINED_STANDARDS)
+
 
 def adjust_standard_clause_mapping(
     standard_id: str,
@@ -4711,6 +6253,7 @@ def adjust_standard_clause_mapping(
         },
     }
 
+
 def get_applicable_standards(
     product_profile: ProductProfile,
 ) -> list[SupplementalStandardProfile]:
@@ -4800,11 +6343,25 @@ def _check_product_keywords(
         if is_sterile and confidence > 0.3:
             # Match specific sterilization method to standard
             method = profile.sterilization_method.lower()
-            if std.standard_id == "ISO_11135" and method in ("eo", "ethylene oxide", ""):
+            if std.standard_id == "ISO_11135" and method in (
+                "eo",
+                "ethylene oxide",
+                "",
+            ):
                 applicable.append(std)
-            elif std.standard_id == "ISO_11137" and method in ("radiation", "gamma", "electron beam", ""):
+            elif std.standard_id == "ISO_11137" and method in (
+                "radiation",
+                "gamma",
+                "electron beam",
+                "",
+            ):
                 applicable.append(std)
-            elif std.standard_id == "ISO_17665" and method in ("steam", "moist heat", "autoclave", ""):
+            elif std.standard_id == "ISO_17665" and method in (
+                "steam",
+                "moist heat",
+                "autoclave",
+                "",
+            ):
                 applicable.append(std)
             elif method == "":  # Unknown method, include all sterilization standards
                 applicable.append(std)
@@ -4816,6 +6373,7 @@ def _check_product_keywords(
         if is_sterile and confidence > 0.3:
             applicable.append(std)
             return
+
 
 # ============================================================
 # Layer 3: Cross-Examination Question Generator
@@ -4874,7 +6432,11 @@ def get_overlap_analysis(
     mapping = reg.iso_mapped.get(iso_clause)
     if mapping:
         result["status"] = mapping.status.value
-        result["is_overlap"] = mapping.status in (MappingStatus.FULL, MappingStatus.PARTIAL, MappingStatus.EXCEEDS)
+        result["is_overlap"] = mapping.status in (
+            MappingStatus.FULL,
+            MappingStatus.PARTIAL,
+            MappingStatus.EXCEEDS,
+        )
         result["mapping"] = {
             "regulation_ref": mapping.regulation_ref,
             "rationale_en": mapping.rationale_en,
@@ -4892,22 +6454,24 @@ def get_overlap_analysis(
     for req in reg.unique_requirements:
         if iso_clause in req.related_iso_clauses:
             result["is_delta"] = True
-            result["delta_items"].append({
-                "req_id": req.req_id,
-                "title_en": req.title_en,
-                "title_zh": req.title_zh,
-                "regulation_ref": req.regulation_ref,
-                "audit_impact": req.audit_impact,
-                "audit_question_zh": req.audit_question_zh,
-                "rationale_en": req.rationale_en,
-                "rationale_zh": req.rationale_zh,
-                "method": req.method.value,
-                "confidence": req.confidence,
-                "original_text": req.original_text,
-                "original_lang": req.original_lang,
-                "english_translation": req.english_translation,
-                "semantic_note": req.semantic_note,
-            })
+            result["delta_items"].append(
+                {
+                    "req_id": req.req_id,
+                    "title_en": req.title_en,
+                    "title_zh": req.title_zh,
+                    "regulation_ref": req.regulation_ref,
+                    "audit_impact": req.audit_impact,
+                    "audit_question_zh": req.audit_question_zh,
+                    "rationale_en": req.rationale_en,
+                    "rationale_zh": req.rationale_zh,
+                    "method": req.method.value,
+                    "confidence": req.confidence,
+                    "original_text": req.original_text,
+                    "original_lang": req.original_lang,
+                    "english_translation": req.english_translation,
+                    "semantic_note": req.semantic_note,
+                }
+            )
 
     return result
 
@@ -4968,55 +6532,64 @@ def generate_cross_exam_questions(
         # Priority 1: Delta items (country-unique requirements for this clause)
         for req in reg.unique_requirements:
             if baseline_clause in req.related_iso_clauses:
-                questions.append({
-                    "priority": 1,
-                    "regulation_id": reg_id,
-                    "regulation_name": reg.name_zh,
-                    "country": reg.country_name_zh,
-                    "question_type": "delta",
-                    "iso_clause": baseline_clause,
-                    "req_id": req.req_id,
-                    "title_zh": req.title_zh,
-                    "title_en": req.title_en,
-                    "question_zh": req.audit_question_zh,
-                    "question_en": req.audit_question_en,
-                    "expected_evidence": req.expected_evidence,
-                    "audit_impact": req.audit_impact,
-                    "rationale_zh": req.rationale_zh,
-                    "rationale_en": req.rationale_en,
-                    "method": req.method.value,
-                    "confidence": req.confidence,
-                })
+                questions.append(
+                    {
+                        "priority": 1,
+                        "regulation_id": reg_id,
+                        "regulation_name": reg.name_zh,
+                        "country": reg.country_name_zh,
+                        "question_type": "delta",
+                        "iso_clause": baseline_clause,
+                        "req_id": req.req_id,
+                        "title_zh": req.title_zh,
+                        "title_en": req.title_en,
+                        "question_zh": req.audit_question_zh,
+                        "question_en": req.audit_question_en,
+                        "expected_evidence": req.expected_evidence,
+                        "audit_impact": req.audit_impact,
+                        "rationale_zh": req.rationale_zh,
+                        "rationale_en": req.rationale_en,
+                        "method": req.method.value,
+                        "confidence": req.confidence,
+                    }
+                )
 
         # Priority 2 & 3: Mapped clauses (exceeds vs full overlap)
         mapping = reg.iso_mapped.get(baseline_clause)
         if mapping:
             is_exceeds = mapping.status == MappingStatus.EXCEEDS
             iso_clause_info = ISO_13485_CHECKLIST.get(baseline_clause, {})
-            questions.append({
-                "priority": 2 if is_exceeds else 3,
-                "regulation_id": reg_id,
-                "regulation_name": reg.name_zh,
-                "country": reg.country_name_zh,
-                "question_type": "exceeds" if is_exceeds else "overlap",
-                "iso_clause": baseline_clause,
-                "req_id": f"{reg_id}-MAP-{baseline_clause}",
-                "title_zh": f"{reg.country_name_zh}法規對應 — {iso_clause_info.get('title', baseline_clause)}",
-                "title_en": f"{reg.country_name_en} regulation mapping — {iso_clause_info.get('title', baseline_clause)}",
-                "question_zh": iso_clause_info.get("audit_question", f"品質文件是否符合 {reg.name_zh} 對 ISO 13485 條款 {baseline_clause} 的要求？"),
-                "question_en": f"Does the quality document comply with {reg.name_en} requirements for ISO 13485 Clause {baseline_clause}?",
-                "expected_evidence": iso_clause_info.get("expected_evidence", []),
-                "audit_impact": iso_clause_info.get("audit_impact", "major"),
-                "rationale_zh": mapping.rationale_zh,
-                "rationale_en": mapping.rationale_en,
-                "method": mapping.method.value,
-                "confidence": mapping.confidence,
-            })
+            questions.append(
+                {
+                    "priority": 2 if is_exceeds else 3,
+                    "regulation_id": reg_id,
+                    "regulation_name": reg.name_zh,
+                    "country": reg.country_name_zh,
+                    "question_type": "exceeds" if is_exceeds else "overlap",
+                    "iso_clause": baseline_clause,
+                    "req_id": f"{reg_id}-MAP-{baseline_clause}",
+                    "title_zh": f"{reg.country_name_zh}法規對應 — {iso_clause_info.get('title', baseline_clause)}",
+                    "title_en": f"{reg.country_name_en} regulation mapping — {iso_clause_info.get('title', baseline_clause)}",
+                    "question_zh": iso_clause_info.get(
+                        "audit_question",
+                        f"品質文件是否符合 {reg.name_zh} 對 ISO 13485 條款 {baseline_clause} 的要求？",
+                    ),
+                    "question_en": f"Does the quality document comply with {reg.name_en} requirements for ISO 13485 Clause {baseline_clause}?",
+                    "expected_evidence": iso_clause_info.get("expected_evidence", []),
+                    "audit_impact": iso_clause_info.get("audit_impact", "major"),
+                    "rationale_zh": mapping.rationale_zh,
+                    "rationale_en": mapping.rationale_en,
+                    "method": mapping.method.value,
+                    "confidence": mapping.confidence,
+                }
+            )
 
     # Sort: priority 1 (delta) first, then 2 (exceeds), then 3 (overlap)
     # Within same priority, sort by audit_impact severity
     impact_order = {"critical": 0, "major": 1, "minor": 2}
-    questions.sort(key=lambda q: (q["priority"], impact_order.get(q["audit_impact"], 9)))
+    questions.sort(
+        key=lambda q: (q["priority"], impact_order.get(q["audit_impact"], 9))
+    )
 
     return questions
 
@@ -5125,27 +6698,29 @@ def load_crawled_regulation(filepath: str) -> RegulationProfile:
 
     unique_reqs = []
     for r in data.get("unique_requirements", []):
-        unique_reqs.append(UniqueRequirement(
-            req_id=r["req_id"],
-            regulation_ref=r["regulation_ref"],
-            title_en=r["title_en"],
-            title_zh=r["title_zh"],
-            requirement_en=r["requirement_en"],
-            requirement_zh=r["requirement_zh"],
-            related_iso_clauses=r["related_iso_clauses"],
-            audit_impact=r["audit_impact"],
-            audit_question_en=r["audit_question_en"],
-            audit_question_zh=r["audit_question_zh"],
-            expected_evidence=r["expected_evidence"],
-            rationale_en=r["rationale_en"],
-            rationale_zh=r["rationale_zh"],
-            method=MappingMethod(r["method"]),
-            confidence=r["confidence"],
-            original_text=r.get("original_text", ""),
-            original_lang=r.get("original_lang", ""),
-            english_translation=r.get("english_translation", ""),
-            semantic_note=r.get("semantic_note", ""),
-        ))
+        unique_reqs.append(
+            UniqueRequirement(
+                req_id=r["req_id"],
+                regulation_ref=r["regulation_ref"],
+                title_en=r["title_en"],
+                title_zh=r["title_zh"],
+                requirement_en=r["requirement_en"],
+                requirement_zh=r["requirement_zh"],
+                related_iso_clauses=r["related_iso_clauses"],
+                audit_impact=r["audit_impact"],
+                audit_question_en=r["audit_question_en"],
+                audit_question_zh=r["audit_question_zh"],
+                expected_evidence=r["expected_evidence"],
+                rationale_en=r["rationale_en"],
+                rationale_zh=r["rationale_zh"],
+                method=MappingMethod(r["method"]),
+                confidence=r["confidence"],
+                original_text=r.get("original_text", ""),
+                original_lang=r.get("original_lang", ""),
+                english_translation=r.get("english_translation", ""),
+                semantic_note=r.get("semantic_note", ""),
+            )
+        )
 
     profile = RegulationProfile(
         regulation_id=data["regulation_id"],
@@ -5184,6 +6759,59 @@ def load_all_crawled_regulations() -> int:
             except Exception:
                 pass  # Skip malformed files
     return count
+
+
+def cleanup_non_selected_crawled_profiles(selected_regions: list[str]) -> dict:
+    """Remove crawled regulation profiles that are NOT in the selected regions.
+
+    Predefined 7-country profiles are NEVER deleted.
+    Only crawled profiles (stored as JSON in data/regulations/) are affected.
+
+    Args:
+        selected_regions: List of region names the user selected,
+            e.g., ["中國 (China)", "韓國 (South Korea)"]
+
+    Returns:
+        dict with deleted_count, deleted_ids, kept_ids
+    """
+    predefined_ids = set(_REGION_TO_PROFILE_STATIC.values())
+
+    selected_profile_ids = set()
+    for region in selected_regions:
+        pid = get_profile_id_for_region(region)
+        if pid:
+            selected_profile_ids.add(pid)
+
+    deleted_ids = []
+    kept_ids = []
+
+    if not os.path.isdir(CRAWLED_REGULATIONS_DIR):
+        return {"deleted_count": 0, "deleted_ids": [], "kept_ids": []}
+
+    for filename in os.listdir(CRAWLED_REGULATIONS_DIR):
+        if not filename.endswith(".json"):
+            continue
+        profile_id = filename.replace(".json", "")
+        if profile_id in predefined_ids:
+            kept_ids.append(profile_id)
+            continue
+        if profile_id in selected_profile_ids:
+            kept_ids.append(profile_id)
+            continue
+        filepath = os.path.join(CRAWLED_REGULATIONS_DIR, filename)
+        try:
+            os.remove(filepath)
+        except OSError:
+            continue
+        if profile_id in PREDEFINED_REGULATIONS:
+            del PREDEFINED_REGULATIONS[profile_id]
+        deleted_ids.append(profile_id)
+
+    return {
+        "deleted_count": len(deleted_ids),
+        "deleted_ids": deleted_ids,
+        "kept_ids": kept_ids,
+    }
 
 
 def map_unique_to_iso_clause(
@@ -5300,6 +6928,7 @@ try:
     _loaded_crawled = load_all_crawled_regulations()
     if _loaded_crawled > 0:
         import logging as _logging
+
         _logging.getLogger(__name__).info(
             f"Loaded {_loaded_crawled} crawled regulation profile(s) from disk"
         )

@@ -963,6 +963,60 @@ body {
     color: var(--partial);
 }
 
+/* ── QA Audit (Phase 5 Step 2) ── */
+.qa-audit-summary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+.qa-score {
+    font-size: 1.2rem;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+}
+.qa-good { background: #d1fae5; color: #065f46; }
+.qa-ok { background: #fef3c7; color: #92400e; }
+.qa-poor { background: #fee2e2; color: #991b1b; }
+.qa-labels {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.qa-label {
+    font-size: 0.78rem;
+    padding: 2px 8px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+}
+.qa-hallucination {
+    background: #fee2e2 !important;
+    border-color: #fca5a5 !important;
+    color: #991b1b;
+    font-weight: 600;
+}
+.qa-hallucination-detail {
+    padding: 8px 12px;
+    background: #fff7ed;
+    border: 1px solid #fdba74;
+    border-radius: var(--radius-sm);
+    font-size: 0.82rem;
+    margin: 6px 0;
+}
+.qa-issues {
+    font-size: 0.82rem;
+    margin-top: 6px;
+}
+.qa-issues ul {
+    margin: 4px 0 0 16px;
+    padding: 0;
+}
+.qa-issues li {
+    margin-bottom: 2px;
+}
+
 /* ── RA Notes ── */
 .ra-notes {
     padding: 8px 12px;
@@ -1101,6 +1155,26 @@ body {
 .country-meta {
     font-size: 0.72rem;
     color: var(--text-muted);
+}
+
+.crawl-failed-warning {
+    margin-top: 10px;
+    padding: 10px 14px;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-left: 4px solid #dc2626;
+    border-radius: var(--radius);
+    font-size: 0.82rem;
+}
+.crawl-failed-title {
+    font-weight: 600;
+    color: #dc2626;
+    margin-bottom: 4px;
+}
+.crawl-failed-item {
+    color: #991b1b;
+    padding: 2px 0;
+    font-size: 0.78rem;
 }
 
 /* Cross-Reference Summary Cards */
@@ -1602,6 +1676,21 @@ body {
     padding: 8px 12px;
 }
 
+/* P1/P2/P4 conversation-style: system question (left bubble) */
+.exam-message.msg-llm-question {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-left: 4px solid #16a34a;
+    margin-right: auto;
+}
+/* P1/P2/P4 conversation-style: LLM answer (right bubble) */
+.exam-message.msg-llm-answer {
+    background: #faf5ff;
+    border: 1px solid #e9d5ff;
+    border-left: 4px solid #9333ea;
+    margin-left: auto;
+}
+
 .msg-header {
     display: flex;
     justify-content: space-between;
@@ -1614,9 +1703,11 @@ body {
     font-size: 0.82rem;
 }
 
-.msg-role.role-analyzer { color: var(--primary); }
-.msg-role.role-verifier { color: var(--risk-deadline); }
-.msg-role.role-human    { color: #be185d; }
+.msg-role.role-analyzer      { color: var(--primary); }
+.msg-role.role-verifier      { color: var(--risk-deadline); }
+.msg-role.role-human         { color: #be185d; }
+.msg-role.role-llm-question  { color: #16a34a; }
+.msg-role.role-llm-answer    { color: #9333ea; }
 
 .msg-regulation {
     font-size: 0.72rem;
@@ -1961,6 +2052,8 @@ body {
     margin-bottom: 10px;
     background: white;
     transition: border-color 0.2s;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .crossexam-card.phase-1 {
@@ -1980,8 +2073,8 @@ body {
 }
 
 .crossexam-card-header {
-    display: grid;
-    grid-template-columns: 36px auto minmax(180px, 1fr) minmax(100px, auto) minmax(60px, auto) minmax(60px, auto) auto;
+    display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 6px;
     margin-bottom: 8px;
@@ -2007,7 +2100,8 @@ body {
     cursor: default;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 100%;
+    max-width: 280px;
+    flex-shrink: 1;
 }
 
 .crossexam-card-header .card-tag-doc {

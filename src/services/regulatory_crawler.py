@@ -1543,29 +1543,97 @@ class AsyncRegulatoryUpdateCrawler:
         return self._domain_semaphores[domain]
 
     async def _crawl_single_site(self, site: dict, region: str) -> dict:
-        """Crawl a single site with tier dispatch and rate limiting."""
+        """Crawl a single site with tier dispatch, fallback chain, and rate limiting.
+
+        Fallback chain: Tier2 (httpx) → Tier3 (Jina) → DuckDuckGo search.
+        """
         tier = site.get("tier", 2)
         url = site.get("url", "")
         sem = self._get_domain_semaphore(url)
 
         async with sem:
-            # Small delay to avoid hammering
             crawl_delay = min(site.get("crawl_delay", 3), 5)
-            await asyncio.sleep(crawl_delay * 0.5)  # async delay (halved from sync)
+            await asyncio.sleep(crawl_delay * 0.5)
 
             if tier == 1:
                 return await _crawl_tier1_api(
                     self._client, site, region, self._etag_cache
                 )
             elif tier == 3:
-                return await _crawl_tier3_jina(
+                result = await _crawl_tier3_jina(
                     self._client, site, region, self._jina_semaphore
                 )
+                if result.get("crawl_status") != "success":
+                    ddgs_result = await self._fallback_ddgs_search(site, region)
+                    if ddgs_result.get("crawl_status") == "success":
+                        ddgs_result["note"] = (
+                            f"Jina 失敗 ({result.get('failure_reason', '未知')})"
+                            f" → DuckDuckGo 備援成功"
+                        )
+                        return ddgs_result
+                return result
             else:
-                # Tier 2 (default) — also handles tier 0 sites that fall through
-                return await _crawl_tier2_httpx(
+                result = await _crawl_tier2_httpx(
                     self._client, site, region, self._etag_cache
                 )
+                if result.get("crawl_status") != "success":
+                    original_reason = result.get("failure_reason", "未知")
+                    jina_result = await _crawl_tier3_jina(
+                        self._client, site, region, self._jina_semaphore
+                    )
+                    if jina_result.get("crawl_status") == "success":
+                        jina_result["note"] = (
+                            f"httpx 失敗 ({original_reason}) → Jina 備援成功"
+                        )
+                        return jina_result
+                    ddgs_result = await self._fallback_ddgs_search(site, region)
+                    if ddgs_result.get("crawl_status") == "success":
+                        ddgs_result["note"] = (
+                            f"httpx 失敗 ({original_reason})"
+                            f" → Jina 失敗 ({jina_result.get('failure_reason', '未知')})"
+                            f" → DuckDuckGo 備援成功"
+                        )
+                        return ddgs_result
+                    result["failure_reason"] = (
+                        f"{original_reason}"
+                        f" → Jina 備援亦失敗 ({jina_result.get('failure_reason', '未知')})"
+                        f" → DuckDuckGo 備援亦失敗"
+                    )
+                return result
+
+    async def _fallback_ddgs_search(self, site: dict, region: str) -> dict:
+        """Fallback: use DuckDuckGo to search for regulation content."""
+        result = _make_result_template(site, region)
+        start = time.time()
+        try:
+            agency = site.get("agency", "")
+            en_name = region
+            if "(" in region and ")" in region:
+                en_name = region.split("(")[1].rstrip(")")
+            query = f"{en_name} {agency} medical device regulation requirements"
+            search_results = await asyncio.to_thread(_ddgs_search, query, 8)
+            if not search_results:
+                result["failure_reason"] = "DuckDuckGo 搜尋無結果"
+                result["crawl_duration_seconds"] = round(time.time() - start, 2)
+                return result
+            md_parts = [f"# {region} — {agency} (DuckDuckGo 備援搜尋結果)\n"]
+            for i, sr in enumerate(search_results, 1):
+                title = sr.get("title", "")
+                body = sr.get("body", "")
+                href = sr.get("href", sr.get("link", ""))
+                md_parts.append(f"## {i}. {title}\n\n{body}\n\n來源: {href}\n")
+            combined = "\n---\n".join(md_parts)
+            if len(combined.strip()) > 100:
+                result["crawl_status"] = "success"
+                result["content_markdown"] = combined
+                result["title"] = f"{agency} (DuckDuckGo fallback)"
+                result["note"] = "透過 DuckDuckGo 搜尋取得替代法規資訊"
+            else:
+                result["failure_reason"] = "DuckDuckGo 搜尋結果內容不足"
+        except Exception as e:
+            result["failure_reason"] = f"DuckDuckGo 備援失敗: {str(e)[:200]}"
+        result["crawl_duration_seconds"] = round(time.time() - start, 2)
+        return result
 
     async def crawl_all_regions(self) -> dict:
         """Crawl all configured regions in parallel.

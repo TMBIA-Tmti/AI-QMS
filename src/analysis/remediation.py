@@ -616,6 +616,36 @@ def run_remediation_document(
             },
         )
 
+        # SSE: conversation-style event
+        _r_details = []
+        for row in rows_needing_remediation:
+            rem = clause_remediation.get(row.clause_id, {})
+            _r_details.append(
+                {
+                    "clause_id": row.clause_id,
+                    "suggestion": rem.get("summary", "")[:300],
+                    "regulation": rem.get("regulation_citation", ""),
+                }
+            )
+        _skipped = len(rows) - len(rows_needing_remediation)
+        _emit_pipeline_event(
+            run_id,
+            {
+                "type": "phase_4_conversation",
+                "doc_id": doc_id,
+                "clause_ids": [r.clause_id for r in rows_needing_remediation],
+                "question_summary": (
+                    f"針對文件「{doc_title}」({doc_id}) 中 {len(rows_needing_remediation)} 個"
+                    f"未完全符合的條款，請提供具體的改善建議與法規引用。"
+                    + (f"（{_skipped} 個已完全符合的條款已跳過）" if _skipped else "")
+                ),
+                "answer_summary": (
+                    f"已產生 {total_suggestions} 條改善建議，涵蓋 {len(rows_needing_remediation)} 個條款。"
+                ),
+                "details": {"clauses": _r_details},
+            },
+        )
+
     except Exception as e:
         phase_result.status = PhaseStatus.FAILED.value
         phase_result.error = str(e)

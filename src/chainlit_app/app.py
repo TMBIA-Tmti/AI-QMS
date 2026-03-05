@@ -3059,9 +3059,22 @@ async def _run_and_display_daily_audit(
             _log.warning("Failed to load cached daily audit: %s", e)
             result = None
     else:
-        from src.analysis.report_api import _get_llm_completion_fn_standalone
+        llm_fn = None
+        provider_id = cl.user_session.get("provider_id", "")
+        if provider_id:
+            try:
+                from src.llm_providers import create_provider_manager
 
-        llm_fn = _get_llm_completion_fn_standalone()
+                manager = create_provider_manager(provider_id)
+                llm_fn = manager.completion
+            except Exception as _llm_err:
+                _log.warning("Failed to create LLM fn from session: %s", _llm_err)
+
+        if llm_fn is None:
+            from src.analysis.report_api import _get_llm_completion_fn_standalone
+
+            llm_fn = _get_llm_completion_fn_standalone()
+
         if llm_fn is None:
             await cl.Message(content=t("daily_audit.no_llm"), author="Eira").send()
             return
@@ -4369,11 +4382,13 @@ _STREAM_SENTINEL = object()  # sentinel for detecting generator exhaustion
 
 
 async def _ask_report_type() -> list[str]:
-    """Ask user to choose between normal report (P0-P4) and deep report (P0-P6).
+    """Ask user to choose analysis depth: basic (P0-P3), standard (P0-P4), or full (P0-P6).
 
     Returns:
-        list of phase keys to skip. Empty list = deep (all phases).
-        ["phase_5", "phase_6"] = normal (skip cross-exam + source check).
+        list of phase keys to skip.
+        ["phase_4", "phase_5", "phase_6"] = basic    (基礎分析, P0-P3)
+        ["phase_5", "phase_6"]            = standard (標準分析, P0-P4)
+        []                                = full     (完整分析, P0-P6)
     """
     try:
         res = await cl.AskActionMessage(
@@ -4385,6 +4400,11 @@ async def _ask_report_type() -> list[str]:
                     label=t("report_type.btn_normal"),
                 ),
                 cl.Action(
+                    name="report_type_risk",
+                    payload={"value": "risk"},
+                    label=t("report_type.btn_risk"),
+                ),
+                cl.Action(
                     name="report_type_deep",
                     payload={"value": "deep"},
                     label=t("report_type.btn_deep"),
@@ -4393,16 +4413,19 @@ async def _ask_report_type() -> list[str]:
             timeout=120,
         ).send()
     except Exception:
-        # Timeout — default to normal report
         await cl.Message(content=t("report_type.selected_normal")).send()
-        return ["phase_5", "phase_6"]
+        return ["phase_4", "phase_5", "phase_6"]
 
-    if res and res.get("value") == "deep":
+    action_name = res.get("name", "") if res else ""
+    if action_name == "report_type_deep":
         await cl.Message(content=t("report_type.selected_deep")).send()
         return []
+    elif action_name == "report_type_risk":
+        await cl.Message(content=t("report_type.selected_risk")).send()
+        return ["phase_5", "phase_6"]
     else:
         await cl.Message(content=t("report_type.selected_normal")).send()
-        return ["phase_5", "phase_6"]
+        return ["phase_4", "phase_5", "phase_6"]
 
 
 async def _ask_product_docs_upload() -> Optional[str]:
@@ -4440,7 +4463,7 @@ async def _ask_product_docs_upload() -> Optional[str]:
         # Timeout or error — skip upload
         return None
 
-    if not res or res.get("value") != "upload":
+    if not res or res.get("name") != "upload_product_docs":
         await cl.Message(content="⏭️ 跳過產品文件上傳，直接開始分析。").send()
         return None
 
@@ -5288,6 +5311,17 @@ async def handle_regulatory_update_rescan(selected_regions: list):
             f"Cleaned up {cleanup_result['deleted_count']} docs from non-selected regions"
         )
 
+    from src.analysis.compliance_rules import cleanup_non_selected_crawled_profiles
+
+    profile_cleanup = cleanup_non_selected_crawled_profiles(selected_regions)
+    if profile_cleanup.get("deleted_count", 0) > 0:
+        import logging as _log_cleanup
+
+        _log_cleanup.getLogger(__name__).info(
+            f"Removed {profile_cleanup['deleted_count']} old crawled profiles: "
+            f"{profile_cleanup['deleted_ids']}"
+        )
+
     # Re-scan only selected regions
     await cl.Message(content=t("regulatory_update.rescan")).send()
     crawler = get_regulatory_crawler()
@@ -5325,6 +5359,27 @@ async def handle_regulatory_update_rescan(selected_regions: list):
     # Save individual markdown files to independent regulatory markdown DB
     reg_md_store = get_regulatory_markdown_store()
     reg_md_store.save_from_crawl_results(crawl_results)
+
+    _crawl_summary = crawl_results.get("summary", {})
+    _success_n = _crawl_summary.get("success_count", 0)
+    _failed_n = _crawl_summary.get("failed_count", 0)
+    _total_n = _crawl_summary.get("total_sites", 0)
+    _failed_regions_set = set()
+    _success_regions_set = set()
+    for _cr in crawl_results.get("results", []):
+        if _cr.get("crawl_status") == "success":
+            _success_regions_set.add(_cr.get("region", ""))
+        else:
+            _failed_regions_set.add(_cr.get("region", ""))
+    _failed_only = _failed_regions_set - _success_regions_set
+
+    _summary_lines = [f"📡 爬蟲完成：{_success_n}/{_total_n} 個網站成功"]
+    if _failed_only:
+        _summary_lines.append(
+            f"⚠️ 以下國家所有網站均爬取失敗，將嘗試備援方式生成 Profile：\n"
+            + "\n".join(f"  ❌ {r}" for r in sorted(_failed_only))
+        )
+    await cl.Message(content="\n".join(_summary_lines)).send()
 
     # ── Step 0.5: Generate RegulationProfile for countries without one ──
     # For predefined 7 countries, profiles already exist.

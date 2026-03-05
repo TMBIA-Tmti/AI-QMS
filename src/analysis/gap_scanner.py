@@ -312,7 +312,11 @@ def run_gap_scan_row(
         llm_model = response.get("model", model)
 
         # 檢測 LLM 錯誤回應
-        if not response_text or response_text.startswith("[ERROR]") or response.get("all_failed"):
+        if (
+            not response_text
+            or response_text.startswith("[ERROR]")
+            or response.get("all_failed")
+        ):
             error_detail = response_text[:200] if response_text else "LLM 回應為空"
             phase_result.status = PhaseStatus.FAILED.value
             phase_result.error = f"LLM 呼叫失敗: {error_detail}"
@@ -362,6 +366,7 @@ def _emit_pipeline_event(run_id: str, event: dict) -> None:
         return
     try:
         from src.analysis.report_api import emit_cross_exam_event
+
         emit_cross_exam_event(run_id, event)
     except ImportError:
         pass
@@ -461,16 +466,18 @@ def _parse_doc_gap_scan_response(
             evidence_list = clause_data.get("evidence_results", [])
             items: list[EvidenceItem] = []
             for r in evidence_list:
-                items.append(EvidenceItem(
-                    evidence_name=r.get("evidence_name", ""),
-                    found=bool(r.get("found", False)),
-                    source_section=r.get("source_section"),
-                    source_quote=r.get("source_quote"),
-                    relevance_score=r.get("relevance_score"),
-                    is_inadequate=bool(r.get("is_inadequate", False)),
-                    is_outdated=bool(r.get("is_outdated", False)),
-                    llm_reasoning=r.get("reasoning"),
-                ))
+                items.append(
+                    EvidenceItem(
+                        evidence_name=r.get("evidence_name", ""),
+                        found=bool(r.get("found", False)),
+                        source_section=r.get("source_section"),
+                        source_quote=r.get("source_quote"),
+                        relevance_score=r.get("relevance_score"),
+                        is_inadequate=bool(r.get("is_inadequate", False)),
+                        is_outdated=bool(r.get("is_outdated", False)),
+                        llm_reasoning=r.get("reasoning"),
+                    )
+                )
             result[clause_id] = items
 
     except (json.JSONDecodeError, KeyError, TypeError):
@@ -592,15 +599,18 @@ def run_gap_scan_document(
             return phase_result
 
         # SSE: emit before LLM call
-        _emit_pipeline_event(run_id, {
-            "type": "phase_1_start",
-            "phase": "gap_scan",
-            "doc_id": doc_id,
-            "doc_title": doc_title,
-            "clause_ids": [r.clause_id for r in rows],
-            "clause_count": len(rows),
-            "prompt_preview": user_prompt[:500],
-        })
+        _emit_pipeline_event(
+            run_id,
+            {
+                "type": "phase_1_start",
+                "phase": "gap_scan",
+                "doc_id": doc_id,
+                "doc_title": doc_title,
+                "clause_ids": [r.clause_id for r in rows],
+                "clause_count": len(rows),
+                "prompt_preview": user_prompt[:500],
+            },
+        )
 
         # Call LLM (non-streaming)
         response = llm_completion_fn(
@@ -616,17 +626,24 @@ def run_gap_scan_document(
         llm_model = response.get("model", model)
 
         # 檢測 LLM 錯誤回應
-        if not response_text or response_text.startswith("[ERROR]") or response.get("all_failed"):
+        if (
+            not response_text
+            or response_text.startswith("[ERROR]")
+            or response.get("all_failed")
+        ):
             error_detail = response_text[:200] if response_text else "LLM 回應為空"
             phase_result.status = PhaseStatus.FAILED.value
             phase_result.error = f"LLM 呼叫失敗: {error_detail}"
             phase_result.completed_at = time.time()
-            _emit_pipeline_event(run_id, {
-                "type": "phase_1_error",
-                "phase": "gap_scan",
-                "doc_id": doc_id,
-                "error": f"LLM 呼叫失敗: {error_detail}",
-            })
+            _emit_pipeline_event(
+                run_id,
+                {
+                    "type": "phase_1_error",
+                    "phase": "gap_scan",
+                    "doc_id": doc_id,
+                    "error": f"LLM 呼叫失敗: {error_detail}",
+                },
+            )
             return phase_result
 
         # Track budget
@@ -660,30 +677,68 @@ def run_gap_scan_document(
         phase_result.llm_model = llm_model
 
         # SSE: emit after LLM call
-        _emit_pipeline_event(run_id, {
-            "type": "phase_1_result",
-            "phase": "gap_scan",
-            "doc_id": doc_id,
-            "doc_title": doc_title,
-            "clause_ids": [r.clause_id for r in rows],
-            "llm_response": response_text[:2000],
-            "evidence_summary": {
-                "found": total_found,
-                "not_found": total_not_found,
-                "inadequate": total_inadequate,
+        _emit_pipeline_event(
+            run_id,
+            {
+                "type": "phase_1_result",
+                "phase": "gap_scan",
+                "doc_id": doc_id,
+                "doc_title": doc_title,
+                "clause_ids": [r.clause_id for r in rows],
+                "llm_response": response_text[:2000],
+                "evidence_summary": {
+                    "found": total_found,
+                    "not_found": total_not_found,
+                    "inadequate": total_inadequate,
+                },
+                "usage": usage,
             },
-            "usage": usage,
-        })
+        )
+
+        # SSE: conversation-style event for human-readable display
+        _clause_details = []
+        for row in rows:
+            items = clause_evidence.get(row.clause_id, [])
+            _clause_details.append(
+                {
+                    "clause_id": row.clause_id,
+                    "found": sum(1 for e in items if e.found),
+                    "not_found": sum(1 for e in items if not e.found),
+                    "inadequate": sum(1 for e in items if e.is_inadequate),
+                }
+            )
+        _emit_pipeline_event(
+            run_id,
+            {
+                "type": "phase_1_conversation",
+                "doc_id": doc_id,
+                "clause_ids": [r.clause_id for r in rows],
+                "question_summary": (
+                    f"請在文件「{doc_title}」({doc_id}) 中搜尋 {len(rows)} 個 ISO 13485 條款"
+                    f"的合規證據。每個條款需要找到對應的程序、記錄或政策文件。"
+                ),
+                "answer_summary": (
+                    f"文件掃描完成：共 {total_found + total_not_found} 項證據，"
+                    f"找到 {total_found} 項 ✅、未找到 {total_not_found} 項 ❌"
+                    + (f"、不充分 {total_inadequate} 項 ⚠️" if total_inadequate else "")
+                    + "。"
+                ),
+                "details": {"clauses": _clause_details},
+            },
+        )
 
     except Exception as e:
         phase_result.status = PhaseStatus.FAILED.value
         phase_result.error = str(e)
-        _emit_pipeline_event(run_id, {
-            "type": "phase_1_error",
-            "phase": "gap_scan",
-            "doc_id": doc_id,
-            "error": str(e)[:500],
-        })
+        _emit_pipeline_event(
+            run_id,
+            {
+                "type": "phase_1_error",
+                "phase": "gap_scan",
+                "doc_id": doc_id,
+                "error": str(e)[:500],
+            },
+        )
 
     phase_result.completed_at = time.time()
     return phase_result

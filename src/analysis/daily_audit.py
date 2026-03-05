@@ -707,30 +707,27 @@ def run_daily_sampling_crossexam(
     mdsap_enabled: bool = False,
     lang: str = "zh-TW",
 ) -> Optional[DailySamplingRecord]:
-    """Run independent Phase 5 cross-examination on a 20% sample of the
-    latest pipeline comparison table.
+    """Third-party QA audit on a 20% random sample of existing Phase 5
+    Analyzer/Verifier debate transcripts from the latest completed pipeline.
 
-    This produces data that is completely separate from the pipeline's
-    CrossExamStore.  Results go into DailyCrossExamStore.
+    Does NOT re-run the debates — reads the existing debate transcripts and
+    sends them to an independent third-party LLM auditor to check for:
+    - Question reasonableness
+    - Answer factual accuracy
+    - Hallucination / fabrication
+    - Logic consistency
 
-    Args:
-        llm_completion_fn: LLM completion function
-        model: LLM model name
-        mdsap_enabled: If True → 7-country + 5-country MDSAP verification;
-                       if False → 2-country (TFDA + EU_MDR)
-        lang: Language code
+    When mdsap_enabled=True, additionally samples 20% of MDSAP-specific
+    clauses (clauses with delta/exceeds items from MDSAP countries).
 
-    Returns:
-        DailySamplingRecord with cross-exam results, or None if no
-        pipeline state is available.
+    Results go into DailyCrossExamStore (separate from pipeline CrossExamStore).
     """
     import math
     import random
     import time as _time
-    from concurrent.futures import ThreadPoolExecutor, as_completed
 
     from src.analysis.state import PipelineState, RowState
-    from src.analysis.verifier import run_verification_row
+    from src.analysis.verifier import run_qa_audit_document
     from src.database.daily_crossexam_store import get_daily_crossexam_store
 
     state_path = _find_latest_pipeline_state()
@@ -745,21 +742,13 @@ def run_daily_sampling_crossexam(
         len(state.rows),
     )
 
-    all_row_dicts = list(state.rows.values())
-    rows_with_evidence = [
-        r
-        for r in all_row_dicts
-        if r.get("evidence_items") and len(r.get("evidence_items", [])) > 0
+    all_rows = [RowState.from_dict(r) for r in state.rows.values()]
+    rows_with_debates = [
+        r for r in all_rows if r.verification_rounds and len(r.verification_rounds) > 0
     ]
-    if not rows_with_evidence:
-        logger.info("No rows with evidence found in pipeline state")
+    if not rows_with_debates:
+        logger.info("No rows with debate transcripts found in pipeline state")
         return None
-
-    sample_count = max(1, math.ceil(len(rows_with_evidence) * DAILY_SAMPLE_RATE))
-    sampled = random.sample(
-        rows_with_evidence, min(sample_count, len(rows_with_evidence))
-    )
-    sampled_rows = [RowState.from_dict(r) for r in sampled]
 
     if mdsap_enabled:
         selected_regulations = DAILY_ALL_REGULATIONS
@@ -768,76 +757,140 @@ def run_daily_sampling_crossexam(
         selected_regulations = DAILY_DEFAULT_REGULATIONS
         countries = DAILY_DEFAULT_REGULATIONS
 
+    sample_count = max(1, math.ceil(len(rows_with_debates) * DAILY_SAMPLE_RATE))
+    sampled_rows = random.sample(
+        rows_with_debates, min(sample_count, len(rows_with_debates))
+    )
+
+    mdsap_sampled_rows: list[RowState] = []
+    if mdsap_enabled:
+        mdsap_5_ids = {"QMSR", "HC", "PMDA", "ANVISA", "TGA"}
+        rows_with_mdsap_context = []
+        for r in rows_with_debates:
+            qa_data = r.qa_audit or {}
+            phase_5_result = r.phase_results.get("phase_5", {})
+            regs_in_result = phase_5_result.get("output", {}).get(
+                "selected_regulations", []
+            )
+            if any(reg in mdsap_5_ids for reg in regs_in_result):
+                rows_with_mdsap_context.append(r)
+
+        if not rows_with_mdsap_context:
+            rows_with_mdsap_context = rows_with_debates
+
+        mdsap_sample_count = max(
+            1, math.ceil(len(rows_with_mdsap_context) * DAILY_SAMPLE_RATE)
+        )
+        mdsap_sampled_rows = random.sample(
+            rows_with_mdsap_context,
+            min(mdsap_sample_count, len(rows_with_mdsap_context)),
+        )
+        existing_ids = {r.row_id for r in sampled_rows}
+        for mr in mdsap_sampled_rows:
+            if mr.row_id not in existing_ids:
+                sampled_rows.append(mr)
+                existing_ids.add(mr.row_id)
+
     logger.info(
-        "Daily sampling: %d/%d rows (%.0f%%), regulations=%s, mdsap=%s",
-        len(sampled_rows),
-        len(rows_with_evidence),
+        "Daily sampling: %d/%d rows (%.0f%%) + %d MDSAP rows, regulations=%s, mdsap=%s",
+        sample_count,
+        len(rows_with_debates),
         DAILY_SAMPLE_RATE * 100,
+        len(mdsap_sampled_rows),
         selected_regulations,
         mdsap_enabled,
     )
 
     start_time = _time.time()
-    total_agreed = 0
-    total_flagged = 0
-    total_rounds = 0
-    clause_results: list[dict] = []
-    questions_used: list[dict] = []
-    total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
 
-    def _verify_single_row(row: RowState) -> dict:
-        """Run Phase 5 verification on a single row (thread-safe)."""
-        row.verification_rounds = []
-        row.verification_agreed = False
-        row.flagged_for_ra = False
+    doc_groups: dict[str, list[RowState]] = {}
+    for row in sampled_rows:
+        doc_groups.setdefault(row.doc_id or "unknown", []).append(row)
+
+    total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    clause_results: list[dict] = []
+
+    for doc_id, doc_rows in doc_groups.items():
         try:
-            phase_result = run_verification_row(
-                row_state=row,
+            qa_result = run_qa_audit_document(
+                doc_id=doc_id,
+                rows=doc_rows,
                 state=state,
                 llm_completion_fn=llm_completion_fn,
                 model=model,
                 selected_regulations=selected_regulations,
                 run_id=f"daily_{datetime.now().strftime('%Y%m%d')}",
             )
-            return {
-                "clause_id": row.clause_id,
-                "doc_id": row.doc_id,
-                "agreed": row.verification_agreed,
-                "flagged": row.flagged_for_ra,
-                "rounds": row.verification_rounds or [],
-                "phase_status": phase_result.status if phase_result else "unknown",
-                "usage": phase_result.llm_usage if phase_result else {},
-            }
-        except Exception as e:
-            logger.error("Daily sampling Phase 5 failed for row %s: %s", row.row_id, e)
-            return {
-                "clause_id": row.clause_id,
-                "doc_id": row.doc_id,
-                "agreed": False,
-                "flagged": True,
-                "rounds": [],
-                "error": str(e)[:200],
-                "usage": {},
-            }
 
-    # Run all sampled rows in parallel
-    with ThreadPoolExecutor(max_workers=len(sampled_rows)) as executor:
-        futures = {
-            executor.submit(_verify_single_row, row): row for row in sampled_rows
-        }
-        for future in as_completed(futures):
-            result_dict = future.result()
-            if result_dict.get("agreed"):
-                total_agreed += 1
-            if result_dict.get("flagged"):
-                total_flagged += 1
-            total_rounds += len(result_dict.get("rounds", []))
-            clause_results.append(result_dict)
-            usage = result_dict.get("usage", {})
+            for audit_item in qa_result.get("clause_audits", []):
+                cid = audit_item.get("clause_id", "")
+                matched_row = next((r for r in doc_rows if r.clause_id == cid), None)
+                original_rounds = []
+                clause_title = ""
+                audit_question = ""
+                verdict = ""
+                if matched_row:
+                    original_rounds = matched_row.verification_rounds or []
+                    clause_title = getattr(matched_row, "clause_title", "")
+                    audit_question = getattr(matched_row, "audit_question", "")
+                    verdict = getattr(matched_row, "verdict", "")
+
+                clause_results.append(
+                    {
+                        "clause_id": cid,
+                        "doc_id": doc_id,
+                        "clause_title": clause_title,
+                        "audit_question": audit_question,
+                        "verdict": verdict,
+                        "score": audit_item.get("score", 0),
+                        "question_quality": audit_item.get(
+                            "question_quality", "unknown"
+                        ),
+                        "answer_accuracy": audit_item.get("answer_accuracy", "unknown"),
+                        "hallucination_detected": audit_item.get(
+                            "hallucination_detected", False
+                        ),
+                        "hallucination_details": audit_item.get(
+                            "hallucination_details", ""
+                        ),
+                        "logic_consistency": audit_item.get(
+                            "logic_consistency", "unknown"
+                        ),
+                        "depth_sufficient": audit_item.get("depth_sufficient", True),
+                        "conclusion_reasonable": audit_item.get(
+                            "conclusion_reasonable", True
+                        ),
+                        "issues": audit_item.get("issues", []),
+                        "agreed": bool(matched_row and matched_row.verification_agreed),
+                        "flagged": bool(matched_row and matched_row.flagged_for_ra),
+                        "rounds": original_rounds,
+                    }
+                )
+
+            qa_summary = qa_result.get("summary", "")
+            qa_recommendations = qa_result.get("recommendations", [])
+            if qa_summary or qa_recommendations:
+                clause_results.append(
+                    {
+                        "_qa_doc_summary": True,
+                        "doc_id": doc_id,
+                        "summary": qa_summary,
+                        "recommendations": qa_recommendations,
+                        "overall_score": qa_result.get("overall_score", 0),
+                    }
+                )
+
+            qa_usage = qa_result.get("llm_usage", {})
             for k in total_usage:
-                total_usage[k] += usage.get(k, 0)
+                total_usage[k] += qa_usage.get(k, 0)
+
+        except Exception as e:
+            logger.error("Daily sampling QA audit failed for doc %s: %s", doc_id, e)
 
     duration = _time.time() - start_time
+
+    total_agreed = sum(1 for c in clause_results if c.get("agreed"))
+    total_flagged = sum(1 for c in clause_results if c.get("flagged"))
 
     record = DailySamplingRecord(
         source_run_id=state.run_id,
@@ -845,14 +898,14 @@ def run_daily_sampling_crossexam(
         countries=countries,
         mdsap_enabled=mdsap_enabled,
         sample_rate=DAILY_SAMPLE_RATE,
-        total_rows_available=len(rows_with_evidence),
+        total_rows_available=len(rows_with_debates),
         sampled_row_ids=[r.row_id for r in sampled_rows],
         clauses=clause_results,
         total_clauses=len(clause_results),
         total_agreed=total_agreed,
         total_flagged=total_flagged,
-        total_rounds=total_rounds,
-        questions_used=questions_used,
+        total_rounds=0,
+        questions_used=[],
         llm_usage=total_usage,
         llm_model=model,
         duration_seconds=duration,
@@ -863,10 +916,8 @@ def run_daily_sampling_crossexam(
     daily_store.save_record(record)
 
     logger.info(
-        "Daily sampling cross-exam complete: %d clauses, %d agreed, %d flagged, %.1fs",
+        "Daily sampling QA audit complete: %d clauses audited, %.1fs",
         record.total_clauses,
-        record.total_agreed,
-        record.total_flagged,
         duration,
     )
     return record
@@ -924,6 +975,9 @@ def run_daily_audit(
     _incomplete = incomplete_countries or []
 
     latest_record = records[0]
+    clauses = latest_record.clauses or []
+    clause_scores = [c.get("score", 0) for c in clauses if c.get("score") is not None]
+    hallucination_count = sum(1 for c in clauses if c.get("hallucination_detected"))
     sampling_details = {
         "source_run_id": latest_record.source_run_id,
         "mdsap_enabled": latest_record.mdsap_enabled,
@@ -931,7 +985,10 @@ def run_daily_audit(
         "sample_rate": latest_record.sample_rate,
         "total_rows_available": latest_record.total_rows_available,
         "sampled_count": len(latest_record.sampled_row_ids),
-        "clauses": latest_record.clauses,
+        "clauses": clauses,
+        "clauses_audited": len(clause_scores),
+        "avg_qa_score": sum(clause_scores) / len(clause_scores) if clause_scores else 0,
+        "hallucinations_found": hallucination_count,
     }
 
     result = DailyAuditResult(
@@ -1610,16 +1667,32 @@ def get_latest_meta_review() -> Optional[MetaReviewResult]:
 
 
 def _parse_json_response(response_text: str) -> dict:
-    """Parse LLM JSON response, handling code fences and raw JSON."""
+    """Parse LLM JSON response, handling code fences, raw JSON, and truncated output.
+
+    Fallback strategy:
+    1. Extract from ```json ... ``` code fence
+    2. Direct json.loads on stripped text
+    3. Find outermost { ... } and parse
+    4. Try to extract score values from raw text with regex
+    5. Return summary with score 0 only as last resort
+    """
     import re
 
     text = response_text.strip()
 
-    # Try to extract JSON from code fence
+    # Try to extract JSON from code fence (greedy to handle large blocks)
     json_match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", text, re.DOTALL)
     if json_match:
-        text = json_match.group(1).strip()
+        extracted = json_match.group(1).strip()
+        try:
+            parsed = json.loads(extracted)
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            # Code fence found but JSON invalid (possibly truncated)
+            text = extracted  # Still use extracted content for further parsing
 
+    # Try direct parse
     try:
         parsed = json.loads(text)
         if isinstance(parsed, dict):
@@ -1638,12 +1711,26 @@ def _parse_json_response(response_text: str) -> dict:
         except json.JSONDecodeError:
             pass
 
-    # Fallback
-    return {
-        "summary": text[:500],
-        "dim_a_score": 0.0,
-        "dim_b_score": 0.0,
-    }
+    # Fallback: try to extract scores from raw text with regex
+    # This catches cases where JSON is malformed but scores are visible
+    fallback = {"summary": text[:500]}
+    dim_a_match = re.search(r'"dim_a_score"\s*:\s*(\d+(?:\.\d+)?)', text)
+    dim_b_match = re.search(r'"dim_b_score"\s*:\s*(\d+(?:\.\d+)?)', text)
+    if dim_a_match:
+        fallback["dim_a_score"] = float(dim_a_match.group(1))
+    else:
+        fallback["dim_a_score"] = 0.0
+    if dim_b_match:
+        fallback["dim_b_score"] = float(dim_b_match.group(1))
+    else:
+        fallback["dim_b_score"] = 0.0
+
+    logger.warning(
+        "JSON parse fallback: extracted dim_a=%.0f, dim_b=%.0f from raw text",
+        fallback["dim_a_score"],
+        fallback["dim_b_score"],
+    )
+    return fallback
 
 
 # ============================================================
@@ -1919,44 +2006,134 @@ def export_daily_audit_word(result: DailyAuditResult) -> Path:
             f"抽樣列數 / Sampled Rows: {sd.get('sampled_count', 0)}"
         )
 
-    if clauses:
+    audit_clauses = [c for c in clauses if not c.get("_qa_doc_summary")]
+    summary_entries = [c for c in clauses if c.get("_qa_doc_summary")]
+
+    if audit_clauses:
         doc.add_heading("逐條分析結果 / Per-Clause Results", level=3)
-        table = doc.add_table(rows=1, cols=5)
+        table = doc.add_table(rows=1, cols=8)
         table.style = "Light Grid Accent 1"
         hdr = table.rows[0].cells
-        hdr[0].text = "ISO 13485 條號"
-        hdr[1].text = "文件 / Doc ID"
-        hdr[2].text = "比對法規"
-        hdr[3].text = "同意 / Agreed"
-        hdr[4].text = "標記 RA / Flagged"
-        for clause in clauses:
+        hdr[0].text = "條號"
+        hdr[1].text = "文件"
+        hdr[2].text = "稽核問題"
+        hdr[3].text = "判定"
+        hdr[4].text = "同意"
+        hdr[5].text = "QA 分數"
+        hdr[6].text = "問題品質"
+        hdr[7].text = "幻覺"
+        for clause in audit_clauses:
             row = table.add_row().cells
             row[0].text = str(clause.get("clause_id", ""))
             row[1].text = str(clause.get("doc_id", ""))
-            row[2].text = regs_label
-            row[3].text = "✅" if clause.get("agreed") else "❌"
-            row[4].text = "⚠️" if clause.get("flagged") else "—"
+            row[2].text = str(clause.get("audit_question", ""))[:60]
+            row[3].text = str(clause.get("verdict", ""))[:12]
+            row[4].text = "✅" if clause.get("agreed") else "❌"
+            row[5].text = f"{clause.get('score', 0)}/100"
+            row[6].text = str(clause.get("question_quality", ""))
+            row[7].text = "🚨" if clause.get("hallucination_detected") else "—"
 
-        doc.add_heading("各條詰問輪次摘要 / Round Details", level=3)
-        for clause in clauses:
+        doc.add_heading("逐條辯論紀錄與第三方稽核 / Debate & QA Audit Details", level=3)
+        for clause in audit_clauses:
+            cid = clause.get("clause_id", "")
+            ctitle = clause.get("clause_title", "")
+            header_text = f"▸ {cid}: {ctitle}" if ctitle else f"▸ {cid}"
+            p_header = doc.add_paragraph(header_text)
+            p_header.runs[0].font.bold = True
+
+            aq = clause.get("audit_question", "")
+            if aq:
+                doc.add_paragraph(f"稽核問題: {aq}")
+
             rounds = clause.get("rounds", [])
-            if not rounds:
-                continue
-            doc.add_paragraph(
-                f"▸ {clause.get('clause_id', '')} ({clause.get('doc_id', '')})",
-            ).runs[0].font.bold = True
-            for rd in rounds:
-                analyzer = rd.get("analyzer", {})
-                verifier = rd.get("verifier", {})
-                position = str(analyzer.get("position", ""))[:300]
-                confidence = analyzer.get("confidence", "N/A")
-                agreement = verifier.get("agreement_level", "N/A")
-                doc.add_paragraph(
-                    f"  Round {rd.get('round', '?')}: "
-                    f"Analyzer confidence={confidence}, "
-                    f"Verifier agreement={agreement}\n"
-                    f"  Position: {position}"
+            if rounds:
+                for rd in rounds:
+                    round_num = rd.get("round", "?")
+                    analyzer = rd.get("analyzer", {})
+                    verifier = rd.get("verifier", {})
+
+                    a_position = str(
+                        analyzer.get("position", analyzer.get("response", ""))
+                    )[:500]
+                    a_confidence = analyzer.get(
+                        "confidence", analyzer.get("revised_confidence", "N/A")
+                    )
+                    a_evidence = analyzer.get(
+                        "key_evidence", analyzer.get("additional_evidence", [])
+                    )
+
+                    v_agreement = verifier.get("agreement_level", "N/A")
+                    v_challenges = verifier.get(
+                        "challenges", verifier.get("remaining_concerns", [])
+                    )
+                    v_assessment = verifier.get("overall_assessment", "")[:400]
+
+                    doc.add_paragraph(f"── Round {round_num} ──").runs[
+                        0
+                    ].font.bold = True
+                    doc.add_paragraph(
+                        f"分析者 (Analyzer) — confidence: {a_confidence}\n"
+                        f"立場: {a_position}"
+                    )
+                    if a_evidence:
+                        evidence_str = ", ".join(str(e)[:100] for e in a_evidence[:5])
+                        doc.add_paragraph(f"證據: {evidence_str}")
+
+                    challenge_lines = f"驗證者 (Verifier) — agreement: {v_agreement}"
+                    if isinstance(v_challenges, list) and v_challenges:
+                        for ch in v_challenges[:3]:
+                            if isinstance(ch, dict):
+                                challenge_lines += (
+                                    f"\n  質疑: {ch.get('point', str(ch))[:200]}"
+                                )
+                            else:
+                                challenge_lines += f"\n  質疑: {str(ch)[:200]}"
+                    doc.add_paragraph(challenge_lines)
+                    if v_assessment:
+                        doc.add_paragraph(f"評語: {v_assessment}")
+            else:
+                doc.add_paragraph("（無辯論輪次紀錄）")
+
+            qa_score = clause.get("score", 0)
+            qq = clause.get("question_quality", "unknown")
+            aa = clause.get("answer_accuracy", "unknown")
+            lc = clause.get("logic_consistency", "unknown")
+            hal = clause.get("hallucination_detected", False)
+            hal_detail = clause.get("hallucination_details", "")
+            issues = clause.get("issues", [])
+
+            qa_text = (
+                f"第三方稽核結果: {qa_score}/100 | "
+                f"問題品質: {qq} | 回答正確性: {aa} | 邏輯一致性: {lc}"
+            )
+            if hal:
+                qa_text += (
+                    f"\n🚨 幻覺偵測: {hal_detail}" if hal_detail else "\n🚨 幻覺偵測"
                 )
+            p_qa = doc.add_paragraph(qa_text)
+            p_qa.runs[0].font.italic = True
+
+            if issues:
+                for issue in issues:
+                    doc.add_paragraph(f"  • {issue}")
+
+            doc.add_paragraph("")
+
+    if summary_entries:
+        doc.add_heading("第三方稽核摘要 / QA Audit Summary", level=3)
+        for entry in summary_entries:
+            doc_id_s = entry.get("doc_id", "")
+            score_s = entry.get("overall_score", 0)
+            summary_s = entry.get("summary", "")
+            recs_s = entry.get("recommendations", [])
+            doc.add_paragraph(f"文件 {doc_id_s} — 總分: {score_s}/100").runs[
+                0
+            ].font.bold = True
+            if summary_s:
+                doc.add_paragraph(summary_s)
+            if recs_s:
+                for rec in recs_s:
+                    doc.add_paragraph(f"  💡 {rec}")
 
     dim_a_title = (
         "Dimension A — MDSAP 法規準確性"
@@ -2186,11 +2363,17 @@ def export_daily_audit_excel(result: DailyAuditResult) -> Path:
         ws_sd = wb.create_sheet("Sampling Details")
         sd_headers = [
             "ISO 13485 Clause",
+            "Clause Title",
             "Doc ID",
             "Regulations",
+            "Verdict",
             "Agreed",
             "Flagged",
             "Rounds",
+            "QA Score",
+            "Question Quality",
+            "Answer Accuracy",
+            "Hallucination",
         ]
         for col, h in enumerate(sd_headers, 1):
             cell = ws_sd.cell(row=1, column=col, value=h)
@@ -2198,18 +2381,84 @@ def export_daily_audit_excel(result: DailyAuditResult) -> Path:
             cell.fill = header_fill
         for row_idx, clause in enumerate(clauses, start=2):
             ws_sd.cell(row=row_idx, column=1, value=clause.get("clause_id", ""))
-            ws_sd.cell(row=row_idx, column=2, value=clause.get("doc_id", ""))
-            ws_sd.cell(row=row_idx, column=3, value=regs_label)
+            ws_sd.cell(row=row_idx, column=2, value=clause.get("clause_title", ""))
+            ws_sd.cell(row=row_idx, column=3, value=clause.get("doc_id", ""))
+            ws_sd.cell(row=row_idx, column=4, value=regs_label)
+            ws_sd.cell(row=row_idx, column=5, value=clause.get("verdict", ""))
             ws_sd.cell(
-                row=row_idx, column=4, value="Yes" if clause.get("agreed") else "No"
+                row=row_idx, column=6, value="Yes" if clause.get("agreed") else "No"
             )
             ws_sd.cell(
-                row=row_idx, column=5, value="Yes" if clause.get("flagged") else "No"
+                row=row_idx, column=7, value="Yes" if clause.get("flagged") else "No"
             )
-            ws_sd.cell(row=row_idx, column=6, value=len(clause.get("rounds", [])))
+            ws_sd.cell(row=row_idx, column=8, value=len(clause.get("rounds", [])))
+            qa = clause.get("qa_audit", {})
+            ws_sd.cell(row=row_idx, column=9, value=qa.get("score", "") if qa else "")
+            ws_sd.cell(
+                row=row_idx,
+                column=10,
+                value=qa.get("question_quality", "") if qa else "",
+            )
+            ws_sd.cell(
+                row=row_idx,
+                column=11,
+                value=qa.get("answer_accuracy", "") if qa else "",
+            )
+            ws_sd.cell(
+                row=row_idx,
+                column=12,
+                value="Yes"
+                if qa and qa.get("hallucination_detected")
+                else ("No" if qa else ""),
+            )
         ws_sd.column_dimensions["A"].width = 20
-        ws_sd.column_dimensions["B"].width = 20
-        ws_sd.column_dimensions["C"].width = 40
+        ws_sd.column_dimensions["B"].width = 30
+        ws_sd.column_dimensions["C"].width = 20
+        ws_sd.column_dimensions["D"].width = 40
+
+        ws_debate = wb.create_sheet("Debate Details")
+        db_headers = [
+            "Clause ID",
+            "Doc ID",
+            "Round",
+            "Analyzer Position",
+            "Analyzer Confidence",
+            "Verifier Assessment",
+            "Agreement",
+        ]
+        for col, h in enumerate(db_headers, 1):
+            cell = ws_debate.cell(row=1, column=col, value=h)
+            cell.font = header_text_font
+            cell.fill = header_fill
+        db_row = 2
+        for clause in clauses:
+            cid = clause.get("clause_id", "")
+            did = clause.get("doc_id", "")
+            for rd in clause.get("rounds", []):
+                a = rd.get("analyzer", {})
+                v = rd.get("verifier", {})
+                ws_debate.cell(row=db_row, column=1, value=cid)
+                ws_debate.cell(row=db_row, column=2, value=did)
+                ws_debate.cell(row=db_row, column=3, value=rd.get("round", 0))
+                a_pos = a.get("position", "")
+                if isinstance(a_pos, list):
+                    a_pos = "; ".join(str(x) for x in a_pos)
+                ws_debate.cell(row=db_row, column=4, value=str(a_pos)[:1000])
+                ws_debate.cell(
+                    row=db_row,
+                    column=5,
+                    value=str(a.get("confidence", a.get("confidence_score", ""))),
+                )
+                v_assess = v.get("assessment", "")
+                if isinstance(v_assess, list):
+                    v_assess = "; ".join(str(x) for x in v_assess)
+                ws_debate.cell(row=db_row, column=6, value=str(v_assess)[:1000])
+                ws_debate.cell(row=db_row, column=7, value=v.get("agreement_level", ""))
+                db_row += 1
+        ws_debate.column_dimensions["A"].width = 20
+        ws_debate.column_dimensions["B"].width = 20
+        ws_debate.column_dimensions["D"].width = 60
+        ws_debate.column_dimensions["F"].width = 60
 
     fixed_steps, dynamic_recs = _generate_adjustment_guidance(result)
 

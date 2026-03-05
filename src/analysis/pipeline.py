@@ -865,6 +865,86 @@ class AnalysisPipeline:
                 except Exception as e:
                     logger.error(f"Phase 5 failed for doc {doc_id}: {e}")
 
+        # ── Step 2: Third-party QA audit of all completed debates ──
+        logger.info(
+            "Phase 5 Step 2: Running third-party QA audit on debate transcripts"
+        )
+        try:
+            from src.analysis.verifier import run_qa_audit_document
+
+            qa_audit_results = {}
+            verified_doc_groups = {}
+            for doc_id, rows in doc_groups.items():
+                refreshed_rows = []
+                for row in rows:
+                    updated = self._state.get_row(row.row_id)
+                    if updated:
+                        refreshed_rows.append(updated)
+                    else:
+                        refreshed_rows.append(row)
+                if any(
+                    getattr(r, "verification_rounds", None)
+                    and len(r.verification_rounds) > 0
+                    for r in refreshed_rows
+                ):
+                    verified_doc_groups[doc_id] = refreshed_rows
+
+            if verified_doc_groups and not self._budget_exceeded():
+                qa_max_workers = min(4, len(verified_doc_groups))
+                with concurrent.futures.ThreadPoolExecutor(
+                    max_workers=qa_max_workers
+                ) as qa_executor:
+                    qa_futures = {
+                        qa_executor.submit(
+                            run_qa_audit_document,
+                            doc_id=did,
+                            rows=drows,
+                            state=self._state,
+                            llm_completion_fn=self._llm_fn,
+                            model=self._model,
+                            selected_regulations=self._selected_regulations,
+                            run_id=self._state.run_id,
+                        ): did
+                        for did, drows in verified_doc_groups.items()
+                    }
+                    for future in concurrent.futures.as_completed(qa_futures):
+                        did = qa_futures[future]
+                        try:
+                            qa_result = future.result()
+                            qa_audit_results[did] = qa_result
+                            with self._state_lock:
+                                for drow in verified_doc_groups[did]:
+                                    self._state.update_row(drow)
+                                self._save_state()
+                        except Exception as qa_e:
+                            logger.error(
+                                f"Phase 5 Step 2 QA audit failed for doc {did}: {qa_e}"
+                            )
+
+                with self._state_lock:
+                    self._state.qa_audit_summary = {
+                        "total_documents": len(qa_audit_results),
+                        "document_scores": {
+                            did: r.get("overall_score", 0)
+                            for did, r in qa_audit_results.items()
+                        },
+                        "avg_score": (
+                            sum(
+                                r.get("overall_score", 0)
+                                for r in qa_audit_results.values()
+                            )
+                            / max(1, len(qa_audit_results))
+                        ),
+                        "details": qa_audit_results,
+                    }
+                    self._save_state()
+
+            logger.info(
+                f"Phase 5 Step 2 complete: {len(qa_audit_results)} documents audited"
+            )
+        except Exception as qa_global_err:
+            logger.error(f"Phase 5 Step 2 failed globally: {qa_global_err}")
+
         self._notify_phase_complete(Phase.VERIFICATION)
         self._advance_global_phase(Phase.SOURCE_CHECK)
 
