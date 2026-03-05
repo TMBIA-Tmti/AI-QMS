@@ -17,6 +17,7 @@ import os
 import sys
 import re
 import json
+import time
 import shutil
 import asyncio
 import logging
@@ -2859,18 +2860,68 @@ async def _daily_audit_background_scheduler():
             await asyncio.sleep(3600)
 
 
+_FRESHNESS_TIMESTAMP_FILE = Path("data/last_freshness_check.json")
+
+
+def _should_run_freshness_check() -> bool:
+    """Return True if freshness check hasn't been run today (date-based, not 24h)."""
+    try:
+        if _FRESHNESS_TIMESTAMP_FILE.exists():
+            data = json.loads(_FRESHNESS_TIMESTAMP_FILE.read_text(encoding="utf-8"))
+            last_date = data.get("last_check_date", "")
+            today = datetime.now().strftime("%Y-%m-%d")
+            return last_date != today
+    except Exception:
+        pass
+    return True  # No record or error → run the check
+
+
+def _record_freshness_check():
+    """Record that we ran the freshness check today."""
+    try:
+        _FRESHNESS_TIMESTAMP_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _FRESHNESS_TIMESTAMP_FILE.write_text(
+            json.dumps(
+                {
+                    "last_check_date": datetime.now().strftime("%Y-%m-%d"),
+                    "last_check_ts": time.time(),
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+    except Exception:
+        pass  # Non-critical
+
+
 async def _auto_trigger_crossexam():
     """Auto-trigger regulation freshness check and daily cross-examination.
 
     Runs after welcome message. Checks regulation freshness first,
     shows announcement if needed (including per-country upload reminders),
     then triggers daily audit.
+
+    NOTE: Heavy operations (crawling 7 countries, HTTP HEAD checks) are
+    rate-limited to once per 24 hours. On subsequent sessions within the
+    same day, only pipeline progress is shown.
     """
     try:
+        # Gate: only run full freshness check + crawl once per 24 hours
+        if not _should_run_freshness_check():
+            # Within 24h cooldown — skip crawling, only show pipeline progress
+            logger.debug(
+                "Freshness check skipped (within 24h cooldown). "
+                "Showing pipeline progress only."
+            )
+            # Jump directly to Step 3 (pipeline progress)
+            await _show_pipeline_progress()
+            return
+
         # Step 1: Check regulation freshness + 7-country data completeness
         from src.services.regulatory_crawler import check_regulation_freshness
 
         freshness = await check_regulation_freshness()
+        _record_freshness_check()  # Mark as done for 24h cooldown
         if freshness.get("announcement_needed"):
             lang = cl.user_session.get("language", "zh-TW")
             if lang.startswith("zh"):
@@ -2925,52 +2976,51 @@ async def _auto_trigger_crossexam():
             await cl.Message(content=mdsap_msg, author="Eira").send()
 
         # Step 3: Show pipeline progress indicator (if any pipeline is running)
-        try:
-            _pipeline_dir = Path("data/analysis_pipeline")
-            if _pipeline_dir.exists():
-                _run_files = sorted(
-                    _pipeline_dir.glob("run_*.json"),
-                    key=lambda f: f.stat().st_mtime,
-                    reverse=True,
-                )
-                for _rf in _run_files[:1]:  # Latest run only
-                    _rd = json.loads(_rf.read_text(encoding="utf-8"))
-                    _st = _rd.get("status", "")
-                    _rows = _rd.get("rows", {})
-                    _total = _rd.get("total_rows") or len(_rows)
-                    _completed = _rd.get("completed_rows") or 0
-                    _pct = _rd.get("progress_percent") or (
-                        round((_completed / _total) * 100, 1) if _total > 0 else 0
-                    )
-                    _phase = _rd.get("current_phase", "")
-                    if _st == "running" and _total > 0:
-                        # Build progress bar: ████░░░░░░ 35%
-                        _filled = int(_pct / 5)  # 20 chars total
-                        _empty = 20 - _filled
-                        _bar = "\u2588" * _filled + "\u2591" * _empty
-                        progress_msg = t(
-                            "crossexam.pipeline_running",
-                            bar=_bar,
-                            completed=_completed,
-                            total=_total,
-                            percent=_pct,
-                            phase=_phase,
-                        )
-                        await cl.Message(content=progress_msg, author="Eira").send()
-                    elif _st == "completed" and _total > 0:
-                        progress_msg = t("crossexam.pipeline_completed", total=_total)
-                        await cl.Message(content=progress_msg, author="Eira").send()
-                if not _run_files:
-                    not_started_msg = t("crossexam.pipeline_not_started")
-                    if (
-                        not_started_msg
-                        and not_started_msg != "crossexam.pipeline_not_started"
-                    ):
-                        await cl.Message(content=not_started_msg, author="Eira").send()
-        except Exception:
-            pass  # Don't block startup if progress check fails
+        await _show_pipeline_progress()
     except Exception as e:
         logger.error(f"Auto cross-exam trigger failed: {e}")
+
+
+async def _show_pipeline_progress():
+    """Show pipeline progress/completion status. No message if no runs exist."""
+    try:
+        _pipeline_dir = Path("data/analysis_pipeline")
+        if _pipeline_dir.exists():
+            _run_files = sorted(
+                _pipeline_dir.glob("run_*.json"),
+                key=lambda f: f.stat().st_mtime,
+                reverse=True,
+            )
+            for _rf in _run_files[:1]:  # Latest run only
+                _rd = json.loads(_rf.read_text(encoding="utf-8"))
+                _st = _rd.get("status", "")
+                _rows = _rd.get("rows", {})
+                _total = _rd.get("total_rows") or len(_rows)
+                _completed = _rd.get("completed_rows") or 0
+                _pct = _rd.get("progress_percent") or (
+                    round((_completed / _total) * 100, 1) if _total > 0 else 0
+                )
+                _phase = _rd.get("current_phase", "")
+                if _st == "running" and _total > 0:
+                    _filled = int(_pct / 5)  # 20 chars total
+                    _empty = 20 - _filled
+                    _bar = "\u2588" * _filled + "\u2591" * _empty
+                    progress_msg = t(
+                        "crossexam.pipeline_running",
+                        bar=_bar,
+                        completed=_completed,
+                        total=_total,
+                        percent=_pct,
+                        phase=_phase,
+                    )
+                    await cl.Message(content=progress_msg, author="Eira").send()
+                elif _st == "completed" and _total > 0:
+                    progress_msg = t("crossexam.pipeline_completed", total=_total)
+                    await cl.Message(content=progress_msg, author="Eira").send()
+            # NOTE: No message when no runs exist — "analysis not started"
+            # is noise when user hasn't requested analysis yet.
+    except Exception:
+        pass  # Don't block startup
 
 
 # ============================================================
@@ -3240,9 +3290,15 @@ async def on_chat_start():
     # Auto-trigger cross-examination with regulation freshness check (Doc Control only)
     # Requirement: 出發交叉詰問同時上網查詢ISO 13485與MDSAP是否為最新版
     # Requirement: 改成只在文件控制子agent出現，主agent不要出現每日詰問分析
-    # NOTE: Must run BEFORE Eira introduction so MDSAP/upload notifications appear first
-    if profile == "文件管制 (Doc Control)":
-        await _auto_trigger_crossexam()
+    # NOTE: Only run for RETURNING users who already have LLM configured.
+    #        New users must set up LLM/API key first — showing crawl results
+    #        and pipeline status before setup is confusing and misleading.
+    if profile == "文件管制 (Doc Control)" and saved and saved.get("provider_id"):
+        # Only run freshness check if user has a configured LLM provider
+        # (either cloud API with key, or local Ollama)
+        has_llm_setup = saved.get("provider_id") == "ollama" or saved.get("api_key")
+        if has_llm_setup:
+            await _auto_trigger_crossexam()
 
     # Eira introduction + signature detection (AFTER crossexam notifications, LAST in startup sequence)
     if saved and user_name:
