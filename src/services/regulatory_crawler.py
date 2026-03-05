@@ -303,6 +303,62 @@ REGION_SITES = {
             "note": "Inconsistent availability — Jina Reader fallback",
         },
     ],
+    "MDSAP": [
+        {
+            "agency": "MDSAP-Global-Audit",
+            "name": "MDSAP Audit Procedures and Forms",
+            "url": "https://www.mdsap.global/documents/audit-procedures-and-forms",
+            "tier": 2,
+            "strategy": "html",
+            "crawl_delay": 5,
+            "note": "Akamai protection — may timeout, Jina fallback available",
+        },
+        {
+            "agency": "MDSAP-Global-QMS",
+            "name": "MDSAP Quality Management System",
+            "url": "https://www.mdsap.global/documents/quality-management-system",
+            "tier": 2,
+            "strategy": "html",
+            "crawl_delay": 5,
+            "note": "Akamai protection — may timeout, Jina fallback available",
+        },
+        {
+            "agency": "MDSAP-Global-General",
+            "name": "MDSAP General Documents and Procedures",
+            "url": "https://www.mdsap.global/documents/general-documents-and-procedures",
+            "tier": 3,
+            "strategy": "html",
+            "crawl_delay": 5,
+            "note": "Akamai protection — frequent timeouts, Jina Reader fallback",
+        },
+        {
+            "agency": "MDSAP-Global-Assessment",
+            "name": "MDSAP Assessment Procedures and Forms",
+            "url": "https://www.mdsap.global/documents/assessment-procedures-and-forms",
+            "tier": 3,
+            "strategy": "html",
+            "crawl_delay": 5,
+            "note": "Akamai protection — frequent timeouts, Jina Reader fallback",
+        },
+        {
+            "agency": "FDA-MDSAP-Audit",
+            "name": "FDA MDSAP Audit Procedures and Forms",
+            "url": "https://www.fda.gov/medical-devices/medical-device-single-audit-program-mdsap/mdsap-audit-procedures-and-forms",
+            "tier": 2,
+            "strategy": "html",
+            "crawl_delay": 5,
+            "sitemap_url": "https://www.fda.gov/sitemap.xml",
+        },
+        {
+            "agency": "FDA-MDSAP-Assessment",
+            "name": "FDA MDSAP Assessment Procedures and Forms",
+            "url": "https://www.fda.gov/medical-devices/medical-device-single-audit-program-mdsap/mdsap-assessment-procedures-and-forms",
+            "tier": 2,
+            "strategy": "html",
+            "crawl_delay": 5,
+            "sitemap_url": "https://www.fda.gov/sitemap.xml",
+        },
+    ],
     "國際標準 (International)": [
         {
             "agency": "ISO",
@@ -599,6 +655,11 @@ _QMS_KEYWORDS = [
     "post-market",
     "device",
     "diagnostic",
+    "mdsap",
+    "single-audit",
+    "single_audit",
+    "audit-approach",
+    "audit-procedures",
 ]
 
 
@@ -1113,6 +1174,7 @@ def _make_result_template(site: dict, region: str) -> dict:
         "note": site.get("note", ""),
     }
 
+
 def _retrieve_cached_content(url: str) -> Optional[str]:
     """Retrieve previously crawled content for a URL from regulatory markdown storage.
 
@@ -1122,7 +1184,10 @@ def _retrieve_cached_content(url: str) -> Optional[str]:
     real regulatory text.
     """
     try:
-        from src.storage.regulatory_markdown_storage import get_regulatory_markdown_store
+        from src.storage.regulatory_markdown_storage import (
+            get_regulatory_markdown_store,
+        )
+
         store = get_regulatory_markdown_store()
         doc = store.get_document_by_url(url)
         if doc and doc.get("content"):
@@ -1162,7 +1227,9 @@ async def _crawl_tier1_api(
             previous_content = _retrieve_cached_content(url)
             if previous_content:
                 result["content_markdown"] = previous_content
-                result["note"] = "HTTP 304 Not Modified — restored content from previous crawl"
+                result["note"] = (
+                    "HTTP 304 Not Modified — restored content from previous crawl"
+                )
             else:
                 result["content_markdown"] = (
                     "HTTP 304 Not Modified but no previous content found in storage — "
@@ -1255,7 +1322,9 @@ async def _crawl_tier2_httpx(
             previous_content = _retrieve_cached_content(url)
             if previous_content:
                 result["content_markdown"] = previous_content
-                result["note"] = "HTTP 304 Not Modified — restored content from previous crawl"
+                result["note"] = (
+                    "HTTP 304 Not Modified — restored content from previous crawl"
+                )
             else:
                 result["content_markdown"] = (
                     "HTTP 304 Not Modified but no previous content found in storage — "
@@ -1606,11 +1675,14 @@ _KNOWN_STANDARDS = {
         "full_name": "MDSAP (Medical Device Single Audit Program)",
         "full_name_zh": "MDSAP（醫療器材單一稽核方案）",
         "check_urls": [
+            "https://www.mdsap.global/documents/audit-procedures-and-forms",
+            "https://www.mdsap.global/documents/general-documents-and-procedures",
+            "https://www.fda.gov/medical-devices/medical-device-single-audit-program-mdsap/mdsap-audit-procedures-and-forms",
+            "https://www.fda.gov/medical-devices/medical-device-single-audit-program-mdsap/mdsap-assessment-procedures-and-forms",
             "https://www.fda.gov/medical-devices/cdrh-international-programs/medical-device-single-audit-program-mdsap",
-            "https://www.tga.gov.au/how-we-regulate/manufacturing/manufacturer-audit-programs/medical-device-single-audit-program-mdsap",
         ],
         "sitemap_url": "https://www.fda.gov/sitemap.xml",
-        "keywords": ["mdsap", "single-audit"],
+        "keywords": ["mdsap", "single-audit", "single_audit"],
     },
 }
 
@@ -1700,8 +1772,7 @@ async def check_regulation_freshness(
                         "Content may be behind a paywall."
                     )
                     detail_zh = (
-                        f"{std['full_name_zh']} 返回 403 禁止存取。"
-                        "內容可能在付費牆後。"
+                        f"{std['full_name_zh']} 返回 403 禁止存取。內容可能在付費牆後。"
                     )
                     # ISO standards are paywalled — this is expected
                     if key == "ISO_13485":
@@ -1768,8 +1839,7 @@ async def check_regulation_freshness(
         announcement_zh = (
             "⚠️ 法規最新性公告\n"
             "以下法規標準在交叉詰問前無法確認為最新版本。"
-            "分析結果請參考此公告：\n"
-            + "\n".join(unconfirmed_zh)
+            "分析結果請參考此公告：\n" + "\n".join(unconfirmed_zh)
         )
     else:
         announcement = ""
@@ -1788,7 +1858,8 @@ async def check_regulation_freshness(
     return {
         "checked_at": datetime.now(timezone.utc).isoformat(),
         "results": results,
-        "all_confirmed": all_confirmed and country_completeness.get("all_complete", True),
+        "all_confirmed": all_confirmed
+        and country_completeness.get("all_complete", True),
         "announcement_needed": announcement_needed,
         "announcement_text": announcement,
         "announcement_text_zh": announcement_zh,
@@ -1804,13 +1875,46 @@ async def check_regulation_freshness(
 # Static mapping for predefined 7 countries.
 # Dynamic countries are added via get_crossexam_country_map().
 _CROSSEXAM_COUNTRY_MAP_STATIC = {
-    "QMSR":   {"region": "美國 (USA)",       "name_en": "USA (FDA QMSR)",       "name_zh": "美國 (FDA QMSR)"},
-    "EU_MDR": {"region": "歐盟 (EU)",        "name_en": "EU (MDR 2017/745)",    "name_zh": "歐盟 (MDR 2017/745)"},
-    "TFDA":   {"region": "台灣 (Taiwan)",    "name_en": "Taiwan (TFDA)",        "name_zh": "台灣 (TFDA)"},
-    "HC":     {"region": "加拿大 (Canada)",  "name_en": "Canada (HC/MDSAP)",    "name_zh": "加拿大 (HC/MDSAP)"},
-    "PMDA":   {"region": "日本 (Japan)",     "name_en": "Japan (PMDA)",         "name_zh": "日本 (PMDA)"},
-    "ANVISA": {"region": "巴西 (Brazil)",    "name_en": "Brazil (ANVISA)",      "name_zh": "巴西 (ANVISA)"},
-    "TGA":    {"region": "澳洲 (Australia)", "name_en": "Australia (TGA)",      "name_zh": "澳洲 (TGA)"},
+    "QMSR": {
+        "region": "美國 (USA)",
+        "name_en": "USA (FDA QMSR)",
+        "name_zh": "美國 (FDA QMSR)",
+    },
+    "EU_MDR": {
+        "region": "歐盟 (EU)",
+        "name_en": "EU (MDR 2017/745)",
+        "name_zh": "歐盟 (MDR 2017/745)",
+    },
+    "TFDA": {
+        "region": "台灣 (Taiwan)",
+        "name_en": "Taiwan (TFDA)",
+        "name_zh": "台灣 (TFDA)",
+    },
+    "HC": {
+        "region": "加拿大 (Canada)",
+        "name_en": "Canada (HC/MDSAP)",
+        "name_zh": "加拿大 (HC/MDSAP)",
+    },
+    "PMDA": {
+        "region": "日本 (Japan)",
+        "name_en": "Japan (PMDA)",
+        "name_zh": "日本 (PMDA)",
+    },
+    "ANVISA": {
+        "region": "巴西 (Brazil)",
+        "name_en": "Brazil (ANVISA)",
+        "name_zh": "巴西 (ANVISA)",
+    },
+    "TGA": {
+        "region": "澳洲 (Australia)",
+        "name_en": "Australia (TGA)",
+        "name_zh": "澳洲 (TGA)",
+    },
+    "MDSAP": {
+        "region": "MDSAP",
+        "name_en": "MDSAP (Single Audit)",
+        "name_zh": "MDSAP（單一稽核方案）",
+    },
 }
 
 
@@ -1821,6 +1925,7 @@ def get_crossexam_country_map() -> dict:
     # Add dynamically registered profiles (from crawled regulations)
     try:
         from src.analysis.compliance_rules import PREDEFINED_REGULATIONS
+
         for profile_id, profile in PREDEFINED_REGULATIONS.items():
             if profile_id in result:
                 continue  # Already in static map
@@ -1835,6 +1940,7 @@ def get_crossexam_country_map() -> dict:
         pass  # Non-critical — static map still available
 
     return result
+
 
 _MIN_COMPLETE_CONTENT_LEN = 50  # same threshold as _crawl_tier2_httpx
 

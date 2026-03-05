@@ -254,7 +254,9 @@ class RegulatoryMarkdownStorage:
         if replaced_count > 0:
             # Purge deleted files immediately to free disk space
             self.purge_deleted()
-            logger.info(f"Replaced {replaced_count} old docs from regions: {crawled_regions}")
+            logger.info(
+                f"Replaced {replaced_count} old docs from regions: {crawled_regions}"
+            )
 
         for r in results:
             status = r.get("crawl_status", "")
@@ -367,7 +369,9 @@ class RegulatoryMarkdownStorage:
             if doc.get("url", "") != url:
                 continue
             # Pick the most recent one by crawl_timestamp
-            if best_match is None or doc.get("crawl_timestamp", "") > best_match.get("crawl_timestamp", ""):
+            if best_match is None or doc.get("crawl_timestamp", "") > best_match.get(
+                "crawl_timestamp", ""
+            ):
                 best_match = doc
 
         if best_match is None:
@@ -550,7 +554,9 @@ class RegulatoryMarkdownStorage:
 
         if deleted_items:
             self._save_registry()
-            logger.info(f"Soft-deleted {len(deleted_items)} docs from region '{region}'")
+            logger.info(
+                f"Soft-deleted {len(deleted_items)} docs from region '{region}'"
+            )
 
         return {
             "deleted_count": len(deleted_items),
@@ -724,14 +730,51 @@ class RegulatoryMarkdownStorage:
 
     # Mapping: cross-examination profile → region folder + display label
     _EXPECTED_REGULATIONS = {
-        "QMSR":   {"region": "USA",       "name_en": "USA (FDA QMSR)",       "name_zh": "美國 (FDA QMSR)"},
-        "EU_MDR": {"region": "EU",        "name_en": "EU (MDR 2017/745)",    "name_zh": "歐盟 (MDR 2017/745)"},
-        "TFDA":   {"region": "Taiwan",    "name_en": "Taiwan (TFDA)",        "name_zh": "台灣 (TFDA)"},
-        "HC":     {"region": "Canada",    "name_en": "Canada (HC/MDSAP)",    "name_zh": "加拿大 (HC/MDSAP)"},
-        "PMDA":   {"region": "Japan",     "name_en": "Japan (PMDA)",         "name_zh": "日本 (PMDA)"},
-        "ANVISA": {"region": "Brazil",    "name_en": "Brazil (ANVISA)",      "name_zh": "巴西 (ANVISA)"},
-        "TGA":    {"region": "Australia", "name_en": "Australia (TGA)",      "name_zh": "澳洲 (TGA)"},
-        "ISO_13485": {"region": "ISO_Standards", "name_en": "ISO 13485:2016", "name_zh": "ISO 13485:2016"},
+        "QMSR": {
+            "region": "USA",
+            "name_en": "USA (FDA QMSR)",
+            "name_zh": "美國 (FDA QMSR)",
+        },
+        "EU_MDR": {
+            "region": "EU",
+            "name_en": "EU (MDR 2017/745)",
+            "name_zh": "歐盟 (MDR 2017/745)",
+        },
+        "TFDA": {
+            "region": "Taiwan",
+            "name_en": "Taiwan (TFDA)",
+            "name_zh": "台灣 (TFDA)",
+        },
+        "HC": {
+            "region": "Canada",
+            "name_en": "Canada (HC/MDSAP)",
+            "name_zh": "加拿大 (HC/MDSAP)",
+        },
+        "PMDA": {
+            "region": "Japan",
+            "name_en": "Japan (PMDA)",
+            "name_zh": "日本 (PMDA)",
+        },
+        "ANVISA": {
+            "region": "Brazil",
+            "name_en": "Brazil (ANVISA)",
+            "name_zh": "巴西 (ANVISA)",
+        },
+        "TGA": {
+            "region": "Australia",
+            "name_en": "Australia (TGA)",
+            "name_zh": "澳洲 (TGA)",
+        },
+        "ISO_13485": {
+            "region": "ISO_Standards",
+            "name_en": "ISO 13485:2016",
+            "name_zh": "ISO 13485:2016",
+        },
+        "MDSAP": {
+            "region": "MDSAP",
+            "name_en": "MDSAP (Multi-country)",
+            "name_zh": "MDSAP (多國)",
+        },
     }
 
     def get_upload_reminders(self) -> list[dict]:
@@ -754,13 +797,15 @@ class RegulatoryMarkdownStorage:
                         has_uploaded = True
                         break
             if not has_uploaded:
-                reminders.append({
-                    "regulation_id": reg_id,
-                    "name_en": info["name_en"],
-                    "name_zh": info["name_zh"],
-                    "region": info["region"],
-                    "has_uploaded": False,
-                })
+                reminders.append(
+                    {
+                        "regulation_id": reg_id,
+                        "name_en": info["name_en"],
+                        "name_zh": info["name_zh"],
+                        "region": info["region"],
+                        "has_uploaded": False,
+                    }
+                )
         return reminders
 
     def list_all_regulations(self) -> list[dict]:
@@ -772,32 +817,38 @@ class RegulatoryMarkdownStorage:
         result = []
         for reg_id, info in self._EXPECTED_REGULATIONS.items():
             region_dir = self.documents_path / info["region"]
-            has_predefined = (region_dir / "predefined").exists() and any(
-                (region_dir / "predefined").iterdir()
-            ) if (region_dir / "predefined").exists() else False
+            has_predefined = (
+                (region_dir / "predefined").exists()
+                and any((region_dir / "predefined").iterdir())
+                if (region_dir / "predefined").exists()
+                else False
+            )
             has_uploaded = False
             upload_dir = region_dir / "uploads"
             if upload_dir.exists():
                 has_uploaded = any(
-                    f.is_file() and f.stat().st_size > 0
-                    for f in upload_dir.iterdir()
+                    f.is_file() and f.stat().st_size > 0 for f in upload_dir.iterdir()
                 )
             has_crawled = any(
-                doc.get("region", "").endswith(f"({info['region']})") or
-                doc.get("region", "") == info["region"]
+                doc.get("region", "").endswith(f"({info['region']})")
+                or doc.get("region", "") == info["region"]
                 for doc in self.registry.get("documents", [])
                 if doc.get("status") != "deleted"
             )
-            result.append({
-                "regulation_id": reg_id,
-                "name_en": info["name_en"],
-                "name_zh": info["name_zh"],
-                "region": info["region"],
-                "has_predefined": has_predefined,
-                "has_uploaded": has_uploaded,
-                "has_crawled": has_crawled,
-                "status": "complete" if (has_uploaded or has_crawled) else "needs_upload",
-            })
+            result.append(
+                {
+                    "regulation_id": reg_id,
+                    "name_en": info["name_en"],
+                    "name_zh": info["name_zh"],
+                    "region": info["region"],
+                    "has_predefined": has_predefined,
+                    "has_uploaded": has_uploaded,
+                    "has_crawled": has_crawled,
+                    "status": "complete"
+                    if (has_uploaded or has_crawled)
+                    else "needs_upload",
+                }
+            )
         return result
 
     def save_uploaded_regulation(
@@ -851,9 +902,14 @@ class RegulatoryMarkdownStorage:
         """
         try:
             from src.analysis.compliance_rules import get_all_profiles
+
             profiles = get_all_profiles()
         except ImportError:
-            return {"exported_count": 0, "profiles": [], "error": "compliance_rules not available"}
+            return {
+                "exported_count": 0,
+                "profiles": [],
+                "error": "compliance_rules not available",
+            }
 
         exported = []
         for reg_id, profile in profiles.items():
@@ -892,6 +948,7 @@ class RegulatoryMarkdownStorage:
             exported.append({"regulation_id": reg_id, "path": str(dest)})
 
         return {"exported_count": len(exported), "profiles": exported}
+
 
 # ============================================================
 # Singleton accessor
