@@ -1779,29 +1779,11 @@ async def check_regulation_freshness(
     country_completeness = await check_country_data_completeness()
     incomplete = country_completeness.get("incomplete_countries", [])
 
-    # Append per-country upload reminders to announcement if any incomplete
+    # Note: per-country upload reminders are handled by app.py _auto_trigger_crossexam()
+    # using i18n keys, so we only pass the country_completeness data here.
+    # Do NOT append upload_notice to announcement_text to avoid duplicate messages.
     if incomplete:
         announcement_needed = True
-        country_lines = []
-        country_lines_zh = []
-        for pid in incomplete:
-            info = country_completeness["countries"][pid]
-            country_lines.append(f"- {info['message']}")
-            country_lines_zh.append(f"- {info['message_zh']}")
-        upload_notice = (
-            "\n\n📤 Manual Upload Required\n"
-            "The following countries' regulation data could not be fully retrieved. "
-            "Please upload the latest regulation documents manually:\n"
-            + "\n".join(country_lines)
-        )
-        upload_notice_zh = (
-            "\n\n📤 需要手動上傳\n"
-            "以下國家的法規資料無法完整爬取。"
-            "請手動上傳最新法規文件：\n"
-            + "\n".join(country_lines_zh)
-        )
-        announcement = (announcement + upload_notice) if announcement else upload_notice.lstrip("\n")
-        announcement_zh = (announcement_zh + upload_notice_zh) if announcement_zh else upload_notice_zh.lstrip("\n")
 
     return {
         "checked_at": datetime.now(timezone.utc).isoformat(),

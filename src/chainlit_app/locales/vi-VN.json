@@ -288,5 +288,12 @@
     "xem trước"
   ],
   "view.specify": "Eira: 📖 Please specify the document ID to view. {count} document(s) available:",
-  "view.example": "💡 Usage: **view QP-001**"
+  "view.example": "💡 Usage: **view QP-001**",
+  "crossexam.freshness_confirmed": "Eira: ✅ Tất cả tham chiếu quy định đã được xác nhận là phiên bản mới nhất.",
+  "crossexam.mdsap_enabled_notice": "Eira: 🌐 Đã kích hoạt kiểm tra chéo MDSAP 5 quốc gia. Phân tích này sẽ bao gồm kiểm tra chéo 7 quốc gia và phân tích MDSAP 5 quốc gia (HC/PMDA/ANVISA/TGA/QMSR).",
+  "crossexam.upload_reminder_title": "Eira: 📋 Các quy định sau yêu cầu tải lên thủ công phiên bản mới nhất:",
+  "crossexam.upload_reminder_instruction": "Eira: Vui lòng sử dụng chức năng 'Tải lên tài liệu quy định' để tải lên các tài liệu mới nhất.",
+  "crossexam.pipeline_running": "Eira: 📊 Tiến độ phân tích: [{bar}] {completed}/{total} ({percent}%) — Giai đoạn hiện tại: {phase}",
+  "crossexam.pipeline_completed": "Eira: ✅ Phân tích hoàn tất. Tổng cộng: {total} mục đã phân tích.",
+  "crossexam.pipeline_not_started": "Eira: ⏳ Phân tích chưa bắt đầu. Vui lòng chạy 'Danh sách quy định' hoặc 'Cập nhật quy định' trước."
 }

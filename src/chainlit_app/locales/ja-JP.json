@@ -497,15 +497,15 @@
   "source_label.regulatory_list": "規制リスト",
   "source_label.regulatory_update": "規制リスト更新",
   "source_label.source": "ソースコマンド",
-  "crossexam.freshness_confirmed": "✅ 法規最新性確認完了：ISO 13485 と MDSAP の基準バージョンが最新であることを確認しました。交差尋問は最新の法規基準を使用して分析を行います。",
-  "crossexam.mdsap_enabled_notice": "🌐 MDSAP 5か国交差尋問が有効です。今回の分析には7か国交差尋問とMDSAP 5か国（HC/PMDA/ANVISA/TGA/QMSR）交差尋問分析の両方が含まれます。",
+  "crossexam.freshness_confirmed": "Eira：✅ すべての法規資料が最新版であることを確認しました",
+  "crossexam.mdsap_enabled_notice": "Eira：🌐 MDSAP 5カ国交差尋問が有効です。今回の分析には7カ国交差尋問とMDSAP 5カ国（HC/PMDA/ANVISA/TGA/QMSR）の交差尋問分析が含まれます。",
   "report.previous_report": "以前の分析レポート",
   "report.status": "ステータス",
   "report.completed": "完了",
   "report.time": "時間",
   "report.view_report": "レポートを表示",
-  "crossexam.upload_reminder_title": "📤 以下の国の法規データはクロール取得できませんでした。最新の法規文書を手動でアップロードしてください：",
-  "crossexam.upload_reminder_instruction": "該当国の最新のQMS関連法規文書（PDFまたはWord）をシステムにアップロードしてください。自動的に変換され、交差詰問分析に使用されます。",
+  "crossexam.upload_reminder_title": "Eira：📋 以下の法規は最新版の手動アップロードが必要です：",
+  "crossexam.upload_reminder_instruction": "Eira：「法規文書アップロード」機能を使用して、該当国の最新法規文書をアップロードしてください。",
   "daily_audit.incomplete_data_warning": "⚠️ 不完全なデータに基づく：以下の国/規制のデータが不完全です。監査結果は参考用です。",
   "daily_audit.incomplete_countries_label": "データが不完全な国/規制",
   "daily_audit.incomplete_data_countries": "データが不完全な国/規制：{countries}",
@@ -527,5 +527,8 @@
     "表示"
   ],
   "view.specify": "Eira：📖 閲覧する文書IDを指定してください。{count} 件の文書が利用可能です：",
-  "view.example": "💡 使用方法：**オンライン閲覧 QP-001**"
+  "view.example": "💡 使用方法：**オンライン閲覧 QP-001**",
+  "crossexam.pipeline_running": "Eira：📊 分析進捗：[{bar}] {completed}/{total} ({percent}%) — 現在のフェーズ：{phase}",
+  "crossexam.pipeline_completed": "Eira：✅ 分析完了。合計 {total} 件の分析項目。",
+  "crossexam.pipeline_not_started": "Eira：⏳ 分析はまだ開始されていません。先に「法規リスト」または「法規リスト更新」を実行してください。"
 }

@@ -291,5 +291,12 @@
     "предпросмотр"
   ],
   "view.specify": "Eira: 📖 Please specify the document ID to view. {count} document(s) available:",
-  "view.example": "💡 Usage: **view QP-001**"
+  "view.example": "💡 Usage: **view QP-001**",
+  "crossexam.freshness_confirmed": "Eira: ✅ Все нормативные ссылки подтверждены как актуальная версия.",
+  "crossexam.mdsap_enabled_notice": "Eira: 🌐 Перекрёстный допрос MDSAP по 5 странам активирован. Этот анализ будет включать перекрёстный допрос по 7 странам и анализ MDSAP по 5 странам (HC/PMDA/ANVISA/TGA/QMSR).",
+  "crossexam.upload_reminder_title": "Eira: 📋 Следующие нормативные акты требуют ручной загрузки последней версии:",
+  "crossexam.upload_reminder_instruction": "Eira: Пожалуйста, используйте функцию 'Загрузить нормативный документ' для загрузки последних документов.",
+  "crossexam.pipeline_running": "Eira: 📊 Прогресс анализа: [{bar}] {completed}/{total} ({percent}%) — Текущая фаза: {phase}",
+  "crossexam.pipeline_completed": "Eira: ✅ Анализ завершён. Всего: {total} проанализированных элементов.",
+  "crossexam.pipeline_not_started": "Eira: ⏳ Анализ ещё не начат. Пожалуйста, сначала выполните 'Список нормативов' или 'Обновление нормативов'."
 }

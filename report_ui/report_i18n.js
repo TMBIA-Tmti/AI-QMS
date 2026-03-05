@@ -65,6 +65,7 @@
             "table.risk": "風險",
             "table.flags": "標記",
             "table.actions": "操作",
+            "table.llmAnalysis": "LLM 分析",
             "table.loading": "載入中...",
             "table.count": "載入中...",
 
@@ -355,6 +356,30 @@
 
             "source.regulatory_list": "📋 法規清單",
             "source.regulatory_update": "🔄 法規清單更新",
+
+            // ── Phase Configuration ──
+            "phase.configTitle": "⚙️ 分析階段設定",
+            "phase.configDesc": "選擇要跳過的分析階段。跳過的階段將記錄在報告中，請注意相關風險。",
+            "phase.toggleBtn": "▼ 展開",
+            "phase.p0": "資料品質檢查",
+            "phase.p0Risk": "⚠️ 跳過將無法驗證資料完整性，後續分析可能基於不完整資料",
+            "phase.p05": "法規參照對應",
+            "phase.p05Risk": "⚠️ 跳過將無法比對法規條文，分析將缺乏法規參照基礎",
+            "phase.p1": "差距掃描",
+            "phase.p1Risk": "🔴 核心階段，跳過將無法識別合規差距，無法產生分析結果",
+            "phase.p2": "查核表驗證",
+            "phase.p2Risk": "⚠️ 跳過將減少證據交叉驗證，可能遺漏不充分的證據",
+            "phase.p3": "風險評估",
+            "phase.p3Risk": "🔴 核心階段，跳過將無法產生風險等級判定",
+            "phase.p4": "改善建議",
+            "phase.p4Risk": "跳過不影響判定結果，但將不會產生改善建議",
+            "phase.p5": "獨立驗證",
+            "phase.p5Risk": "⚠️ 跳過將減少分析者/驗證者交叉詰問的品質保證",
+            "phase.p6": "來源驗證",
+            "phase.p6Risk": "跳過不影響判定結果，但不會驗證法規來源連結有效性",
+            "phase.noSkip": "目前設定：執行所有階段",
+            "phase.apply": "✅ 套用設定",
+            "phase.reset": "🔄 重設為全部執行",
         },
 
         "en-US": {
@@ -399,6 +424,7 @@
             "table.risk": "Risk",
             "table.flags": "Flags",
             "table.actions": "Actions",
+            "table.llmAnalysis": "LLM Analysis",
             "table.loading": "Loading...",
             "table.count": "Loading...",
 
@@ -676,6 +702,30 @@
 
             "source.regulatory_list": "📋 Regulatory List",
             "source.regulatory_update": "🔄 Regulatory List Update",
+
+            // ── Phase Configuration ──
+            "phase.configTitle": "⚙️ Analysis Phase Settings",
+            "phase.configDesc": "Select phases to skip. Skipped phases will be noted in the report. Please consider related risks.",
+            "phase.toggleBtn": "▼ Expand",
+            "phase.p0": "Data Quality Check",
+            "phase.p0Risk": "⚠️ Skipping will prevent data integrity verification; subsequent analysis may be based on incomplete data",
+            "phase.p05": "Reference Mapping",
+            "phase.p05Risk": "⚠️ Skipping will prevent regulatory clause comparison; analysis will lack regulatory reference basis",
+            "phase.p1": "Gap Scan",
+            "phase.p1Risk": "🔴 Core phase — skipping will prevent compliance gap identification and analysis results",
+            "phase.p2": "Checklist Verification",
+            "phase.p2Risk": "⚠️ Skipping will reduce evidence cross-verification and may miss inadequate evidence",
+            "phase.p3": "Risk Assessment",
+            "phase.p3Risk": "🔴 Core phase — skipping will prevent risk level determination",
+            "phase.p4": "Remediation Suggestions",
+            "phase.p4Risk": "Skipping will not affect verdict but will not generate improvement suggestions",
+            "phase.p5": "Independent Verification",
+            "phase.p5Risk": "⚠️ Skipping will reduce analyzer/verifier cross-examination quality assurance",
+            "phase.p6": "Source Verification",
+            "phase.p6Risk": "Skipping will not affect verdict but will not verify regulatory source link validity",
+            "phase.noSkip": "Current setting: Execute all phases",
+            "phase.apply": "✅ Apply Settings",
+            "phase.reset": "🔄 Reset to Execute All",
         },
 
         "ja-JP": {
@@ -719,6 +769,7 @@
             "table.verdict": "判定",
             "table.risk": "リスク",
             "table.flags": "フラグ",
+            "table.llmAnalysis": "LLM 分析",
             "table.actions": "操作",
             "table.loading": "読み込み中...",
             "table.count": "読み込み中...",
@@ -997,6 +1048,30 @@
 
             "source.regulatory_list": "📋 規制リスト",
             "source.regulatory_update": "🔄 規制リスト更新",
+
+            // ── Phase Configuration ──
+            "phase.configTitle": "⚙️ 分析フェーズ設定",
+            "phase.configDesc": "スキップするフェーズを選択。スキップされたフェーズはレポートに記載されます。関連リスクにご注意ください。",
+            "phase.toggleBtn": "▼ 展開",
+            "phase.p0": "データ品質チェック",
+            "phase.p0Risk": "⚠️ スキップするとデータ整合性の検証ができず、後続の分析が不完全なデータに基づく可能性があります",
+            "phase.p05": "法規参照マッピング",
+            "phase.p05Risk": "⚠️ スキップすると法規条文との比較ができず、法規参照の基盤が欠如します",
+            "phase.p1": "ギャップスキャン",
+            "phase.p1Risk": "🔴 コアフェーズ — スキップするとコンプライアンスギャップの識別および分析結果の生成ができません",
+            "phase.p2": "チェックリスト検証",
+            "phase.p2Risk": "⚠️ スキップするとエビデンスの交差検証が減少し、不十分なエビデンスを見落とす可能性があります",
+            "phase.p3": "リスク評価",
+            "phase.p3Risk": "🔴 コアフェーズ — スキップするとリスクレベルの判定ができません",
+            "phase.p4": "改善提案",
+            "phase.p4Risk": "スキップしても判定結果に影響しませんが、改善提案は生成されません",
+            "phase.p5": "独立検証",
+            "phase.p5Risk": "⚠️ スキップすると分析者/検証者のクロス検証の品質保証が減少します",
+            "phase.p6": "ソース検証",
+            "phase.p6Risk": "スキップしても判定結果に影響しませんが、法規ソースリンクの有効性は検証されません",
+            "phase.noSkip": "現在の設定：全フェーズを実行",
+            "phase.apply": "✅ 設定を適用",
+            "phase.reset": "🔄 全実行にリセット",
         },
     };
 

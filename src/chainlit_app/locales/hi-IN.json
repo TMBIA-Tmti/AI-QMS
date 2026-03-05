@@ -287,5 +287,12 @@
     "पूर्वावलोकन"
   ],
   "view.specify": "Eira: 📖 Please specify the document ID to view. {count} document(s) available:",
-  "view.example": "💡 Usage: **view QP-001**"
+  "view.example": "💡 Usage: **view QP-001**",
+  "crossexam.freshness_confirmed": "Eira: ✅ सभी नियामक संदर्भ नवीनतम संस्करण के रूप में पुष्टि किए गए।",
+  "crossexam.mdsap_enabled_notice": "Eira: 🌐 MDSAP 5-देश क्रॉस-एग्जामिनेशन सक्रिय। इस विश्लेषण में 7-देश क्रॉस-एग्जामिनेशन और MDSAP 5-देश (HC/PMDA/ANVISA/TGA/QMSR) विश्लेषण शामिल होगा।",
+  "crossexam.upload_reminder_title": "Eira: 📋 निम्नलिखित नियमों के नवीनतम संस्करण का मैनुअल अपलोड आवश्यक है:",
+  "crossexam.upload_reminder_instruction": "Eira: कृपया संबंधित देशों के नवीनतम नियामक दस्तावेज़ अपलोड करने के लिए 'नियामक दस्तावेज़ अपलोड' फ़ंक्शन का उपयोग करें।",
+  "crossexam.pipeline_running": "Eira: 📊 विश्लेषण प्रगति: [{bar}] {completed}/{total} ({percent}%) — वर्तमान चरण: {phase}",
+  "crossexam.pipeline_completed": "Eira: ✅ विश्लेषण पूर्ण। कुल: {total} आइटम विश्लेषित।",
+  "crossexam.pipeline_not_started": "Eira: ⏳ विश्लेषण अभी शुरू नहीं हुआ है। कृपया पहले 'नियामक सूची' या 'नियामक अपडेट' चलाएं।"
 }

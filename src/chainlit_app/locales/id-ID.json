@@ -287,5 +287,12 @@
     "pratinjau"
   ],
   "view.specify": "Eira: 📖 Please specify the document ID to view. {count} document(s) available:",
-  "view.example": "💡 Usage: **view QP-001**"
+  "view.example": "💡 Usage: **view QP-001**",
+  "crossexam.freshness_confirmed": "Eira: ✅ Semua referensi regulasi telah dikonfirmasi sebagai versi terbaru.",
+  "crossexam.mdsap_enabled_notice": "Eira: 🌐 Pemeriksaan silang MDSAP 5 negara diaktifkan. Analisis ini akan mencakup pemeriksaan silang 7 negara dan analisis MDSAP 5 negara (HC/PMDA/ANVISA/TGA/QMSR).",
+  "crossexam.upload_reminder_title": "Eira: 📋 Regulasi berikut memerlukan unggahan manual versi terbaru:",
+  "crossexam.upload_reminder_instruction": "Eira: Silakan gunakan fungsi 'Unggah Dokumen Regulasi' untuk mengunggah dokumen terbaru.",
+  "crossexam.pipeline_running": "Eira: 📊 Kemajuan analisis: [{bar}] {completed}/{total} ({percent}%) — Fase saat ini: {phase}",
+  "crossexam.pipeline_completed": "Eira: ✅ Analisis selesai. Total: {total} item dianalisis.",
+  "crossexam.pipeline_not_started": "Eira: ⏳ Analisis belum dimulai. Silakan jalankan 'Daftar Regulasi' atau 'Pembaruan Regulasi' terlebih dahulu."
 }

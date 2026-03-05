@@ -289,5 +289,12 @@
     "vorschau"
   ],
   "view.specify": "Eira: 📖 Please specify the document ID to view. {count} document(s) available:",
-  "view.example": "💡 Usage: **view QP-001**"
+  "view.example": "💡 Usage: **view QP-001**",
+  "crossexam.freshness_confirmed": "Eira: ✅ Alle regulatorischen Referenzen als aktuell bestätigt.",
+  "crossexam.mdsap_enabled_notice": "Eira: 🌐 MDSAP 5-Länder-Kreuzverhör aktiviert. Diese Analyse umfasst sowohl das 7-Länder-Kreuzverhör als auch die MDSAP 5-Länder-Analyse (HC/PMDA/ANVISA/TGA/QMSR).",
+  "crossexam.upload_reminder_title": "Eira: 📋 Die folgenden Vorschriften erfordern einen manuellen Upload der neuesten Version:",
+  "crossexam.upload_reminder_instruction": "Eira: Bitte verwenden Sie die Funktion 'Regulierungsdokument hochladen', um die neuesten Dokumente hochzuladen.",
+  "crossexam.pipeline_running": "Eira: 📊 Analysefortschritt: [{bar}] {completed}/{total} ({percent}%) — Aktuelle Phase: {phase}",
+  "crossexam.pipeline_completed": "Eira: ✅ Analyse abgeschlossen. Gesamt: {total} analysierte Elemente.",
+  "crossexam.pipeline_not_started": "Eira: ⏳ Die Analyse wurde noch nicht gestartet. Bitte führen Sie zuerst 'Regulierungsliste' oder 'Regulierungsaktualisierung' aus."
 }

@@ -288,5 +288,12 @@
     "معاينة"
   ],
   "view.specify": "Eira: 📖 Please specify the document ID to view. {count} document(s) available:",
-  "view.example": "💡 Usage: **view QP-001**"
+  "view.example": "💡 Usage: **view QP-001**",
+  "crossexam.freshness_confirmed": "Eira: ✅ تم تأكيد جميع المراجع التنظيمية كأحدث إصدار.",
+  "crossexam.mdsap_enabled_notice": "Eira: 🌐 تم تفعيل الاستجواب المتقاطع MDSAP لـ 5 دول. سيشمل هذا التحليل الاستجواب المتقاطع لـ 7 دول وتحليل MDSAP لـ 5 دول (HC/PMDA/ANVISA/TGA/QMSR).",
+  "crossexam.upload_reminder_title": "Eira: 📋 اللوائح التالية تتطلب رفع يدوي لأحدث إصدار:",
+  "crossexam.upload_reminder_instruction": "Eira: يرجى استخدام وظيفة 'رفع مستند تنظيمي' لرفع أحدث المستندات.",
+  "crossexam.pipeline_running": "Eira: 📊 تقدم التحليل: [{bar}] {completed}/{total} ({percent}%) — المرحلة الحالية: {phase}",
+  "crossexam.pipeline_completed": "Eira: ✅ اكتمل التحليل. الإجمالي: {total} عنصر تم تحليله.",
+  "crossexam.pipeline_not_started": "Eira: ⏳ لم يبدأ التحليل بعد. يرجى تنفيذ 'قائمة اللوائح' أو 'تحديث اللوائح' أولاً."
 }

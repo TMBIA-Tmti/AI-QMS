@@ -559,7 +559,12 @@ class PipelineState:
     # ---- Serialization ----
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        d = asdict(self)
+        # Include @property values that asdict() doesn't serialize
+        d["total_rows"] = self.total_rows
+        d["completed_rows"] = self.completed_rows
+        d["progress_percent"] = self.progress_percent
+        return d
 
     def to_json(self) -> str:
         return json.dumps(self.to_dict(), ensure_ascii=False, indent=2)

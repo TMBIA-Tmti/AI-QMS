@@ -288,5 +288,12 @@
     "önizleme"
   ],
   "view.specify": "Eira: 📖 Please specify the document ID to view. {count} document(s) available:",
-  "view.example": "💡 Usage: **view QP-001**"
+  "view.example": "💡 Usage: **view QP-001**",
+  "crossexam.freshness_confirmed": "Eira: ✅ Tüm düzenleyici referanslar en güncel sürüm olarak doğrulandı.",
+  "crossexam.mdsap_enabled_notice": "Eira: 🌐 MDSAP 5 ülke çapraz sorgulaması etkinleştirildi. Bu analiz hem 7 ülke çapraz sorgulamasını hem de MDSAP 5 ülke (HC/PMDA/ANVISA/TGA/QMSR) analizini içerecektir.",
+  "crossexam.upload_reminder_title": "Eira: 📋 Aşağıdaki düzenlemeler en son sürümün manuel yüklenmesini gerektirmektedir:",
+  "crossexam.upload_reminder_instruction": "Eira: Lütfen en güncel belgeleri yüklemek için 'Düzenleyici Belge Yükle' işlevini kullanın.",
+  "crossexam.pipeline_running": "Eira: 📊 Analiz ilerlemesi: [{bar}] {completed}/{total} ({percent}%) — Mevcut aşama: {phase}",
+  "crossexam.pipeline_completed": "Eira: ✅ Analiz tamamlandı. Toplam: {total} öğe analiz edildi.",
+  "crossexam.pipeline_not_started": "Eira: ⏳ Analiz henüz başlamadı. Lütfen önce 'Düzenleme Listesi' veya 'Düzenleme Güncellemesi' çalıştırın."
 }

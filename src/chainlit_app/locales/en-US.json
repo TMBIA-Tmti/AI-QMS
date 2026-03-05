@@ -497,15 +497,15 @@
   "source_label.regulatory_list": "Regulatory List",
   "source_label.regulatory_update": "Regulatory List Update",
   "source_label.source": "Source Command",
-  "crossexam.freshness_confirmed": "✅ Regulation freshness confirmed: ISO 13485 and MDSAP baseline versions are confirmed as latest. Cross-examination will use the latest regulatory baseline.",
-  "crossexam.mdsap_enabled_notice": "🌐 MDSAP 5-country cross-examination enabled. This analysis will include both the 7-country cross-examination and MDSAP 5-country (HC/PMDA/ANVISA/TGA/QMSR) cross-examination analysis.",
+  "crossexam.freshness_confirmed": "Eira: ✅ All regulatory references confirmed as latest version.",
+  "crossexam.mdsap_enabled_notice": "Eira: 🌐 MDSAP 5-country cross-examination enabled. This analysis will include both 7-country cross-examination and MDSAP 5-country (HC/PMDA/ANVISA/TGA/QMSR) analysis.",
   "report.previous_report": "Previous Analysis Report",
   "report.status": "Status",
   "report.completed": "Completed",
   "report.time": "Time",
   "report.view_report": "View Report",
-  "crossexam.upload_reminder_title": "📤 The following countries' regulation data could not be fully retrieved. Please upload the latest regulation documents manually:",
-  "crossexam.upload_reminder_instruction": "Please upload the latest QMS-related regulation documents (PDF or Word) for the listed countries. The system will automatically convert and use them for cross-examination analysis.",
+  "crossexam.upload_reminder_title": "Eira: 📋 The following regulations require manual upload of the latest version:",
+  "crossexam.upload_reminder_instruction": "Eira: Please use the 'Upload Regulation Document' function to upload the latest regulation documents for the corresponding countries.",
   "daily_audit.incomplete_data_warning": "⚠️ Based on Incomplete Data: The following countries/regulations have incomplete data. Audit results are for reference only.",
   "daily_audit.incomplete_countries_label": "Countries/Regulations with Incomplete Data",
   "daily_audit.incomplete_data_countries": "Countries/regulations with incomplete data: {countries}",
@@ -527,5 +527,8 @@
     "preview"
   ],
   "view.specify": "Eira: 📖 Please specify the document ID to view. {count} document(s) available:",
-  "view.example": "💡 Usage: **view QP-001**"
+  "view.example": "💡 Usage: **view QP-001**",
+  "crossexam.pipeline_running": "Eira: 📊 Analysis progress: [{bar}] {completed}/{total} ({percent}%) — Current phase: {phase}",
+  "crossexam.pipeline_completed": "Eira: ✅ Analysis completed. Total: {total} items analyzed.",
+  "crossexam.pipeline_not_started": "Eira: ⏳ Analysis has not started yet. Please run 'Regulatory List' or 'Regulatory Update' first."
 }

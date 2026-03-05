@@ -296,5 +296,12 @@
     "열람"
   ],
   "view.specify": "Eira: 📖 Please specify the document ID to view. {count} document(s) available:",
-  "view.example": "💡 Usage: **view QP-001**"
+  "view.example": "💡 Usage: **view QP-001**",
+  "crossexam.freshness_confirmed": "Eira：✅ 모든 규제 자료가 최신 버전으로 확인되었습니다",
+  "crossexam.mdsap_enabled_notice": "Eira：🌐 MDSAP 5개국 교차 심문이 활성화되었습니다. 이번 분석에는 7개국 교차 심문과 MDSAP 5개국(HC/PMDA/ANVISA/TGA/QMSR) 교차 심문 분석이 포함됩니다.",
+  "crossexam.upload_reminder_title": "Eira：📋 다음 규정은 최신 버전의 수동 업로드가 필요합니다:",
+  "crossexam.upload_reminder_instruction": "Eira：'규제 문서 업로드' 기능을 사용하여 해당 국가의 최신 규제 문서를 업로드하세요.",
+  "crossexam.pipeline_running": "Eira：📊 분석 진행률: [{bar}] {completed}/{total} ({percent}%) — 현재 단계: {phase}",
+  "crossexam.pipeline_completed": "Eira：✅ 분석 완료. 총 {total}건 분석 항목.",
+  "crossexam.pipeline_not_started": "Eira：⏳ 분석이 아직 시작되지 않았습니다. 먼저 '규제 목록' 또는 '규제 목록 업데이트'를 실행하세요."
 }

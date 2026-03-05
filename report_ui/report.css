@@ -374,6 +374,20 @@ body {
 .col-risk     { width: 110px; min-width: 110px; }
 .col-flags    { width: 60px; min-width: 60px; text-align: center; }
 .col-actions  { width: 200px; min-width: 180px; }
+.col-llm-analysis { min-width: 180px; max-width: 300px; }
+
+.llm-analysis-text {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    max-width: 280px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    cursor: help;
+}
 
 /* Cell content styles */
 .clause-id {
@@ -1762,6 +1776,14 @@ body {
         grid-template-columns: 1fr;
     }
 
+    .crossexam-card-header {
+        grid-template-columns: 36px auto 1fr;
+        flex-wrap: wrap;
+    }
+    .crossexam-card-header .card-tag {
+        grid-column: span 1;
+    }
+
     .exam-message {
         max-width: 95%;
     }
@@ -1894,11 +1916,11 @@ body {
 }
 
 .crossexam-card-header {
-    display: flex;
+    display: grid;
+    grid-template-columns: 36px auto minmax(180px, 1fr) minmax(100px, auto) minmax(60px, auto) minmax(60px, auto) auto;
     align-items: center;
     gap: 6px;
     margin-bottom: 8px;
-    flex-wrap: wrap;
 }
 
 .crossexam-card-header .phase-badge {
@@ -1908,6 +1930,7 @@ body {
 .crossexam-card-header .card-status-text {
     font-weight: 600;
     flex-shrink: 0;
+    white-space: nowrap;
 }
 
 .crossexam-card-header .card-tag {
@@ -1918,6 +1941,9 @@ body {
     border-radius: 12px;
     white-space: nowrap;
     cursor: default;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
 }
 
 .crossexam-card-header .card-tag-doc {

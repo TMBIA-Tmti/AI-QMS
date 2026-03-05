@@ -2918,11 +2918,41 @@ async def _auto_trigger_crossexam():
 
         mdsap_enabled = get_app_setting("mdsap_verify_enabled", False)
         if mdsap_enabled:
-            await cl.Message(
-                content=t("crossexam.mdsap_enabled_notice"),
-                author="Eira",
-            ).send()
+            mdsap_msg = t("crossexam.mdsap_enabled_notice")
+            await cl.Message(content=mdsap_msg, author="Eira").send()
 
+        # Step 3: Show pipeline progress indicator (if any pipeline is running)
+        try:
+            _pipeline_dir = Path("data/analysis_pipeline")
+            if _pipeline_dir.exists():
+                _run_files = sorted(
+                    _pipeline_dir.glob("run_*.json"),
+                    key=lambda f: f.stat().st_mtime,
+                    reverse=True,
+                )
+                for _rf in _run_files[:1]:  # Latest run only
+                    _rd = json.loads(_rf.read_text(encoding="utf-8"))
+                    _st = _rd.get("status", "")
+                    _rows = _rd.get("rows", {})
+                    _total = _rd.get("total_rows") or len(_rows)
+                    _completed = _rd.get("completed_rows") or 0
+                    _pct = _rd.get("progress_percent") or (round((_completed / _total) * 100, 1) if _total > 0 else 0)
+                    _phase = _rd.get("current_phase", "")
+                    if _st == "running" and _total > 0:
+                        # Build progress bar: ████░░░░░░ 35%
+                        _filled = int(_pct / 5)  # 20 chars total
+                        _empty = 20 - _filled
+                        _bar = "\u2588" * _filled + "\u2591" * _empty
+                        progress_msg = t("crossexam.pipeline_running",
+                            bar=_bar, completed=_completed, total=_total,
+                            percent=_pct, phase=_phase)
+                        await cl.Message(content=progress_msg, author="Eira").send()
+                    elif _st == "completed" and _total > 0:
+                        progress_msg = t("crossexam.pipeline_completed",
+                            total=_total)
+                        await cl.Message(content=progress_msg, author="Eira").send()
+        except Exception:
+            pass  # Don't block startup if progress check fails
     except Exception as e:
         logger.error(f"Auto cross-exam trigger failed: {e}")
 
@@ -3184,19 +3214,20 @@ async def on_chat_start():
     except Exception:
         pass  # Don't block startup
 
-    # Eira introduction + signature detection (AFTER reports, LAST in startup sequence)
+    # Auto-trigger cross-examination with regulation freshness check (Doc Control only)
+    # Requirement: 出發交叉詰問同時上網查詢ISO 13485與MDSAP是否為最新版
+    # Requirement: 改成只在文件控制子agent出現，主agent不要出現每日詰問分析
+    # NOTE: Must run BEFORE Eira introduction so MDSAP/upload notifications appear first
+    if profile == "文件管制 (Doc Control)":
+        asyncio.create_task(_auto_trigger_crossexam())
+
+    # Eira introduction + signature detection (AFTER crossexam notifications, LAST in startup sequence)
     if saved and user_name:
         # Returning user with saved settings — show Eira intro + setup questions
         await _send_eira_introduction(user_name, profile, doc_count, doc_limit)
     else:
         # New user — wait for LLM settings first, then ask name in on_settings_update
         cl.user_session.set("eira_name_pending", True)
-
-    # Auto-trigger cross-examination with regulation freshness check (Doc Control only)
-    # Requirement: 出發交叉詰問同時上網查詢ISO 13485與MDSAP是否為最新版
-    # Requirement: 改成只在文件控制子agent出現，主agent不要出現每日詰問分析
-    if profile == "文件管制 (Doc Control)":
-        asyncio.create_task(_auto_trigger_crossexam())
 
 async def _send_eira_introduction(
     user_name: str, profile: str, doc_count: int, doc_limit: int

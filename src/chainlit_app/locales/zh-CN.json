@@ -298,5 +298,12 @@
     "预览"
   ],
   "view.specify": "Eira：📖 请指定要查看的文件编号。目前有 {count} 份文件可查看：",
-  "view.example": "💡 使用方式：**在线查看 QP-001**"
+  "view.example": "💡 使用方式：**在线查看 QP-001**",
+  "crossexam.freshness_confirmed": "Eira：✅ 所有法规资料已确认为最新版本",
+  "crossexam.mdsap_enabled_notice": "Eira：🌐 MDSAP 五国交叉质询已启用。本次分析将同时包含 7 国交叉质询与 MDSAP 五国（HC/PMDA/ANVISA/TGA/QMSR）交叉质询分析。",
+  "crossexam.upload_reminder_title": "Eira：📋 以下法规需要手动上传最新版本：",
+  "crossexam.upload_reminder_instruction": "Eira：请使用「上传法规文件」功能，上传对应国家的最新法规文件。",
+  "crossexam.pipeline_running": "Eira：📊 分析进度：[{bar}] {completed}/{total} ({percent}%) — 当前阶段：{phase}",
+  "crossexam.pipeline_completed": "Eira：✅ 分析已完成，共 {total} 笔分析项目。",
+  "crossexam.pipeline_not_started": "Eira：⏳ 分析尚未开始，请先执行法规清单或法规清单更新。"
 }

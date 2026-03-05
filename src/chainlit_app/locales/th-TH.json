@@ -286,5 +286,12 @@
     "แสดงตัวอย่าง"
   ],
   "view.specify": "Eira: 📖 Please specify the document ID to view. {count} document(s) available:",
-  "view.example": "💡 Usage: **view QP-001**"
+  "view.example": "💡 Usage: **view QP-001**",
+  "crossexam.freshness_confirmed": "Eira: ✅ การอ้างอิงกฎระเบียบทั้งหมดได้รับการยืนยันว่าเป็นเวอร์ชันล่าสุด",
+  "crossexam.mdsap_enabled_notice": "Eira: 🌐 เปิดใช้งานการตรวจสอบไขว้ MDSAP 5 ประเทศแล้ว การวิเคราะห์นี้จะรวมการตรวจสอบไขว้ 7 ประเทศและการวิเคราะห์ MDSAP 5 ประเทศ (HC/PMDA/ANVISA/TGA/QMSR)",
+  "crossexam.upload_reminder_title": "Eira: 📋 กฎระเบียบต่อไปนี้ต้องการการอัปโหลดเวอร์ชันล่าสุดด้วยตนเอง:",
+  "crossexam.upload_reminder_instruction": "Eira: กรุณาใช้ฟังก์ชัน 'อัปโหลดเอกสารกฎระเบียบ' เพื่ออัปโหลดเอกสารล่าสุด",
+  "crossexam.pipeline_running": "Eira: 📊 ความคืบหน้าการวิเคราะห์: [{bar}] {completed}/{total} ({percent}%) — ขั้นตอนปัจจุบัน: {phase}",
+  "crossexam.pipeline_completed": "Eira: ✅ การวิเคราะห์เสร็จสมบูรณ์ ทั้งหมด: {total} รายการที่วิเคราะห์",
+  "crossexam.pipeline_not_started": "Eira: ⏳ การวิเคราะห์ยังไม่เริ่มต้น กรุณาเรียกใช้ 'รายการกฎระเบียบ' หรือ 'อัปเดตกฎระเบียบ' ก่อน"
 }

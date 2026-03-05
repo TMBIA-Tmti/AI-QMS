@@ -1042,6 +1042,9 @@
             <td class="col-question">
                 <div class="audit-question">${escapeHtml(r.audit_question || "—")}</div>
             </td>
+            <td class="col-llm-analysis">
+                <div class="llm-analysis-text" title="${escapeAttr(r.remediation || '')}">${escapeHtml((r.remediation || '—').substring(0, 80))}${(r.remediation || '').length > 80 ? '...' : ''}</div>
+            </td>
             <td class="col-evidence">
                 <div class="evidence-bar">
                     <div class="evidence-bar-track">

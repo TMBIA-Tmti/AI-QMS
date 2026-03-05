@@ -290,5 +290,12 @@
     "voorbeeld"
   ],
   "view.specify": "Eira: 📖 Please specify the document ID to view. {count} document(s) available:",
-  "view.example": "💡 Usage: **view QP-001**"
+  "view.example": "💡 Usage: **view QP-001**",
+  "crossexam.freshness_confirmed": "Eira: ✅ Alle regelgevingsreferenties bevestigd als nieuwste versie.",
+  "crossexam.mdsap_enabled_notice": "Eira: 🌐 MDSAP 5-landen kruisverhoor geactiveerd. Deze analyse omvat zowel het 7-landen kruisverhoor als de MDSAP 5-landen (HC/PMDA/ANVISA/TGA/QMSR) analyse.",
+  "crossexam.upload_reminder_title": "Eira: 📋 De volgende regelgeving vereist handmatige upload van de nieuwste versie:",
+  "crossexam.upload_reminder_instruction": "Eira: Gebruik de functie 'Regelgevingsdocument uploaden' om de nieuwste documenten te uploaden.",
+  "crossexam.pipeline_running": "Eira: 📊 Analysevoortgang: [{bar}] {completed}/{total} ({percent}%) — Huidige fase: {phase}",
+  "crossexam.pipeline_completed": "Eira: ✅ Analyse voltooid. Totaal: {total} items geanalyseerd.",
+  "crossexam.pipeline_not_started": "Eira: ⏳ De analyse is nog niet gestart. Voer eerst 'Regelgevingslijst' of 'Regelgevingsupdate' uit."
 }

@@ -287,5 +287,12 @@
     "pratonton"
   ],
   "view.specify": "Eira: 📖 Please specify the document ID to view. {count} document(s) available:",
-  "view.example": "💡 Usage: **view QP-001**"
+  "view.example": "💡 Usage: **view QP-001**",
+  "crossexam.freshness_confirmed": "Eira: ✅ Semua rujukan peraturan disahkan sebagai versi terkini.",
+  "crossexam.mdsap_enabled_notice": "Eira: 🌐 Pemeriksaan silang MDSAP 5 negara diaktifkan. Analisis ini akan merangkumi pemeriksaan silang 7 negara dan analisis MDSAP 5 negara (HC/PMDA/ANVISA/TGA/QMSR).",
+  "crossexam.upload_reminder_title": "Eira: 📋 Peraturan berikut memerlukan muat naik manual versi terkini:",
+  "crossexam.upload_reminder_instruction": "Eira: Sila gunakan fungsi 'Muat Naik Dokumen Peraturan' untuk memuat naik dokumen terkini.",
+  "crossexam.pipeline_running": "Eira: 📊 Kemajuan analisis: [{bar}] {completed}/{total} ({percent}%) — Fasa semasa: {phase}",
+  "crossexam.pipeline_completed": "Eira: ✅ Analisis selesai. Jumlah: {total} item dianalisis.",
+  "crossexam.pipeline_not_started": "Eira: ⏳ Analisis belum bermula. Sila jalankan 'Senarai Peraturan' atau 'Kemas Kini Peraturan' terlebih dahulu."
 }
