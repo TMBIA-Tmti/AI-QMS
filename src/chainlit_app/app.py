@@ -3010,12 +3010,13 @@ async def _auto_trigger_crossexam():
 async def _run_and_display_daily_audit(
     incomplete_countries: list[str] | None = None,
 ):
-    """Run daily audit (or load cached), display results, then check meta review.
+    """Run daily sampling cross-exam + audit, display results, then check meta review.
 
-    Called on every Doc Control session start. If today's audit file already
-    exists (data/daily_audit/daily_{YYYY-MM-DD}.json), loads the cached result
-    instead of re-running. This ensures once-per-calendar-day execution while
-    always showing results to the user.
+    Flow (once per calendar day):
+      1. run_daily_sampling_crossexam() — Phase 5 on 20% sample → DailyCrossExamStore
+      2. run_daily_audit() — Dim A + Dim B on DailyCrossExamStore records
+      3. Display results
+      4. Check 10-day meta review
     """
     import asyncio as _aio
     from datetime import date as _date
@@ -3028,7 +3029,6 @@ async def _run_and_display_daily_audit(
     result = None
 
     if daily_path.exists():
-        # Load cached result from today
         try:
             from src.analysis.daily_audit import DailyAuditResult
 
@@ -3039,7 +3039,6 @@ async def _run_and_display_daily_audit(
             _log.warning("Failed to load cached daily audit: %s", e)
             result = None
     else:
-        # Need LLM function to run audit
         from src.analysis.report_api import _get_llm_completion_fn_standalone
 
         llm_fn = _get_llm_completion_fn_standalone()
@@ -3047,12 +3046,31 @@ async def _run_and_display_daily_audit(
             await cl.Message(content=t("daily_audit.no_llm"), author="Eira").send()
             return
 
-        # Show progress message
         audit_progress = cl.Message(content=t("daily_audit.running"), author="Eira")
         await audit_progress.send()
 
         try:
-            from src.analysis.daily_audit import run_daily_audit
+            from src.analysis.daily_audit import (
+                run_daily_sampling_crossexam,
+                run_daily_audit,
+            )
+            from src.utils.app_settings import get_app_setting
+
+            mdsap_on = get_app_setting("mdsap_verify_enabled", False)
+
+            sampling_record = await _aio.to_thread(
+                run_daily_sampling_crossexam,
+                llm_completion_fn=llm_fn,
+                model=cl.user_session.get("model", "default"),
+                mdsap_enabled=mdsap_on,
+                lang=lang,
+            )
+
+            if sampling_record is None:
+                await cl.Message(
+                    content=t("daily_audit.no_records"), author="Eira"
+                ).send()
+                return
 
             result = await _aio.to_thread(
                 run_daily_audit,
@@ -3072,15 +3090,12 @@ async def _run_and_display_daily_audit(
     if result is None:
         return
 
-    # Check if audit had no records (empty result — no crossexam data to audit)
     if "No cross-examination records" in (result.summary or ""):
         await cl.Message(content=t("daily_audit.no_records"), author="Eira").send()
         return
 
-    # Display the daily audit result
     await _display_daily_audit_result(result)
 
-    # Step 5: 10-day meta review check
     await _run_and_display_meta_review()
 
 

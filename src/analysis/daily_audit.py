@@ -32,6 +32,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+from src.database.daily_crossexam_store import DailySamplingRecord
 from src.utils.safe_io import atomic_write_json
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,7 @@ __all__ = [
     "DailyAuditResult",
     "MetaReviewResult",
     "AuditFeedback",
+    "run_daily_sampling_crossexam",
     "run_daily_audit",
     "run_10day_meta_review",
     "get_daily_audit_history",
@@ -479,6 +481,207 @@ class MetaReviewResult:
 
 
 # ============================================================
+# Core: run_daily_sampling_crossexam  (Phase 5 re-execution)
+# ============================================================
+
+DAILY_SAMPLE_RATE = 0.2  # 20% of rows sampled per day
+DAILY_DEFAULT_REGULATIONS = ["TFDA", "EU_MDR"]  # MDSAP off → 2-country
+DAILY_ALL_REGULATIONS = ["TFDA", "QMSR", "EU_MDR", "HC", "PMDA", "ANVISA", "TGA"]
+MDSAP_MEMBER_REGULATIONS = ["QMSR", "HC", "PMDA", "ANVISA", "TGA"]
+
+
+def _find_latest_pipeline_state() -> Optional[Path]:
+    """Find the most recent completed PipelineState JSON file."""
+    state_dir = Path("data/analysis_pipeline")
+    if not state_dir.exists():
+        return None
+    state_files = sorted(
+        state_dir.glob("run_*.json"), key=lambda p: p.stat().st_mtime, reverse=True
+    )
+    for sf in state_files:
+        try:
+            import json as _json
+
+            data = _json.loads(sf.read_text(encoding="utf-8"))
+            if data.get("status") == "completed":
+                return sf
+        except Exception:
+            continue
+    return None
+
+
+def run_daily_sampling_crossexam(
+    llm_completion_fn: callable,
+    model: str = "default",
+    mdsap_enabled: bool = False,
+    lang: str = "zh-TW",
+) -> Optional[DailySamplingRecord]:
+    """Run independent Phase 5 cross-examination on a 20% sample of the
+    latest pipeline comparison table.
+
+    This produces data that is completely separate from the pipeline's
+    CrossExamStore.  Results go into DailyCrossExamStore.
+
+    Args:
+        llm_completion_fn: LLM completion function
+        model: LLM model name
+        mdsap_enabled: If True → 7-country + 5-country MDSAP verification;
+                       if False → 2-country (TFDA + EU_MDR)
+        lang: Language code
+
+    Returns:
+        DailySamplingRecord with cross-exam results, or None if no
+        pipeline state is available.
+    """
+    import math
+    import random
+    import time as _time
+
+    from src.analysis.state import PipelineState, RowState
+    from src.analysis.verifier import run_verification_row
+    from src.database.daily_crossexam_store import get_daily_crossexam_store
+
+    state_path = _find_latest_pipeline_state()
+    if state_path is None:
+        logger.info("No completed pipeline state found for daily sampling cross-exam")
+        return None
+
+    state = PipelineState.load(state_path)
+    logger.info(
+        "Daily sampling cross-exam: loaded pipeline state %s (%d rows)",
+        state.run_id,
+        len(state.rows),
+    )
+
+    all_row_dicts = list(state.rows.values())
+    rows_with_evidence = [
+        r
+        for r in all_row_dicts
+        if r.get("evidence_items") and len(r.get("evidence_items", [])) > 0
+    ]
+    if not rows_with_evidence:
+        logger.info("No rows with evidence found in pipeline state")
+        return None
+
+    sample_count = max(1, math.ceil(len(rows_with_evidence) * DAILY_SAMPLE_RATE))
+    sampled = random.sample(
+        rows_with_evidence, min(sample_count, len(rows_with_evidence))
+    )
+    sampled_rows = [RowState.from_dict(r) for r in sampled]
+
+    if mdsap_enabled:
+        selected_regulations = DAILY_ALL_REGULATIONS
+        countries = DAILY_ALL_REGULATIONS
+    else:
+        selected_regulations = DAILY_DEFAULT_REGULATIONS
+        countries = DAILY_DEFAULT_REGULATIONS
+
+    logger.info(
+        "Daily sampling: %d/%d rows (%.0f%%), regulations=%s, mdsap=%s",
+        len(sampled_rows),
+        len(rows_with_evidence),
+        DAILY_SAMPLE_RATE * 100,
+        selected_regulations,
+        mdsap_enabled,
+    )
+
+    start_time = _time.time()
+    total_agreed = 0
+    total_flagged = 0
+    total_rounds = 0
+    clause_results: list[dict] = []
+    questions_used: list[dict] = []
+    total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+
+    for row in sampled_rows:
+        row.verification_rounds = []
+        row.verification_agreed = False
+        row.flagged_for_ra = False
+
+        try:
+            phase_result = run_verification_row(
+                row_state=row,
+                state=state,
+                llm_completion_fn=llm_completion_fn,
+                model=model,
+                selected_regulations=selected_regulations,
+                run_id=f"daily_{datetime.now().strftime('%Y%m%d')}",
+            )
+            agreed = row.verification_agreed
+            flagged = row.flagged_for_ra
+            rounds = row.verification_rounds or []
+
+            if agreed:
+                total_agreed += 1
+            if flagged:
+                total_flagged += 1
+            total_rounds += len(rounds)
+
+            clause_results.append(
+                {
+                    "clause_id": row.clause_id,
+                    "doc_id": row.doc_id,
+                    "agreed": agreed,
+                    "flagged": flagged,
+                    "rounds": rounds,
+                    "phase_status": phase_result.status if phase_result else "unknown",
+                }
+            )
+
+            usage = phase_result.llm_usage if phase_result else {}
+            for k in total_usage:
+                total_usage[k] += usage.get(k, 0)
+
+        except Exception as e:
+            logger.error("Daily sampling Phase 5 failed for row %s: %s", row.row_id, e)
+            clause_results.append(
+                {
+                    "clause_id": row.clause_id,
+                    "doc_id": row.doc_id,
+                    "agreed": False,
+                    "flagged": True,
+                    "rounds": [],
+                    "error": str(e)[:200],
+                }
+            )
+            total_flagged += 1
+
+    duration = _time.time() - start_time
+
+    record = DailySamplingRecord(
+        source_run_id=state.run_id,
+        selected_regulations=selected_regulations,
+        countries=countries,
+        mdsap_enabled=mdsap_enabled,
+        sample_rate=DAILY_SAMPLE_RATE,
+        total_rows_available=len(rows_with_evidence),
+        sampled_row_ids=[r.row_id for r in sampled_rows],
+        clauses=clause_results,
+        total_clauses=len(clause_results),
+        total_agreed=total_agreed,
+        total_flagged=total_flagged,
+        total_rounds=total_rounds,
+        questions_used=questions_used,
+        llm_usage=total_usage,
+        llm_model=model,
+        duration_seconds=duration,
+        lang=lang,
+    )
+
+    daily_store = get_daily_crossexam_store()
+    daily_store.save_record(record)
+
+    logger.info(
+        "Daily sampling cross-exam complete: %d clauses, %d agreed, %d flagged, %.1fs",
+        record.total_clauses,
+        record.total_agreed,
+        record.total_flagged,
+        duration,
+    )
+    return record
+
+
+# ============================================================
 # Core: run_daily_audit
 # ============================================================
 
@@ -495,13 +698,16 @@ def run_daily_audit(
 ) -> DailyAuditResult:
     """Run daily audit with Dim A (MDSAP accuracy) + Dim B (cross-exam quality).
 
+    Now reads from DailyCrossExamStore (daily sampling cross-exam records)
+    instead of CrossExamStore (pipeline full cross-exam records).
+
     Args:
         llm_completion_fn: LLM completion function
         model: LLM model name
         temperature: LLM temperature
         max_tokens: Max response tokens
         lang: Language code
-        store: CrossExamStore instance (uses singleton if not provided)
+        store: DailyCrossExamStore instance (uses singleton if not provided)
         feedback_context: Optional user feedback context to append to prompts
         incomplete_countries: List of country/regulation IDs with incomplete data.
             When non-empty, the result is annotated with a warning.
@@ -509,10 +715,10 @@ def run_daily_audit(
     Returns:
         DailyAuditResult with scores and findings
     """
-    from src.database.crossexam_store import get_crossexam_store
+    from src.database.daily_crossexam_store import get_daily_crossexam_store
 
     if store is None:
-        store = get_crossexam_store()
+        store = get_daily_crossexam_store()
 
     records = store.get_all_records()
     if not records:
