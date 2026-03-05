@@ -916,6 +916,24 @@ class ComparisonTable:
             evidence_found = sum(1 for e in r.evidence_items if e.get("found", False))
             evidence_total = len(r.expected_evidence)
 
+            # Build per-phase status summary for frontend pipeline icons
+            phase_status_summary = {}
+            for phase_key in (
+                "phase_0",
+                "phase_0_5",
+                "phase_1",
+                "phase_2",
+                "phase_3",
+                "phase_4",
+                "phase_5",
+                "phase_6",
+            ):
+                pr = r.phase_results.get(phase_key)
+                if pr:
+                    phase_status_summary[phase_key] = pr.get("status", "pending")
+                else:
+                    phase_status_summary[phase_key] = "pending"
+
             rows.append(
                 {
                     "row_id": r.row_id,
@@ -941,6 +959,7 @@ class ComparisonTable:
                     "ra_notes": r.ra_notes,
                     "verification_agreed": r.verification_agreed,
                     "verification_rounds": len(r.verification_rounds),
+                    "phase_status_summary": phase_status_summary,
                 }
             )
 

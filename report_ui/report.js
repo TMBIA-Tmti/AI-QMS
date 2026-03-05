@@ -1008,26 +1008,68 @@
         els.tableBody.innerHTML = rows.map((r) => renderRow(r)).join("");
     }
 
+    function getPhaseStatusIcon(status) {
+        const map = {
+            completed: "✅",
+            skipped: "⏭️",
+            failed: "❌",
+            pending: "⏳",
+            running: "🔄",
+        };
+        return map[status] || "⏳";
+    }
+
+    function renderPipelineIcons(r) {
+        const ps = r.phase_status_summary || {};
+        const phases = [
+            { key: "phase_0",   label: "P0",  title: "資料品質檢查" },
+            { key: "phase_0_5", label: "P0.5", title: "法規參照對應" },
+            { key: "phase_1",   label: "P1",  title: "差距掃描" },
+            { key: "phase_2",   label: "P2",  title: "查核表驗證" },
+            { key: "phase_3",   label: "P3",  title: "風險評估" },
+            { key: "phase_4",   label: "P4",  title: "改善建議" },
+            { key: "phase_5",   label: "P5",  title: "獨立驗證" },
+            { key: "phase_6",   label: "P6",  title: "來源驗證" },
+        ];
+        return phases.map(p => {
+            const status = ps[p.key] || "pending";
+            const icon = getPhaseStatusIcon(status);
+            return `<span class="pipeline-phase phase-${status}" title="${p.title} — ${status}"><span class="phase-label">${p.label}</span>${icon}</span>`;
+        }).join("");
+    }
+
+    function renderCrossExamBadge(r) {
+        const rounds = r.verification_rounds || 0;
+        if (rounds === 0) return "";
+        const agreed = r.verification_agreed;
+        if (agreed === true) {
+            return `<span class="crossexam-badge crossexam-agreed" title="交叉詰問 ${rounds} 輪一致">✅${rounds}R</span>`;
+        } else if (agreed === false) {
+            return `<span class="crossexam-badge crossexam-disagreed" title="交叉詰問 ${rounds} 輪不一致">❌${rounds}R</span>`;
+        }
+        return `<span class="crossexam-badge crossexam-pending" title="交叉詰問進行中">⏳${rounds}R</span>`;
+    }
+
     function renderRow(r) {
         const flagged = r.flagged_for_ra;
         const rowClass = flagged ? "row-flagged" : "";
 
-        // Evidence bar
         const evFound = r.evidence_found || 0;
         const evTotal = r.evidence_total || 0;
         const evPct = evTotal > 0 ? Math.round((evFound / evTotal) * 100) : 0;
         const evFillClass = evPct >= 100 ? "fill-full" : evPct > 0 ? "fill-partial" : "fill-none";
 
-        // Verdict badge
         const verdictBadge = getVerdictBadge(r.verdict, r.verdict_icon, r.verdict_label_zh, !!r.ra_override);
 
-        // Risk badge with formula tooltip
         const riskTooltip = r.risk_level && r.gap_severity && r.audit_impact
             ? `${r.audit_impact} × ${r.gap_severity} → ${r.risk_level}`
             : '';
         const riskBadge = riskTooltip
             ? `<span class="risk-badge-wrapper">${getRiskBadge(r.risk_level, r.risk_icon, r.risk_label_zh)}<span class="risk-tooltip">⚖️ ${escapeHtml(riskTooltip)}</span></span>`
             : getRiskBadge(r.risk_level, r.risk_icon, r.risk_label_zh);
+
+        const pipelineIcons = renderPipelineIcons(r);
+        const crossExamBadge = renderCrossExamBadge(r);
 
         return `
         <tr class="${rowClass}" data-row-id="${escapeAttr(r.row_id)}">
@@ -1042,8 +1084,8 @@
             <td class="col-question">
                 <div class="audit-question">${escapeHtml(r.audit_question || "—")}</div>
             </td>
-            <td class="col-llm-analysis">
-                <div class="llm-analysis-text" title="${escapeAttr(r.remediation || '')}">${escapeHtml((r.remediation || '—').substring(0, 80))}${(r.remediation || '').length > 80 ? '...' : ''}</div>
+            <td class="col-pipeline">
+                <div class="pipeline-icons">${pipelineIcons}</div>
             </td>
             <td class="col-evidence">
                 <div class="evidence-bar">
@@ -1055,7 +1097,10 @@
             </td>
             <td class="col-verdict">${verdictBadge}</td>
             <td class="col-risk">${riskBadge}</td>
-            <td class="col-flags">${flagged ? '<span class="flag-icon" title="需 RA 審查">🚩</span>' : ""}</td>
+            <td class="col-flags">
+                ${flagged ? '<span class="flag-icon" title="需 RA 審查">🚩</span>' : ""}
+                ${crossExamBadge}
+            </td>
             <td class="col-actions">
                 <div class="action-group">
                     <button class="btn btn-sm btn-outline" onclick="window.__report.openDetail('${escapeAttr(r.row_id)}')" title="詳情">🔍</button>

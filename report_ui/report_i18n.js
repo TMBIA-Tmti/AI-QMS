@@ -65,7 +65,7 @@
             "table.risk": "風險",
             "table.flags": "標記",
             "table.actions": "操作",
-            "table.llmAnalysis": "LLM 分析",
+            "table.pipelineStatus": "Pipeline 狀態",
             "table.loading": "載入中...",
             "table.count": "載入中...",
 
@@ -425,7 +425,7 @@
             "table.risk": "Risk",
             "table.flags": "Flags",
             "table.actions": "Actions",
-            "table.llmAnalysis": "LLM Analysis",
+            "table.pipelineStatus": "Pipeline Status",
             "table.loading": "Loading...",
             "table.count": "Loading...",
 
@@ -771,7 +771,7 @@
             "table.verdict": "判定",
             "table.risk": "リスク",
             "table.flags": "フラグ",
-            "table.llmAnalysis": "LLM 分析",
+            "table.pipelineStatus": "Pipeline 状態",
             "table.actions": "操作",
             "table.loading": "読み込み中...",
             "table.count": "読み込み中...",

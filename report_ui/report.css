@@ -372,21 +372,85 @@ body {
 .col-evidence { width: 100px; min-width: 100px; }
 .col-verdict  { width: 100px; min-width: 100px; }
 .col-risk     { width: 110px; min-width: 110px; }
-.col-flags    { width: 60px; min-width: 60px; text-align: center; }
+.col-flags    { width: 90px; min-width: 80px; text-align: center; }
 .col-actions  { width: 200px; min-width: 180px; }
-.col-llm-analysis { min-width: 180px; max-width: 300px; }
+.col-pipeline { min-width: 200px; max-width: 340px; }
 
-.llm-analysis-text {
-    font-size: 0.78rem;
+.pipeline-icons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    align-items: center;
+}
+
+.pipeline-phase {
+    display: inline-flex;
+    align-items: center;
+    gap: 1px;
+    font-size: 0.68rem;
+    padding: 1px 4px;
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+    cursor: default;
+    line-height: 1.2;
+}
+
+.pipeline-phase .phase-label {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    font-size: 0.62rem;
     color: var(--text-secondary);
-    line-height: 1.4;
-    max-width: 280px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    -webkit-box-orient: vertical;
-    cursor: help;
+}
+
+.pipeline-phase.phase-completed {
+    background: var(--compliant-bg);
+    border-color: #bbf7d0;
+}
+
+.pipeline-phase.phase-failed {
+    background: var(--non-compliant-bg);
+    border-color: #fecaca;
+}
+
+.pipeline-phase.phase-skipped {
+    background: var(--insufficient-bg);
+    border-color: #e5e7eb;
+}
+
+.pipeline-phase.phase-pending {
+    background: #f0f9ff;
+    border-color: #bae6fd;
+}
+
+.pipeline-phase.phase-running {
+    background: #fef3c7;
+    border-color: #fde68a;
+}
+
+.crossexam-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 0.68rem;
+    font-weight: 600;
+    padding: 2px 5px;
+    border-radius: var(--radius-sm);
+    white-space: nowrap;
+}
+
+.crossexam-agreed {
+    background: var(--compliant-bg);
+    color: var(--compliant);
+}
+
+.crossexam-disagreed {
+    background: var(--non-compliant-bg);
+    color: var(--non-compliant);
+}
+
+.crossexam-pending {
+    background: #fef3c7;
+    color: #92400e;
 }
 
 /* Cell content styles */
