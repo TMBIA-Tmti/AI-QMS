@@ -496,7 +496,7 @@ def _find_latest_pipeline_state() -> Optional[Path]:
     if not state_dir.exists():
         return None
     state_files = sorted(
-        state_dir.glob("run_*.json"), key=lambda p: p.stat().st_mtime, reverse=True
+        state_dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True
     )
     for sf in state_files:
         try:

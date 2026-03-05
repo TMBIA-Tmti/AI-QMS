@@ -2787,9 +2787,12 @@ async def _daily_audit_background_scheduler():
                     _get_llm_completion_fn_standalone,
                     _maybe_auto_trigger_meta_review,
                 )
-                from src.analysis.daily_audit import run_daily_audit
-                from src.database.crossexam_store import get_crossexam_store
+                from src.analysis.daily_audit import (
+                    run_daily_sampling_crossexam,
+                    run_daily_audit,
+                )
                 from src.utils.user_settings import load_user_settings
+                from src.utils.app_settings import get_app_setting
 
                 settings = load_user_settings()
                 lang = settings.get("language", "zh-TW") if settings else "zh-TW"
@@ -2802,7 +2805,7 @@ async def _daily_audit_background_scheduler():
                     await asyncio.sleep(3600)
                     continue
 
-                store = get_crossexam_store()
+                mdsap_on = get_app_setting("mdsap_verify_enabled", False)
 
                 # Check regulation freshness to determine incomplete countries
                 incomplete_countries: list[str] = []
@@ -2826,10 +2829,24 @@ async def _daily_audit_background_scheduler():
                         fc_err,
                     )
 
+                # Step 1: Run daily sampling cross-exam (Phase 5 on 20% sample)
+                sampling_record = run_daily_sampling_crossexam(
+                    llm_completion_fn=llm_fn,
+                    model="default",
+                    mdsap_enabled=mdsap_on,
+                    lang=lang,
+                )
+                if sampling_record is None:
+                    _logger.info(
+                        "[DailyAuditScheduler] No pipeline state available, skipping"
+                    )
+                    await asyncio.sleep(3600)
+                    continue
+
+                # Step 2: Run daily audit (Dim A + Dim B) on DailyCrossExamStore
                 result = run_daily_audit(
                     llm_completion_fn=llm_fn,
                     lang=lang,
-                    store=store,
                     incomplete_countries=incomplete_countries,
                 )
 
@@ -3342,7 +3359,7 @@ async def _show_pipeline_progress():
         _pipeline_dir = Path("data/analysis_pipeline")
         if _pipeline_dir.exists():
             _run_files = sorted(
-                _pipeline_dir.glob("run_*.json"),
+                _pipeline_dir.glob("*.json"),
                 key=lambda f: f.stat().st_mtime,
                 reverse=True,
             )
@@ -3570,7 +3587,7 @@ async def on_chat_start():
         _pipeline_dir = Path("data/analysis_pipeline")
         if _pipeline_dir.exists():
             _run_files = sorted(
-                _pipeline_dir.glob("run_*.json"),
+                _pipeline_dir.glob("*.json"),
                 key=lambda f: f.stat().st_mtime,
                 reverse=True,
             )
