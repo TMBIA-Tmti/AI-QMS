@@ -2796,6 +2796,9 @@ async def _daily_audit_background_scheduler():
 
                 settings = load_user_settings()
                 lang = settings.get("language", "zh-TW") if settings else "zh-TW"
+                saved_model = (
+                    settings.get("model_name", "default") if settings else "default"
+                )
 
                 llm_fn = _get_llm_completion_fn_standalone()
                 if llm_fn is None:
@@ -2832,7 +2835,7 @@ async def _daily_audit_background_scheduler():
                 # Step 1: Run daily sampling cross-exam (Phase 5 on 20% sample)
                 sampling_record = run_daily_sampling_crossexam(
                     llm_completion_fn=llm_fn,
-                    model="default",
+                    model=saved_model,
                     mdsap_enabled=mdsap_on,
                     lang=lang,
                 )
@@ -2843,11 +2846,11 @@ async def _daily_audit_background_scheduler():
                     await asyncio.sleep(3600)
                     continue
 
-                # Step 2: Run daily audit (Dim A + Dim B) on DailyCrossExamStore
                 result = run_daily_audit(
                     llm_completion_fn=llm_fn,
                     lang=lang,
                     incomplete_countries=incomplete_countries,
+                    mdsap_enabled=mdsap_on,
                 )
 
                 _logger.info(
@@ -3078,7 +3081,7 @@ async def _run_and_display_daily_audit(
             sampling_record = await _aio.to_thread(
                 run_daily_sampling_crossexam,
                 llm_completion_fn=llm_fn,
-                model=cl.user_session.get("model", "default"),
+                model=cl.user_session.get("model_name", "default"),
                 mdsap_enabled=mdsap_on,
                 lang=lang,
             )
@@ -3094,6 +3097,7 @@ async def _run_and_display_daily_audit(
                 llm_completion_fn=llm_fn,
                 lang=lang,
                 incomplete_countries=incomplete_countries or [],
+                mdsap_enabled=mdsap_on,
             )
 
             audit_progress.content = t("daily_audit.completed")

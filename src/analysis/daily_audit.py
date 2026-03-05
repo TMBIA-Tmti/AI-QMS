@@ -5,13 +5,13 @@ AI-QMS — Daily Audit & 10-Day Meta Review Module
 Third-party LLM agent that evaluates cross-examination quality through two
 dimensions:
 
-  Dimension A — MDSAP Regulation Accuracy:
-    Compares LLM cross-examination answers against predefined MDSAP regulation
-    profiles to score correctness.
+  Dimension A — Regulation Accuracy:
+    MDSAP on  → Compares against all 7-country MDSAP regulation profiles.
+    MDSAP off → Compares against TFDA + EU_MDR (2-country) only.
 
-  Dimension B — 7-Country Cross-Examination Quality:
-    Scores overall cross-exam quality (depth, balance, completeness) across
-    all 7 countries (US, EU, TW, CA, JP, BR, AU).
+  Dimension B — Cross-Examination Quality Verification:
+    MDSAP on  → MDSAP 5-country verification quality (7-country coverage).
+    MDSAP off → 2-country quality evaluation with advisory note.
 
 Daily audit runs produce a DailyAuditResult with 0-100 scores for each
 dimension plus an overall score.
@@ -85,7 +85,7 @@ def _get_prompt_lang(lang: str) -> str:
 # ============================================================
 
 
-_DIM_A_SYSTEM_PROMPTS = {
+_DIM_A_SYSTEM_PROMPTS_MDSAP_ON = {
     "zh": """你是品質管理系統的「MDSAP 法規準確性稽核專家」。你的任務是比對交叉詰問中 LLM 的回答與 MDSAP 法規原文，評估回答的準確性。
 
 你需要檢查：
@@ -134,13 +134,66 @@ Respond in the following JSON format:
 }""",
 }
 
+_DIM_A_SYSTEM_PROMPTS_MDSAP_OFF = {
+    "zh": """你是品質管理系統的「法規準確性稽核專家」。你的任務是比對交叉詰問中 LLM 的回答與 TFDA（台灣）及 EU MDR（歐盟）法規原文，評估回答的準確性。
+
+目前系統僅使用 2 國法規（TFDA + EU_MDR）進行交叉詰問，尚未啟用 MDSAP 5 國驗證。請僅針對這 2 國法規進行評估。
+
+你需要檢查：
+1. **法規引用準確性**: LLM 引用的 TFDA / EU MDR 條文是否正確？條號、內容是否與原文一致？
+2. **要求完整性**: LLM 是否遺漏了這 2 國法規中的關鍵要求？
+3. **解釋正確性**: LLM 對法規的解釋是否正確？有無曲解或過度簡化？
+4. **跨國比較準確性**: 當 LLM 比較 TFDA 與 EU MDR 差異時，描述是否正確？
+5. **原文一致性**: LLM 的回答是否與法規原文的語義一致？
+
+回答必須使用以下 JSON 格式：
+{
+  "dim_a_score": 0-100,
+  "checks": [
+    {
+      "check_type": "reference_accuracy | completeness | interpretation | cross_comparison | text_consistency",
+      "regulation": "被檢查的法規名稱（TFDA 或 EU_MDR）",
+      "issue": "發現的問題描述（若無問題則為 null）",
+      "severity": "none | low | medium | high | critical",
+      "evidence": "支持證據"
+    }
+  ],
+  "summary": "Dim A 評估摘要（2-3 句話）"
+}""",
+    "en": """You are a "Regulation Accuracy Audit Expert" for a quality management system. Your task is to compare LLM cross-examination answers against TFDA (Taiwan) and EU MDR (European Union) regulation source texts and evaluate answer accuracy.
+
+The system currently uses only 2 countries' regulations (TFDA + EU_MDR) for cross-examination. MDSAP 5-country verification is not enabled. Please evaluate only against these 2 regulations.
+
+You need to check:
+1. **Reference Accuracy**: Are the TFDA / EU MDR references cited by the LLM correct? Do article numbers and content match the source?
+2. **Completeness**: Has the LLM missed critical requirements from these 2 regulations?
+3. **Interpretation Correctness**: Is the LLM's interpretation of regulations correct? Any distortions or oversimplifications?
+4. **Cross-Country Comparison Accuracy**: When the LLM compares TFDA vs EU MDR differences, are the descriptions correct?
+5. **Source Text Consistency**: Is the LLM's answer semantically consistent with the regulation's original text?
+
+Respond in the following JSON format:
+{
+  "dim_a_score": 0-100,
+  "checks": [
+    {
+      "check_type": "reference_accuracy | completeness | interpretation | cross_comparison | text_consistency",
+      "regulation": "Regulation being checked (TFDA or EU_MDR)",
+      "issue": "Description of issue found (null if no issue)",
+      "severity": "none | low | medium | high | critical",
+      "evidence": "Supporting evidence"
+    }
+  ],
+  "summary": "Dim A assessment summary (2-3 sentences)"
+}""",
+}
+
 
 # ============================================================
 # System prompts — Dimension B (cross-exam quality)
 # ============================================================
 
 
-_DIM_B_SYSTEM_PROMPTS = {
+_DIM_B_SYSTEM_PROMPTS_MDSAP_ON = {
     "zh": """你是品質管理系統的「7國交叉詰問品質評估專家」。你的任務是評估交叉詰問的整體品質。
 
 你需要評估：
@@ -197,13 +250,72 @@ Respond in the following JSON format:
 }""",
 }
 
+_DIM_B_SYSTEM_PROMPTS_MDSAP_OFF = {
+    "zh": """你是品質管理系統的「2國交叉詰問品質評估專家」。你的任務是評估 TFDA（台灣）與 EU MDR（歐盟）2 國法規交叉詰問的整體品質。
+
+目前系統僅使用 2 國法規（TFDA + EU_MDR）進行交叉詰問，尚未啟用 MDSAP 5 國驗證。請僅針對這 2 國法規進行品質評估。
+
+你需要評估：
+1. **國家覆蓋均衡性**: TW 與 EU 兩國的覆蓋是否均衡？
+2. **問題深度**: 問題是否有足夠深度，不是表面性的？
+3. **回答品質**: 分析者和驗證者的回答是否有實質內容？
+4. **差異識別**: TFDA 與 EU MDR 的法規差異是否被正確識別？
+5. **同意率合理性**: 同意率是否在合理範圍內（過高過低都有問題）？
+6. **可操作性**: 建議和發現是否具有可操作性？
+
+回答必須使用以下 JSON 格式：
+{
+  "dim_b_score": 0-100,
+  "country_scores": {
+    "EU": 0-100, "TW": 0-100
+  },
+  "findings": [
+    {
+      "category": "coverage_balance | question_depth | answer_quality | gap_identification | agreement_rate | actionability",
+      "severity": "low | medium | high | critical",
+      "description": "具體描述",
+      "recommendation": "建議改善措施"
+    }
+  ],
+  "summary": "Dim B 評估摘要（2-3 句話）"
+}""",
+    "en": """You are a "2-Country Cross-Examination Quality Assessment Expert" for a quality management system. Your task is to evaluate the quality of cross-examination using TFDA (Taiwan) and EU MDR (European Union) regulations.
+
+The system currently uses only 2 countries' regulations (TFDA + EU_MDR) for cross-examination. MDSAP 5-country verification is not enabled. Please evaluate quality only for these 2 regulations.
+
+You need to assess:
+1. **Country Coverage Balance**: Is coverage balanced between TW and EU?
+2. **Question Depth**: Are questions sufficiently deep, not superficial?
+3. **Answer Quality**: Do analyzer and verifier answers have substantive content?
+4. **Gap Identification**: Are TFDA vs EU MDR regulatory differences correctly identified?
+5. **Agreement Rate Reasonableness**: Is the agreement rate within a reasonable range (both too high and too low are problematic)?
+6. **Actionability**: Are recommendations and findings actionable?
+
+Respond in the following JSON format:
+{
+  "dim_b_score": 0-100,
+  "country_scores": {
+    "EU": 0-100, "TW": 0-100
+  },
+  "findings": [
+    {
+      "category": "coverage_balance | question_depth | answer_quality | gap_identification | agreement_rate | actionability",
+      "severity": "low | medium | high | critical",
+      "description": "Specific description",
+      "recommendation": "Recommended improvement"
+    }
+  ],
+  "summary": "Dim B assessment summary (2-3 sentences)"
+}""",
+}
+
 
 # ============================================================
 # User prompt templates
 # ============================================================
 
 
-_DIM_A_USER_TEMPLATES = {
+_DIM_A_USER_TEMPLATES_MDSAP_ON = {
     "zh": """## MDSAP 法規準確性稽核任務
 
 以下是最近 {record_count} 份交叉詰問記錄中涉及 MDSAP 法規的回答摘要：
@@ -228,8 +340,37 @@ Below are answer summaries from the most recent {record_count} cross-examination
 Please compare cross-examination answers against MDSAP regulation source texts and provide an accuracy score.""",
 }
 
+_DIM_A_USER_TEMPLATES_MDSAP_OFF = {
+    "zh": """## 法規準確性稽核任務（2國模式：TFDA + EU_MDR）
 
-_DIM_B_USER_TEMPLATES = {
+以下是最近 {record_count} 份交叉詰問記錄中涉及 TFDA（台灣）及 EU MDR（歐盟）法規的回答摘要：
+
+⚠️ 目前僅使用 2 國法規（TFDA + EU_MDR），尚未啟用 MDSAP 5 國驗證。
+
+### 法規參考資料
+{mdsap_references}
+
+### 交叉詰問回答樣本
+{exam_samples}
+
+請比對交叉詰問回答與 TFDA / EU MDR 法規原文，給出準確性評分。""",
+    "en": """## Regulation Accuracy Audit Task (2-Country Mode: TFDA + EU_MDR)
+
+Below are answer summaries from the most recent {record_count} cross-examination records involving TFDA (Taiwan) and EU MDR (European Union) regulations:
+
+⚠️ Currently using only 2 countries' regulations (TFDA + EU_MDR). MDSAP 5-country verification is not enabled.
+
+### Regulation References
+{mdsap_references}
+
+### Cross-Examination Answer Samples
+{exam_samples}
+
+Please compare cross-examination answers against TFDA / EU MDR regulation source texts and provide an accuracy score.""",
+}
+
+
+_DIM_B_USER_TEMPLATES_MDSAP_ON = {
     "zh": """## 7國交叉詰問品質評估任務
 
 以下是最近 {record_count} 份交叉詰問記錄的統計數據：
@@ -253,6 +394,53 @@ _DIM_B_USER_TEMPLATES = {
     "en": """## 7-Country Cross-Examination Quality Assessment Task
 
 Below are statistics from the most recent {record_count} cross-examination records:
+
+### Statistical Summary
+- Total Records: {record_count}
+- Time Range: {time_range}
+- Average Agreement Rate: {avg_agreement_rate:.1%}
+- Countries Covered: {countries}
+
+### Country Distribution
+{country_distribution}
+
+### Question Type Distribution
+{question_type_distribution}
+
+### Sample Records
+{sample_records}
+
+Please evaluate overall quality and score each country.""",
+}
+
+_DIM_B_USER_TEMPLATES_MDSAP_OFF = {
+    "zh": """## 2國交叉詰問品質評估任務（TFDA + EU_MDR）
+
+以下是最近 {record_count} 份交叉詰問記錄的統計數據：
+
+⚠️ 目前僅使用 2 國法規（TFDA + EU_MDR），尚未啟用 MDSAP 5 國驗證。請僅針對這 2 國法規進行品質評估。
+
+### 統計摘要
+- 記錄總數: {record_count}
+- 時間範圍: {time_range}
+- 平均同意率: {avg_agreement_rate:.1%}
+- 涵蓋國家: {countries}
+
+### 國家分布
+{country_distribution}
+
+### 問題類型分布
+{question_type_distribution}
+
+### 樣本記錄
+{sample_records}
+
+請評估整體品質並為每個國家評分。""",
+    "en": """## 2-Country Cross-Examination Quality Assessment Task (TFDA + EU_MDR)
+
+Below are statistics from the most recent {record_count} cross-examination records:
+
+⚠️ Currently using only 2 countries' regulations (TFDA + EU_MDR). MDSAP 5-country verification is not enabled. Please evaluate quality only for these 2 regulations.
 
 ### Statistical Summary
 - Total Records: {record_count}
@@ -350,6 +538,7 @@ class DailyAuditResult:
         cross_validation: dict | None = None,
         incomplete_data_warning: bool = False,
         incomplete_countries: list[str] | None = None,
+        sampling_details: dict | None = None,
     ):
         self.audit_id = audit_id or f"audit_{int(time.time())}"
         self.audit_date = audit_date or datetime.now().strftime("%Y-%m-%d")
@@ -370,6 +559,7 @@ class DailyAuditResult:
         self.cross_validation = cross_validation or {}
         self.incomplete_data_warning = incomplete_data_warning
         self.incomplete_countries = incomplete_countries or []
+        self.sampling_details = sampling_details or {}
 
     def to_dict(self) -> dict:
         return {
@@ -392,6 +582,7 @@ class DailyAuditResult:
             "cross_validation": self.cross_validation,
             "incomplete_data_warning": self.incomplete_data_warning,
             "incomplete_countries": self.incomplete_countries,
+            "sampling_details": self.sampling_details,
         }
 
     @classmethod
@@ -536,6 +727,7 @@ def run_daily_sampling_crossexam(
     import math
     import random
     import time as _time
+    from concurrent.futures import ThreadPoolExecutor, as_completed
 
     from src.analysis.state import PipelineState, RowState
     from src.analysis.verifier import run_verification_row
@@ -593,11 +785,11 @@ def run_daily_sampling_crossexam(
     questions_used: list[dict] = []
     total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
 
-    for row in sampled_rows:
+    def _verify_single_row(row: RowState) -> dict:
+        """Run Phase 5 verification on a single row (thread-safe)."""
         row.verification_rounds = []
         row.verification_agreed = False
         row.flagged_for_ra = False
-
         try:
             phase_result = run_verification_row(
                 row_state=row,
@@ -607,44 +799,43 @@ def run_daily_sampling_crossexam(
                 selected_regulations=selected_regulations,
                 run_id=f"daily_{datetime.now().strftime('%Y%m%d')}",
             )
-            agreed = row.verification_agreed
-            flagged = row.flagged_for_ra
-            rounds = row.verification_rounds or []
-
-            if agreed:
-                total_agreed += 1
-            if flagged:
-                total_flagged += 1
-            total_rounds += len(rounds)
-
-            clause_results.append(
-                {
-                    "clause_id": row.clause_id,
-                    "doc_id": row.doc_id,
-                    "agreed": agreed,
-                    "flagged": flagged,
-                    "rounds": rounds,
-                    "phase_status": phase_result.status if phase_result else "unknown",
-                }
-            )
-
-            usage = phase_result.llm_usage if phase_result else {}
-            for k in total_usage:
-                total_usage[k] += usage.get(k, 0)
-
+            return {
+                "clause_id": row.clause_id,
+                "doc_id": row.doc_id,
+                "agreed": row.verification_agreed,
+                "flagged": row.flagged_for_ra,
+                "rounds": row.verification_rounds or [],
+                "phase_status": phase_result.status if phase_result else "unknown",
+                "usage": phase_result.llm_usage if phase_result else {},
+            }
         except Exception as e:
             logger.error("Daily sampling Phase 5 failed for row %s: %s", row.row_id, e)
-            clause_results.append(
-                {
-                    "clause_id": row.clause_id,
-                    "doc_id": row.doc_id,
-                    "agreed": False,
-                    "flagged": True,
-                    "rounds": [],
-                    "error": str(e)[:200],
-                }
-            )
-            total_flagged += 1
+            return {
+                "clause_id": row.clause_id,
+                "doc_id": row.doc_id,
+                "agreed": False,
+                "flagged": True,
+                "rounds": [],
+                "error": str(e)[:200],
+                "usage": {},
+            }
+
+    # Run all sampled rows in parallel
+    with ThreadPoolExecutor(max_workers=len(sampled_rows)) as executor:
+        futures = {
+            executor.submit(_verify_single_row, row): row for row in sampled_rows
+        }
+        for future in as_completed(futures):
+            result_dict = future.result()
+            if result_dict.get("agreed"):
+                total_agreed += 1
+            if result_dict.get("flagged"):
+                total_flagged += 1
+            total_rounds += len(result_dict.get("rounds", []))
+            clause_results.append(result_dict)
+            usage = result_dict.get("usage", {})
+            for k in total_usage:
+                total_usage[k] += usage.get(k, 0)
 
     duration = _time.time() - start_time
 
@@ -695,6 +886,7 @@ def run_daily_audit(
     store=None,
     feedback_context: str = "",
     incomplete_countries: list[str] | None = None,
+    mdsap_enabled: bool = False,
 ) -> DailyAuditResult:
     """Run daily audit with Dim A (MDSAP accuracy) + Dim B (cross-exam quality).
 
@@ -730,14 +922,29 @@ def run_daily_audit(
 
     _lang_key = _get_prompt_lang(lang)
     _incomplete = incomplete_countries or []
+
+    latest_record = records[0]
+    sampling_details = {
+        "source_run_id": latest_record.source_run_id,
+        "mdsap_enabled": latest_record.mdsap_enabled,
+        "selected_regulations": latest_record.selected_regulations,
+        "sample_rate": latest_record.sample_rate,
+        "total_rows_available": latest_record.total_rows_available,
+        "sampled_count": len(latest_record.sampled_row_ids),
+        "clauses": latest_record.clauses,
+    }
+
     result = DailyAuditResult(
         incomplete_data_warning=bool(_incomplete),
         incomplete_countries=_incomplete,
+        sampling_details=sampling_details,
     )
 
-    # ---- Dimension A: MDSAP Regulation Accuracy ----
-    try:
-        dim_a = _run_dim_a(
+    # ---- Dimension A + B: run in parallel ----
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    def _exec_dim_a() -> dict:
+        return _run_dim_a(
             llm_completion_fn,
             records,
             model,
@@ -745,17 +952,11 @@ def run_daily_audit(
             max_tokens,
             _lang_key,
             feedback_context=feedback_context,
+            mdsap_enabled=mdsap_enabled,
         )
-        result.dim_a_score = dim_a.get("dim_a_score", 0.0)
-        result.dim_a_checks = dim_a.get("checks", [])
-        result.dim_a_summary = dim_a.get("summary", "")
-    except Exception as e:
-        logger.error(f"Dim A audit failed: {e}")
-        result.dim_a_summary = f"Dim A audit failed: {str(e)[:200]}"
 
-    # ---- Dimension B: 7-Country Cross-Exam Quality ----
-    try:
-        dim_b = _run_dim_b(
+    def _exec_dim_b() -> dict:
+        return _run_dim_b(
             llm_completion_fn,
             records,
             store,
@@ -764,14 +965,42 @@ def run_daily_audit(
             max_tokens,
             _lang_key,
             feedback_context=feedback_context,
+            mdsap_enabled=mdsap_enabled,
         )
-        result.dim_b_score = dim_b.get("dim_b_score", 0.0)
-        result.dim_b_country_scores = dim_b.get("country_scores", {})
-        result.dim_b_findings = dim_b.get("findings", [])
-        result.dim_b_summary = dim_b.get("summary", "")
-    except Exception as e:
-        logger.error(f"Dim B audit failed: {e}")
-        result.dim_b_summary = f"Dim B audit failed: {str(e)[:200]}"
+
+    dim_a_result: dict | None = None
+    dim_b_result: dict | None = None
+    dim_a_err: Exception | None = None
+    dim_b_err: Exception | None = None
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        future_a = executor.submit(_exec_dim_a)
+        future_b = executor.submit(_exec_dim_b)
+        try:
+            dim_a_result = future_a.result()
+        except Exception as e:
+            dim_a_err = e
+        try:
+            dim_b_result = future_b.result()
+        except Exception as e:
+            dim_b_err = e
+
+    if dim_a_result is not None:
+        result.dim_a_score = dim_a_result.get("dim_a_score", 0.0)
+        result.dim_a_checks = dim_a_result.get("checks", [])
+        result.dim_a_summary = dim_a_result.get("summary", "")
+    if dim_a_err is not None:
+        logger.error("Dim A audit failed: %s", dim_a_err)
+        result.dim_a_summary = f"Dim A audit failed: {str(dim_a_err)[:200]}"
+
+    if dim_b_result is not None:
+        result.dim_b_score = dim_b_result.get("dim_b_score", 0.0)
+        result.dim_b_country_scores = dim_b_result.get("country_scores", {})
+        result.dim_b_findings = dim_b_result.get("findings", [])
+        result.dim_b_summary = dim_b_result.get("summary", "")
+    if dim_b_err is not None:
+        logger.error("Dim B audit failed: %s", dim_b_err)
+        result.dim_b_summary = f"Dim B audit failed: {str(dim_b_err)[:200]}"
 
     # ---- Overall score ----
     result.overall_score = (result.dim_a_score + result.dim_b_score) / 2
@@ -815,12 +1044,14 @@ def _run_dim_a(
     max_tokens: int,
     lang_key: str,
     feedback_context: str = "",
+    mdsap_enabled: bool = False,
 ) -> dict:
-    """Run Dimension A audit: MDSAP regulation accuracy check."""
-    # Build MDSAP reference context from predefined profiles
-    mdsap_refs = _build_mdsap_reference_context()
+    """Run Dimension A audit: regulation accuracy check.
 
-    # Build exam samples from recent records (up to 5)
+    When mdsap_enabled=True  → 7-country MDSAP prompts
+    When mdsap_enabled=False → 2-country (TFDA + EU_MDR) prompts
+    """
+    mdsap_refs = _build_mdsap_reference_context()
     exam_samples = _build_exam_samples(records[:5])
 
     feedback_section = ""
@@ -831,17 +1062,28 @@ def _run_dim_a(
             f"{feedback_context}"
         )
 
+    sys_prompts = (
+        _DIM_A_SYSTEM_PROMPTS_MDSAP_ON
+        if mdsap_enabled
+        else _DIM_A_SYSTEM_PROMPTS_MDSAP_OFF
+    )
+    usr_templates = (
+        _DIM_A_USER_TEMPLATES_MDSAP_ON
+        if mdsap_enabled
+        else _DIM_A_USER_TEMPLATES_MDSAP_OFF
+    )
+
     user_prompt = (
-        _DIM_A_USER_TEMPLATES[lang_key].format(
+        usr_templates[lang_key].format(
             record_count=len(records),
-            mdsap_references=mdsap_refs or "  (No MDSAP references available)",
+            mdsap_references=mdsap_refs or "  (No references available)",
             exam_samples=exam_samples or "  (No exam samples available)",
         )
         + feedback_section
     )
 
     messages = [
-        {"role": "system", "content": _DIM_A_SYSTEM_PROMPTS[lang_key]},
+        {"role": "system", "content": sys_prompts[lang_key]},
         {"role": "user", "content": user_prompt},
     ]
 
@@ -867,8 +1109,13 @@ def _run_dim_b(
     max_tokens: int,
     lang_key: str,
     feedback_context: str = "",
+    mdsap_enabled: bool = False,
 ) -> dict:
-    """Run Dimension B audit: 7-country cross-exam quality check."""
+    """Run Dimension B audit: cross-exam quality verification.
+
+    When mdsap_enabled=True  → MDSAP 5-country verification prompts (7-country coverage)
+    When mdsap_enabled=False → 2-country (TFDA + EU_MDR) quality prompts with advisory note
+    """
     country_dist = store.get_country_distribution()
     qtype_dist = store.get_question_type_distribution()
 
@@ -908,8 +1155,19 @@ def _run_dim_b(
             f"{feedback_context}"
         )
 
+    sys_prompts = (
+        _DIM_B_SYSTEM_PROMPTS_MDSAP_ON
+        if mdsap_enabled
+        else _DIM_B_SYSTEM_PROMPTS_MDSAP_OFF
+    )
+    usr_templates = (
+        _DIM_B_USER_TEMPLATES_MDSAP_ON
+        if mdsap_enabled
+        else _DIM_B_USER_TEMPLATES_MDSAP_OFF
+    )
+
     user_prompt = (
-        _DIM_B_USER_TEMPLATES[lang_key].format(
+        usr_templates[lang_key].format(
             record_count=len(records),
             time_range=time_range,
             avg_agreement_rate=avg_agreement,
@@ -922,7 +1180,7 @@ def _run_dim_b(
     )
 
     messages = [
-        {"role": "system", "content": _DIM_B_SYSTEM_PROMPTS[lang_key]},
+        {"role": "system", "content": sys_prompts[lang_key]},
         {"role": "user", "content": user_prompt},
     ]
 
@@ -1432,12 +1690,18 @@ def export_daily_audit_word(result: DailyAuditResult) -> Path:
         warning_run.font.bold = True
         warning_run.font.color.rgb = RGBColor(204, 102, 0)  # orange
 
-    # Scores
+    sd = result.sampling_details or {}
+    is_mdsap = sd.get("mdsap_enabled", False)
+    regs = sd.get("selected_regulations", [])
+    regs_label = ", ".join(regs) if regs else "N/A"
+    mode_label = "MDSAP 7國" if is_mdsap else "2國 (TFDA + EU_MDR)"
+
     doc.add_heading("評分摘要 / Score Summary", level=2)
     doc.add_paragraph(
         f"Overall Score: {result.overall_score:.0f}/100\n"
-        f"Dimension A (MDSAP Accuracy): {result.dim_a_score:.0f}/100\n"
-        f"Dimension B (Cross-Exam Quality): {result.dim_b_score:.0f}/100\n"
+        f"Dimension A (法規準確性 / Regulation Accuracy): {result.dim_a_score:.0f}/100\n"
+        f"Dimension B (交叉詰問品質驗證 / Cross-Exam Quality): {result.dim_b_score:.0f}/100\n"
+        f"模式 / Mode: {mode_label}\n"
         f"Deviation Detected: {'Yes ⚠️' if result.deviation_detected else 'No ✅'}"
     )
 
@@ -1445,8 +1709,63 @@ def export_daily_audit_word(result: DailyAuditResult) -> Path:
         doc.add_heading("偏差詳情 / Deviation Details", level=2)
         doc.add_paragraph(result.deviation_details)
 
-    # Dim A details
-    doc.add_heading("Dimension A — MDSAP 法規準確性", level=2)
+    clauses = sd.get("clauses", [])
+    if clauses or regs:
+        doc.add_heading("20% 抽樣明細 / Sampling Details", level=2)
+        doc.add_paragraph(
+            f"來源分析 / Source Pipeline: {sd.get('source_run_id', 'N/A')}\n"
+            f"模式 / Mode: {mode_label}\n"
+            f"比對法規 / Regulations: {regs_label}\n"
+            f"抽樣率 / Sample Rate: {sd.get('sample_rate', 0.2):.0%}\n"
+            f"可用列數 / Available Rows: {sd.get('total_rows_available', 0)}\n"
+            f"抽樣列數 / Sampled Rows: {sd.get('sampled_count', 0)}"
+        )
+
+    if clauses:
+        doc.add_heading("逐條分析結果 / Per-Clause Results", level=3)
+        table = doc.add_table(rows=1, cols=5)
+        table.style = "Light Grid Accent 1"
+        hdr = table.rows[0].cells
+        hdr[0].text = "ISO 13485 條號"
+        hdr[1].text = "文件 / Doc ID"
+        hdr[2].text = "比對法規"
+        hdr[3].text = "同意 / Agreed"
+        hdr[4].text = "標記 RA / Flagged"
+        for clause in clauses:
+            row = table.add_row().cells
+            row[0].text = str(clause.get("clause_id", ""))
+            row[1].text = str(clause.get("doc_id", ""))
+            row[2].text = regs_label
+            row[3].text = "✅" if clause.get("agreed") else "❌"
+            row[4].text = "⚠️" if clause.get("flagged") else "—"
+
+        doc.add_heading("各條詰問輪次摘要 / Round Details", level=3)
+        for clause in clauses:
+            rounds = clause.get("rounds", [])
+            if not rounds:
+                continue
+            doc.add_paragraph(
+                f"▸ {clause.get('clause_id', '')} ({clause.get('doc_id', '')})",
+            ).runs[0].font.bold = True
+            for rd in rounds:
+                analyzer = rd.get("analyzer", {})
+                verifier = rd.get("verifier", {})
+                position = str(analyzer.get("position", ""))[:300]
+                confidence = analyzer.get("confidence", "N/A")
+                agreement = verifier.get("agreement_level", "N/A")
+                doc.add_paragraph(
+                    f"  Round {rd.get('round', '?')}: "
+                    f"Analyzer confidence={confidence}, "
+                    f"Verifier agreement={agreement}\n"
+                    f"  Position: {position}"
+                )
+
+    dim_a_title = (
+        "Dimension A — MDSAP 法規準確性"
+        if is_mdsap
+        else "Dimension A — 法規準確性 (TFDA + EU_MDR)"
+    )
+    doc.add_heading(dim_a_title, level=2)
     doc.add_paragraph(result.dim_a_summary or "N/A")
     if result.dim_a_checks:
         doc.add_heading("檢查項目", level=3)
@@ -1457,8 +1776,12 @@ def export_daily_audit_word(result: DailyAuditResult) -> Path:
                 f"(Regulation: {check.get('regulation', '')})"
             )
 
-    # Dim B details
-    doc.add_heading("Dimension B — 7國交叉詰問品質", level=2)
+    dim_b_title = (
+        "Dimension B — MDSAP 5國交叉詰問品質驗證"
+        if is_mdsap
+        else "Dimension B — 2國交叉詰問品質驗證"
+    )
+    doc.add_heading(dim_b_title, level=2)
     doc.add_paragraph(result.dim_b_summary or "N/A")
     if result.dim_b_country_scores:
         doc.add_heading("各國評分", level=3)
@@ -1472,7 +1795,6 @@ def export_daily_audit_word(result: DailyAuditResult) -> Path:
                 f"{finding.get('description', '')}"
             )
 
-    # Cross-validation: 7-country vs MDSAP 5-country
     cv = result.cross_validation or {}
     if cv and not cv.get("error"):
         mdsap_count = cv.get("mdsap_record_count", 0)
@@ -1532,19 +1854,27 @@ def export_daily_audit_excel(result: DailyAuditResult) -> Path:
     )
     header_text_font = Font(bold=True, color="FFFFFF", size=11)
 
+    sd = result.sampling_details or {}
+    is_mdsap = sd.get("mdsap_enabled", False)
+    regs = sd.get("selected_regulations", [])
+    regs_label = ", ".join(regs) if regs else "N/A"
+    mode_label = "MDSAP 7-Country" if is_mdsap else "2-Country (TFDA + EU_MDR)"
+
     summary_data = [
         ("Audit ID", result.audit_id),
         ("Date", result.audit_date),
         ("Timestamp", result.timestamp),
         ("Overall Score", f"{result.overall_score:.0f}/100"),
-        ("Dim A Score (MDSAP Accuracy)", f"{result.dim_a_score:.0f}/100"),
+        ("Dim A Score (Regulation Accuracy)", f"{result.dim_a_score:.0f}/100"),
         ("Dim B Score (Cross-Exam Quality)", f"{result.dim_b_score:.0f}/100"),
+        ("Mode", mode_label),
+        ("Regulations", regs_label),
         ("Deviation Detected", "Yes" if result.deviation_detected else "No"),
         ("Deviation Details", result.deviation_details or "N/A"),
         ("Model", result.model),
         ("Summary", result.summary),
         (
-            "⚠️ Incomplete Data Warning",
+            "Incomplete Data Warning",
             f"Yes — {', '.join(result.incomplete_countries)}"
             if result.incomplete_data_warning
             else "No",
@@ -1557,8 +1887,6 @@ def export_daily_audit_excel(result: DailyAuditResult) -> Path:
 
     ws_sum.column_dimensions["A"].width = 30
     ws_sum.column_dimensions["B"].width = 60
-
-    # Sheet 2: Dim A Checks
     ws_a = wb.create_sheet("Dim A Checks")
     a_headers = ["Check Type", "Regulation", "Issue", "Severity", "Evidence"]
     for col, h in enumerate(a_headers, 1):
@@ -1642,6 +1970,36 @@ def export_daily_audit_excel(result: DailyAuditResult) -> Path:
                 )
             ws_cv.column_dimensions["A"].width = 35
             ws_cv.column_dimensions["B"].width = 20
+
+    clauses = sd.get("clauses", [])
+    if clauses:
+        ws_sd = wb.create_sheet("Sampling Details")
+        sd_headers = [
+            "ISO 13485 Clause",
+            "Doc ID",
+            "Regulations",
+            "Agreed",
+            "Flagged",
+            "Rounds",
+        ]
+        for col, h in enumerate(sd_headers, 1):
+            cell = ws_sd.cell(row=1, column=col, value=h)
+            cell.font = header_text_font
+            cell.fill = header_fill
+        for row_idx, clause in enumerate(clauses, start=2):
+            ws_sd.cell(row=row_idx, column=1, value=clause.get("clause_id", ""))
+            ws_sd.cell(row=row_idx, column=2, value=clause.get("doc_id", ""))
+            ws_sd.cell(row=row_idx, column=3, value=regs_label)
+            ws_sd.cell(
+                row=row_idx, column=4, value="Yes" if clause.get("agreed") else "No"
+            )
+            ws_sd.cell(
+                row=row_idx, column=5, value="Yes" if clause.get("flagged") else "No"
+            )
+            ws_sd.cell(row=row_idx, column=6, value=len(clause.get("rounds", [])))
+        ws_sd.column_dimensions["A"].width = 20
+        ws_sd.column_dimensions["B"].width = 20
+        ws_sd.column_dimensions["C"].width = 40
 
     from src.utils.safe_io import safe_save_binary
 
