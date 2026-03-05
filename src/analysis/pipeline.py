@@ -28,6 +28,7 @@ Pipeline flow:
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from pathlib import Path
 from typing import Callable, Optional
@@ -220,6 +221,9 @@ class AnalysisPipeline:
             max_total_tokens=max_tokens_budget, max_time_seconds=max_time_seconds
         )
         self._state.update_budget(budget)
+
+        # Thread lock for Phase 5 parallel state updates
+        self._state_lock = threading.Lock()
 
         # Comparison table wrapper
         self._table = ComparisonTable(self._state, state_dir)
@@ -760,17 +764,17 @@ class AnalysisPipeline:
                 doc_id = futures[future]
                 try:
                     _, rows, result = future.result()
-                    for row in rows:
-                        row.set_phase_result(Phase.VERIFICATION, result)
-                        if result.status in (
-                            PhaseStatus.COMPLETED.value,
-                            PhaseStatus.SKIPPED.value,
-                        ):
-                            row.advance_to_next_phase()
-                        self._state.update_row(row)
-                    self._save_state()
+                    with self._state_lock:
+                        for row in rows:
+                            row.set_phase_result(Phase.VERIFICATION, result)
+                            if result.status in (
+                                PhaseStatus.COMPLETED.value,
+                                PhaseStatus.SKIPPED.value,
+                            ):
+                                row.advance_to_next_phase()
+                            self._state.update_row(row)
+                        self._save_state()
 
-                    # Notify per-row completion if callback set
                     for row in rows:
                         if (
                             self._on_row_complete
@@ -862,9 +866,7 @@ class AnalysisPipeline:
                 row.advance_to_next_phase()
 
         elif phase == Phase.GAP_SCAN:
-            result = run_gap_scan_row(
-                row, self._state, self._llm_fn, self._model
-            )
+            result = run_gap_scan_row(row, self._state, self._llm_fn, self._model)
             row.set_phase_result(Phase.GAP_SCAN, result)
             if result.status == PhaseStatus.COMPLETED.value:
                 row.advance_to_next_phase()
@@ -884,9 +886,7 @@ class AnalysisPipeline:
                 row.advance_to_next_phase()
 
         elif phase == Phase.REMEDIATION:
-            result = run_remediation_row(
-                row, self._state, self._llm_fn, self._model
-            )
+            result = run_remediation_row(row, self._state, self._llm_fn, self._model)
             row.set_phase_result(Phase.REMEDIATION, result)
             if result.status in (
                 PhaseStatus.COMPLETED.value,
@@ -1057,6 +1057,7 @@ class AnalysisPipeline:
             )
 
         return False
+
     def _advance_global_phase(self, next_phase: Phase) -> None:
         """Advance the global pipeline phase."""
         self._state.current_phase = next_phase.value

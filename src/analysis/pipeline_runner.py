@@ -28,6 +28,7 @@ from src.analysis.state import (
     Phase,
     PhaseStatus,
     ExecutionMode,
+    PauseReason,
     PipelineState,
     PHASE_ORDER,
 )
@@ -46,7 +47,12 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "run_pipeline_analysis",
     "PipelineRunResult",
+    "_pipeline_send_message_fn",
 ]
+
+# Module-level send function, set by run_pipeline_analysis() when active.
+# Used by report_api.py for deviation/meta-review announcements via Chainlit.
+_pipeline_send_message_fn: Optional[Callable] = None
 
 
 # ============================================================
@@ -228,8 +234,11 @@ async def run_pipeline_analysis(
     Returns:
         PipelineRunResult with all analysis data
     """
+    global _pipeline_send_message_fn
+
     result = PipelineRunResult()
     start_time = time.time()
+    _pipeline_send_message_fn = send_message_fn
 
     try:
         pipeline = AnalysisPipeline(
@@ -334,7 +343,7 @@ async def run_pipeline_analysis(
         pipeline._on_phase_complete = sync_on_phase_complete
 
         # Run pipeline in a thread (it's synchronous, uses blocking LLM calls)
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         # We run the pipeline in chunks so we can send async progress between phases
         # Instead of running the full pipeline.run(), we step through phases manually
@@ -358,11 +367,7 @@ async def run_pipeline_analysis(
             # Budget check for LLM phases
             if phase.uses_llm and pipeline._budget_exceeded():
                 await _send_progress(send_message_fn, phase, "fail", "Token 預算已用盡")
-                pipeline.pause(
-                    __import__(
-                        "src.analysis.state", fromlist=["PauseReason"]
-                    ).PauseReason.LLM_BUDGET_EXCEEDED
-                )
+                pipeline.pause(PauseReason.LLM_BUDGET_EXCEEDED)
                 break
 
             # Send start message

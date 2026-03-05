@@ -394,9 +394,10 @@ class DailyAuditResult:
 
     @classmethod
     def from_dict(cls, data: dict) -> "DailyAuditResult":
-        return cls(
-            **{k: v for k, v in data.items() if k in cls.__init__.__code__.co_varnames}
-        )
+        import inspect
+
+        valid_params = set(inspect.signature(cls.__init__).parameters.keys()) - {"self"}
+        return cls(**{k: v for k, v in data.items() if k in valid_params})
 
     def detect_deviation(self) -> bool:
         """Check if this result shows deviation beyond thresholds."""
@@ -471,9 +472,10 @@ class MetaReviewResult:
 
     @classmethod
     def from_dict(cls, data: dict) -> "MetaReviewResult":
-        return cls(
-            **{k: v for k, v in data.items() if k in cls.__init__.__code__.co_varnames}
-        )
+        import inspect
+
+        valid_params = set(inspect.signature(cls.__init__).parameters.keys()) - {"self"}
+        return cls(**{k: v for k, v in data.items() if k in valid_params})
 
 
 # ============================================================
@@ -530,7 +532,12 @@ def run_daily_audit(
     # ---- Dimension A: MDSAP Regulation Accuracy ----
     try:
         dim_a = _run_dim_a(
-            llm_completion_fn, records, model, temperature, max_tokens, _lang_key,
+            llm_completion_fn,
+            records,
+            model,
+            temperature,
+            max_tokens,
+            _lang_key,
             feedback_context=feedback_context,
         )
         result.dim_a_score = dim_a.get("dim_a_score", 0.0)
@@ -543,7 +550,13 @@ def run_daily_audit(
     # ---- Dimension B: 7-Country Cross-Exam Quality ----
     try:
         dim_b = _run_dim_b(
-            llm_completion_fn, records, store, model, temperature, max_tokens, _lang_key,
+            llm_completion_fn,
+            records,
+            store,
+            model,
+            temperature,
+            max_tokens,
+            _lang_key,
             feedback_context=feedback_context,
         )
         result.dim_b_score = dim_b.get("dim_b_score", 0.0)
@@ -612,11 +625,14 @@ def _run_dim_a(
             f"{feedback_context}"
         )
 
-    user_prompt = _DIM_A_USER_TEMPLATES[lang_key].format(
-        record_count=len(records),
-        mdsap_references=mdsap_refs or "  (No MDSAP references available)",
-        exam_samples=exam_samples or "  (No exam samples available)",
-    ) + feedback_section
+    user_prompt = (
+        _DIM_A_USER_TEMPLATES[lang_key].format(
+            record_count=len(records),
+            mdsap_references=mdsap_refs or "  (No MDSAP references available)",
+            exam_samples=exam_samples or "  (No exam samples available)",
+        )
+        + feedback_section
+    )
 
     messages = [
         {"role": "system", "content": _DIM_A_SYSTEM_PROMPTS[lang_key]},
@@ -686,15 +702,18 @@ def _run_dim_b(
             f"{feedback_context}"
         )
 
-    user_prompt = _DIM_B_USER_TEMPLATES[lang_key].format(
-        record_count=len(records),
-        time_range=time_range,
-        avg_agreement_rate=avg_agreement,
-        countries=countries,
-        country_distribution=country_text or "  (No country data)",
-        question_type_distribution=qtype_text or "  (No question type data)",
-        sample_records=sample_text or "  (No sample records)",
-    ) + feedback_section
+    user_prompt = (
+        _DIM_B_USER_TEMPLATES[lang_key].format(
+            record_count=len(records),
+            time_range=time_range,
+            avg_agreement_rate=avg_agreement,
+            countries=countries,
+            country_distribution=country_text or "  (No country data)",
+            question_type_distribution=qtype_text or "  (No question type data)",
+            sample_records=sample_text or "  (No sample records)",
+        )
+        + feedback_section
+    )
 
     messages = [
         {"role": "system", "content": _DIM_B_SYSTEM_PROMPTS[lang_key]},
@@ -747,9 +766,9 @@ def _run_cross_validation(
     # ------------------------------------------------------------------
     # 1.  Split records by regulation coverage scope
     # ------------------------------------------------------------------
-    mdsap_records: list = []   # records covering MDSAP-only regs
-    full_records: list = []    # records covering ≥ 7 regs (all countries)
-    mixed_records: list = []   # anything else
+    mdsap_records: list = []  # records covering MDSAP-only regs
+    full_records: list = []  # records covering ≥ 7 regs (all countries)
+    mixed_records: list = []  # anything else
 
     for r in records:
         regs = set(getattr(r, "selected_regulations", None) or [])
@@ -805,9 +824,7 @@ def _run_cross_validation(
         else 0.0
     )
     non_mdsap_country_avg = (
-        round(
-            sum(non_mdsap_country_scores.values()) / len(non_mdsap_country_scores), 2
-        )
+        round(sum(non_mdsap_country_scores.values()) / len(non_mdsap_country_scores), 2)
         if non_mdsap_country_scores
         else 0.0
     )
@@ -854,6 +871,7 @@ def _run_cross_validation(
         assessment,
     )
     return cross_val
+
 
 # ============================================================
 # Core: run_10day_meta_review
@@ -1528,7 +1546,6 @@ def export_meta_review_excel(result: MetaReviewResult) -> Path:
     return filepath
 
 
-
 # ============================================================
 # User Feedback — Data class, Storage, CRUD
 # ============================================================
@@ -1540,12 +1557,12 @@ class AuditFeedback:
     def __init__(
         self,
         feedback_id: str,
-        audit_type: str,           # 'daily' | 'meta'
-        target_id: str,            # audit_id or meta review date
+        audit_type: str,  # 'daily' | 'meta'
+        target_id: str,  # audit_id or meta review date
         feedback_text: str,
         created_at: str,
         updated_at: str,
-        status: str = "active",    # 'active' | 'deleted'
+        status: str = "active",  # 'active' | 'deleted'
         re_evaluation_id: Optional[str] = None,
         re_evaluation_score: Optional[int] = None,
     ):

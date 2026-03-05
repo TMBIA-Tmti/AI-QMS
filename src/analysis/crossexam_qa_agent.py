@@ -220,9 +220,10 @@ class MetaAnalysisResult:
 
     @classmethod
     def from_dict(cls, data: dict) -> "MetaAnalysisResult":
-        return cls(
-            **{k: v for k, v in data.items() if k in cls.__init__.__code__.co_varnames}
-        )
+        import inspect
+
+        valid_params = set(inspect.signature(cls.__init__).parameters.keys()) - {"self"}
+        return cls(**{k: v for k, v in data.items() if k in valid_params})
 
     @property
     def summary(self) -> str:

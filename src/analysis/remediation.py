@@ -134,41 +134,10 @@ def _build_gap_analysis_section(
     return "\n".join(parts)
 
 
-def _get_regulation_text(
-    clause_id: str,
-    standard: str,
-) -> str:
-    """Try to retrieve regulation text from crawled data."""
-    try:
-        from src.storage.regulatory_markdown_storage import (
-            get_regulatory_markdown_store,
-        )
+def _get_regulation_text(clause_id: str, standard: str) -> str:
+    from src.analysis import get_regulation_text
 
-        store = get_regulatory_markdown_store()
-        all_docs = store.list_documents(status="active")
-
-        for doc in all_docs:
-            title = doc.get("title", "").lower()
-            standard_name = standard.replace("_", " ").lower()
-            if standard_name in title or standard_name.replace(" ", "") in title:
-                full_doc = store.get_document(doc.get("doc_id", ""))
-                if full_doc and full_doc.get("content"):
-                    content = full_doc["content"]
-                    # Try to find the specific clause section
-                    clause_pattern = re.compile(
-                        rf"(?:^|\n)(?:#+\s*)?{re.escape(clause_id)}[\s.、]",
-                        re.MULTILINE,
-                    )
-                    match = clause_pattern.search(content)
-                    if match:
-                        # Extract ~800 chars around the match for remediation context
-                        start = max(0, match.start() - 50)
-                        end = min(len(content), match.end() + 800)
-                        return content[start:end]
-
-        return "（系統中無此法規條文原文，請以稽核問題本身作為改善依據）"
-    except Exception:
-        return "（無法取得法規條文）"
+    return get_regulation_text(clause_id, standard, context_chars=800)
 
 
 def _parse_remediation_response(response_text: str) -> dict:
@@ -300,7 +269,11 @@ def run_remediation_row(
         usage = response.get("usage", {})
 
         # 檢測 LLM 錯誤回應
-        if not response_text or response_text.startswith("[ERROR]") or response.get("all_failed"):
+        if (
+            not response_text
+            or response_text.startswith("[ERROR]")
+            or response.get("all_failed")
+        ):
             error_detail = response_text[:200] if response_text else "LLM 回應為空"
             phase_result.status = PhaseStatus.FAILED.value
             phase_result.error = f"LLM 呼叫失敗: {error_detail}"
@@ -357,6 +330,7 @@ def _emit_pipeline_event(run_id: str, event: dict) -> None:
         return
     try:
         from src.analysis.report_api import emit_cross_exam_event
+
         emit_cross_exam_event(run_id, event)
     except ImportError:
         pass
@@ -498,9 +472,7 @@ def run_remediation_document(
 
     try:
         # Filter rows that need remediation (not fully compliant)
-        rows_needing_remediation = [
-            r for r in rows if r.verdict != "full_compliance"
-        ]
+        rows_needing_remediation = [r for r in rows if r.verdict != "full_compliance"]
 
         if not rows_needing_remediation:
             phase_result.status = PhaseStatus.SKIPPED.value
@@ -515,9 +487,7 @@ def run_remediation_document(
         clauses_parts = []
         for i, row in enumerate(rows_needing_remediation, 1):
             evidence_items = [EvidenceItem.from_dict(e) for e in row.evidence_items]
-            gap_section = _build_gap_analysis_section(
-                evidence_items, row.verdict or ""
-            )
+            gap_section = _build_gap_analysis_section(evidence_items, row.verdict or "")
             regulation_text = _get_regulation_text(row.clause_id, row.standard)
             risk_display = RISK_LEVEL_DISPLAY.get(row.risk_level or "", {})
             risk_label = risk_display.get("label_zh", row.risk_level or "未評估")
@@ -555,15 +525,18 @@ def run_remediation_document(
             return phase_result
 
         # SSE: emit before LLM call
-        _emit_pipeline_event(run_id, {
-            "type": "phase_4_start",
-            "phase": "remediation",
-            "doc_id": doc_id,
-            "doc_title": doc_title,
-            "clause_ids": [r.clause_id for r in rows_needing_remediation],
-            "clause_count": len(rows_needing_remediation),
-            "prompt_preview": user_prompt[:500],
-        })
+        _emit_pipeline_event(
+            run_id,
+            {
+                "type": "phase_4_start",
+                "phase": "remediation",
+                "doc_id": doc_id,
+                "doc_title": doc_title,
+                "clause_ids": [r.clause_id for r in rows_needing_remediation],
+                "clause_count": len(rows_needing_remediation),
+                "prompt_preview": user_prompt[:500],
+            },
+        )
 
         # Call LLM
         response = llm_completion_fn(
@@ -578,17 +551,24 @@ def run_remediation_document(
         usage = response.get("usage", {})
 
         # 檢測 LLM 錯誤回應
-        if not response_text or response_text.startswith("[ERROR]") or response.get("all_failed"):
+        if (
+            not response_text
+            or response_text.startswith("[ERROR]")
+            or response.get("all_failed")
+        ):
             error_detail = response_text[:200] if response_text else "LLM 回應為空"
             phase_result.status = PhaseStatus.FAILED.value
             phase_result.error = f"LLM 呼叫失敗: {error_detail}"
             phase_result.completed_at = time.time()
-            _emit_pipeline_event(run_id, {
-                "type": "phase_4_error",
-                "phase": "remediation",
-                "doc_id": doc_id,
-                "error": f"LLM 呼叫失敗: {error_detail}",
-            })
+            _emit_pipeline_event(
+                run_id,
+                {
+                    "type": "phase_4_error",
+                    "phase": "remediation",
+                    "doc_id": doc_id,
+                    "error": f"LLM 呼叫失敗: {error_detail}",
+                },
+            )
             return phase_result
 
         # Track budget
@@ -622,26 +602,32 @@ def run_remediation_document(
         phase_result.llm_model = response.get("model", model)
 
         # SSE: emit after LLM call
-        _emit_pipeline_event(run_id, {
-            "type": "phase_4_result",
-            "phase": "remediation",
-            "doc_id": doc_id,
-            "doc_title": doc_title,
-            "clause_ids": [r.clause_id for r in rows_needing_remediation],
-            "llm_response": response_text[:2000],
-            "total_suggestions": total_suggestions,
-            "usage": usage,
-        })
+        _emit_pipeline_event(
+            run_id,
+            {
+                "type": "phase_4_result",
+                "phase": "remediation",
+                "doc_id": doc_id,
+                "doc_title": doc_title,
+                "clause_ids": [r.clause_id for r in rows_needing_remediation],
+                "llm_response": response_text[:2000],
+                "total_suggestions": total_suggestions,
+                "usage": usage,
+            },
+        )
 
     except Exception as e:
         phase_result.status = PhaseStatus.FAILED.value
         phase_result.error = str(e)
-        _emit_pipeline_event(run_id, {
-            "type": "phase_4_error",
-            "phase": "remediation",
-            "doc_id": doc_id,
-            "error": str(e)[:500],
-        })
+        _emit_pipeline_event(
+            run_id,
+            {
+                "type": "phase_4_error",
+                "phase": "remediation",
+                "doc_id": doc_id,
+                "error": str(e)[:500],
+            },
+        )
 
     phase_result.completed_at = time.time()
     return phase_result

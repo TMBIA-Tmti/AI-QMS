@@ -180,42 +180,10 @@ def _build_evidence_section(evidence_items: list[EvidenceItem]) -> str:
     return "\n\n".join(parts) if parts else "（無證據項目）"
 
 
-def _get_regulation_text(
-    clause_id: str,
-    standard: str,
-) -> str:
-    """Try to retrieve regulation text from crawled data."""
-    try:
-        from src.storage.regulatory_markdown_storage import (
-            get_regulatory_markdown_store,
-        )
+def _get_regulation_text(clause_id: str, standard: str) -> str:
+    from src.analysis import get_regulation_text
 
-        store = get_regulatory_markdown_store()
-        # Search for documents matching the standard
-        all_docs = store.list_documents(status="active")
-
-        for doc in all_docs:
-            title = doc.get("title", "").lower()
-            standard_name = standard.replace("_", " ").lower()
-            if standard_name in title or standard_name.replace(" ", "") in title:
-                full_doc = store.get_document(doc.get("doc_id", ""))
-                if full_doc and full_doc.get("content"):
-                    content = full_doc["content"]
-                    # Try to find the specific clause section
-                    clause_pattern = re.compile(
-                        rf"(?:^|\n)(?:#+\s*)?{re.escape(clause_id)}[\s.、]",
-                        re.MULTILINE,
-                    )
-                    match = clause_pattern.search(content)
-                    if match:
-                        # Extract ~500 chars around the match
-                        start = max(0, match.start() - 50)
-                        end = min(len(content), match.end() + 500)
-                        return content[start:end]
-
-        return "（系統中無此法規條文原文，以下驗證基於稽核問題本身）"
-    except Exception:
-        return "（無法取得法規條文）"
+    return get_regulation_text(clause_id, standard, context_chars=500)
 
 
 def run_checklist_verify_row(
@@ -300,7 +268,11 @@ def run_checklist_verify_row(
         usage = response.get("usage", {})
 
         # 檢測 LLM 錯誤回應
-        if not response_text or response_text.startswith("[ERROR]") or response.get("all_failed"):
+        if (
+            not response_text
+            or response_text.startswith("[ERROR]")
+            or response.get("all_failed")
+        ):
             error_detail = response_text[:200] if response_text else "LLM 回應為空"
             phase_result.status = PhaseStatus.FAILED.value
             phase_result.error = f"LLM 呼叫失敗: {error_detail}"
@@ -389,6 +361,7 @@ def _emit_pipeline_event(run_id: str, event: dict) -> None:
         return
     try:
         from src.analysis.report_api import emit_cross_exam_event
+
         emit_cross_exam_event(run_id, event)
     except ImportError:
         pass
@@ -571,15 +544,18 @@ def run_checklist_verify_document(
         doc_title = rows[0].doc_title if rows else doc_id
 
         # SSE: emit before LLM call
-        _emit_pipeline_event(run_id, {
-            "type": "phase_2_start",
-            "phase": "checklist_verify",
-            "doc_id": doc_id,
-            "doc_title": doc_title,
-            "clause_ids": [r.clause_id for r in rows],
-            "clause_count": len(rows),
-            "prompt_preview": user_prompt[:500],
-        })
+        _emit_pipeline_event(
+            run_id,
+            {
+                "type": "phase_2_start",
+                "phase": "checklist_verify",
+                "doc_id": doc_id,
+                "doc_title": doc_title,
+                "clause_ids": [r.clause_id for r in rows],
+                "clause_count": len(rows),
+                "prompt_preview": user_prompt[:500],
+            },
+        )
 
         # Call LLM
         response = llm_completion_fn(
@@ -594,17 +570,24 @@ def run_checklist_verify_document(
         usage = response.get("usage", {})
 
         # 檢測 LLM 錯誤回應
-        if not response_text or response_text.startswith("[ERROR]") or response.get("all_failed"):
+        if (
+            not response_text
+            or response_text.startswith("[ERROR]")
+            or response.get("all_failed")
+        ):
             error_detail = response_text[:200] if response_text else "LLM 回應為空"
             phase_result.status = PhaseStatus.FAILED.value
             phase_result.error = f"LLM 呼叫失敗: {error_detail}"
             phase_result.completed_at = time.time()
-            _emit_pipeline_event(run_id, {
-                "type": "phase_2_error",
-                "phase": "checklist_verify",
-                "doc_id": doc_id,
-                "error": f"LLM 呼叫失敗: {error_detail}",
-            })
+            _emit_pipeline_event(
+                run_id,
+                {
+                    "type": "phase_2_error",
+                    "phase": "checklist_verify",
+                    "doc_id": doc_id,
+                    "error": f"LLM 呼叫失敗: {error_detail}",
+                },
+            )
             return phase_result
 
         # Track budget
@@ -621,7 +604,11 @@ def run_checklist_verify_document(
 
             for item in evidence_items:
                 l2_match = next(
-                    (r for r in l2_results if r.get("evidence_name") == item.evidence_name),
+                    (
+                        r
+                        for r in l2_results
+                        if r.get("evidence_name") == item.evidence_name
+                    ),
                     None,
                 )
                 if l2_match:
@@ -648,25 +635,31 @@ def run_checklist_verify_document(
         phase_result.llm_model = response.get("model", model)
 
         # SSE: emit after LLM call
-        _emit_pipeline_event(run_id, {
-            "type": "phase_2_result",
-            "phase": "checklist_verify",
-            "doc_id": doc_id,
-            "doc_title": doc_title,
-            "clause_ids": [r.clause_id for r in rows],
-            "llm_response": response_text[:2000],
-            "usage": usage,
-        })
+        _emit_pipeline_event(
+            run_id,
+            {
+                "type": "phase_2_result",
+                "phase": "checklist_verify",
+                "doc_id": doc_id,
+                "doc_title": doc_title,
+                "clause_ids": [r.clause_id for r in rows],
+                "llm_response": response_text[:2000],
+                "usage": usage,
+            },
+        )
 
     except Exception as e:
         phase_result.status = PhaseStatus.FAILED.value
         phase_result.error = str(e)
-        _emit_pipeline_event(run_id, {
-            "type": "phase_2_error",
-            "phase": "checklist_verify",
-            "doc_id": doc_id,
-            "error": str(e)[:500],
-        })
+        _emit_pipeline_event(
+            run_id,
+            {
+                "type": "phase_2_error",
+                "phase": "checklist_verify",
+                "doc_id": doc_id,
+                "error": str(e)[:500],
+            },
+        )
 
     phase_result.completed_at = time.time()
     return phase_result

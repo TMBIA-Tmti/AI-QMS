@@ -20,6 +20,8 @@ import os
 import shutil
 from pathlib import Path
 
+from src.utils.safe_io import atomic_write_json
+
 logger = logging.getLogger(__name__)
 
 # Valid position values
@@ -236,9 +238,7 @@ class WatermarkService:
             datetime.timezone.utc
         ).isoformat()
         try:
-            os.makedirs(os.path.dirname(self._config_path), exist_ok=True)
-            with open(self._config_path, "w", encoding="utf-8") as f:
-                json.dump(self._config, f, indent=4, ensure_ascii=False)
+            atomic_write_json(Path(self._config_path), self._config, indent=4)
             logger.debug("Saved watermark config to %s", self._config_path)
         except OSError as e:
             logger.error("Failed to save watermark config: %s", e)

@@ -1008,8 +1008,14 @@ TRANSLATIONS["ms-MY"].update(
 # INJECTION LOGIC
 # ============================================================
 def inject_translations():
-    master = json.load(open(os.path.join(LOCALE_DIR, "zh-TW.json"), encoding="utf-8"))
+    with open(os.path.join(LOCALE_DIR, "zh-TW.json"), encoding="utf-8") as f:
+        master = json.load(f)
     master_keys = set(master.keys())
+
+    # Load en-US once outside the loop (avoid reopening per key)
+    en_path = os.path.join(LOCALE_DIR, "en-US.json")
+    with open(en_path, encoding="utf-8") as f:
+        en_data = json.load(f)
 
     results = {}
     for locale_file in sorted(os.listdir(LOCALE_DIR)):
@@ -1020,7 +1026,8 @@ def inject_translations():
             continue
 
         locale_path = os.path.join(LOCALE_DIR, locale_file)
-        locale_data = json.load(open(locale_path, encoding="utf-8"))
+        with open(locale_path, encoding="utf-8") as f:
+            locale_data = json.load(f)
         missing_keys = sorted(master_keys - set(locale_data.keys()))
 
         if not missing_keys:
@@ -1037,8 +1044,6 @@ def inject_translations():
                 added += 1
             else:
                 # Fallback: use English translation
-                en_path = os.path.join(LOCALE_DIR, "en-US.json")
-                en_data = json.load(open(en_path, encoding="utf-8"))
                 if key in en_data:
                     locale_data[key] = en_data[key]
                     fallback += 1

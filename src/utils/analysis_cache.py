@@ -11,12 +11,17 @@ Cache files are stored in data/analysis_cache/ as JSON.
 """
 
 import json
+import threading
 
 from datetime import datetime
 from pathlib import Path
 
+from src.utils.safe_io import atomic_write_json
+
 _CACHE_DIR = Path(__file__).parent.parent.parent / "data" / "analysis_cache"
 _CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+_cache_lock = threading.Lock()
 
 
 def _make_cache_id(command: str) -> str:
@@ -98,8 +103,7 @@ def save_analysis_cache(
     elif "crawl_results" in existing:
         data["crawl_results"] = existing["crawl_results"]
 
-    with open(cache_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    atomic_write_json(cache_path, data)
 
 
 def load_latest_cache(command: str = None) -> dict:
@@ -176,15 +180,15 @@ def mark_cache_delivered(cache_id: str):
     cache_path = _CACHE_DIR / f"{cache_id}.json"
     if not cache_path.exists():
         return
-    try:
-        with open(cache_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        data["status"] = "delivered"
-        data["delivered_at"] = datetime.now().isoformat()
-        with open(cache_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-    except Exception:
-        pass
+    with _cache_lock:
+        try:
+            with open(cache_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            data["status"] = "delivered"
+            data["delivered_at"] = datetime.now().isoformat()
+            atomic_write_json(cache_path, data)
+        except Exception:
+            pass
 
 
 def cleanup_old_caches(keep_count: int = 10):

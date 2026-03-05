@@ -113,4 +113,49 @@ __all__ = [
     "PipelineRunResult",
     # Report API
     "report_router",
+    # Shared utilities
+    "get_regulation_text",
 ]
+
+
+import re as _re
+
+
+def get_regulation_text(
+    clause_id: str,
+    standard: str,
+    context_chars: int = 800,
+) -> str:
+    """Retrieve regulation text from crawled data for a given clause.
+
+    Used by checklist_verifier (Phase 2), remediation (Phase 4),
+    and verifier (Phase 5) to provide regulation context to LLM prompts.
+    """
+    try:
+        from src.storage.regulatory_markdown_storage import (
+            get_regulatory_markdown_store,
+        )
+
+        store = get_regulatory_markdown_store()
+        all_docs = store.list_documents(status="active")
+
+        for doc in all_docs:
+            title = doc.get("title", "").lower()
+            standard_name = standard.replace("_", " ").lower()
+            if standard_name in title or standard_name.replace(" ", "") in title:
+                full_doc = store.get_document(doc.get("doc_id", ""))
+                if full_doc and full_doc.get("content"):
+                    content = full_doc["content"]
+                    clause_pattern = _re.compile(
+                        rf"(?:^|\n)(?:#+\s*)?{_re.escape(clause_id)}[\s.、]",
+                        _re.MULTILINE,
+                    )
+                    match = clause_pattern.search(content)
+                    if match:
+                        start = max(0, match.start() - 50)
+                        end = min(len(content), match.end() + context_chars)
+                        return content[start:end]
+
+        return "（系統中無此法規條文原文）"
+    except Exception:
+        return "（無法取得法規條文）"

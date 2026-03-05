@@ -334,7 +334,7 @@ class Tools:
         try:
             response = requests.get(url, timeout=3)
             return "running" if response.status_code == 200 else "error"
-        except:
+        except Exception:
             return "stopped"
 
     def _get_provider_status_list(self) -> list:
@@ -618,7 +618,7 @@ class Tools:
                     "status": "error",
                     "url": self.valves.OLLAMA_URL,
                 }
-        except:
+        except Exception:
             status["services"]["ollama"] = {
                 "status": "stopped",
                 "url": self.valves.OLLAMA_URL,
@@ -639,7 +639,7 @@ class Tools:
                     "status": "error",
                     "url": self.valves.LMSTUDIO_URL,
                 }
-        except:
+        except Exception:
             status["services"]["lmstudio"] = {
                 "status": "stopped",
                 "url": self.valves.LMSTUDIO_URL,

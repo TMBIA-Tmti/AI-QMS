@@ -2808,10 +2808,9 @@ async def _daily_audit_background_scheduler():
                     from src.services.regulatory_crawler import (
                         check_country_data_completeness,
                     )
+
                     completeness = await check_country_data_completeness()
-                    incomplete_countries = completeness.get(
-                        "incomplete_countries", []
-                    )
+                    incomplete_countries = completeness.get("incomplete_countries", [])
                     if incomplete_countries:
                         _logger.info(
                             "[DailyAuditScheduler] Incomplete data for: %s — "
@@ -2849,9 +2848,7 @@ async def _daily_audit_background_scheduler():
                     )
 
             except ImportError as ie:
-                _logger.warning(
-                    "[DailyAuditScheduler] Module not available: %s", ie
-                )
+                _logger.warning("[DailyAuditScheduler] Module not available: %s", ie)
                 await asyncio.sleep(3600)
                 continue
 
@@ -2903,13 +2900,19 @@ async def _auto_trigger_crossexam():
                     lines.append(f"  • {info.get('message', pid)}")
             if lang.startswith("zh"):
                 upload_msg = (
-                    t("crossexam.upload_reminder_title") + "\n" + "\n".join(lines)
-                    + "\n\n" + t("crossexam.upload_reminder_instruction")
+                    t("crossexam.upload_reminder_title")
+                    + "\n"
+                    + "\n".join(lines)
+                    + "\n\n"
+                    + t("crossexam.upload_reminder_instruction")
                 )
             else:
                 upload_msg = (
-                    t("crossexam.upload_reminder_title") + "\n" + "\n".join(lines)
-                    + "\n\n" + t("crossexam.upload_reminder_instruction")
+                    t("crossexam.upload_reminder_title")
+                    + "\n"
+                    + "\n".join(lines)
+                    + "\n\n"
+                    + t("crossexam.upload_reminder_instruction")
                 )
             await cl.Message(content=upload_msg, author="Eira").send()
 
@@ -2936,25 +2939,39 @@ async def _auto_trigger_crossexam():
                     _rows = _rd.get("rows", {})
                     _total = _rd.get("total_rows") or len(_rows)
                     _completed = _rd.get("completed_rows") or 0
-                    _pct = _rd.get("progress_percent") or (round((_completed / _total) * 100, 1) if _total > 0 else 0)
+                    _pct = _rd.get("progress_percent") or (
+                        round((_completed / _total) * 100, 1) if _total > 0 else 0
+                    )
                     _phase = _rd.get("current_phase", "")
                     if _st == "running" and _total > 0:
                         # Build progress bar: ████░░░░░░ 35%
                         _filled = int(_pct / 5)  # 20 chars total
                         _empty = 20 - _filled
                         _bar = "\u2588" * _filled + "\u2591" * _empty
-                        progress_msg = t("crossexam.pipeline_running",
-                            bar=_bar, completed=_completed, total=_total,
-                            percent=_pct, phase=_phase)
+                        progress_msg = t(
+                            "crossexam.pipeline_running",
+                            bar=_bar,
+                            completed=_completed,
+                            total=_total,
+                            percent=_pct,
+                            phase=_phase,
+                        )
                         await cl.Message(content=progress_msg, author="Eira").send()
                     elif _st == "completed" and _total > 0:
-                        progress_msg = t("crossexam.pipeline_completed",
-                            total=_total)
+                        progress_msg = t("crossexam.pipeline_completed", total=_total)
                         await cl.Message(content=progress_msg, author="Eira").send()
+                if not _run_files:
+                    not_started_msg = t("crossexam.pipeline_not_started")
+                    if (
+                        not_started_msg
+                        and not_started_msg != "crossexam.pipeline_not_started"
+                    ):
+                        await cl.Message(content=not_started_msg, author="Eira").send()
         except Exception:
             pass  # Don't block startup if progress check fails
     except Exception as e:
         logger.error(f"Auto cross-exam trigger failed: {e}")
+
 
 # ============================================================
 # Chat Start
@@ -3159,12 +3176,18 @@ async def on_chat_start():
                     _run_data = json.loads(_rf.read_text(encoding="utf-8"))
                     _run_status = _run_data.get("status", "")
                     _run_id = _run_data.get("run_id", _rf.stem)
-                    if _run_status == "completed" and _run_data.get("total_rows", 0) > 0:
+                    if (
+                        _run_status == "completed"
+                        and _run_data.get("total_rows", 0) > 0
+                    ):
                         _report_url = f"/api/report/page/{_run_id}?lang={_lang}"
                         _created = _run_data.get("started_at", "")
                         if isinstance(_created, (int, float)):
                             from datetime import datetime as _dt
-                            _created = _dt.fromtimestamp(_created).strftime("%Y-%m-%d %H:%M")
+
+                            _created = _dt.fromtimestamp(_created).strftime(
+                                "%Y-%m-%d %H:%M"
+                            )
                         elif _created:
                             _created = str(_created)[:16]
                         else:
@@ -3219,7 +3242,7 @@ async def on_chat_start():
     # Requirement: 改成只在文件控制子agent出現，主agent不要出現每日詰問分析
     # NOTE: Must run BEFORE Eira introduction so MDSAP/upload notifications appear first
     if profile == "文件管制 (Doc Control)":
-        asyncio.create_task(_auto_trigger_crossexam())
+        await _auto_trigger_crossexam()
 
     # Eira introduction + signature detection (AFTER crossexam notifications, LAST in startup sequence)
     if saved and user_name:
@@ -3228,6 +3251,7 @@ async def on_chat_start():
     else:
         # New user — wait for LLM settings first, then ask name in on_settings_update
         cl.user_session.set("eira_name_pending", True)
+
 
 async def _send_eira_introduction(
     user_name: str, profile: str, doc_count: int, doc_limit: int
@@ -4317,7 +4341,10 @@ async def handle_regulatory_list():
             # Resolve selected regions → regulation profile IDs
             try:
                 from src.analysis.compliance_rules import get_profile_ids_for_regions
-                _reg_list_selected_ids = get_profile_ids_for_regions(list(filter_regions))
+
+                _reg_list_selected_ids = get_profile_ids_for_regions(
+                    list(filter_regions)
+                )
             except Exception:
                 _reg_list_selected_ids = []
 
@@ -4329,7 +4356,9 @@ async def handle_regulatory_list():
                 source_command="regulatory_list",
                 send_message_fn=_send_pipeline_msg,
                 on_run_id_ready=_on_run_id_ready,
-                selected_regulations=_reg_list_selected_ids if _reg_list_selected_ids else None,
+                selected_regulations=_reg_list_selected_ids
+                if _reg_list_selected_ids
+                else None,
             )
 
         if pipeline_result and pipeline_result.success:
@@ -4920,6 +4949,7 @@ async def handle_regulatory_update_rescan(selected_regions: list):
                             ).send()
                     except Exception as _profile_err:
                         import logging
+
                         logging.getLogger(__name__).warning(
                             f"Failed to generate profile for {_region}: {_profile_err}"
                         )
@@ -4935,11 +4965,11 @@ async def handle_regulatory_update_rescan(selected_regions: list):
         _selected_regulation_ids = get_profile_ids_for_regions(selected_regions)
     except Exception as _profile_setup_err:
         import logging
+
         logging.getLogger(__name__).warning(
             f"Profile generation setup failed: {_profile_setup_err}"
         )
         _selected_regulation_ids = []
-
 
     # ── Step 1: Generate baseline Word/Excel BEFORE LLM (guaranteed report) ──
     _cache_id_update = f"regulatory_update_{datetime.now().strftime('%Y%m%d%H%M%S')}"
@@ -5037,7 +5067,9 @@ async def handle_regulatory_update_rescan(selected_regions: list):
                     source_command="regulatory_update",
                     send_message_fn=_send_pipeline_msg_update,
                     on_run_id_ready=_on_run_id_ready_update,
-                    selected_regulations=_selected_regulation_ids if _selected_regulation_ids else None,
+                    selected_regulations=_selected_regulation_ids
+                    if _selected_regulation_ids
+                    else None,
                 )
 
             if pipeline_result and pipeline_result.success:
@@ -5608,11 +5640,14 @@ async def _send_inline_view(filepath: str, doc_id: str, level: str):
     # Check if watermark decision has been made (requirement: 線上觀看前須先完成浮水印流程)
     if not cl.user_session.get("watermark_confirmed", False):
         # Store pending view request so it can be processed after watermark decision
-        cl.user_session.set("pending_inline_view", {
-            "filepath": filepath,
-            "doc_id": doc_id,
-            "level": level,
-        })
+        cl.user_session.set(
+            "pending_inline_view",
+            {
+                "filepath": filepath,
+                "doc_id": doc_id,
+                "level": level,
+            },
+        )
         await _ask_watermark_before_upload()
         return
 
@@ -5674,6 +5709,7 @@ async def _send_inline_view(filepath: str, doc_id: str, level: str):
         await cl.Message(content=msg_text).send()
     else:
         await cl.Message(content=t("view.no_pdf")).send()
+
 
 async def _process_pending_inline_view():
     """Process any pending inline view request after watermark decision."""
@@ -6515,7 +6551,8 @@ async def handle_file_upload(files):
     # Show warnings for files flagged as potentially obsolete
     # Requirement: 只要檢測結果機率不為0都列出來讓使用者確認
     obsolete_flagged = [
-        r for r in succeeded
+        r
+        for r in succeeded
         if r.get("obsolete_result", {}).get("is_suspected_obsolete")
     ]
     if obsolete_flagged:
@@ -6525,8 +6562,7 @@ async def handle_file_upload(files):
             conf_pct = int(obs["confidence"] * 100)
             reasons_str = "; ".join(obs.get("reasons", []))
             obs_lines.append(
-                f"- **`{r['filename']}`** — 信心度: {conf_pct}%\n"
-                f"  原因: {reasons_str}"
+                f"- **`{r['filename']}`** — 信心度: {conf_pct}%\n  原因: {reasons_str}"
             )
         obs_lines.append("\n> 以上文件疑似為作廢文件，請確認是否繼續處理。")
         await cl.Message(content="\n".join(obs_lines)).send()
@@ -6534,11 +6570,13 @@ async def handle_file_upload(files):
     # --- Hierarchy Classification UI ---
     # Show LLM-classified document hierarchy for user confirmation
     hierarchy_flagged = [
-        r for r in succeeded
+        r
+        for r in succeeded
         if r.get("hierarchy_result") and r["hierarchy_result"].get("level_id")
     ]
     if hierarchy_flagged:
         from src.services.doc_hierarchy import get_doc_hierarchy
+
         hier_mgr = get_doc_hierarchy()
         lang = cl.user_session.get("language", "zh-TW")
         hier_lines = ["\n### 📂 文件階層分類結果\n"]
@@ -6794,6 +6832,7 @@ def process_uploaded_file_sync(
     # --- Obsolete Document Detection ---
     # Requirement: 只要檢測結果機率不為0都列出來讓使用者確認
     from src.services.obsolete_detector import detect_obsolete
+
     obsolete_result = detect_obsolete(
         filename=filename,
         title=doc_info.get("title", ""),
@@ -6807,7 +6846,10 @@ def process_uploaded_file_sync(
     hierarchy_result = None
     try:
         from src.services.doc_hierarchy import classify_document_hierarchy_llm
-        with phoenix_trace(profile="文件管制 (Doc Control)", command="hierarchy_classify"):
+
+        with phoenix_trace(
+            profile="文件管制 (Doc Control)", command="hierarchy_classify"
+        ):
             hierarchy_result = classify_document_hierarchy_llm(
                 content=ocr_text_for_detection,
                 filename=filename,
@@ -6816,7 +6858,11 @@ def process_uploaded_file_sync(
                 lang=lang,
             )
     except Exception:
-        hierarchy_result = {"level_id": "OTHER", "confidence": 0.0, "reasoning": "Classification failed"}
+        hierarchy_result = {
+            "level_id": "OTHER",
+            "confidence": 0.0,
+            "reasoning": "Classification failed",
+        }
 
     md_service = MarkdownStoreService()
     duplicate_doc = md_service.check_duplicate(str(dest_path))
@@ -8872,7 +8918,9 @@ async def on_message(message: cl.Message):
 
                 # Use centralized should_allow_download() for the decision
                 level = get_document_level(doc_id, _doc_type, _title, _content)
-                is_dl_allowed = should_allow_download(doc_id, _doc_type, _title, _content)
+                is_dl_allowed = should_allow_download(
+                    doc_id, _doc_type, _title, _content
+                )
 
                 if is_dl_allowed:
                     # Outside controlled range — allow download

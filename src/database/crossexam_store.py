@@ -106,9 +106,10 @@ class CrossExamRecord:
 
     @classmethod
     def from_dict(cls, data: dict) -> "CrossExamRecord":
-        return cls(
-            **{k: v for k, v in data.items() if k in cls.__init__.__code__.co_varnames}
-        )
+        import inspect
+
+        valid_params = set(inspect.signature(cls.__init__).parameters.keys()) - {"self"}
+        return cls(**{k: v for k, v in data.items() if k in valid_params})
 
     def summary_text(self, lang_key: str = "zh") -> str:
         """Generate a human-readable summary for display."""

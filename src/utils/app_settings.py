@@ -10,50 +10,20 @@
 """
 
 import json
-import os
-import tempfile
 import logging
-import time
+import threading
 from pathlib import Path
+
+from src.utils.safe_io import atomic_write_json
 
 logger = logging.getLogger(__name__)
 
 _APP_SETTINGS_PATH = Path(__file__).parent.parent.parent / "data" / "app_settings.json"
+_settings_lock = threading.Lock()
 
 
 def _atomic_write_json(path: Path, data: dict, retries: int = 3) -> None:
-    """Write JSON atomically: write to temp file then rename."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    for attempt in range(retries):
-        try:
-            fd, tmp = tempfile.mkstemp(
-                dir=str(path.parent), suffix=".tmp", prefix=path.stem
-            )
-            try:
-                with os.fdopen(fd, "w", encoding="utf-8") as f:
-                    json.dump(data, f, ensure_ascii=False, indent=2)
-                os.replace(tmp, str(path))
-                return
-            except BaseException:
-                try:
-                    os.unlink(tmp)
-                except OSError:
-                    pass
-                raise
-        except PermissionError:
-            if attempt < retries - 1:
-                logger.warning(
-                    "PermissionError writing %s (attempt %d/%d), retrying...",
-                    path,
-                    attempt + 1,
-                    retries,
-                )
-                time.sleep(0.3 * (attempt + 1))
-            else:
-                logger.error(
-                    "PermissionError writing %s after %d retries", path, retries
-                )
-                raise
+    atomic_write_json(path, data, retries=retries)
 
 
 def load_app_settings() -> dict:
@@ -79,6 +49,7 @@ def get_app_setting(key: str, default=None):
 
 def set_app_setting(key: str, value) -> None:
     """設定單一值（讀取-修改-寫入）。"""
-    settings = load_app_settings()
-    settings[key] = value
-    save_app_settings(settings)
+    with _settings_lock:
+        settings = load_app_settings()
+        settings[key] = value
+        save_app_settings(settings)

@@ -21,39 +21,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
 
-# ── i18n helpers ──
-
-
-def _t(key: str, lang: str = "zh-TW", **kwargs) -> str:
-    """Translate a key using locale JSON files."""
-    _cache = getattr(_t, "_cache", {})
-    if lang not in _cache:
-        locale_path = os.path.join(
-            os.path.dirname(__file__), "..", "chainlit_app", "locales", f"{lang}.json"
-        )
-        try:
-            with open(locale_path, "r", encoding="utf-8") as f:
-                _cache[lang] = json.load(f)
-        except Exception:
-            _cache[lang] = {}
-        _t._cache = _cache
-    text = _cache.get(lang, {}).get(key, key)
-    if kwargs:
-        try:
-            text = text.format(**kwargs)
-        except (KeyError, IndexError):
-            pass
-    return text
-
-
-def _tl(key: str, lang: str = "zh-TW") -> list:
-    """Translate a key that returns a list (e.g. table headers)."""
-    _cache = getattr(_t, "_cache", {})
-    if lang not in _cache:
-        _t(key, lang)  # populate cache
-        _cache = getattr(_t, "_cache", {})
-    val = _cache.get(lang, {}).get(key)
-    return val if isinstance(val, list) else [key]
+from src.utils.regulatory_export import _t, _tl, _source_label as _source_label
 
 
 # Output directory for generated files
@@ -203,14 +171,6 @@ def format_regulatory_update_markdown(
 # ============================================================
 # Word Export
 # ============================================================
-
-
-def _source_label(source_command: str, lang: str = "zh-TW") -> str:
-    labels = {
-        "regulatory_list": _t("source_label.regulatory_list", lang),
-        "regulatory_update": _t("source_label.regulatory_update", lang),
-    }
-    return labels.get(source_command, source_command)
 
 
 def export_regulatory_update_to_word(

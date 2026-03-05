@@ -25,7 +25,13 @@ from src.analysis.state import (
     PhaseStatus,
 )
 from src.analysis.compliance_rules import get_checklist, list_clauses
-from src.analysis.risk_matrix import (    VERDICT_DISPLAY, RISK_LEVEL_DISPLAY,    determine_gap_severity, assess_risk, risk_to_verdict,)
+from src.analysis.risk_matrix import (
+    VERDICT_DISPLAY,
+    RISK_LEVEL_DISPLAY,
+    determine_gap_severity,
+    assess_risk,
+    risk_to_verdict,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +98,7 @@ class ComparisonTable:
         # Load doc content service for body scanning
         try:
             from src.services.markdown_store_service import MarkdownStoreService
+
             doc_service = MarkdownStoreService()
         except Exception:
             doc_service = None
@@ -110,7 +117,8 @@ class ComparisonTable:
         # Documents that ARE the standard itself (e.g., "ISO 13485_2016.PDF")
         # should be used as reference material, NOT analyzed as QMS documents.
         relevant_docs = [
-            doc for doc in relevant_docs
+            doc
+            for doc in relevant_docs
             if not self._is_external_standard_doc(doc, standard)
         ]
         # Pre-load doc content for body scanning (batch read, more efficient)
@@ -172,9 +180,13 @@ class ComparisonTable:
                 doc_title = doc.get("title", "")
                 doc_body = doc_contents.get(doc_id, "")
                 matched_clauses = self._llm_classify_doc(
-                    doc_id, doc_title, doc_body,
-                    clause_ids, checklist,
-                    llm_completion_fn, model,
+                    doc_id,
+                    doc_title,
+                    doc_body,
+                    clause_ids,
+                    checklist,
+                    llm_completion_fn,
+                    model,
                 )
                 for clause_id in matched_clauses:
                     clause_info = checklist.get(clause_id, {})
@@ -227,12 +239,28 @@ class ComparisonTable:
         # Known external standard prefixes
         # These are international/national standard body identifiers
         external_prefixes = (
-            "iso ", "iso/", "iec ", "iec/", "en ",
-            "astm ", "ansi ", "ansi/",
-            "fda ", "21 cfr", "cfr ",
-            "mdr ", "eu mdr", "ivdr",
-            "gmp ", "qsr ", "qmsr",
-            "jis ", "gb ", "gb/t", "cnt ", "cns ",
+            "iso ",
+            "iso/",
+            "iec ",
+            "iec/",
+            "en ",
+            "astm ",
+            "ansi ",
+            "ansi/",
+            "fda ",
+            "21 cfr",
+            "cfr ",
+            "mdr ",
+            "eu mdr",
+            "ivdr",
+            "gmp ",
+            "qsr ",
+            "qmsr",
+            "jis ",
+            "gb ",
+            "gb/t",
+            "cnt ",
+            "cns ",
         )
 
         # 1. doc_id starts with a standard prefix
@@ -263,10 +291,11 @@ class ComparisonTable:
         # 4. Filename pattern: ends with version/year indicators typical of
         #    downloaded standard PDFs (e.g., 'ISO_13485_2016', 'IEC_62304_2015')
         import re
+
         if re.match(
-            r'^(iso|iec|en|astm|ansi|fda|cfr|mdr|ivdr|jis|gb|cns)'
-            r'[\s_./-]'
-            r'.*\d{4}',
+            r"^(iso|iec|en|astm|ansi|fda|cfr|mdr|ivdr|jis|gb|cns)"
+            r"[\s_./-]"
+            r".*\d{4}",
             id_lower,
         ):
             logger.info(
@@ -278,8 +307,7 @@ class ComparisonTable:
         # 5. doc_type explicitly marked as external/reference
         if doc_type in ("external", "reference", "standard", "regulation"):
             logger.info(
-                f"Excluding external standard doc: {doc_id} "
-                f"(doc_type='{doc_type}')"
+                f"Excluding external standard doc: {doc_id} (doc_type='{doc_type}')"
             )
             return True
 
@@ -317,8 +345,8 @@ class ComparisonTable:
 
         # ---- Strategy 1: Extract clause from title ----
         clause_patterns = [
-            r"[Cc]lause\s+(\d+(?:\.\d+)*)",       # "Clause 4.2.3"
-            r"條款\s*(\d+(?:\.\d+)*)",              # "條款 4.2.3"
+            r"[Cc]lause\s+(\d+(?:\.\d+)*)",  # "Clause 4.2.3"
+            r"條款\s*(\d+(?:\.\d+)*)",  # "條款 4.2.3"
             r"\bISO\s*13485[^)]*?(\d+\.\d+(?:\.\d+)*)",  # "ISO 13485 Clause 4.2.3"
             r"^\s*(\d+\.\d+(?:\.\d+)*)\s*[-—\s]+",  # "4.2.3 - Title" at start
         ]
@@ -411,7 +439,7 @@ class ComparisonTable:
             f"Document Content (first ~1500 chars):\n{body_preview}\n\n"
             f"Available ISO 13485 clauses:\n{clause_ref_text}\n\n"
             f"Return ONLY a JSON array of clause IDs that this document covers. "
-            f"For example: [\"7.5.1\", \"7.5.2\", \"7.5.6\"]\n"
+            f'For example: ["7.5.1", "7.5.2", "7.5.6"]\n'
             f"Be specific — only include clauses the document is actually about. "
             f"Do NOT include all clauses. Typical documents cover 1-15 clauses.\n"
             f"Return ONLY the JSON array, no other text."
@@ -436,6 +464,7 @@ class ComparisonTable:
                 content = content.strip()
 
             import json as _json
+
             clause_list = _json.loads(content)
 
             if not isinstance(clause_list, list):
@@ -560,7 +589,7 @@ class ComparisonTable:
         row.overall_status = PhaseStatus.PENDING.value
 
         # Clear downstream computed values if resetting from Phase 1+
-        if from_phase.value <= Phase.GAP_SCAN.value:
+        if phase_idx <= PHASE_ORDER.index(Phase.GAP_SCAN):
             row.evidence_items = []
             row.gap_severity = None
             row.risk_level = None
@@ -691,7 +720,9 @@ class ComparisonTable:
         self._state.update_row(row)
         return row
 
-    def preview_evidence_recalc(self, row_id: str, evidence_items: list[dict]) -> Optional[dict]:
+    def preview_evidence_recalc(
+        self, row_id: str, evidence_items: list[dict]
+    ) -> Optional[dict]:
         """Preview risk recalculation with modified evidence WITHOUT saving.
 
         Returns a dict with the recalculated gap_severity, risk_level, verdict,
@@ -731,10 +762,17 @@ class ComparisonTable:
                 "verdict": row.verdict,
                 "evidence_stats": {
                     "total": len(row.evidence_items),
-                    "found": sum(1 for e in row.evidence_items if e.get("found", False)),
-                    "inadequate": sum(1 for e in row.evidence_items if e.get("is_inadequate", False)),
-                    "outdated": sum(1 for e in row.evidence_items if e.get("is_outdated", False)),
-                    "missing": len(row.evidence_items) - sum(1 for e in row.evidence_items if e.get("found", False)),
+                    "found": sum(
+                        1 for e in row.evidence_items if e.get("found", False)
+                    ),
+                    "inadequate": sum(
+                        1 for e in row.evidence_items if e.get("is_inadequate", False)
+                    ),
+                    "outdated": sum(
+                        1 for e in row.evidence_items if e.get("is_outdated", False)
+                    ),
+                    "missing": len(row.evidence_items)
+                    - sum(1 for e in row.evidence_items if e.get("found", False)),
                 },
             },
             "proposed": {
@@ -744,8 +782,12 @@ class ComparisonTable:
                 "evidence_stats": {
                     "total": total,
                     "found": found_count,
-                    "inadequate": sum(1 for e in evidence_items if e.get("is_inadequate", False)),
-                    "outdated": sum(1 for e in evidence_items if e.get("is_outdated", False)),
+                    "inadequate": sum(
+                        1 for e in evidence_items if e.get("is_inadequate", False)
+                    ),
+                    "outdated": sum(
+                        1 for e in evidence_items if e.get("is_outdated", False)
+                    ),
                     "missing": missing,
                 },
             },
@@ -817,6 +859,7 @@ class ComparisonTable:
         row.updated_at = time.time()
         self._state.update_row(row)
         return row
+
     # ── Persistence ──
 
     def save(self) -> Path:

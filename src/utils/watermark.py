@@ -451,17 +451,37 @@ def convert_to_pdf_for_viewing(
         try:
             from reportlab.pdfgen import canvas as rl_canvas
             from reportlab.lib.pagesizes import A4
+            from reportlab.pdfbase import pdfmetrics
+            from reportlab.pdfbase.ttfonts import TTFont
 
             content = src.read_text(encoding="utf-8", errors="replace")
             c = rl_canvas.Canvas(output_path, pagesize=A4)
-            c.setFont("Helvetica", 10)
+
+            font_name = "Helvetica"
+            cjk_font_paths = [
+                "C:/Windows/Fonts/msjh.ttc",
+                "C:/Windows/Fonts/msyh.ttc",
+                "C:/Windows/Fonts/simsun.ttc",
+                "C:/Windows/Fonts/yugothm.ttc",
+                "/System/Library/Fonts/PingFang.ttc",
+                "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+            ]
+            for fpath in cjk_font_paths:
+                if Path(fpath).exists():
+                    try:
+                        pdfmetrics.registerFont(TTFont("CJKFont", fpath))
+                        font_name = "CJKFont"
+                        break
+                    except Exception:
+                        continue
+
+            c.setFont(font_name, 10)
             y = A4[1] - 50
             for line in content.split("\n"):
                 if y < 50:
                     c.showPage()
-                    c.setFont("Helvetica", 10)
+                    c.setFont(font_name, 10)
                     y = A4[1] - 50
-                # Truncate long lines
                 c.drawString(40, y, line[:120])
                 y -= 14
             c.showPage()

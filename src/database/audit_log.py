@@ -10,6 +10,8 @@ from datetime import datetime
 from typing import TypedDict, Optional
 from pathlib import Path
 
+from src.utils.safe_io import atomic_write_json
+
 
 class AuditRecord(TypedDict):
     record_id: str
@@ -37,8 +39,7 @@ class ImmutableAuditLog:
 
     def _init_log_file(self):
         """初始化日誌檔案"""
-        with open(self.log_file, "w", encoding="utf-8") as f:
-            json.dump({"records": []}, f, ensure_ascii=False)
+        atomic_write_json(self.log_file, {"records": []})
 
     def _load_records(self) -> list:
         """載入所有紀錄"""
@@ -51,8 +52,7 @@ class ImmutableAuditLog:
 
     def _save_records(self, records: list):
         """儲存紀錄"""
-        with open(self.log_file, "w", encoding="utf-8") as f:
-            json.dump({"records": records}, f, ensure_ascii=False, indent=2)
+        atomic_write_json(self.log_file, {"records": records})
 
     def create_record(
         self, action: str, document_id: str, user_id: str, details: dict

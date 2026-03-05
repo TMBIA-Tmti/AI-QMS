@@ -2166,6 +2166,7 @@ async def set_phase_config(request: Request):
         _custom_skip_phases = validated
         try:
             from src.utils.app_settings import set_app_setting
+
             set_app_setting("custom_skip_phases", _custom_skip_phases)
         except Exception:
             pass
@@ -2194,9 +2195,11 @@ def _load_mdsap_from_settings() -> bool:
     """Load MDSAP verify state from persisted app settings."""
     try:
         from src.utils.app_settings import get_app_setting
+
         return bool(get_app_setting("mdsap_verify_enabled", True))
     except Exception:
         return True
+
 
 _mdsap_verify_enabled: bool = _load_mdsap_from_settings()
 
@@ -2205,6 +2208,7 @@ def _load_skip_phases_from_settings() -> list[str]:
     """Load custom skip phases from persisted app settings."""
     try:
         from src.utils.app_settings import get_app_setting
+
         saved = get_app_setting("custom_skip_phases", [])
         return [p for p in saved if p in SKIPPABLE_PHASES]
     except Exception:
@@ -2223,6 +2227,7 @@ async def set_mdsap_verify(request: Request):
         _mdsap_verify_enabled = bool(body.get("enabled", True))
         try:
             from src.utils.app_settings import set_app_setting
+
             set_app_setting("mdsap_verify_enabled", _mdsap_verify_enabled)
         except Exception:
             pass
@@ -2280,7 +2285,7 @@ async def run_daily_audit_endpoint(request: Request):
             }
             logger.warning(
                 "Regulation freshness check: announcement needed. %s",
-                freshness.get("announcement_text", "")
+                freshness.get("announcement_text", ""),
             )
 
         # Get LLM completion function from app state
@@ -2328,6 +2333,7 @@ async def run_daily_audit_endpoint(request: Request):
         # Attach per-country upload reminders from storage layer
         try:
             from src.storage.mdsap_markdown_storage import get_mdsap_markdown_store
+
             upload_reminders = get_mdsap_markdown_store().get_upload_reminders()
             if upload_reminders:
                 response["upload_reminders"] = upload_reminders
@@ -2542,16 +2548,18 @@ def _get_llm_completion_fn(request: Request):
     if llm_fn:
         return llm_fn
 
-    # Fallback: create a basic completion function
+    # Fallback: create a provider manager and use its completion method
     try:
-        from src.llm_providers import get_completion
+        from src.llm_providers import create_provider_manager
 
-        return get_completion
-    except ImportError:
+        manager = create_provider_manager()
+        return manager.completion
+    except Exception:
         raise HTTPException(
             status_code=503,
             detail="LLM completion function not available. Run an analysis first.",
         )
+
 
 def _get_llm_completion_fn_standalone():
     """Get LLM completion function without a Request object.
@@ -2575,6 +2583,7 @@ def _get_llm_completion_fn_standalone():
     except Exception as e:
         logger.debug(f"Failed to create standalone LLM fn: {e}")
         return None
+
 
 def _maybe_auto_trigger_meta_review(llm_fn, lang: str = "zh-TW") -> dict | None:
     """Auto-trigger 10-day meta review if enough daily records have accumulated.
@@ -2601,9 +2610,7 @@ def _maybe_auto_trigger_meta_review(llm_fn, lang: str = "zh-TW") -> dict | None:
         # If the latest meta review's period_end covers the most recent daily record,
         # no need to re-run. Only trigger if 10+ new records exist since last meta.
         meta_end = latest_meta.period_end
-        records_since_meta = [
-            r for r in daily_records if r.audit_date > meta_end
-        ]
+        records_since_meta = [r for r in daily_records if r.audit_date > meta_end]
         if len(records_since_meta) < 10:
             return None
 

@@ -300,6 +300,7 @@ def execute_tool(tool_name: str, arguments: Dict[str, Any]) -> Any:
         "search_documents": tool_search_docs,
         "get_document": tool_get_doc,
         "list_documents": tool_list_docs,
+        "get_stats": tool_get_stats,
     }
 
     if tool_name not in tool_map:

@@ -16,7 +16,6 @@ Version: 3.0.0
 Updated: 2026-02-12
 """
 
-
 import re
 import json
 import time
@@ -649,54 +648,86 @@ class VisionOCRProcessor:
         """Extract text from .doc using win32com."""
         word = win32com.client.Dispatch("Word.Application")
         word.Visible = False
-        doc = word.Documents.Open(str(path.absolute()))
-        text = doc.Content.Text
-        doc.Close()
-        word.Quit()
-        return text
+        doc = None
+        try:
+            doc = word.Documents.Open(str(path.absolute()))
+            text = doc.Content.Text
+            return text
+        finally:
+            try:
+                if doc:
+                    doc.Close()
+            except Exception:
+                pass
+            try:
+                word.Quit()
+            except Exception:
+                pass
 
     def _extract_xls_legacy(self, path: Path) -> str:
         """Extract text from .xls using win32com."""
         excel = win32com.client.Dispatch("Excel.Application")
         excel.Visible = False
-        wb = excel.Workbooks.Open(str(path.absolute()))
+        wb = None
+        try:
+            wb = excel.Workbooks.Open(str(path.absolute()))
 
-        all_text = []
-        for sheet in wb.Sheets:
-            used_range = sheet.UsedRange
-            if used_range:
-                values = used_range.Value
-                if values:
-                    all_text.append(f"### Sheet: {sheet.Name}\n")
-                    if isinstance(values, tuple):
-                        for row in values:
-                            if isinstance(row, tuple):
-                                cells = [str(c) if c else "" for c in row]
-                                all_text.append("| " + " | ".join(cells) + " |")
-                            else:
-                                all_text.append(str(row))
+            all_text = []
+            for sheet in wb.Sheets:
+                used_range = sheet.UsedRange
+                if used_range:
+                    values = used_range.Value
+                    if values:
+                        all_text.append(f"### Sheet: {sheet.Name}\n")
+                        if isinstance(values, tuple):
+                            for row in values:
+                                if isinstance(row, tuple):
+                                    cells = [str(c) if c else "" for c in row]
+                                    all_text.append("| " + " | ".join(cells) + " |")
+                                else:
+                                    all_text.append(str(row))
 
-        wb.Close()
-        excel.Quit()
-        return "\n".join(all_text)
+            return "\n".join(all_text)
+        finally:
+            try:
+                if wb:
+                    wb.Close()
+            except Exception:
+                pass
+            try:
+                excel.Quit()
+            except Exception:
+                pass
 
     def _extract_ppt_legacy(self, path: Path) -> str:
         """Extract text from .ppt using win32com."""
         ppt = win32com.client.Dispatch("PowerPoint.Application")
-        presentation = ppt.Presentations.Open(str(path.absolute()), WithWindow=False)
+        presentation = None
+        try:
+            presentation = ppt.Presentations.Open(
+                str(path.absolute()), WithWindow=False
+            )
 
-        all_text = []
-        for i, slide in enumerate(presentation.Slides, 1):
-            slide_text = [f"## Slide {i}"]
-            for shape in slide.Shapes:
-                if shape.HasTextFrame:
-                    if shape.TextFrame.HasText:
-                        slide_text.append(shape.TextFrame.TextRange.Text)
-            all_text.append("\n\n".join(slide_text))
+            all_text = []
+            for i, slide in enumerate(presentation.Slides, 1):
+                slide_text = [f"## Slide {i}"]
+                for shape in slide.Shapes:
+                    if shape.HasTextFrame:
+                        if shape.TextFrame.HasText:
+                            slide_text.append(shape.TextFrame.TextRange.Text)
+                all_text.append("\n\n".join(slide_text))
 
-        presentation.Close()
-        ppt.Quit()
-        return "\n\n---\n\n".join(all_text)
+            return "\n\n---\n\n".join(all_text)
+        finally:
+            try:
+                if presentation:
+                    presentation.Close()
+            except Exception:
+                pass
+            try:
+                ppt.Quit()
+            except Exception:
+                pass
 
     # --------------------------------------------------------
     # Helper Methods
@@ -790,7 +821,7 @@ class VisionOCRProcessor:
                 model=self.model_name or None,
             )
 
-            if "ERROR" in response.get("content", ""):
+            if "[ERROR]" in response.get("content", ""):
                 return {"success": False, "error": response.get("content")}
 
             return {
