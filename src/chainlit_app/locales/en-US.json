@@ -9,11 +9,6 @@
     "delete database",
     "delete all"
   ],
-  "_commands.cmd.reset_sig_detection": [
-    "reset signature detection",
-    "reset sig detection",
-    "change signature setting"
-  ],
   "_commands.cmd.reset_level_range": [
     "reset control range",
     "reset level range",
@@ -45,6 +40,14 @@
   "_commands.cmd.download_regulatory": [
     "download regulatory",
     "export regulatory"
+  ],
+  "_commands.cmd.download_regulatory_update": [
+    "download regulatory update",
+    "export regulatory update"
+  ],
+  "_commands.cmd.download_reference": [
+    "download reference",
+    "export reference"
   ],
   "_commands.cmd.help": [
     "help"
@@ -155,7 +158,7 @@
   "file.unsupported": "Eira：Unsupported file format: {suffix}",
   "file.version_detected": "Eira：⚠️ Version update detected: {doc_id} (V{old_ver} → V{new_ver})",
   "file.version_exists": "Eira：Document ({doc_id}) already exists in database.\nCurrent version: **V{old_ver}** → New version: **V{new_ver}**\n\nProceed with version update?",
-  "help.doc_control": "🤖 **Document Control User Guide**\n\n**File Upload:**\n1. Drag & drop or upload files in the chat\n2. System automatically performs OCR processing\n3. Detects document type (new/version update)\n4. Detects signatures/stamps (can be disabled)\n5. Auto-saves to Markdown DB\n\n**Document Viewing & Download:**\n- Documents within the controlled range and external regulatory documents: Online viewing only (with watermark)\n- Level 4 Forms outside controlled range: Downloadable\n- Controlled range can be set to Level 1-4 or Level 1-3\n\n**Chat Commands:**\n- \"Document list\" - Current formal versions (with Word/Excel export buttons)\n- \"List\" - All records (incl. versions, obsolete) (with Word/Excel export buttons)\n- \"Search keyword\" - Search documents\n- \"Download doc_id\" - Download/view document (only Level 4 forms outside controlled range are downloadable)\n- \"Obsolete doc_id\" - Obsolete a document (e.g., Obsolete OTHER-016)\n- \"Audit trail\" - View operation records (with Word/Excel export buttons)\n- \"Regulatory list\" - List all referenced regulatory standards (with Word/Excel export buttons)\n- \"Regulatory update\" - Regulatory list latest info assessment and analysis (with Word/Excel export buttons)\n- \"Reset signature detection\" - Reset signature detection setting\n- \"Reset control range\" - Reset document control level range\n- \"Delete database\" - Delete all documents\n- \"/web keyword\" - Search the web (e.g., /web latest ISO 13485 version)\n- \"Status\" - System status\n\n**Supported formats:** PDF, Word, Excel, PowerPoint, Images, Text files",
+  "help.doc_control": "🤖 **Document Control User Guide**\n\n**File Upload:**\n1. Drag & drop or upload files in the chat\n2. System automatically performs OCR processing\n3. Detects document type (new/version update)\n4. Detects signatures/stamps (can be disabled)\n5. Auto-saves to Markdown DB\n\n**Document Viewing & Download:**\n- Documents within the controlled range and external regulatory documents: Online viewing only (with watermark)\n- Level 4 Forms outside controlled range: Downloadable\n- Controlled range can be set to Level 1-4 or Level 1-3\n\n**Chat Commands:**\n- \"Document list\" - Current formal versions (with Word/Excel export buttons)\n- \"List\" - All records (incl. versions, obsolete) (with Word/Excel export buttons)\n- \"Search keyword\" - Search documents\n- \"Download doc_id\" - Download/view document (only Level 4 forms outside controlled range are downloadable)\n- \"Obsolete doc_id\" - Obsolete a document (e.g., Obsolete OTHER-016)\n- \"Audit trail\" - View operation records (with Word/Excel export buttons)\n- \"Regulatory list\" - List all referenced regulatory standards (with Word/Excel export buttons)\n- \"Regulatory update\" - Regulatory list latest info assessment and analysis (with Word/Excel export buttons)\n- \"Reset control range\" - Reset document control level range\n- \"Delete database\" - Delete all documents\n- \"/web keyword\" - Search the web (e.g., /web latest ISO 13485 version)\n- \"Status\" - System status\n\n**Supported formats:** PDF, Word, Excel, PowerPoint, Images, Text files",
   "help.main": "🤖 **AI-QMS Assistant User Guide**\n\n**Available Features:**\n1. Type \"status\" - View system status\n2. Type \"document list\" - Current formal versions (with Word/Excel export buttons)\n3. Type \"list\" - All document records (incl. versions, obsolete) (with Word/Excel export buttons)\n4. Type \"search keyword\" - Search document content\n5. Type \"obsolete doc_id\" - Obsolete a document (e.g., Obsolete OTHER-016)\n6. Type \"audit trail\" - View all operation records (with Word/Excel export buttons)\n7. Type \"regulatory list\" - List all referenced regulatory standards (with Word/Excel export buttons)\n8. Type \"regulatory update\" - Regulatory list latest info assessment and analysis (with Word/Excel export buttons)\n9. Ask directly - AI will search the document database and respond\n10. Type \"/web keyword\" - Search the web for latest info (e.g., /web latest ISO 13485)\n\n**Switch Profile:**\n- Click the Profile selector at the top to switch to 'Doc Control' for file uploads\n\n**Supported formats:** PDF, Word, Excel, PowerPoint, Images, Text files",
   "llm.answer_from_docs": "\n\nAnswer the user's question based on the document content above. If no relevant information is found, clearly state so. Do not fabricate answers.",
   "llm.db_context_header": "\n\nThe following relevant documents were found in the document database:\n\n",

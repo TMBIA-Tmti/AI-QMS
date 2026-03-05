@@ -9539,13 +9539,6 @@ async def on_message(message: cl.Message):
             await handle_delete_db()
             return
 
-        # Reset signature detection settings
-        if _match_cmd(text, "cmd.reset_sig_detection"):
-            cl.user_session.set("sig_detection_asked", False)
-            cl.user_session.set("signature_detection_enabled", True)  # Reset to default
-            await cl.Message(content=t("sig_toggle.reset_done")).send()
-            return
-
         # Reset document level range settings
         if _match_cmd(text, "cmd.reset_level_range"):
             cl.user_session.set("level_range_asked", False)
