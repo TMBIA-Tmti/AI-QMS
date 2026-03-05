@@ -3071,15 +3071,10 @@ async def _run_and_display_daily_audit(
     if result is None:
         return
 
-    # Check if audit had no records (empty result)
-    if (
-        result.overall_score == 0
-        and not result.dim_a_summary
-        and not result.dim_b_summary
-    ):
-        if "No cross-examination records" in (result.summary or ""):
-            await cl.Message(content=t("daily_audit.no_records"), author="Eira").send()
-            return
+    # Check if audit had no records (empty result — no crossexam data to audit)
+    if "No cross-examination records" in (result.summary or ""):
+        await cl.Message(content=t("daily_audit.no_records"), author="Eira").send()
+        return
 
     # Display the daily audit result
     await _display_daily_audit_result(result)
