@@ -3287,20 +3287,10 @@ async def on_chat_start():
     except Exception:
         pass  # Don't block startup
 
-    # Auto-trigger cross-examination with regulation freshness check (Doc Control only)
-    # Requirement: 出發交叉詰問同時上網查詢ISO 13485與MDSAP是否為最新版
-    # Requirement: 改成只在文件控制子agent出現，主agent不要出現每日詰問分析
-    # NOTE: Only run for RETURNING users who already have LLM configured.
-    #        New users must set up LLM/API key first — showing crawl results
-    #        and pipeline status before setup is confusing and misleading.
-    if profile == "文件管制 (Doc Control)" and saved and saved.get("provider_id"):
-        # Only run freshness check if user has a configured LLM provider
-        # (either cloud API with key, or local Ollama)
-        has_llm_setup = saved.get("provider_id") == "ollama" or saved.get("api_key")
-        if has_llm_setup:
-            await _auto_trigger_crossexam()
-
-    # Eira introduction + signature detection (AFTER crossexam notifications, LAST in startup sequence)
+    # Eira introduction + freshness check + signature detection
+    # Correct order: intro → 法規更新 → 簽章詢問
+    # _auto_trigger_crossexam() is now called inside _send_eira_introduction()
+    # so it runs for BOTH new users (after name entry) and returning users.
     if saved and user_name:
         # Returning user with saved settings — show Eira intro + setup questions
         await _send_eira_introduction(user_name, profile, doc_count, doc_limit)
@@ -3312,13 +3302,22 @@ async def on_chat_start():
 async def _send_eira_introduction(
     user_name: str, profile: str, doc_count: int, doc_limit: int
 ):
-    """Send Eira introduction, then ask signature detection & level range questions."""
+    """Send Eira introduction, then freshness check, then signature detection.
+
+    Correct startup order for Doc Control:
+      1. Eira 歡迎詞 (introduction)
+      2. 法規更新 (freshness check + crawl, once per calendar day)
+      3. 簽章詢問 (signature detection toggle)
+    """
     intro = t("eira.introduction", name=user_name)
     await cl.Message(content=intro, author="Eira").send()
 
-    # Only ask setup questions for Doc Control profile
+    # Only run Doc Control-specific steps for Doc Control profile
     if profile == "文件管制 (Doc Control)":
-        # Step 1: Ask signature detection toggle
+        # Step 1: Regulation freshness check (after intro, before sig detection)
+        await _auto_trigger_crossexam()
+
+        # Step 2: Ask signature detection toggle
         await _ask_sig_detection_toggle(user_name)
 
 
