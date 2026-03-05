@@ -537,16 +537,27 @@ class AnalysisPipeline:
         )
 
     def _execute_phase_1(self) -> None:
-        """Phase 1: Gap Scan (LLM) — per-document grouping."""
-        logger.info("Executing Phase 1: Gap Scan (per-document)")
+        """Phase 1: Gap Scan (LLM) — per-document grouping, parallelized."""
+        logger.info("Executing Phase 1: Gap Scan (per-document, parallel)")
         self._state.current_phase = Phase.GAP_SCAN.value
-        # Start time budget timer at first LLM phase
         self._state.get_budget().start_timer()
 
         doc_groups = self._state.group_rows_by_doc(Phase.GAP_SCAN)
-        for doc_id, rows in doc_groups.items():
-            if self._budget_exceeded():
-                break
+        if not doc_groups:
+            self._notify_phase_complete(Phase.GAP_SCAN)
+            self._advance_global_phase(Phase.CHECKLIST_VERIFY)
+            return
+
+        if self._budget_exceeded():
+            self._notify_phase_complete(Phase.GAP_SCAN)
+            self._advance_global_phase(Phase.CHECKLIST_VERIFY)
+            return
+
+        import concurrent.futures
+
+        max_workers = min(4, len(doc_groups))
+
+        def _scan_single_doc(doc_id: str, rows: list) -> tuple:
             result = run_gap_scan_document(
                 doc_id=doc_id,
                 rows=rows,
@@ -555,28 +566,56 @@ class AnalysisPipeline:
                 model=self._model,
                 run_id=self._state.run_id,
             )
-            for row in rows:
-                row.set_phase_result(Phase.GAP_SCAN, result)
-                if result.status in (
-                    PhaseStatus.COMPLETED.value,
-                    PhaseStatus.SKIPPED.value,
-                ):
-                    row.advance_to_next_phase()
-                self._state.update_row(row)
-            self._save_state()
+            return (doc_id, rows, result)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(_scan_single_doc, doc_id, rows): doc_id
+                for doc_id, rows in doc_groups.items()
+            }
+            for future in concurrent.futures.as_completed(futures):
+                doc_id = futures[future]
+                try:
+                    _, rows, result = future.result()
+                    with self._state_lock:
+                        for row in rows:
+                            row.set_phase_result(Phase.GAP_SCAN, result)
+                            if result.status in (
+                                PhaseStatus.COMPLETED.value,
+                                PhaseStatus.SKIPPED.value,
+                            ):
+                                row.advance_to_next_phase()
+                            self._state.update_row(row)
+                        self._save_state()
+                except Exception as e:
+                    logger.error(f"Phase 1 failed for doc {doc_id}: {e}")
 
         self._notify_phase_complete(Phase.GAP_SCAN)
         self._advance_global_phase(Phase.CHECKLIST_VERIFY)
 
     def _execute_phase_2(self) -> None:
-        """Phase 2: Checklist Verification (LLM) — per-document grouping."""
-        logger.info("Executing Phase 2: Checklist Verification (per-document)")
+        """Phase 2: Checklist Verification (LLM) — per-document grouping, parallelized."""
+        logger.info(
+            "Executing Phase 2: Checklist Verification (per-document, parallel)"
+        )
         self._state.current_phase = Phase.CHECKLIST_VERIFY.value
 
         doc_groups = self._state.group_rows_by_doc(Phase.CHECKLIST_VERIFY)
-        for doc_id, rows in doc_groups.items():
-            if self._budget_exceeded():
-                break
+        if not doc_groups:
+            self._notify_phase_complete(Phase.CHECKLIST_VERIFY)
+            self._advance_global_phase(Phase.RISK_ASSESSMENT)
+            return
+
+        if self._budget_exceeded():
+            self._notify_phase_complete(Phase.CHECKLIST_VERIFY)
+            self._advance_global_phase(Phase.RISK_ASSESSMENT)
+            return
+
+        import concurrent.futures
+
+        max_workers = min(4, len(doc_groups))
+
+        def _verify_single_doc(doc_id: str, rows: list) -> tuple:
             result = run_checklist_verify_document(
                 doc_id=doc_id,
                 rows=rows,
@@ -585,15 +624,29 @@ class AnalysisPipeline:
                 model=self._model,
                 run_id=self._state.run_id,
             )
-            for row in rows:
-                row.set_phase_result(Phase.CHECKLIST_VERIFY, result)
-                if result.status in (
-                    PhaseStatus.COMPLETED.value,
-                    PhaseStatus.SKIPPED.value,
-                ):
-                    row.advance_to_next_phase()
-                self._state.update_row(row)
-            self._save_state()
+            return (doc_id, rows, result)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(_verify_single_doc, doc_id, rows): doc_id
+                for doc_id, rows in doc_groups.items()
+            }
+            for future in concurrent.futures.as_completed(futures):
+                doc_id = futures[future]
+                try:
+                    _, rows, result = future.result()
+                    with self._state_lock:
+                        for row in rows:
+                            row.set_phase_result(Phase.CHECKLIST_VERIFY, result)
+                            if result.status in (
+                                PhaseStatus.COMPLETED.value,
+                                PhaseStatus.SKIPPED.value,
+                            ):
+                                row.advance_to_next_phase()
+                            self._state.update_row(row)
+                        self._save_state()
+                except Exception as e:
+                    logger.error(f"Phase 2 failed for doc {doc_id}: {e}")
 
         self._notify_phase_complete(Phase.CHECKLIST_VERIFY)
         self._advance_global_phase(Phase.RISK_ASSESSMENT)
@@ -683,14 +736,28 @@ class AnalysisPipeline:
         self._save_state()
 
     def _execute_phase_4(self) -> None:
-        """Phase 4: Remediation Suggestions (LLM) — per-document grouping."""
-        logger.info("Executing Phase 4: Remediation Suggestions (per-document)")
+        """Phase 4: Remediation Suggestions (LLM) — per-document grouping, parallelized."""
+        logger.info(
+            "Executing Phase 4: Remediation Suggestions (per-document, parallel)"
+        )
         self._state.current_phase = Phase.REMEDIATION.value
 
         doc_groups = self._state.group_rows_by_doc(Phase.REMEDIATION)
-        for doc_id, rows in doc_groups.items():
-            if self._budget_exceeded():
-                break
+        if not doc_groups:
+            self._notify_phase_complete(Phase.REMEDIATION)
+            self._advance_global_phase(Phase.VERIFICATION)
+            return
+
+        if self._budget_exceeded():
+            self._notify_phase_complete(Phase.REMEDIATION)
+            self._advance_global_phase(Phase.VERIFICATION)
+            return
+
+        import concurrent.futures
+
+        max_workers = min(4, len(doc_groups))
+
+        def _remediate_single_doc(doc_id: str, rows: list) -> tuple:
             result = run_remediation_document(
                 doc_id=doc_id,
                 rows=rows,
@@ -699,15 +766,29 @@ class AnalysisPipeline:
                 model=self._model,
                 run_id=self._state.run_id,
             )
-            for row in rows:
-                row.set_phase_result(Phase.REMEDIATION, result)
-                if result.status in (
-                    PhaseStatus.COMPLETED.value,
-                    PhaseStatus.SKIPPED.value,
-                ):
-                    row.advance_to_next_phase()
-                self._state.update_row(row)
-            self._save_state()
+            return (doc_id, rows, result)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(_remediate_single_doc, doc_id, rows): doc_id
+                for doc_id, rows in doc_groups.items()
+            }
+            for future in concurrent.futures.as_completed(futures):
+                doc_id = futures[future]
+                try:
+                    _, rows, result = future.result()
+                    with self._state_lock:
+                        for row in rows:
+                            row.set_phase_result(Phase.REMEDIATION, result)
+                            if result.status in (
+                                PhaseStatus.COMPLETED.value,
+                                PhaseStatus.SKIPPED.value,
+                            ):
+                                row.advance_to_next_phase()
+                            self._state.update_row(row)
+                        self._save_state()
+                except Exception as e:
+                    logger.error(f"Phase 4 failed for doc {doc_id}: {e}")
 
         self._notify_phase_complete(Phase.REMEDIATION)
         self._advance_global_phase(Phase.VERIFICATION)
