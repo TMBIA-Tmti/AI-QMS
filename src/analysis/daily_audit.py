@@ -1647,6 +1647,183 @@ def _parse_json_response(response_text: str) -> dict:
 
 
 # ============================================================
+# Adjustment Guidance Generator
+# ============================================================
+
+
+def _generate_adjustment_guidance(
+    result: DailyAuditResult,
+) -> tuple[list[str], list[str]]:
+    """Generate fixed steps and dynamic recommendations for human adjustment.
+
+    Returns:
+        (fixed_steps, dynamic_recommendations)
+        - fixed_steps: Generic steps on how to use Eira's feedback mechanism
+        - dynamic_recommendations: Specific advice derived from current findings
+    """
+    # ---- Fixed steps (always the same) ----
+    fixed_steps = [
+        (
+            "檢視 Regulation Profile 設定 / Review Regulation Profile settings — "
+            "確認各國法規 Profile（TFDA, EU_MDR, QMSR 等）的內容是否完整且為最新版本。"
+            "如有法規更新，請至 Eira「法規清單更新」功能更新法規資料。"
+        ),
+        (
+            "確認 MDSAP 模式是否正確 / Verify MDSAP mode — "
+            "若貴組織取得或規劃 MDSAP 認證，請確保系統已啟用 MDSAP 模式"
+            "（7 國法規交叉詰問）。若僅針對台灣與歐盟市場，使用 2 國模式即可。"
+        ),
+        (
+            "利用 Eira 回饋功能 / Use Eira's Feedback feature — "
+            "在每日稽核報告中，對有疑慮的項目提供回饋（同意/不同意/部分同意），"
+            "系統將記錄您的意見並納入後續分析改善。"
+        ),
+        (
+            "檢查交叉詰問深度 / Review cross-examination depth — "
+            "若交叉詰問輪次不足或過早結束，可能導致品質評分偏低。"
+            "建議檢查 Verifier prompt 設定，確保詰問深度足夠。"
+        ),
+        (
+            "定期檢視 10 日總檢報告 / Review 10-Day Meta Review — "
+            "透過 10 日總檢報告追蹤趨勢變化，觀察各維度分數是否穩定改善。"
+            "若持續偏低，考慮調整 LLM 模型或法規資料。"
+        ),
+    ]
+
+    # ---- Dynamic recommendations (based on current findings) ----
+    dynamic_recs: list[str] = []
+    sd = result.sampling_details or {}
+    is_mdsap = sd.get("mdsap_enabled", False)
+
+    # 1. Overall score too low
+    if result.overall_score < DEVIATION_OVERALL_THRESHOLD:
+        dynamic_recs.append(
+            f"⚠️ 整體評分 {result.overall_score:.0f} 低於閾值 {DEVIATION_OVERALL_THRESHOLD} — "
+            f"建議立即檢視稽核發現事項，確認是否有系統性問題需處理。"
+        )
+
+    # 2. Dim A specific issues
+    if result.dim_a_checks:
+        severity_counts: dict[str, int] = {}
+        for check in result.dim_a_checks:
+            sev = check.get("severity", "none")
+            if sev not in ("none",):
+                severity_counts[sev] = severity_counts.get(sev, 0) + 1
+
+        critical_high = severity_counts.get("critical", 0) + severity_counts.get(
+            "high", 0
+        )
+        if critical_high > 0:
+            dynamic_recs.append(
+                f"🔴 法規準確性 (Dim A) 有 {critical_high} 項 critical/high 嚴重度問題 — "
+                f"建議優先檢查法規引用是否正確，更新 Regulation Profile 中的條文內容。"
+            )
+
+        completeness_issues = sum(
+            1
+            for c in result.dim_a_checks
+            if c.get("check_type") == "completeness"
+            and c.get("severity") not in ("none",)
+        )
+        if completeness_issues > 0:
+            dynamic_recs.append(
+                f"📋 法規完整性不足 ({completeness_issues} 項) — "
+                f"LLM 可能遺漏關鍵法規要求。建議豐富 Regulation Profile 的內容，"
+                f"補充容易被遺漏的條文。"
+            )
+
+        interpretation_issues = sum(
+            1
+            for c in result.dim_a_checks
+            if c.get("check_type") == "interpretation"
+            and c.get("severity") not in ("none",)
+        )
+        if interpretation_issues > 0:
+            dynamic_recs.append(
+                f"📖 法規解釋偏差 ({interpretation_issues} 項) — "
+                f"LLM 對法規的解釋可能過度簡化或曲解。"
+                f"建議在 Regulation Profile 中加入關鍵條文的正確解釋說明。"
+            )
+
+    # 3. Dim B specific issues
+    if result.dim_b_findings:
+        b_critical_high = sum(
+            1
+            for f in result.dim_b_findings
+            if f.get("severity") in ("critical", "high")
+        )
+        if b_critical_high > 0:
+            dynamic_recs.append(
+                f"🔴 交叉詰問品質 (Dim B) 有 {b_critical_high} 項 critical/high 問題 — "
+                f"建議檢查 Analyzer/Verifier 的 prompt 設定，確保詰問品質。"
+            )
+
+    # 4. Large gap between Dim A and Dim B
+    dim_gap = abs(result.dim_a_score - result.dim_b_score)
+    if dim_gap > DEVIATION_DIM_GAP_THRESHOLD:
+        lower_dim = (
+            "A (法規準確性)"
+            if result.dim_a_score < result.dim_b_score
+            else "B (交叉詰問品質)"
+        )
+        dynamic_recs.append(
+            f"📊 Dim A 與 Dim B 分數差距達 {dim_gap:.0f} 分 — "
+            f"Dimension {lower_dim} 明顯較弱，建議針對該維度重點改善。"
+        )
+
+    # 5. Deviation detected
+    if result.deviation_detected:
+        dynamic_recs.append(
+            f"⚠️ 偏差已偵測 — {result.deviation_details[:200] if result.deviation_details else '詳見偏差詳情'}"
+        )
+
+    # 6. Country score imbalance (MDSAP mode)
+    if is_mdsap and result.dim_b_country_scores:
+        scores = list(result.dim_b_country_scores.values())
+        if scores:
+            min_score = min(scores)
+            max_score = max(scores)
+            if max_score - min_score > 25:
+                weak_countries = [
+                    c
+                    for c, s in result.dim_b_country_scores.items()
+                    if s < min_score + 10
+                ]
+                dynamic_recs.append(
+                    f"🌍 各國評分差距大 (最高 {max_score:.0f}, 最低 {min_score:.0f}) — "
+                    f"較弱國家: {', '.join(weak_countries)}。"
+                    f"建議補強這些國家的法規 Profile 資料。"
+                )
+
+    # 7. Clauses with flagged items
+    clauses = sd.get("clauses", [])
+    flagged_clauses = [c for c in clauses if c.get("flagged")]
+    if flagged_clauses:
+        flagged_ids = [c.get("clause_id", "?") for c in flagged_clauses[:5]]
+        dynamic_recs.append(
+            f"🚩 {len(flagged_clauses)} 條 ISO 13485 條款被標記 — "
+            f"包含: {', '.join(flagged_ids)}"
+            f"{'...' if len(flagged_clauses) > 5 else ''}。"
+            f"建議檢視這些條款的文件是否完整且符合最新法規要求。"
+        )
+
+    # 8. Incomplete data
+    if result.incomplete_data_warning:
+        dynamic_recs.append(
+            f"📂 以下國家/法規資料不完整: {', '.join(result.incomplete_countries)} — "
+            f"部分評估結果可能不準確。建議補充缺少的法規資料。"
+        )
+
+    # If no dynamic issues found, add a positive note
+    if not dynamic_recs:
+        dynamic_recs.append(
+            "✅ 本次稽核未發現需要人為介入的明顯問題。建議持續定期檢視以保持品質。"
+        )
+
+    return fixed_steps, dynamic_recs
+
+
+# ============================================================
 # Export: Word / Excel
 # ============================================================
 
@@ -1694,14 +1871,35 @@ def export_daily_audit_word(result: DailyAuditResult) -> Path:
     is_mdsap = sd.get("mdsap_enabled", False)
     regs = sd.get("selected_regulations", [])
     regs_label = ", ".join(regs) if regs else "N/A"
-    mode_label = "MDSAP 7國" if is_mdsap else "2國 (TFDA + EU_MDR)"
+    mode_label = "MDSAP 7國 (全球)" if is_mdsap else "2國 (TFDA + EU_MDR)"
+
+    mode_banner = doc.add_paragraph()
+    mode_banner_run = mode_banner.add_run(f"  稽核模式 / Audit Mode: {mode_label}  ")
+    mode_banner_run.font.bold = True
+    mode_banner_run.font.size = Pt(13)
+    if is_mdsap:
+        mode_banner_run.font.color.rgb = RGBColor(0, 112, 60)
+    else:
+        mode_banner_run.font.color.rgb = RGBColor(0, 70, 140)
+
+    from docx.oxml.ns import qn
+    from docx.oxml import OxmlElement
+
+    shading = OxmlElement("w:shd")
+    if is_mdsap:
+        shading.set(qn("w:fill"), "E6F4EA")
+    else:
+        shading.set(qn("w:fill"), "E3F2FD")
+    shading.set(qn("w:val"), "clear")
+    rpr = mode_banner_run._element.get_or_add_rPr()
+    rpr.append(shading)
 
     doc.add_heading("評分摘要 / Score Summary", level=2)
     doc.add_paragraph(
         f"Overall Score: {result.overall_score:.0f}/100\n"
         f"Dimension A (法規準確性 / Regulation Accuracy): {result.dim_a_score:.0f}/100\n"
         f"Dimension B (交叉詰問品質驗證 / Cross-Exam Quality): {result.dim_b_score:.0f}/100\n"
-        f"模式 / Mode: {mode_label}\n"
+        f"比對法規 / Regulations: {regs_label}\n"
         f"Deviation Detected: {'Yes ⚠️' if result.deviation_detected else 'No ✅'}"
     )
 
@@ -1822,6 +2020,18 @@ def export_daily_audit_word(result: DailyAuditResult) -> Path:
             doc.add_paragraph(
                 f"一致性評估: {labels.get(assessment, assessment)} (差異 {delta:.1f}%)"
             )
+
+    fixed_steps, dynamic_recs = _generate_adjustment_guidance(result)
+
+    doc.add_heading("人為調整指引 / How to Adjust", level=2)
+
+    doc.add_heading("一般改善步驟 / General Improvement Steps", level=3)
+    for i, step in enumerate(fixed_steps, 1):
+        doc.add_paragraph(f"{i}. {step}")
+
+    doc.add_heading("本次動態建議 / Dynamic Recommendations", level=3)
+    for rec in dynamic_recs:
+        doc.add_paragraph(f"• {rec}")
 
     from src.utils.safe_io import safe_save_binary
 
@@ -2000,6 +2210,42 @@ def export_daily_audit_excel(result: DailyAuditResult) -> Path:
         ws_sd.column_dimensions["A"].width = 20
         ws_sd.column_dimensions["B"].width = 20
         ws_sd.column_dimensions["C"].width = 40
+
+    fixed_steps, dynamic_recs = _generate_adjustment_guidance(result)
+
+    ws_guide = wb.create_sheet("Adjustment Guidance")
+    guide_section_font = Font(bold=True, size=12)
+    guide_fill = PatternFill(
+        start_color="FFF2CC", end_color="FFF2CC", fill_type="solid"
+    )
+
+    ws_guide.cell(row=1, column=1, value="人為調整指引 / How to Adjust").font = Font(
+        bold=True, size=14
+    )
+    ws_guide.merge_cells("A1:B1")
+
+    ws_guide.cell(
+        row=3, column=1, value="一般改善步驟 / General Improvement Steps"
+    ).font = guide_section_font
+    for i, step in enumerate(fixed_steps, 1):
+        row_idx = 3 + i
+        cell_num = ws_guide.cell(row=row_idx, column=1, value=f"Step {i}")
+        cell_num.font = Font(bold=True)
+        cell_num.fill = guide_fill
+        ws_guide.cell(row=row_idx, column=2, value=step)
+
+    dynamic_start = 3 + len(fixed_steps) + 2
+    ws_guide.cell(
+        row=dynamic_start, column=1, value="本次動態建議 / Dynamic Recommendations"
+    ).font = guide_section_font
+    for i, rec in enumerate(dynamic_recs, 1):
+        row_idx = dynamic_start + i
+        cell_num = ws_guide.cell(row=row_idx, column=1, value=f"#{i}")
+        cell_num.font = Font(bold=True)
+        ws_guide.cell(row=row_idx, column=2, value=rec)
+
+    ws_guide.column_dimensions["A"].width = 15
+    ws_guide.column_dimensions["B"].width = 80
 
     from src.utils.safe_io import safe_save_binary
 

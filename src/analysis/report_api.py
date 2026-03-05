@@ -153,7 +153,18 @@ def _row_to_api(row_dict: dict) -> dict:
 
 @report_router.get("/page/{run_id}", response_class=HTMLResponse)
 async def serve_report_page(run_id: str):
-    """Serve the report HTML page for a specific run."""
+    """Serve the report HTML page for a specific run.
+
+    Special alias: run_id='latest' resolves to the most recent pipeline run.
+    """
+    if run_id == "latest":
+        runs = ComparisonTable.list_runs(_PIPELINE_DIR)
+        if not runs:
+            raise HTTPException(status_code=404, detail="No pipeline runs found")
+        run_id = runs[0].get("run_id", "")
+        if not run_id:
+            raise HTTPException(status_code=404, detail="No valid run_id found")
+
     html_path = REPORT_STATIC_DIR / "report.html"
     if not html_path.exists():
         raise HTTPException(status_code=404, detail="Report page not found")

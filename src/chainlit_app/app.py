@@ -6122,6 +6122,25 @@ async def _send_inline_view(filepath: str, doc_id: str, level: str):
         await cl.Message(content=t("view.no_pdf")).send()
 
 
+async def _process_pending_upload_files():
+    """Process any pending file uploads stored before sig detection was answered.
+
+    When files are uploaded before sig detection is asked, they are stored as
+    (name, path) tuples in session['pending_upload_files']. After sig detection,
+    level range, and watermark are all decided, this function processes them.
+    """
+    pending = cl.user_session.get("pending_upload_files")
+    if not pending:
+        return
+    cl.user_session.set("pending_upload_files", None)
+
+    # Create simple namespace objects matching what handle_file_upload expects
+    from types import SimpleNamespace
+
+    file_elements = [SimpleNamespace(name=name, path=path) for name, path in pending]
+    await handle_file_upload(file_elements)
+
+
 async def _process_pending_inline_view():
     """Process any pending inline view request after watermark decision."""
     pending = cl.user_session.get("pending_inline_view")
@@ -6406,6 +6425,11 @@ async def _ask_level_range():
             payload={"value": "1-3"},
             label=t("level_range.btn_1_3"),
         ),
+        cl.Action(
+            name="level_range_no_watermark",
+            payload={"value": "none"},
+            label=t("level_range.btn_no_watermark"),
+        ),
     ]
     await cl.Message(
         content=t("level_range.ask"),
@@ -6486,8 +6510,14 @@ async def _send_hierarchy_summary_message():
 
     lines.append(f"\n{t('hierarchy.confirm_prompt')}")
 
-    # Build action buttons — one pair (confirm/change) per unconfirmed file
-    actions = []
+    # Build action buttons — "Confirm All" first, then per-file confirm/change
+    actions = [
+        cl.Action(
+            name="hierarchy_confirm_all",
+            payload={"value": "confirm_all"},
+            label=t("hierarchy.btn_confirm_all"),
+        ),
+    ]
     for fname, info in pending.items():
         if info["confirmed"]:
             continue
@@ -6596,6 +6626,47 @@ async def on_hierarchy_select_level(action):
     await _send_hierarchy_summary_message()
 
 
+@cl.action_callback("hierarchy_confirm_all")
+async def on_hierarchy_confirm_all(action):
+    """User confirmed ALL LLM-classified hierarchies at once."""
+    await action.remove()
+    pending = cl.user_session.get("hierarchy_pending", {})
+    for fname in pending:
+        pending[fname]["confirmed"] = True
+    cl.user_session.set("hierarchy_pending", pending)
+
+    await cl.Message(content=t("hierarchy.confirm_all_done"), author="Eira").send()
+
+    # All confirmed — proceed to post-upload setup
+    has_vu = cl.user_session.get("hierarchy_has_version_update", False)
+    if not has_vu:
+        await _ask_post_upload_setup()
+
+
+@cl.action_callback("obsolete_confirm_all")
+async def on_obsolete_confirm_all(action):
+    """User confirmed all suspected-obsolete files should continue processing."""
+    await action.remove()
+    await cl.Message(content=t("obsolete_detect.confirmed_all"), author="Eira").send()
+    # Proceed to hierarchy classification step
+    await _proceed_to_hierarchy_step()
+
+
+async def _proceed_to_hierarchy_step():
+    """Chain from obsolete detection to hierarchy classification step.
+
+    Uses session-stored hierarchy data set during handle_file_upload().
+    """
+    hierarchy_flagged = cl.user_session.get("_pending_hierarchy_flagged", [])
+    has_version_update = cl.user_session.get("_pending_has_version_update", False)
+
+    if hierarchy_flagged:
+        await _show_hierarchy_confirmation_ui(hierarchy_flagged, has_version_update)
+    elif not has_version_update:
+        # No hierarchy to confirm — go straight to post-upload setup
+        await _ask_post_upload_setup()
+
+
 async def _ask_post_upload_setup():
     """After all files uploaded, ask level range then watermark if not yet asked."""
     if not cl.user_session.get("level_range_asked"):
@@ -6613,8 +6684,8 @@ async def on_sig_detection_enable(action):
     cl.user_session.set("signature_detection_enabled", True)
     cl.user_session.set("sig_detection_asked", True)
     await cl.Message(content=t("sig_toggle.enabled"), author="Eira").send()
-    # Proceed to ask level range
-    await _ask_level_range()
+    # If files were uploaded before sig detection was asked, process them now
+    await _process_pending_upload_files()
 
 
 @cl.action_callback("sig_detection_disable")
@@ -6624,8 +6695,8 @@ async def on_sig_detection_disable(action):
     cl.user_session.set("signature_detection_enabled", False)
     cl.user_session.set("sig_detection_asked", True)
     await cl.Message(content=t("sig_toggle.disabled"), author="Eira").send()
-    # Proceed to ask level range
-    await _ask_level_range()
+    # If files were uploaded before sig detection was asked, process them now
+    await _process_pending_upload_files()
 
 
 @cl.action_callback("level_range_1_4")
@@ -6650,6 +6721,19 @@ async def on_level_range_1_3(action):
     # After level range, ask watermark
     if not cl.user_session.get("watermark_confirmed"):
         await _ask_watermark_before_upload()
+
+
+@cl.action_callback("level_range_no_watermark")
+async def on_level_range_no_watermark(action):
+    """User chose not to use watermark at all."""
+    await action.remove()
+    cl.user_session.set("controlled_levels", ["1", "2", "3"])  # Default 1-3
+    cl.user_session.set("level_range_asked", True)
+    cl.user_session.set("watermark_confirmed", True)  # Skip watermark entirely
+    cl.user_session.set("watermark_image_path", None)
+    await cl.Message(
+        content=t("level_range.selected_no_watermark"), author="Eira"
+    ).send()
 
 
 # ============================================================
@@ -6798,7 +6882,12 @@ async def on_watermark_adjust_tiles(action):
 
 
 async def _send_watermark_preview():
-    """Generate and send watermark preview with adjustment buttons."""
+    """Generate and send watermark preview with adjustment buttons.
+
+    Sends a NEW message with the preview PDF element (not update), because
+    Chainlit's message.update() does not reliably propagate new elements
+    (PDF/File) to the frontend.
+    """
     wm_path = cl.user_session.get("watermark_image_path")
     if not wm_path:
         return
@@ -6807,8 +6896,8 @@ async def _send_watermark_preview():
     angle = cl.user_session.get("watermark_angle", 45)
     tile_count = cl.user_session.get("watermark_tile_count", 3)
 
-    preview_msg = cl.Message(content=t("watermark.preview_generating"))
-    await preview_msg.send()
+    generating_msg = cl.Message(content=t("watermark.preview_generating"))
+    await generating_msg.send()
 
     try:
         preview_path = await asyncio.to_thread(
@@ -6818,6 +6907,9 @@ async def _send_watermark_preview():
             angle=angle,
             tile_count=tile_count,
         )
+
+        # Remove the "generating" message
+        await generating_msg.remove()
 
         params_text = t(
             "watermark.preview_params",
@@ -6850,19 +6942,20 @@ async def _send_watermark_preview():
                 label=t("watermark.adjust_tiles"),
             ),
         ]
-        preview_msg.content = (
+        preview_content = (
             t("watermark.preview_title")
             + "\n\n"
             + params_text
             + "\n\n"
             + t("watermark.preview_adjust")
         )
-        preview_msg.elements = elements
-        preview_msg.actions = actions
-        await preview_msg.update()
+        # Send as NEW message so elements render properly
+        await cl.Message(
+            content=preview_content, elements=elements, actions=actions
+        ).send()
     except Exception as e:
-        preview_msg.content = t("watermark.error", error=str(e))
-        await preview_msg.update()
+        generating_msg.content = t("watermark.error", error=str(e))
+        await generating_msg.update()
 
 
 async def _ask_watermark_before_upload():
@@ -7142,17 +7235,6 @@ async def handle_file_upload(files):
         for r in succeeded
         if r.get("obsolete_result", {}).get("is_suspected_obsolete")
     ]
-    if obsolete_flagged:
-        obs_lines = ["\n### ⚠️ 作廢文件偵測\n"]
-        for r in obsolete_flagged:
-            obs = r["obsolete_result"]
-            conf_pct = int(obs["confidence"] * 100)
-            reasons_str = "; ".join(obs.get("reasons", []))
-            obs_lines.append(
-                f"- **`{r['filename']}`** — 信心度: {conf_pct}%\n  原因: {reasons_str}"
-            )
-        obs_lines.append("\n> 以上文件疑似為作廢文件，請確認是否繼續處理。")
-        await cl.Message(content="\n".join(obs_lines)).send()
 
     # --- Hierarchy Classification UI (interactive) ---
     # Show LLM-classified hierarchy for ALL uploaded files, let user confirm/change each one.
@@ -7164,11 +7246,31 @@ async def handle_file_upload(files):
     ]
     has_version_update = succeeded and succeeded[-1].get("is_duplicate")
 
-    if hierarchy_flagged:
-        await _show_hierarchy_confirmation_ui(hierarchy_flagged, has_version_update)
-    elif not has_version_update:
-        # No hierarchy to confirm — go straight to post-upload setup
-        await _ask_post_upload_setup()
+    # Store hierarchy data in session for the obsolete callback to chain into
+    cl.user_session.set("_pending_hierarchy_flagged", hierarchy_flagged)
+    cl.user_session.set("_pending_has_version_update", has_version_update)
+
+    if obsolete_flagged:
+        obs_lines = ["\n### ⚠️ 作廢文件偵測\n"]
+        for r in obsolete_flagged:
+            obs = r["obsolete_result"]
+            conf_pct = int(obs["confidence"] * 100)
+            reasons_str = "; ".join(obs.get("reasons", []))
+            obs_lines.append(
+                f"- **`{r['filename']}`** — {t('obsolete_detect.confidence')}: {conf_pct}%\n  {t('obsolete_detect.reason')}: {reasons_str}"
+            )
+        obs_lines.append(f"\n> {t('obsolete_detect.warning')}")
+        actions = [
+            cl.Action(
+                name="obsolete_confirm_all",
+                payload={"value": "confirm_all"},
+                label=t("obsolete_detect.btn_confirm_all"),
+            ),
+        ]
+        await cl.Message(content="\n".join(obs_lines), actions=actions).send()
+    else:
+        # No obsolete files — proceed directly to hierarchy
+        await _proceed_to_hierarchy_step()
 
     # If there's a version update candidate, run diff analysis BEFORE confirm
     if succeeded and succeeded[-1].get("is_duplicate"):

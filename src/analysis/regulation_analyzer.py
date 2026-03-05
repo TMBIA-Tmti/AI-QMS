@@ -16,6 +16,7 @@ Flow:
   5. Build RegulationProfile, save to data/regulations/, register in memory
 """
 
+import asyncio
 import json
 import logging
 import re
@@ -35,7 +36,8 @@ from src.analysis.compliance_rules import (
 
 logger = logging.getLogger(__name__)
 
-_BATCH_SIZE = 10  # clauses per LLM call
+_BATCH_SIZE = 24  # clauses per LLM call (71 clauses → 3 batches)
+_MAX_CONCURRENT_BATCHES = 3
 _MAX_REGULATORY_TEXT_CHARS = 6000  # truncate crawled text per LLM call
 _MAX_UNIQUE_REQ_TEXT_CHARS = 8000  # more context for unique requirements
 
@@ -102,36 +104,41 @@ async def analyze_regulation_with_llm(
     iso_mapped: dict[str, ClauseMapping] = {}
     total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
 
-    for batch_idx, batch in enumerate(batches, 1):
-        if send_progress_fn:
-            await send_progress_fn(
-                f"🔍 分析 ISO 13485 條款批次 {batch_idx}/{total_batches} "
-                f"({batch[0]}–{batch[-1]})..."
-            )
+    if send_progress_fn:
+        await send_progress_fn(
+            f"🔍 並行分析 {total_batches} 批 ISO 13485 條款 "
+            f"(每批 {_BATCH_SIZE} 條，共 {len(clause_ids)} 條)..."
+        )
 
-        batch_clauses = []
-        for cid in batch:
-            entry = ISO_13485_CHECKLIST.get(cid, {})
-            batch_clauses.append(
-                {
-                    "clause_id": cid,
-                    "title": entry.get("title", ""),
-                    "audit_question": entry.get("audit_question", ""),
-                }
-            )
+    semaphore = asyncio.Semaphore(_MAX_CONCURRENT_BATCHES)
+
+    async def _run_batch(batch_idx: int, batch: list[str]) -> None:
+        batch_clauses = [
+            {
+                "clause_id": cid,
+                "title": ISO_13485_CHECKLIST.get(cid, {}).get("title", ""),
+                "audit_question": ISO_13485_CHECKLIST.get(cid, {}).get(
+                    "audit_question", ""
+                ),
+            }
+            for cid in batch
+        ]
 
         messages = _build_clause_batch_prompt(
             batch_clauses, combined_text[:_MAX_REGULATORY_TEXT_CHARS], zh_name, en_name
         )
 
         try:
-            response = llm_completion_fn(
-                messages=messages,
-                model=model,
-                temperature=0.1,
-                max_tokens=4096,
-                stream=False,
-            )
+            async with semaphore:
+                response = await asyncio.to_thread(
+                    llm_completion_fn,
+                    messages=messages,
+                    model=model,
+                    temperature=0.1,
+                    max_tokens=8192,
+                    stream=False,
+                )
+
             response_text = response.get("content", "")
             usage = response.get("usage", {})
             _accumulate_usage(total_usage, usage)
@@ -142,10 +149,11 @@ async def analyze_regulation_with_llm(
                 or response.get("all_failed")
             ):
                 logger.warning(
-                    f"LLM call failed for batch {batch_idx}: {response_text[:200] if response_text else 'empty'}"
+                    f"LLM call failed for batch {batch_idx}: "
+                    f"{response_text[:200] if response_text else 'empty'}"
                 )
                 _fill_batch_fallback(iso_mapped, batch)
-                continue
+                return
 
             parsed = _parse_json_from_response(response_text)
             if parsed and isinstance(parsed, list):
@@ -174,9 +182,18 @@ async def analyze_regulation_with_llm(
                 )
                 _fill_batch_fallback(iso_mapped, batch)
 
+            if send_progress_fn:
+                await send_progress_fn(
+                    f"✅ 批次 {batch_idx}/{total_batches} 完成 ({batch[0]}–{batch[-1]})"
+                )
+
         except Exception as e:
             logger.error(f"Exception during clause batch {batch_idx}: {e}")
             _fill_batch_fallback(iso_mapped, batch)
+
+    await asyncio.gather(
+        *[_run_batch(idx, batch) for idx, batch in enumerate(batches, 1)]
+    )
 
     # Fill any missing clauses with NA
     for cid in clause_ids:
