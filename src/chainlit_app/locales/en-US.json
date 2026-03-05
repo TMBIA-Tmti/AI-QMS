@@ -9,11 +9,6 @@
     "delete database",
     "delete all"
   ],
-  "_commands.cmd.reset_watermark": [
-    "reset watermark",
-    "change watermark",
-    "clear watermark"
-  ],
   "_commands.cmd.reset_sig_detection": [
     "reset signature detection",
     "reset sig detection",
@@ -160,7 +155,7 @@
   "file.unsupported": "Eira：Unsupported file format: {suffix}",
   "file.version_detected": "Eira：⚠️ Version update detected: {doc_id} (V{old_ver} → V{new_ver})",
   "file.version_exists": "Eira：Document ({doc_id}) already exists in database.\nCurrent version: **V{old_ver}** → New version: **V{new_ver}**\n\nProceed with version update?",
-  "help.doc_control": "🤖 **Document Control User Guide**\n\n**File Upload:**\n1. Drag & drop or upload files in the chat\n2. System automatically performs OCR processing\n3. Detects document type (new/version update)\n4. Detects signatures/stamps (can be disabled)\n5. Auto-saves to Markdown DB\n\n**Document Viewing & Download:**\n- Documents within the controlled range and external regulatory documents: Online viewing only (with watermark)\n- Level 4 Forms outside controlled range: Downloadable\n- Controlled range can be set to Level 1-4 or Level 1-3\n\n**Chat Commands:**\n- \"Document list\" - Current formal versions (with Word/Excel export buttons)\n- \"List\" - All records (incl. versions, obsolete) (with Word/Excel export buttons)\n- \"Search keyword\" - Search documents\n- \"Download doc_id\" - Download/view document (only Level 4 forms outside controlled range are downloadable)\n- \"Obsolete doc_id\" - Obsolete a document (e.g., Obsolete OTHER-016)\n- \"Audit trail\" - View operation records (with Word/Excel export buttons)\n- \"Regulatory list\" - List all referenced regulatory standards (with Word/Excel export buttons)\n- \"Regulatory update\" - Regulatory list latest info assessment and analysis (with Word/Excel export buttons)\n- \"Reset watermark\" - Reset watermark settings, will ask again on next upload\n- \"Reset signature detection\" - Reset signature detection setting\n- \"Reset control range\" - Reset document control level range\n- \"Delete database\" - Delete all documents\n- \"/web keyword\" - Search the web (e.g., /web latest ISO 13485 version)\n- \"Status\" - System status\n\n**Supported formats:** PDF, Word, Excel, PowerPoint, Images, Text files",
+  "help.doc_control": "🤖 **Document Control User Guide**\n\n**File Upload:**\n1. Drag & drop or upload files in the chat\n2. System automatically performs OCR processing\n3. Detects document type (new/version update)\n4. Detects signatures/stamps (can be disabled)\n5. Auto-saves to Markdown DB\n\n**Document Viewing & Download:**\n- Documents within the controlled range and external regulatory documents: Online viewing only (with watermark)\n- Level 4 Forms outside controlled range: Downloadable\n- Controlled range can be set to Level 1-4 or Level 1-3\n\n**Chat Commands:**\n- \"Document list\" - Current formal versions (with Word/Excel export buttons)\n- \"List\" - All records (incl. versions, obsolete) (with Word/Excel export buttons)\n- \"Search keyword\" - Search documents\n- \"Download doc_id\" - Download/view document (only Level 4 forms outside controlled range are downloadable)\n- \"Obsolete doc_id\" - Obsolete a document (e.g., Obsolete OTHER-016)\n- \"Audit trail\" - View operation records (with Word/Excel export buttons)\n- \"Regulatory list\" - List all referenced regulatory standards (with Word/Excel export buttons)\n- \"Regulatory update\" - Regulatory list latest info assessment and analysis (with Word/Excel export buttons)\n- \"Reset signature detection\" - Reset signature detection setting\n- \"Reset control range\" - Reset document control level range\n- \"Delete database\" - Delete all documents\n- \"/web keyword\" - Search the web (e.g., /web latest ISO 13485 version)\n- \"Status\" - System status\n\n**Supported formats:** PDF, Word, Excel, PowerPoint, Images, Text files",
   "help.main": "🤖 **AI-QMS Assistant User Guide**\n\n**Available Features:**\n1. Type \"status\" - View system status\n2. Type \"document list\" - Current formal versions (with Word/Excel export buttons)\n3. Type \"list\" - All document records (incl. versions, obsolete) (with Word/Excel export buttons)\n4. Type \"search keyword\" - Search document content\n5. Type \"obsolete doc_id\" - Obsolete a document (e.g., Obsolete OTHER-016)\n6. Type \"audit trail\" - View all operation records (with Word/Excel export buttons)\n7. Type \"regulatory list\" - List all referenced regulatory standards (with Word/Excel export buttons)\n8. Type \"regulatory update\" - Regulatory list latest info assessment and analysis (with Word/Excel export buttons)\n9. Ask directly - AI will search the document database and respond\n10. Type \"/web keyword\" - Search the web for latest info (e.g., /web latest ISO 13485)\n\n**Switch Profile:**\n- Click the Profile selector at the top to switch to 'Doc Control' for file uploads\n\n**Supported formats:** PDF, Word, Excel, PowerPoint, Images, Text files",
   "llm.answer_from_docs": "\n\nAnswer the user's question based on the document content above. If no relevant information is found, clearly state so. Do not fabricate answers.",
   "llm.db_context_header": "\n\nThe following relevant documents were found in the document database:\n\n",
@@ -474,7 +469,7 @@
   "watermark.preview_title": "📋 Watermark Preview — Draft",
   "watermark.skipped": "ℹ️ Watermark skipped. Processing your files...",
   "watermark.pending_files_lost": "⚠️ Previously stored files are no longer available. Please re-upload.",
-  "watermark.reset_done": "✅ Watermark settings have been reset. You will be asked about watermark again on next upload.",
+
   "watermark.upload_prompt": "Please upload your watermark image (PNG, JPG, etc.).",
   "web.combined_context": "\n\nYou MUST answer the user's question using the web search results provided above. These results were retrieved in real-time via DuckDuckGo and contain factual information — use them directly.\nIf the local document database also has relevant information, incorporate it as well. If there are conflicts between the two, point out the differences.\nIf the local document database has NO relevant information, answer using the web search results alone. Do NOT say 'I cannot find information' when web results are available.\nWhen citing web sources, follow this priority order:\n1. Official websites of international standards & regulatory bodies (ISO, FDA, EMA, WHO, CE marking authorities)\n2. Government websites (.gov, .go.jp, etc.)\n3. Academic institutions & journals (.edu, PubMed, peer-reviewed papers)\n4. Recognized certification & industry bodies (TÜV, BSI, SGS, etc.)\n5. Other general sources\n6. Wikipedia and other user-editable encyclopedias (cite ONLY when other sources are insufficient, and note that it is not an authoritative source)\n\n【Regulatory Version Comparison】When the user query involves regulatory standards (e.g., ISO, IEC, FDA regulations, EU MDR), you MUST:\n1. First, answer the user's question clearly using web search results (e.g., latest version, applicable scope)\n2. Then check the local document database: search for specific version numbers of that standard (e.g., \"ISO 14971:2019\" or \"ISO 14971:2007\")\n3. Version comparison conclusion (be consistent — do NOT contradict yourself):\n   - If local documents explicitly cite a version number of that standard → state which version is cited and whether it is up-to-date\n   - If local documents mention the standard name but without a version number → state \"The documents mention this standard but do not specify a version number\"\n   - If local documents do not mention this standard at all → state \"No references to this standard were found in the local document database\"",
   "web.error": "Eira：⚠️ Web search failed: {error}",
@@ -548,5 +543,14 @@
   "meta_review.deviation": "⚠️ Deviation Summary: {deviation}",
   "meta_review.recommendations_title": "💡 Recommendations:",
   "meta_review.running": "Eira: 🧠 Running 10-day meta review analysis...",
-  "meta_review.view_report": "View 10-Day Meta Review Report"
+  "meta_review.view_report": "View 10-Day Meta Review Report",
+  "hierarchy.confirm_title": "📂 **Document Hierarchy Classification**",
+  "hierarchy.confirm_line": "**`{filename}`** → **{level}** (Confidence: {confidence}%)\n  Reason: {reasoning}",
+  "hierarchy.confirm_prompt": "Please confirm or modify the classification above:",
+  "hierarchy.btn_confirm": "✅ Confirm",
+  "hierarchy.btn_change": "✏️ Modify",
+  "hierarchy.select_prompt": "Select hierarchy level for **`{filename}`**:",
+  "hierarchy.confirmed": "✅ `{filename}` hierarchy confirmed: **{level}**",
+  "hierarchy.changed": "✅ `{filename}` hierarchy changed to: **{level}**",
+  "hierarchy.all_confirmed": "📂 All document hierarchy classifications confirmed."
 }

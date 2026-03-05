@@ -811,7 +811,8 @@ def get_system_prompt(profile: str, lang: str = None) -> str:
 - 「/web 關鍵字」- 搜尋網路（如：/web 最新 ISO 13485 版本）
 - 「狀態」- 系統狀態
 - 「刪除資料庫」- 刪除所有文件（需確認）
-- 「重設浮水印」- 重設浮水印設定，下次上傳時重新詢問
+
+
 
 上傳文件：直接在對話框拖放或上傳文件即可開始 OCR 處理。
 
@@ -6343,6 +6344,188 @@ async def _ask_level_range():
     ).send()
 
 
+async def _show_hierarchy_confirmation_ui(
+    hierarchy_flagged: list[dict],
+    has_version_update: bool = False,
+):
+    """Show hierarchy classification results and let user confirm/change each file.
+
+    Displays ALL uploaded files with their LLM-classified hierarchy level.
+    User can confirm each one or click 'modify' to re-select.
+    After ALL files are confirmed, proceeds to _ask_post_upload_setup().
+    """
+    from src.services.doc_hierarchy import get_doc_hierarchy
+
+    hier_mgr = get_doc_hierarchy()
+    lang = cl.user_session.get("language", "zh-TW")
+
+    # Build pending confirmations: {filename: {level_id, confidence, reasoning, confirmed}}
+    pending = {}
+    for r in hierarchy_flagged:
+        hres = r["hierarchy_result"]
+        pending[r["filename"]] = {
+            "level_id": hres["level_id"],
+            "confidence": int(hres.get("confidence", 0) * 100),
+            "reasoning": hres.get("reasoning", ""),
+            "confirmed": False,
+        }
+
+    cl.user_session.set("hierarchy_pending", pending)
+    cl.user_session.set("hierarchy_has_version_update", has_version_update)
+
+    # Show the summary + per-file confirm/change buttons
+    await _send_hierarchy_summary_message()
+
+
+async def _send_hierarchy_summary_message():
+    """Build and send the hierarchy summary with confirm/change actions per file."""
+    from src.services.doc_hierarchy import get_doc_hierarchy
+
+    hier_mgr = get_doc_hierarchy()
+    lang = cl.user_session.get("language", "zh-TW")
+    pending = cl.user_session.get("hierarchy_pending", {})
+    if not pending:
+        return
+
+    lines = [t("hierarchy.confirm_title")]
+    all_confirmed = True
+    for fname, info in pending.items():
+        level_label = hier_mgr.get_label(info["level_id"], lang)
+        status_icon = "✅" if info["confirmed"] else "🔄"
+        lines.append(
+            f"- {status_icon} "
+            + t(
+                "hierarchy.confirm_line",
+                filename=fname,
+                level=level_label,
+                confidence=info["confidence"],
+                reasoning=info["reasoning"],
+            )
+        )
+        if not info["confirmed"]:
+            all_confirmed = False
+
+    if all_confirmed:
+        lines.append(f"\n{t('hierarchy.all_confirmed')}")
+        await cl.Message(content="\n".join(lines), author="Eira").send()
+        # All confirmed — proceed to post-upload setup
+        has_vu = cl.user_session.get("hierarchy_has_version_update", False)
+        if not has_vu:
+            await _ask_post_upload_setup()
+        return
+
+    lines.append(f"\n{t('hierarchy.confirm_prompt')}")
+
+    # Build action buttons — one pair (confirm/change) per unconfirmed file
+    actions = []
+    for fname, info in pending.items():
+        if info["confirmed"]:
+            continue
+        actions.append(
+            cl.Action(
+                name="hierarchy_confirm",
+                payload={"filename": fname, "level_id": info["level_id"]},
+                label=f"{t('hierarchy.btn_confirm')} {fname[:20]}",
+            )
+        )
+        actions.append(
+            cl.Action(
+                name="hierarchy_change",
+                payload={"filename": fname},
+                label=f"{t('hierarchy.btn_change')} {fname[:20]}",
+            )
+        )
+
+    await cl.Message(content="\n".join(lines), author="Eira", actions=actions).send()
+
+
+@cl.action_callback("hierarchy_confirm")
+async def on_hierarchy_confirm(action):
+    """User confirmed the LLM-classified hierarchy for a file."""
+    await action.remove()
+    fname = action.payload.get("filename", "")
+    level_id = action.payload.get("level_id", "")
+
+    pending = cl.user_session.get("hierarchy_pending", {})
+    if fname in pending:
+        pending[fname]["confirmed"] = True
+        cl.user_session.set("hierarchy_pending", pending)
+
+    from src.services.doc_hierarchy import get_doc_hierarchy
+
+    hier_mgr = get_doc_hierarchy()
+    lang = cl.user_session.get("language", "zh-TW")
+    level_label = hier_mgr.get_label(level_id, lang)
+
+    await cl.Message(
+        content=t("hierarchy.confirmed", filename=fname, level=level_label),
+        author="Eira",
+    ).send()
+
+    # Re-display summary for remaining unconfirmed files
+    await _send_hierarchy_summary_message()
+
+
+@cl.action_callback("hierarchy_change")
+async def on_hierarchy_change(action):
+    """User wants to change the hierarchy for a file — show level selection."""
+    await action.remove()
+    fname = action.payload.get("filename", "")
+
+    from src.services.doc_hierarchy import get_doc_hierarchy
+
+    hier_mgr = get_doc_hierarchy()
+    lang = cl.user_session.get("language", "zh-TW")
+    levels = hier_mgr.get_all_levels()
+
+    actions = []
+    for lv in levels:
+        label = hier_mgr.get_label(lv["id"], lang)
+        actions.append(
+            cl.Action(
+                name="hierarchy_select_level",
+                payload={"filename": fname, "level_id": lv["id"]},
+                label=label,
+            )
+        )
+
+    await cl.Message(
+        content=t("hierarchy.select_prompt", filename=fname),
+        author="Eira",
+        actions=actions,
+    ).send()
+
+
+@cl.action_callback("hierarchy_select_level")
+async def on_hierarchy_select_level(action):
+    """User selected a new hierarchy level for a file."""
+    await action.remove()
+    fname = action.payload.get("filename", "")
+    new_level_id = action.payload.get("level_id", "")
+
+    pending = cl.user_session.get("hierarchy_pending", {})
+    if fname in pending:
+        pending[fname]["level_id"] = new_level_id
+        pending[fname]["confirmed"] = True
+        pending[fname]["reasoning"] = "User-selected"
+        pending[fname]["confidence"] = 100
+        cl.user_session.set("hierarchy_pending", pending)
+
+    from src.services.doc_hierarchy import get_doc_hierarchy
+
+    hier_mgr = get_doc_hierarchy()
+    lang = cl.user_session.get("language", "zh-TW")
+    level_label = hier_mgr.get_label(new_level_id, lang)
+
+    await cl.Message(
+        content=t("hierarchy.changed", filename=fname, level=level_label),
+        author="Eira",
+    ).send()
+
+    # Re-display summary for remaining unconfirmed files
+    await _send_hierarchy_summary_message()
+
+
 async def _ask_post_upload_setup():
     """After all files uploaded, ask level range then watermark if not yet asked."""
     if not cl.user_session.get("level_range_asked"):
@@ -6901,35 +7084,20 @@ async def handle_file_upload(files):
         obs_lines.append("\n> 以上文件疑似為作廢文件，請確認是否繼續處理。")
         await cl.Message(content="\n".join(obs_lines)).send()
 
-    # --- Hierarchy Classification UI ---
-    # Show LLM-classified document hierarchy for user confirmation
+    # --- Hierarchy Classification UI (interactive) ---
+    # Show LLM-classified hierarchy for ALL uploaded files, let user confirm/change each one.
+    # After ALL confirmations, proceed to post-upload setup (level range → watermark).
     hierarchy_flagged = [
         r
         for r in succeeded
         if r.get("hierarchy_result") and r["hierarchy_result"].get("level_id")
     ]
-    if hierarchy_flagged:
-        from src.services.doc_hierarchy import get_doc_hierarchy
-
-        hier_mgr = get_doc_hierarchy()
-        lang = cl.user_session.get("language", "zh-TW")
-        hier_lines = ["\n### 📂 文件階層分類結果\n"]
-        for r in hierarchy_flagged:
-            hres = r["hierarchy_result"]
-            level_label = hier_mgr.get_label(hres["level_id"], lang)
-            conf_pct = int(hres.get("confidence", 0) * 100)
-            reasoning = hres.get("reasoning", "")
-            hier_lines.append(
-                f"- **`{r['filename']}`** → **{level_label}** (信心度: {conf_pct}%)\n"
-                f"  理由: {reasoning}"
-            )
-        hier_lines.append("\n> LLM 已自動分類文件階層，您可在後續流程中調整。")
-        await cl.Message(content="\n".join(hier_lines)).send()
-
-    # --- Post-upload: ask level range & watermark if not yet asked ---
-    # Only ask if there's no version update pending (version update has its own flow)
     has_version_update = succeeded and succeeded[-1].get("is_duplicate")
-    if not has_version_update:
+
+    if hierarchy_flagged:
+        await _show_hierarchy_confirmation_ui(hierarchy_flagged, has_version_update)
+    elif not has_version_update:
+        # No hierarchy to confirm — go straight to post-upload setup
         await _ask_post_upload_setup()
 
     # If there's a version update candidate, run diff analysis BEFORE confirm
@@ -9329,18 +9497,6 @@ async def on_message(message: cl.Message):
         # Delete database
         if _match_cmd(text, "cmd.delete_database"):
             await handle_delete_db()
-            return
-
-        # Reset watermark settings
-        if _match_cmd(text, "cmd.reset_watermark"):
-            cl.user_session.set("watermark_confirmed", False)
-            cl.user_session.set("watermark_image_path", None)
-            cl.user_session.set("watermark_opacity", 0.15)
-            cl.user_session.set("watermark_angle", 45)
-            cl.user_session.set("watermark_tile_count", 3)
-            cl.user_session.set("awaiting_watermark_decision", False)
-            cl.user_session.set("awaiting_watermark_image", False)
-            await cl.Message(content=t("watermark.reset_done")).send()
             return
 
         # Reset signature detection settings
