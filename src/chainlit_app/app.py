@@ -3219,8 +3219,9 @@ async def _run_and_display_meta_review():
 
 
 async def _display_meta_review_result(meta):
-    """Display a MetaReviewResult with trend analysis and export files."""
+    """Display a MetaReviewResult with trend analysis, HTML link, and export files."""
     lang = cl.user_session.get("language", "zh-TW")
+    _meta_report_url = f"/api/report/daily-audit/meta-review?lang={lang}"
 
     lines = [
         t(
@@ -3250,6 +3251,9 @@ async def _display_meta_review_result(meta):
         lines.append(t("meta_review.recommendations_title"))
         for i, rec in enumerate(meta.recommendations[:5], 1):
             lines.append(f"  {i}. {rec}")
+
+    # HTML report link
+    lines.append(f"\n[🔗 {t('meta_review.view_report')}]({_meta_report_url})")
 
     msg_content = "\n".join(lines)
 

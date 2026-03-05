@@ -550,5 +550,6 @@
   "meta_review.trend": "📈 趨勢分析：{trend}",
   "meta_review.deviation": "⚠️ 偏差摘要：{deviation}",
   "meta_review.recommendations_title": "💡 改善建議：",
-  "meta_review.running": "Eira：🧠 正在執行 10 日總檢分析..."
+  "meta_review.running": "Eira：🧠 正在執行 10 日總檢分析...",
+  "meta_review.view_report": "查看 10 日總檢報告"
 }

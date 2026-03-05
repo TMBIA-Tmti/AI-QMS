@@ -547,5 +547,6 @@
   "meta_review.trend": "📈 Trend Analysis: {trend}",
   "meta_review.deviation": "⚠️ Deviation Summary: {deviation}",
   "meta_review.recommendations_title": "💡 Recommendations:",
-  "meta_review.running": "Eira: 🧠 Running 10-day meta review analysis..."
+  "meta_review.running": "Eira: 🧠 Running 10-day meta review analysis...",
+  "meta_review.view_report": "View 10-Day Meta Review Report"
 }

@@ -547,5 +547,6 @@
   "meta_review.trend": "📈 トレンド分析：{trend}",
   "meta_review.deviation": "⚠️ 偏差概要：{deviation}",
   "meta_review.recommendations_title": "💡 改善提案：",
-  "meta_review.running": "Eira：🧠 10日間総合レビュー分析を実行中..."
+  "meta_review.running": "Eira：🧠 10日間総合レビュー分析を実行中...",
+  "meta_review.view_report": "10日間総合レビュー報告を表示"
 }
