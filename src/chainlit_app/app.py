@@ -6300,8 +6300,8 @@ async def on_download_original_file(action):
     """Download or view original uploaded file by doc_id.
 
     Rules:
-        - Level 4 (表單/Form): Allow download
-        - Levels 1-3 + External: Inline PDF view only
+        - Forms (表單/Form): Always allow download
+        - All other documents: Inline PDF view only
     """
     doc_id = action.payload.get("doc_id", "")
     if not doc_id:
@@ -6329,24 +6329,18 @@ async def on_download_original_file(action):
         title = meta.get("title", "")
         content = doc_data.get("content", "")[:3000]
 
-    # Determine document level and check against controlled_levels
+    # Determine document level — forms are always downloadable
     level = get_document_level(doc_id, doc_type, title, content)
-    controlled = cl.user_session.get("controlled_levels", ["1", "2", "3"])
-    # External docs are ALWAYS view-only
-    # Documents in controlled levels are view-only
-    # Only documents OUTSIDE controlled levels can be downloaded
-    is_download_allowed = (
-        level not in controlled and level != "external" and level != "other"
-    )
+    is_download_allowed = level == "4"
 
     if is_download_allowed:
-        # Outside controlled range (e.g., Level 4 when controlled is 1-3) — allow download
+        # Form — allow download
         await _send_file_download(
             file_path,
             t("view.download_title", doc_id=doc_id) + "\n" + t("view.download_hint"),
         )
     else:
-        # Controlled levels + External — inline view only
+        # Non-form — inline view only
         await _send_inline_view(file_path, doc_id, level)
 
     await action.remove()
@@ -9480,7 +9474,7 @@ async def on_message(message: cl.Message):
                 )
 
                 if is_dl_allowed:
-                    # Outside controlled range — allow download
+                    # Form — allow download
                     actions = [
                         cl.Action(
                             name="download_original_file",
@@ -9498,7 +9492,7 @@ async def on_message(message: cl.Message):
                         content=download_msg, elements=elements, actions=actions
                     ).send()
                 else:
-                    # Controlled levels + External — inline view only
+                    # Non-form — inline view only
                     await _send_inline_view(filepath, doc_id, level)
             else:
                 await cl.Message(content=msg_text).send()

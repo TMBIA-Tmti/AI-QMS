@@ -583,10 +583,14 @@ def should_allow_download(doc_id: str, doc_type: str, title: str, content: str) 
     """Determine if a document should be downloadable (vs view-only).
 
     Rules:
-        - Level 4 (表單/Form): Allow download ✅
-        - Levels 1-3 (品質手冊/程序書/作業指導書): View only 👁
-        - External (外來法規文件): View only 👁
-        - Other: View only 👁 (safe default)
+        - Forms (表單/Form): Always allow download ✅
+        - All other documents: View only 👁
+          (品質手冊, 程序書, 作業指導書, 外來法規文件, etc.)
+
+    Note: Forms are identified by get_document_level() returning "4"
+    (doc_type == "FORM", prefix == "FM", or form-related keywords).
+    Download permission is based on document type (form vs non-form),
+    NOT on the controlled_levels setting.
     """
     level = get_document_level(doc_id, doc_type, title, content)
     return level == "4"
