@@ -3118,6 +3118,46 @@ async def _display_daily_audit_result(result):
             )
         )
 
+    # Cross-validation: 7-country vs MDSAP 5-country
+    cv = result.cross_validation or {}
+    if cv and not cv.get("error"):
+        mdsap_count = cv.get("mdsap_record_count", 0)
+        full_count = cv.get("full_record_count", 0)
+        if mdsap_count > 0 or full_count > 0:
+            lines.append("")
+            lines.append(t("daily_audit.crossval_title"))
+            lines.append(
+                t(
+                    "daily_audit.crossval_records",
+                    mdsap_count=mdsap_count,
+                    full_count=full_count,
+                )
+            )
+            lines.append(
+                t(
+                    "daily_audit.crossval_agreement",
+                    mdsap_avg=cv.get("mdsap_avg_agreement", 0.0),
+                    full_avg=cv.get("full_avg_agreement", 0.0),
+                )
+            )
+            csc = cv.get("country_score_comparison", {})
+            if csc:
+                lines.append(
+                    t(
+                        "daily_audit.crossval_country_scores",
+                        mdsap_country_avg=csc.get("mdsap_country_avg", 0.0),
+                        non_mdsap_country_avg=csc.get("non_mdsap_country_avg", 0.0),
+                    )
+                )
+            assessment = cv.get("consistency_assessment", "consistent")
+            delta = cv.get("consistency_delta", 0.0)
+            if assessment == "consistent":
+                lines.append(t("daily_audit.crossval_consistent", delta=delta))
+            elif assessment == "minor_drift":
+                lines.append(t("daily_audit.crossval_minor_drift", delta=delta))
+            else:
+                lines.append(t("daily_audit.crossval_significant_drift", delta=delta))
+
     # HTML report link
     lines.append(f"\n[🔗 {t('daily_audit.view_report')}]({_report_url})")
 

@@ -1266,6 +1266,35 @@ def export_daily_audit_word(result: DailyAuditResult) -> Path:
                 f"{finding.get('description', '')}"
             )
 
+    # Cross-validation: 7-country vs MDSAP 5-country
+    cv = result.cross_validation or {}
+    if cv and not cv.get("error"):
+        mdsap_count = cv.get("mdsap_record_count", 0)
+        full_count = cv.get("full_record_count", 0)
+        if mdsap_count > 0 or full_count > 0:
+            doc.add_heading("7國 vs MDSAP 5國 交叉驗證", level=2)
+            doc.add_paragraph(
+                f"MDSAP 5國記錄: {mdsap_count} 筆  |  全部 7國記錄: {full_count} 筆\n"
+                f"MDSAP 5國平均同意率: {cv.get('mdsap_avg_agreement', 0.0):.1f}%\n"
+                f"全部 7國平均同意率: {cv.get('full_avg_agreement', 0.0):.1f}%"
+            )
+            csc = cv.get("country_score_comparison", {})
+            if csc:
+                doc.add_paragraph(
+                    f"MDSAP 國家平均分: {csc.get('mdsap_country_avg', 0.0):.1f}\n"
+                    f"非 MDSAP 國家平均分: {csc.get('non_mdsap_country_avg', 0.0):.1f}"
+                )
+            assessment = cv.get("consistency_assessment", "consistent")
+            delta = cv.get("consistency_delta", 0.0)
+            labels = {
+                "consistent": "一致",
+                "minor_drift": "輕微偏移",
+                "significant_drift": "顯著偏移",
+            }
+            doc.add_paragraph(
+                f"一致性評估: {labels.get(assessment, assessment)} (差異 {delta:.1f}%)"
+            )
+
     from src.utils.safe_io import safe_save_binary
 
     safe_save_binary(filepath, doc.save)
@@ -1365,6 +1394,48 @@ def export_daily_audit_excel(result: DailyAuditResult) -> Path:
         ):
             ws_c.cell(row=row_idx, column=1, value=country)
             ws_c.cell(row=row_idx, column=2, value=score)
+
+    cv = result.cross_validation or {}
+    if cv and not cv.get("error"):
+        mdsap_count = cv.get("mdsap_record_count", 0)
+        full_count = cv.get("full_record_count", 0)
+        if mdsap_count > 0 or full_count > 0:
+            ws_cv = wb.create_sheet("Cross-Validation")
+            cv_headers = ["Metric", "Value"]
+            for col, h in enumerate(cv_headers, 1):
+                cell = ws_cv.cell(row=1, column=col, value=h)
+                cell.font = header_text_font
+                cell.fill = header_fill
+
+            csc = cv.get("country_score_comparison", {})
+            assessment = cv.get("consistency_assessment", "consistent")
+            labels = {
+                "consistent": "Consistent",
+                "minor_drift": "Minor Drift",
+                "significant_drift": "Significant Drift",
+            }
+            cv_data = [
+                ("MDSAP 5-Country Record Count", mdsap_count),
+                ("Full 7-Country Record Count", full_count),
+                ("Mixed Record Count", cv.get("mixed_record_count", 0)),
+                ("MDSAP Avg Agreement (%)", cv.get("mdsap_avg_agreement", 0.0)),
+                ("Full Avg Agreement (%)", cv.get("full_avg_agreement", 0.0)),
+                ("MDSAP Avg Flagged Ratio (%)", cv.get("mdsap_avg_flagged_ratio", 0.0)),
+                ("Full Avg Flagged Ratio (%)", cv.get("full_avg_flagged_ratio", 0.0)),
+                ("MDSAP Country Avg Score", csc.get("mdsap_country_avg", 0.0)),
+                ("Non-MDSAP Country Avg Score", csc.get("non_mdsap_country_avg", 0.0)),
+                ("Consistency Delta (%)", cv.get("consistency_delta", 0.0)),
+                ("Consistency Assessment", labels.get(assessment, assessment)),
+            ]
+            for row_idx, (metric, val) in enumerate(cv_data, start=2):
+                ws_cv.cell(row=row_idx, column=1, value=metric)
+                ws_cv.cell(
+                    row=row_idx,
+                    column=2,
+                    value=val if not isinstance(val, float) else round(val, 2),
+                )
+            ws_cv.column_dimensions["A"].width = 35
+            ws_cv.column_dimensions["B"].width = 20
 
     from src.utils.safe_io import safe_save_binary
 

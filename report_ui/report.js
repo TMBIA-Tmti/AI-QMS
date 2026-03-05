@@ -1931,13 +1931,20 @@
             });
         }
 
-        // MDSAP verify toggle
+        // MDSAP verify toggle — save setting + auto-reload crossref table
         const toggleMdsapVerifyCb = document.getElementById('toggleMdsapVerify');
         if (toggleMdsapVerifyCb) {
             toggleMdsapVerifyCb.addEventListener('change', () => {
                 mdsapVerifyEnabled = toggleMdsapVerifyCb.checked;
                 apiPost('/crossref/mdsap-verify', { enabled: mdsapVerifyEnabled })
-                    .then(() => showToast(mdsapVerifyEnabled ? t('toast.mdsapEnabled') : t('toast.mdsapDisabled'), 'info'))
+                    .then(() => {
+                        showToast(mdsapVerifyEnabled ? t('toast.mdsapEnabled') : t('toast.mdsapDisabled'), 'info');
+                        // Auto-reload crossref table if already loaded (no manual refresh needed)
+                        if (crossrefData) {
+                            showToast(t('toast.mdsapReloading'), 'info');
+                            loadCrossrefTable();
+                        }
+                    })
                     .catch(e => showToast(t('toast.mdsapFailed', {msg: e.message || e}), 'error'));
             });
         }
