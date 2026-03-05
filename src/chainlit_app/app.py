@@ -2902,15 +2902,15 @@ async def _auto_trigger_crossexam():
     then triggers daily audit.
 
     NOTE: Heavy operations (crawling 7 countries, HTTP HEAD checks) are
-    rate-limited to once per 24 hours. On subsequent sessions within the
-    same day, only pipeline progress is shown.
+    rate-limited to once per calendar day (隔日). On subsequent sessions
+    within the same day, only pipeline progress is shown.
     """
     try:
-        # Gate: only run full freshness check + crawl once per 24 hours
+        # Gate: only run full freshness check + crawl once per calendar day (隔日)
         if not _should_run_freshness_check():
-            # Within 24h cooldown — skip crawling, only show pipeline progress
+            # Already checked today — skip crawling, only show pipeline progress
             logger.debug(
-                "Freshness check skipped (within 24h cooldown). "
+                "Freshness check skipped (already ran today). "
                 "Showing pipeline progress only."
             )
             # Jump directly to Step 3 (pipeline progress)
@@ -2921,7 +2921,7 @@ async def _auto_trigger_crossexam():
         from src.services.regulatory_crawler import check_regulation_freshness
 
         freshness = await check_regulation_freshness()
-        _record_freshness_check()  # Mark as done for 24h cooldown
+        _record_freshness_check()  # Mark today's date as done
         if freshness.get("announcement_needed"):
             lang = cl.user_session.get("language", "zh-TW")
             if lang.startswith("zh"):
