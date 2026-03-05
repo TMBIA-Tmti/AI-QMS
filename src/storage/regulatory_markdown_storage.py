@@ -772,8 +772,8 @@ class RegulatoryMarkdownStorage:
         },
         "MDSAP": {
             "region": "MDSAP",
-            "name_en": "MDSAP (Multi-country)",
-            "name_zh": "MDSAP (多國)",
+            "name_en": "MDSAP (Single Audit Program)",
+            "name_zh": "MDSAP（醫療器材單一稽核方案）",
         },
     }
 

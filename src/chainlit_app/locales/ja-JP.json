@@ -532,5 +532,20 @@
   "view.example": "💡 使用方法：**オンライン閲覧 QP-001**",
   "crossexam.pipeline_running": "Eira：📊 分析進捗：[{bar}] {completed}/{total} ({percent}%) — 現在のフェーズ：{phase}",
   "crossexam.pipeline_completed": "Eira：✅ 分析完了。合計 {total} 件の分析項目。",
-  "crossexam.pipeline_not_started": "Eira：⏳ 分析はまだ開始されていません。先に「法規リスト」または「法規リスト更新」を実行してください。"
+  "crossexam.pipeline_not_started": "Eira：⏳ 分析はまだ開始されていません。先に「法規リスト」または「法規リスト更新」を実行してください。",
+  "daily_audit.running": "Eira：🔍 日次交差尋問監査を実行中...",
+  "daily_audit.running_cached": "Eira：🔍 本日の監査結果を読み込み中...",
+  "daily_audit.completed": "Eira：✅ 日次交差尋問監査完了",
+  "daily_audit.result_title": "🔍 **日次交差尋問監査結果** ({date})",
+  "daily_audit.score_line": "総合スコア: **{overall:.0f}** | 法規正確度 (Dim A): **{dim_a:.0f}** | 交差尋問品質 (Dim B): **{dim_b:.0f}**",
+  "daily_audit.deviation_warning": "⚠️ 偏差を検出：{details}",
+  "daily_audit.no_records": "Eira：📋 交差尋問記録がありません。日次監査をスキップします。先に法規リスト分析を実行してください。",
+  "daily_audit.no_llm": "Eira：⚠️ LLMが設定されていません。日次監査を実行できません。",
+  "daily_audit.view_report": "監査レポートを表示",
+  "meta_review.title": "🧠 **10日間総合レビューレポート** ({period_start} ~ {period_end})",
+  "meta_review.score_line": "平均法規正確度 (Dim A): **{avg_dim_a:.0f}** | 平均交差尋問品質 (Dim B): **{avg_dim_b:.0f}** | {count} 件の日次監査",
+  "meta_review.trend": "📈 トレンド分析：{trend}",
+  "meta_review.deviation": "⚠️ 偏差概要：{deviation}",
+  "meta_review.recommendations_title": "💡 改善提案：",
+  "meta_review.running": "Eira：🧠 10日間総合レビュー分析を実行中..."
 }

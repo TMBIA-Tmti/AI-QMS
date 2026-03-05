@@ -532,5 +532,20 @@
   "view.example": "💡 Usage: **view QP-001**",
   "crossexam.pipeline_running": "Eira: 📊 Analysis progress: [{bar}] {completed}/{total} ({percent}%) — Current phase: {phase}",
   "crossexam.pipeline_completed": "Eira: ✅ Analysis completed. Total: {total} items analyzed.",
-  "crossexam.pipeline_not_started": "Eira: ⏳ Analysis has not started yet. Please run 'Regulatory List' or 'Regulatory Update' first."
+  "crossexam.pipeline_not_started": "Eira: ⏳ Analysis has not started yet. Please run 'Regulatory List' or 'Regulatory Update' first.",
+  "daily_audit.running": "Eira: 🔍 Running daily cross-examination audit...",
+  "daily_audit.running_cached": "Eira: 🔍 Loading today's audit results...",
+  "daily_audit.completed": "Eira: ✅ Daily cross-examination audit complete",
+  "daily_audit.result_title": "🔍 **Daily Cross-Examination Audit Results** ({date})",
+  "daily_audit.score_line": "Overall: **{overall:.0f}** | Regulation Accuracy (Dim A): **{dim_a:.0f}** | Cross-Exam Quality (Dim B): **{dim_b:.0f}**",
+  "daily_audit.deviation_warning": "⚠️ Deviation detected: {details}",
+  "daily_audit.no_records": "Eira: 📋 No cross-examination records available. Skipping daily audit. Please run a regulatory analysis first.",
+  "daily_audit.no_llm": "Eira: ⚠️ LLM not configured. Cannot run daily audit.",
+  "daily_audit.view_report": "View Audit Report",
+  "meta_review.title": "🧠 **10-Day Meta Review Report** ({period_start} ~ {period_end})",
+  "meta_review.score_line": "Avg Regulation Accuracy (Dim A): **{avg_dim_a:.0f}** | Avg Cross-Exam Quality (Dim B): **{avg_dim_b:.0f}** | {count} daily audits",
+  "meta_review.trend": "📈 Trend Analysis: {trend}",
+  "meta_review.deviation": "⚠️ Deviation Summary: {deviation}",
+  "meta_review.recommendations_title": "💡 Recommendations:",
+  "meta_review.running": "Eira: 🧠 Running 10-day meta review analysis..."
 }

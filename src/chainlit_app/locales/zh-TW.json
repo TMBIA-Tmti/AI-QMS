@@ -535,5 +535,20 @@
   "view.example": "💡 使用方式：**線上觀看 QP-001**",
   "crossexam.pipeline_running": "Eira：📊 分析進度：[{bar}] {completed}/{total} ({percent}%) — 目前階段：{phase}",
   "crossexam.pipeline_completed": "Eira：✅ 分析已完成，共 {total} 筆分析項目。",
-  "crossexam.pipeline_not_started": "Eira：⏳ 分析尚未開始，請先執行法規清單或法規清單更新。"
+  "crossexam.pipeline_not_started": "Eira：⏳ 分析尚未開始，請先執行法規清單或法規清單更新。",
+  "daily_audit.running": "Eira：🔍 正在執行每日交叉詰問稽核...",
+  "daily_audit.running_cached": "Eira：🔍 載入今日稽核結果...",
+  "daily_audit.completed": "Eira：✅ 每日交叉詰問稽核完成",
+  "daily_audit.result_title": "🔍 **每日交叉詰問稽核結果** ({date})",
+  "daily_audit.score_line": "綜合分數: **{overall:.0f}** | 法規準確度 (Dim A): **{dim_a:.0f}** | 交叉詰問品質 (Dim B): **{dim_b:.0f}**",
+  "daily_audit.deviation_warning": "⚠️ 偵測到偏差：{details}",
+  "daily_audit.no_records": "Eira：📋 目前無交叉詰問記錄，跳過每日稽核。請先執行法規清單分析。",
+  "daily_audit.no_llm": "Eira：⚠️ 未設定 LLM，無法執行每日稽核。",
+  "daily_audit.view_report": "查看稽核報告",
+  "meta_review.title": "🧠 **10日總檢報告** ({period_start} ~ {period_end})",
+  "meta_review.score_line": "平均法規準確度 (Dim A): **{avg_dim_a:.0f}** | 平均交叉詰問品質 (Dim B): **{avg_dim_b:.0f}** | 共 {count} 筆每日稽核",
+  "meta_review.trend": "📈 趨勢分析：{trend}",
+  "meta_review.deviation": "⚠️ 偏差摘要：{deviation}",
+  "meta_review.recommendations_title": "💡 改善建議：",
+  "meta_review.running": "Eira：🧠 正在執行 10 日總檢分析..."
 }

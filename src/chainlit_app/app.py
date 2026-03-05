@@ -2899,104 +2899,386 @@ async def _auto_trigger_crossexam():
 
     Runs after welcome message. Checks regulation freshness first,
     shows announcement if needed (including per-country upload reminders),
-    then triggers daily audit.
+    then triggers daily audit + 10-day meta review.
+
+    Full startup order for Doc Control:
+      1. 法規更新 (freshness check + crawl, once per calendar day)
+      2. 當日交叉詰問 daily audit (run or show cached)
+      3. 10日總檢 meta review (if ≥10 new daily audits since last meta)
+      4. Pipeline progress indicator
 
     NOTE: Heavy operations (crawling 7 countries, HTTP HEAD checks) are
-    rate-limited to once per calendar day (隔日). On subsequent sessions
-    within the same day, only pipeline progress is shown.
+    rate-limited to once per calendar day (隔日). Daily audit is also
+    once per calendar day — subsequent sessions show cached results.
     """
+    incomplete_countries: list[str] = []
     try:
         # Gate: only run full freshness check + crawl once per calendar day (隔日)
         if not _should_run_freshness_check():
-            logger.debug(
+            logging.getLogger(__name__).debug(
                 "Freshness check skipped (already ran today). "
                 "Showing pipeline progress only."
             )
             await _show_pipeline_progress()
+        else:
+            # Step 1: Show progress message, then crawl with live % updates
+            from src.services.regulatory_crawler import check_regulation_freshness
+
+            progress_msg = cl.Message(
+                content=t("crossexam.freshness_crawling", percent=0, country="..."),
+                author="Eira",
+            )
+            await progress_msg.send()
+
+            async def _on_country_progress(completed: int, total: int, country_zh: str):
+                pct = round((completed / total) * 100) if total > 0 else 0
+                progress_msg.content = t(
+                    "crossexam.freshness_crawling",
+                    percent=pct,
+                    country=country_zh,
+                )
+                await progress_msg.update()
+
+            freshness = await check_regulation_freshness(
+                progress_callback=_on_country_progress,
+            )
+            _record_freshness_check()
+
+            progress_msg.content = t("crossexam.freshness_crawl_done")
+            await progress_msg.update()
+            if freshness.get("announcement_needed"):
+                lang = cl.user_session.get("language", "zh-TW")
+                if lang.startswith("zh"):
+                    announcement = freshness.get("announcement_text_zh", "")
+                else:
+                    announcement = freshness.get("announcement_text", "")
+                if announcement:
+                    await cl.Message(content=announcement, author="Eira").send()
+            else:
+                await cl.Message(
+                    content=t("crossexam.freshness_confirmed"),
+                    author="Eira",
+                ).send()
+
+            # Step 1b: Show per-country upload reminders if incomplete data
+            country_data = freshness.get("country_completeness", {})
+            incomplete_countries = country_data.get("incomplete_countries", [])
+            if incomplete_countries:
+                lang = cl.user_session.get("language", "zh-TW")
+                countries_info = country_data.get("countries", {})
+                lines = []
+                for pid in incomplete_countries:
+                    info = countries_info.get(pid, {})
+                    if lang.startswith("zh"):
+                        lines.append(f"  • {info.get('message_zh', pid)}")
+                    else:
+                        lines.append(f"  • {info.get('message', pid)}")
+                upload_msg = (
+                    t("crossexam.upload_reminder_title")
+                    + "\n"
+                    + "\n".join(lines)
+                    + "\n\n"
+                    + t("crossexam.upload_reminder_instruction")
+                )
+                await cl.Message(content=upload_msg, author="Eira").send()
+
+            # Step 2: Check MDSAP toggle
+            from src.utils.app_settings import get_app_setting
+
+            mdsap_enabled = get_app_setting("mdsap_verify_enabled", False)
+            if mdsap_enabled:
+                mdsap_msg = t("crossexam.mdsap_enabled_notice")
+                await cl.Message(content=mdsap_msg, author="Eira").send()
+
+            # Step 3: Show pipeline progress indicator
+            await _show_pipeline_progress()
+
+    except Exception as e:
+        logging.getLogger(__name__).error(
+            "Auto cross-exam trigger (freshness) failed: %s", e
+        )
+
+    # Step 4: Daily audit + meta review (ALWAYS runs, both branches)
+    # Uses cached results if today's audit already exists.
+    try:
+        await _run_and_display_daily_audit(incomplete_countries)
+    except Exception as e:
+        logging.getLogger(__name__).error("Auto daily audit trigger failed: %s", e)
+
+
+async def _run_and_display_daily_audit(
+    incomplete_countries: list[str] | None = None,
+):
+    """Run daily audit (or load cached), display results, then check meta review.
+
+    Called on every Doc Control session start. If today's audit file already
+    exists (data/daily_audit/daily_{YYYY-MM-DD}.json), loads the cached result
+    instead of re-running. This ensures once-per-calendar-day execution while
+    always showing results to the user.
+    """
+    import asyncio as _aio
+    from datetime import date as _date
+
+    lang = cl.user_session.get("language", "zh-TW")
+    today_str = _date.today().isoformat()
+    daily_path = Path(f"data/daily_audit/daily_{today_str}.json")
+
+    _log = logging.getLogger(__name__)
+    result = None
+
+    if daily_path.exists():
+        # Load cached result from today
+        try:
+            from src.analysis.daily_audit import DailyAuditResult
+
+            _data = json.loads(daily_path.read_text(encoding="utf-8"))
+            result = DailyAuditResult.from_dict(_data)
+            _log.info("Daily audit: loaded cached result for %s", today_str)
+        except Exception as e:
+            _log.warning("Failed to load cached daily audit: %s", e)
+            result = None
+    else:
+        # Need LLM function to run audit
+        from src.analysis.report_api import _get_llm_completion_fn_standalone
+
+        llm_fn = _get_llm_completion_fn_standalone()
+        if llm_fn is None:
+            await cl.Message(content=t("daily_audit.no_llm"), author="Eira").send()
             return
 
-        # Step 1: Show progress message, then crawl with live % updates
-        from src.services.regulatory_crawler import check_regulation_freshness
+        # Show progress message
+        audit_progress = cl.Message(content=t("daily_audit.running"), author="Eira")
+        await audit_progress.send()
 
-        progress_msg = cl.Message(
-            content=t("crossexam.freshness_crawling", percent=0, country="..."),
-            author="Eira",
-        )
-        await progress_msg.send()
+        try:
+            from src.analysis.daily_audit import run_daily_audit
 
-        async def _on_country_progress(completed: int, total: int, country_zh: str):
-            pct = round((completed / total) * 100) if total > 0 else 0
-            progress_msg.content = t(
-                "crossexam.freshness_crawling",
-                percent=pct,
-                country=country_zh,
+            result = await _aio.to_thread(
+                run_daily_audit,
+                llm_completion_fn=llm_fn,
+                lang=lang,
+                incomplete_countries=incomplete_countries or [],
             )
-            await progress_msg.update()
 
-        freshness = await check_regulation_freshness(
-            progress_callback=_on_country_progress,
+            audit_progress.content = t("daily_audit.completed")
+            await audit_progress.update()
+        except Exception as e:
+            _log.error("Daily audit run failed: %s", e)
+            audit_progress.content = f"⚠️ Daily audit failed: {str(e)[:200]}"
+            await audit_progress.update()
+            return
+
+    if result is None:
+        return
+
+    # Check if audit had no records (empty result)
+    if (
+        result.overall_score == 0
+        and not result.dim_a_summary
+        and not result.dim_b_summary
+    ):
+        if "No cross-examination records" in (result.summary or ""):
+            await cl.Message(content=t("daily_audit.no_records"), author="Eira").send()
+            return
+
+    # Display the daily audit result
+    await _display_daily_audit_result(result)
+
+    # Step 5: 10-day meta review check
+    await _run_and_display_meta_review()
+
+
+async def _display_daily_audit_result(result):
+    """Display daily audit scores, deviation warning, HTML link, and exports."""
+    lang = cl.user_session.get("language", "zh-TW")
+    _report_url = f"/api/report/page/latest?lang={lang}"
+
+    # Build message lines
+    lines = [
+        t(
+            "daily_audit.result_title",
+            date=result.audit_date,
+        ),
+        t(
+            "daily_audit.score_line",
+            overall=result.overall_score,
+            dim_a=result.dim_a_score,
+            dim_b=result.dim_b_score,
+        ),
+    ]
+
+    # Deviation warning
+    if result.deviation_detected:
+        lines.append(
+            t("daily_audit.deviation_warning", details=result.deviation_details)
         )
-        _record_freshness_check()
 
-        progress_msg.content = t("crossexam.freshness_crawl_done")
-        await progress_msg.update()
-        if freshness.get("announcement_needed"):
-            lang = cl.user_session.get("language", "zh-TW")
-            if lang.startswith("zh"):
-                announcement = freshness.get("announcement_text_zh", "")
-            else:
-                announcement = freshness.get("announcement_text", "")
-            if announcement:
-                await cl.Message(content=announcement, author="Eira").send()
-        else:
-            await cl.Message(
-                content=t("crossexam.freshness_confirmed"),
-                author="Eira",
-            ).send()
+    # Incomplete data warning
+    if result.incomplete_data_warning and result.incomplete_countries:
+        lines.append(
+            t(
+                "daily_audit.incomplete_data_countries",
+                countries=", ".join(result.incomplete_countries),
+            )
+        )
 
-        # Step 1b: Show per-country upload reminders if any countries have incomplete data
-        country_data = freshness.get("country_completeness", {})
-        incomplete = country_data.get("incomplete_countries", [])
-        if incomplete:
-            lang = cl.user_session.get("language", "zh-TW")
-            countries_info = country_data.get("countries", {})
-            lines = []
-            for pid in incomplete:
-                info = countries_info.get(pid, {})
-                if lang.startswith("zh"):
-                    lines.append(f"  • {info.get('message_zh', pid)}")
-                else:
-                    lines.append(f"  • {info.get('message', pid)}")
-            if lang.startswith("zh"):
-                upload_msg = (
-                    t("crossexam.upload_reminder_title")
-                    + "\n"
-                    + "\n".join(lines)
-                    + "\n\n"
-                    + t("crossexam.upload_reminder_instruction")
-                )
-            else:
-                upload_msg = (
-                    t("crossexam.upload_reminder_title")
-                    + "\n"
-                    + "\n".join(lines)
-                    + "\n\n"
-                    + t("crossexam.upload_reminder_instruction")
-                )
-            await cl.Message(content=upload_msg, author="Eira").send()
+    # HTML report link
+    lines.append(f"\n[🔗 {t('daily_audit.view_report')}]({_report_url})")
 
-        # Step 2: Check MDSAP toggle — if enabled, include 5-country analysis
-        from src.utils.app_settings import get_app_setting
+    msg_content = "\n".join(lines)
 
-        mdsap_enabled = get_app_setting("mdsap_verify_enabled", False)
-        if mdsap_enabled:
-            mdsap_msg = t("crossexam.mdsap_enabled_notice")
-            await cl.Message(content=mdsap_msg, author="Eira").send()
+    # Generate Word/Excel exports and attach as downloadable files
+    elements = []
+    try:
+        from src.analysis.daily_audit import (
+            export_daily_audit_word,
+            export_daily_audit_excel,
+        )
 
-        # Step 3: Show pipeline progress indicator (if any pipeline is running)
-        await _show_pipeline_progress()
+        word_path = str(export_daily_audit_word(result))
+        if Path(word_path).exists():
+            wname = re.sub(r"^\d{14}_", "", Path(word_path).name)
+            elements.append(cl.File(name=wname, path=word_path, display="inline"))
+
+        excel_path = str(export_daily_audit_excel(result))
+        if Path(excel_path).exists():
+            ename = re.sub(r"^\d{14}_", "", Path(excel_path).name)
+            elements.append(cl.File(name=ename, path=excel_path, display="inline"))
     except Exception as e:
-        logger.error(f"Auto cross-exam trigger failed: {e}")
+        logging.getLogger(__name__).warning("Daily audit export failed: %s", e)
+
+    await cl.Message(content=msg_content, author="Eira", elements=elements).send()
+
+
+async def _run_and_display_meta_review():
+    """Check if 10-day meta review should run, display results if available.
+
+    Trigger condition: ≥10 new daily audits since last meta review's period_end.
+    Each batch of 10 new daily audits triggers a new round (新的一輪).
+    Uses _maybe_auto_trigger_meta_review() which handles the ≥10 check internally.
+    """
+    import asyncio as _aio
+
+    lang = cl.user_session.get("language", "zh-TW")
+
+    # Get LLM function
+    from src.analysis.report_api import _get_llm_completion_fn_standalone
+
+    llm_fn = _get_llm_completion_fn_standalone()
+    if llm_fn is None:
+        # Can't run meta review without LLM, but maybe cached result exists
+        from src.analysis.daily_audit import get_latest_meta_review
+
+        meta = get_latest_meta_review()
+        if meta:
+            await _display_meta_review_result(meta)
+        return
+
+    # Run the meta review check (synchronous → thread)
+    try:
+        from src.analysis.report_api import _maybe_auto_trigger_meta_review
+
+        meta_progress = None
+        # Pre-check: do we have ≥10 records? Quick check to decide whether
+        # to show a progress message.
+        from src.analysis.daily_audit import get_daily_audit_history
+
+        daily_records = get_daily_audit_history(limit=30)
+        if len(daily_records) < 10:
+            return  # Not enough records, skip entirely
+
+        meta_progress = cl.Message(content=t("meta_review.running"), author="Eira")
+        await meta_progress.send()
+
+        meta_dict = await _aio.to_thread(
+            _maybe_auto_trigger_meta_review,
+            llm_fn,
+            lang,
+        )
+
+        if meta_dict is not None:
+            # Meta review was triggered and completed — show results
+            # _maybe_auto_trigger_meta_review returns a summary dict, but we
+            # want the full MetaReviewResult for display + exports.
+            from src.analysis.daily_audit import get_latest_meta_review
+
+            meta = get_latest_meta_review()
+            if meta:
+                if meta_progress:
+                    await meta_progress.remove()
+                await _display_meta_review_result(meta)
+            elif meta_progress:
+                await meta_progress.remove()
+        else:
+            # Not triggered (< 10 new records since last meta)
+            # Show the latest cached meta review if one exists
+            if meta_progress:
+                await meta_progress.remove()
+            from src.analysis.daily_audit import get_latest_meta_review
+
+            meta = get_latest_meta_review()
+            if meta:
+                await _display_meta_review_result(meta)
+    except Exception as e:
+        logging.getLogger(__name__).error("Meta review failed: %s", e)
+
+
+async def _display_meta_review_result(meta):
+    """Display a MetaReviewResult with trend analysis and export files."""
+    lang = cl.user_session.get("language", "zh-TW")
+
+    lines = [
+        t(
+            "meta_review.title",
+            period_start=meta.period_start or "?",
+            period_end=meta.period_end or "?",
+        ),
+        t(
+            "meta_review.score_line",
+            avg_dim_a=meta.avg_dim_a,
+            avg_dim_b=meta.avg_dim_b,
+            count=len(meta.daily_results),
+        ),
+    ]
+
+    # Trend analysis
+    if meta.trend_analysis:
+        _trend = meta.trend_analysis[:500]
+        lines.append(t("meta_review.trend", trend=_trend))
+
+    # Deviation summary
+    if meta.deviation_summary:
+        lines.append(t("meta_review.deviation", deviation=meta.deviation_summary[:300]))
+
+    # Recommendations
+    if meta.recommendations:
+        lines.append(t("meta_review.recommendations_title"))
+        for i, rec in enumerate(meta.recommendations[:5], 1):
+            lines.append(f"  {i}. {rec}")
+
+    msg_content = "\n".join(lines)
+
+    # Generate Word/Excel exports
+    elements = []
+    try:
+        from src.analysis.daily_audit import (
+            export_meta_review_word,
+            export_meta_review_excel,
+        )
+
+        word_path = str(export_meta_review_word(meta))
+        if Path(word_path).exists():
+            wname = re.sub(r"^\d{14}_", "", Path(word_path).name)
+            elements.append(cl.File(name=wname, path=word_path, display="inline"))
+
+        excel_path = str(export_meta_review_excel(meta))
+        if Path(excel_path).exists():
+            ename = re.sub(r"^\d{14}_", "", Path(excel_path).name)
+            elements.append(cl.File(name=ename, path=excel_path, display="inline"))
+    except Exception as e:
+        logging.getLogger(__name__).warning("Meta review export failed: %s", e)
+
+    await cl.Message(content=msg_content, author="Eira", elements=elements).send()
 
 
 async def _show_pipeline_progress():
@@ -3277,35 +3559,13 @@ async def on_chat_start():
     except Exception:
         pass  # Don't block startup
 
-    # Show latest daily audit summary on reconnect
-    try:
-        _daily_dir = Path("data/daily_audit")
-        if _daily_dir.exists():
-            _audit_files = sorted(
-                _daily_dir.glob("daily_*.json"),
-                key=lambda f: f.stat().st_mtime,
-                reverse=True,
-            )
-            if _audit_files:
-                _latest = json.loads(_audit_files[0].read_text(encoding="utf-8"))
-                _audit_date = _latest.get("audit_date", "")
-                _overall = _latest.get("overall_score", 0)
-                _dim_a = _latest.get("dim_a_score", 0)
-                _dim_b = _latest.get("dim_b_score", 0)
-                _has_deviation = _latest.get("deviation_detected", False)
-                _lang = cl.user_session.get("language", "zh-TW")
-                _report_url = f"/api/report/page/latest?lang={_lang}"
-                _audit_msg = (
-                    f"🔍 **每日稽核摘要** ({_audit_date})\n"
-                    f"綜合分數: {_overall:.0f} | 面向A: {_dim_a:.0f} | 面向B: {_dim_b:.0f}\n"
-                )
-                if _has_deviation:
-                    _audit_msg += f"⚠️ 偵測到偏差\n"
-                await cl.Message(content=_audit_msg).send()
-    except Exception:
-        pass  # Don't block startup
+    # NOTE: Daily audit summary is now shown via _auto_trigger_crossexam()
+    # inside _send_eira_introduction(), which handles both fresh runs and
+    # cached results. No separate reconnect display needed — the daily audit
+    # section in _auto_trigger_crossexam() checks for today's cached file
+    # and displays it with scores + HTML link + Word/Excel exports.
 
-    # Eira introduction + freshness check + signature detection
+    # Eira introduction + freshness check + daily audit + signature detection
     # Correct order: intro → 法規更新 → 簽章詢問
     # _auto_trigger_crossexam() is now called inside _send_eira_introduction()
     # so it runs for BOTH new users (after name entry) and returning users.
@@ -3320,22 +3580,24 @@ async def on_chat_start():
 async def _send_eira_introduction(
     user_name: str, profile: str, doc_count: int, doc_limit: int
 ):
-    """Send Eira introduction, then freshness check, then signature detection.
+    """Send Eira introduction, then run startup sequence, then signature toggle.
 
     Correct startup order for Doc Control:
       1. Eira 歡迎詞 (introduction)
-      2. 法規更新 (freshness check + crawl, once per calendar day)
-      3. 簽章詢問 (signature detection toggle)
+      2. 法規更新 with progress % (freshness check + crawl, once per calendar day)
+      3. 當日交叉詰問 daily audit (run or show cached, once per calendar day)
+      4. 10日總檢 meta review (if ≥10 new daily audits since last meta)
+      5. 簽章詢問 (signature detection toggle)
     """
     intro = t("eira.introduction", name=user_name)
     await cl.Message(content=intro, author="Eira").send()
 
     # Only run Doc Control-specific steps for Doc Control profile
     if profile == "文件管制 (Doc Control)":
-        # Step 1: Regulation freshness check (after intro, before sig detection)
+        # Steps 2-4: Freshness check → daily audit → meta review
         await _auto_trigger_crossexam()
 
-        # Step 2: Ask signature detection toggle
+        # Step 5: Ask signature detection toggle
         await _ask_sig_detection_toggle(user_name)
 
 
