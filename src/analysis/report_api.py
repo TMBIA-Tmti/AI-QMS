@@ -1422,20 +1422,27 @@ async def export_report(run_id: str, fmt: str):
                 tbl.style = "Table Grid"
                 for i, h in enumerate(headers):
                     tbl.rows[0].cells[i].text = h
+                _incomplete_label = "（Pipeline 未完成）"
                 for ri, row in enumerate(flat_rows, 1):
                     tbl.rows[ri].cells[
                         0
                     ].text = f"{row.get('clause_id', '')} {row.get('clause_title', '')}"
                     tbl.rows[ri].cells[1].text = f"{row.get('doc_id', '')}"
                     tbl.rows[ri].cells[2].text = row.get("audit_impact", "")
-                    tbl.rows[ri].cells[
-                        3
-                    ].text = (
-                        f"{row.get('verdict_icon', '')} {row.get('verdict_label', '')}"
+                    _v_icon = row.get("verdict_icon", "")
+                    _v_label = row.get("verdict_label", "")
+                    tbl.rows[ri].cells[3].text = (
+                        f"{_v_icon} {_v_label}"
+                        if _v_icon or _v_label
+                        else _incomplete_label
                     )
-                    tbl.rows[ri].cells[
-                        4
-                    ].text = f"{row.get('risk_icon', '')} {row.get('risk_label', '')}"
+                    _r_icon = row.get("risk_icon", "")
+                    _r_label = row.get("risk_label", "")
+                    tbl.rows[ri].cells[4].text = (
+                        f"{_r_icon} {_r_label}"
+                        if _r_icon or _r_label
+                        else _incomplete_label
+                    )
                     tbl.rows[ri].cells[5].text = row.get("gap_severity", "") or ""
                     tbl.rows[ri].cells[6].text = (
                         "⚠️" if row.get("flagged_for_ra") else ""
@@ -1501,6 +1508,7 @@ async def export_report(run_id: str, fmt: str):
                 cell.font = header_font
                 cell.alignment = Alignment(horizontal="center")
 
+            _xl_incomplete = "（Pipeline 未完成）"
             for ri, row in enumerate(flat_rows, data_start_row + 1):
                 ws.cell(row=ri, column=1, value=row.get("clause_id", ""))
                 ws.cell(row=ri, column=2, value=row.get("clause_title", ""))
@@ -1508,15 +1516,23 @@ async def export_report(run_id: str, fmt: str):
                 ws.cell(row=ri, column=4, value=row.get("doc_title", ""))
                 ws.cell(row=ri, column=5, value=row.get("audit_impact", ""))
                 ws.cell(row=ri, column=6, value=row.get("audit_question", ""))
+                _xv_icon = row.get("verdict_icon", "")
+                _xv_label = row.get("verdict_label", "")
                 ws.cell(
                     row=ri,
                     column=7,
-                    value=f"{row.get('verdict_icon', '')} {row.get('verdict_label', '')}",
+                    value=f"{_xv_icon} {_xv_label}"
+                    if _xv_icon or _xv_label
+                    else _xl_incomplete,
                 )
+                _xr_icon = row.get("risk_icon", "")
+                _xr_label = row.get("risk_label", "")
                 ws.cell(
                     row=ri,
                     column=8,
-                    value=f"{row.get('risk_icon', '')} {row.get('risk_label', '')}",
+                    value=f"{_xr_icon} {_xr_label}"
+                    if _xr_icon or _xr_label
+                    else _xl_incomplete,
                 )
                 ws.cell(row=ri, column=9, value=row.get("gap_severity", "") or "")
                 ws.cell(
@@ -1687,12 +1703,10 @@ def _build_export_assessment(flat_rows: list[dict], summary: dict) -> str:
         lines.append(
             f"- **文件**: {row.get('doc_title', '')} ({row.get('doc_id', '')})"
         )
-        lines.append(
-            f"- **判定**: {row.get('verdict_icon', '')} {row.get('verdict_label', '')}"
-        )
-        lines.append(
-            f"- **風險**: {row.get('risk_icon', '')} {row.get('risk_label', '')}"
-        )
+        _md_v = f"{row.get('verdict_icon', '')} {row.get('verdict_label', '')}".strip()
+        _md_r = f"{row.get('risk_icon', '')} {row.get('risk_label', '')}".strip()
+        lines.append(f"- **判定**: {_md_v or '（Pipeline 未完成）'}")
+        lines.append(f"- **風險**: {_md_r or '（Pipeline 未完成）'}")
         lines.append(f"- **稽核影響**: {row.get('audit_impact', '')}")
         ev_found = row.get("evidence_found", 0)
         ev_total = row.get("evidence_total", 0)

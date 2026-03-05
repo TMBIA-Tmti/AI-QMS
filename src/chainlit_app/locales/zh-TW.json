@@ -596,5 +596,12 @@
   "adjust_guide.country_imbalance": "🌍 各國評分差距大 (最高 {max_score}, 最低 {min_score}) — 較弱國家: {countries}。建議補強這些國家的法規 Profile 資料。",
   "adjust_guide.flagged_clauses": "🚩 {count} 條 ISO 13485 條款被標記 — 包含: {clauses}。建議檢視這些條款的文件是否完整且符合最新法規要求。",
   "adjust_guide.incomplete_data": "📂 以下國家/法規資料不完整: {countries} — 部分評估結果可能不準確。建議補充缺少的法規資料。",
-  "adjust_guide.no_issues": "✅ 本次稽核未發現需要人為介入的明顯問題。建議持續定期檢視以保持品質。"
+  "adjust_guide.no_issues": "✅ 本次稽核未發現需要人為介入的明顯問題。建議持續定期檢視以保持品質。",
+  "report_type.title": "📊 **分析報告類型選擇**",
+  "report_type.description": "請選擇分析報告的深度：\n\n**一般報告** — 執行核心分析階段（P0-P4），產生合規差距與風險評估報告。速度較快、Token 用量較低。\n\n**深度報告** — 執行所有分析階段（P0-P6），包含獨立驗證交叉詰問（P5）與法規來源驗證（P6）。分析更完整但耗時較長。",
+  "report_type.btn_normal": "📄 一般報告（P0-P4）",
+  "report_type.btn_deep": "📋 深度報告（P0-P6，含交叉詰問）",
+  "report_type.selected_normal": "📄 已選擇：**一般報告**（跳過 P5 交叉詰問、P6 來源驗證）",
+  "report_type.selected_deep": "📋 已選擇：**深度報告**（執行所有分析階段）",
+  "export.pipeline_incomplete": "（Pipeline 未完成）"
 }

@@ -4368,6 +4368,43 @@ async def _iter_stream_with_timeout(
 _STREAM_SENTINEL = object()  # sentinel for detecting generator exhaustion
 
 
+async def _ask_report_type() -> list[str]:
+    """Ask user to choose between normal report (P0-P4) and deep report (P0-P6).
+
+    Returns:
+        list of phase keys to skip. Empty list = deep (all phases).
+        ["phase_5", "phase_6"] = normal (skip cross-exam + source check).
+    """
+    try:
+        res = await cl.AskActionMessage(
+            content=(f"{t('report_type.title')}\n\n{t('report_type.description')}"),
+            actions=[
+                cl.Action(
+                    name="report_type_normal",
+                    payload={"value": "normal"},
+                    label=t("report_type.btn_normal"),
+                ),
+                cl.Action(
+                    name="report_type_deep",
+                    payload={"value": "deep"},
+                    label=t("report_type.btn_deep"),
+                ),
+            ],
+            timeout=120,
+        ).send()
+    except Exception:
+        # Timeout — default to normal report
+        await cl.Message(content=t("report_type.selected_normal")).send()
+        return ["phase_5", "phase_6"]
+
+    if res and res.get("value") == "deep":
+        await cl.Message(content=t("report_type.selected_deep")).send()
+        return []
+    else:
+        await cl.Message(content=t("report_type.selected_normal")).send()
+        return ["phase_5", "phase_6"]
+
+
 async def _ask_product_docs_upload() -> Optional[str]:
     """Ask user if they want to upload product documents before analysis.
 
@@ -4677,6 +4714,9 @@ async def handle_regulatory_list():
             product_docs_session_id, max_chars=8000
         )
 
+    # ── Step 0.5: Ask user for report type (normal vs deep) ──
+    _skip_phases = await _ask_report_type()
+
     # ── Step 1: Generate baseline Word/Excel BEFORE LLM (guaranteed report) ──
     _cache_id = f"regulatory_list_{datetime.now().strftime('%Y%m%d%H%M%S')}"
     baseline_word_path = ""
@@ -4770,10 +4810,12 @@ async def handle_regulatory_list():
                 selected_regulations=_reg_list_selected_ids
                 if _reg_list_selected_ids
                 else None,
+                custom_skip_phases=_skip_phases if _skip_phases else None,
             )
 
         if pipeline_result and pipeline_result.success:
             assessment = pipeline_result.to_summary_markdown()
+
             # Show pipeline summary
             try:
                 await cl.Message(content=assessment).send()
@@ -5426,6 +5468,9 @@ async def handle_regulatory_update_rescan(selected_regions: list):
             product_docs_session_id, max_chars=8000
         )
 
+    # ── Ask user for report type (normal vs deep) ──
+    _skip_phases_update = await _ask_report_type()
+
     # ── Run analysis pipeline (replaces one-shot LLM) ──
     storage = get_markdown_store()
     scan_result_local = storage.scan_regulatory_references()
@@ -5480,6 +5525,9 @@ async def handle_regulatory_update_rescan(selected_regions: list):
                     on_run_id_ready=_on_run_id_ready_update,
                     selected_regulations=_selected_regulation_ids
                     if _selected_regulation_ids
+                    else None,
+                    custom_skip_phases=_skip_phases_update
+                    if _skip_phases_update
                     else None,
                 )
 

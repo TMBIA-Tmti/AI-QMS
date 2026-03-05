@@ -593,5 +593,12 @@
   "adjust_guide.country_imbalance": "🌍 各国のスコア差が大きい（最高 {max_score}、最低 {min_score}） — 弱い国: {countries}。これらの国の法規 Profile データを補強してください。",
   "adjust_guide.flagged_clauses": "🚩 {count} 条の ISO 13485 条項がフラグ付き — 含む: {clauses}。これらの条項の文書が完全で最新の法規要件に適合しているか確認してください。",
   "adjust_guide.incomplete_data": "📂 以下の国/法規のデータが不完全: {countries} — 一部の評価結果が不正確な可能性があります。不足している法規データを補充してください。",
-  "adjust_guide.no_issues": "✅ 今回の監査で人為介入が必要な明確な問題は検出されませんでした。品質維持のため定期的な確認を継続してください。"
+  "adjust_guide.no_issues": "✅ 今回の監査で人為介入が必要な明確な問題は検出されませんでした。品質維持のため定期的な確認を継続してください。",
+  "report_type.title": "📊 **分析レポートタイプの選択**",
+  "report_type.description": "分析の深度を選択してください：\n\n**一般レポート** — コア分析フェーズ（P0-P4）を実行し、ギャップとリスク評価レポートを生成します。より高速でトークン使用量が少ないです。\n\n**詳細レポート** — すべての分析フェーズ（P0-P6）を実行し、独立検証クロスエグザミネーション（P5）と法規ソース検証（P6）を含みます。より徹底的ですが時間がかかります。",
+  "report_type.btn_normal": "📄 一般レポート（P0-P4）",
+  "report_type.btn_deep": "📋 詳細レポート（P0-P6、クロスエグザミネーション含む）",
+  "report_type.selected_normal": "📄 選択済み：**一般レポート**（P5 クロスエグザミネーション、P6 ソース検証をスキップ）",
+  "report_type.selected_deep": "📋 選択済み：**詳細レポート**（すべての分析フェーズを実行）",
+  "export.pipeline_incomplete": "（Pipeline 未完了）"
 }

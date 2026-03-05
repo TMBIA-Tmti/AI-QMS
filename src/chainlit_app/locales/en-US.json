@@ -590,5 +590,12 @@
   "adjust_guide.country_imbalance": "🌍 Large score gap across countries (highest {max_score}, lowest {min_score}) — Weaker countries: {countries}. Recommend strengthening Regulation Profile data for these countries.",
   "adjust_guide.flagged_clauses": "🚩 {count} ISO 13485 clause(s) flagged — Including: {clauses}. Review whether documents for these clauses are complete and comply with the latest regulatory requirements.",
   "adjust_guide.incomplete_data": "📂 Incomplete data for the following countries/regulations: {countries} — Some assessment results may be inaccurate. Recommend supplementing missing regulatory data.",
-  "adjust_guide.no_issues": "✅ No significant issues requiring human intervention found in this audit. Continue regular reviews to maintain quality."
+  "adjust_guide.no_issues": "✅ No significant issues requiring human intervention found in this audit. Continue regular reviews to maintain quality.",
+  "report_type.title": "📊 **Analysis Report Type Selection**",
+  "report_type.description": "Choose the depth of analysis:\n\n**Normal Report** — Runs core analysis phases (P0-P4), producing gap and risk assessment. Faster with lower token usage.\n\n**Deep Report** — Runs all analysis phases (P0-P6), including independent verification cross-examination (P5) and regulatory source verification (P6). More thorough but takes longer.",
+  "report_type.btn_normal": "📄 Normal Report (P0-P4)",
+  "report_type.btn_deep": "📋 Deep Report (P0-P6, with cross-exam)",
+  "report_type.selected_normal": "📄 Selected: **Normal Report** (skipping P5 cross-examination, P6 source verification)",
+  "report_type.selected_deep": "📋 Selected: **Deep Report** (all analysis phases)",
+  "export.pipeline_incomplete": "(Pipeline Incomplete)"
 }

@@ -1920,6 +1920,13 @@
                 if (tabId === "crossref" && !crossrefRegulations) {
                     loadCrossrefRegulations();
                 }
+                // Auto-load daily audit history on first visit
+                if (tabId === "dailyaudit" && els.dailyAuditHistory) {
+                    const isEmpty = !els.dailyAuditHistory.querySelector('.history-records');
+                    if (isEmpty) {
+                        loadDailyAuditHistory();
+                    }
+                }
             });
         }
 
@@ -1984,10 +1991,14 @@
                 apiPost('/crossref/mdsap-verify', { enabled: mdsapVerifyEnabled })
                     .then(() => {
                         showToast(mdsapVerifyEnabled ? t('toast.mdsapEnabled') : t('toast.mdsapDisabled'), 'info');
-                        // Auto-reload crossref table if already loaded (no manual refresh needed)
                         if (crossrefData) {
                             showToast(t('toast.mdsapReloading'), 'info');
                             loadCrossrefTable();
+                        } else {
+                            showToast(mdsapVerifyEnabled
+                                ? '✅ MDSAP 設定已儲存（7國模式）。請點擊「產生交叉比對表」套用。'
+                                : '✅ MDSAP 設定已儲存（2國模式）。請點擊「產生交叉比對表」套用。',
+                                'success');
                         }
                     })
                     .catch(e => showToast(t('toast.mdsapFailed', {msg: e.message || e}), 'error'));
