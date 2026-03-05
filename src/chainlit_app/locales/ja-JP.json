@@ -497,6 +497,8 @@
   "source_label.regulatory_list": "規制リスト",
   "source_label.regulatory_update": "規制リスト更新",
   "source_label.source": "ソースコマンド",
+  "crossexam.freshness_crawling": "Eira：🔄 各国の法規データを更新中... {percent}% — {country}",
+  "crossexam.freshness_crawl_done": "Eira：✅ 各国の法規データ更新完了",
   "crossexam.freshness_confirmed": "Eira：✅ すべての法規資料が最新版であることを確認しました",
   "crossexam.mdsap_enabled_notice": "Eira：🌐 MDSAP 5カ国交差尋問が有効です。今回の分析には7カ国交差尋問とMDSAP 5カ国（HC/PMDA/ANVISA/TGA/QMSR）の交差尋問分析が含まれます。",
   "report.previous_report": "以前の分析レポート",

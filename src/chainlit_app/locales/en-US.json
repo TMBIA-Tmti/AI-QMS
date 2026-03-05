@@ -497,6 +497,8 @@
   "source_label.regulatory_list": "Regulatory List",
   "source_label.regulatory_update": "Regulatory List Update",
   "source_label.source": "Source Command",
+  "crossexam.freshness_crawling": "Eira: 🔄 Updating regulatory data... {percent}% — {country}",
+  "crossexam.freshness_crawl_done": "Eira: ✅ Regulatory data update complete",
   "crossexam.freshness_confirmed": "Eira: ✅ All regulatory references confirmed as latest version.",
   "crossexam.mdsap_enabled_notice": "Eira: 🌐 MDSAP 5-country cross-examination enabled. This analysis will include both 7-country cross-examination and MDSAP 5-country (HC/PMDA/ANVISA/TGA/QMSR) analysis.",
   "report.previous_report": "Previous Analysis Report",

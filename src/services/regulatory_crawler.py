@@ -33,7 +33,7 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 from urllib.parse import urlparse
 import xml.etree.ElementTree as ET
 
@@ -1689,6 +1689,7 @@ _KNOWN_STANDARDS = {
 
 async def check_regulation_freshness(
     standards: Optional[list] = None,
+    progress_callback: Optional[Callable] = None,
 ) -> dict:
     """Check if ISO 13485 and MDSAP regulation references are up-to-date.
 
@@ -1845,8 +1846,9 @@ async def check_regulation_freshness(
         announcement = ""
         announcement_zh = ""
 
-    # Also check 7-country data completeness in parallel
-    country_completeness = await check_country_data_completeness()
+    country_completeness = await check_country_data_completeness(
+        progress_callback=progress_callback,
+    )
     incomplete = country_completeness.get("incomplete_countries", [])
 
     # Note: per-country upload reminders are handled by app.py _auto_trigger_crossexam()
@@ -1945,7 +1947,9 @@ def get_crossexam_country_map() -> dict:
 _MIN_COMPLETE_CONTENT_LEN = 50  # same threshold as _crawl_tier2_httpx
 
 
-async def check_country_data_completeness() -> dict:
+async def check_country_data_completeness(
+    progress_callback: Optional[Callable] = None,
+) -> dict:
     """Check whether each cross-examination country (predefined 7 + dynamic) has
     complete regulation data available via crawler.
 
@@ -1954,6 +1958,10 @@ async def check_country_data_completeness() -> dict:
       2. If ANY site returns ≥50 chars of content → data is 'complete'
       3. If ALL sites fail or return empty content → 'incomplete',
          user should be notified to manually upload
+
+    Args:
+        progress_callback: Optional async callable(completed, total, country_name_zh)
+                          called after each country finishes crawling.
 
     Returns:
         {
@@ -1979,8 +1987,11 @@ async def check_country_data_completeness() -> dict:
 
     countries_result = {}
     incomplete_list = []
+    country_map = get_crossexam_country_map()
+    total_countries = len(country_map)
+    completed_countries = 0
 
-    for profile_id, country_info in get_crossexam_country_map().items():
+    for profile_id, country_info in country_map.items():
         region_key = country_info["region"]
         sites = REGION_SITES.get(region_key, [])
 
@@ -1995,9 +2006,16 @@ async def check_country_data_completeness() -> dict:
                 "message_zh": f"{country_info['name_zh']} 沒有設定爬蟲網站",
             }
             incomplete_list.append(profile_id)
+            completed_countries += 1
+            if progress_callback:
+                try:
+                    await progress_callback(
+                        completed_countries, total_countries, country_info["name_zh"]
+                    )
+                except Exception:
+                    pass
             continue
 
-        # Crawl all sites for this country in parallel
         tasks = [crawler._crawl_single_site(site, region_key) for site in sites]
         try:
             raw = await asyncio.gather(*tasks, return_exceptions=True)
@@ -2012,6 +2030,14 @@ async def check_country_data_completeness() -> dict:
                 "message_zh": f"{country_info['name_zh']} 爬蟲錯誤: {e}",
             }
             incomplete_list.append(profile_id)
+            completed_countries += 1
+            if progress_callback:
+                try:
+                    await progress_callback(
+                        completed_countries, total_countries, country_info["name_zh"]
+                    )
+                except Exception:
+                    pass
             continue
 
         sites_checked = len(sites)
@@ -2056,6 +2082,15 @@ async def check_country_data_completeness() -> dict:
                 ),
             }
             incomplete_list.append(profile_id)
+
+        completed_countries += 1
+        if progress_callback:
+            try:
+                await progress_callback(
+                    completed_countries, total_countries, country_info["name_zh"]
+                )
+            except Exception:
+                pass
 
     return {
         "checked_at": datetime.now(timezone.utc).isoformat(),

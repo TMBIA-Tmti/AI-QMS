@@ -2908,20 +2908,38 @@ async def _auto_trigger_crossexam():
     try:
         # Gate: only run full freshness check + crawl once per calendar day (隔日)
         if not _should_run_freshness_check():
-            # Already checked today — skip crawling, only show pipeline progress
             logger.debug(
                 "Freshness check skipped (already ran today). "
                 "Showing pipeline progress only."
             )
-            # Jump directly to Step 3 (pipeline progress)
             await _show_pipeline_progress()
             return
 
-        # Step 1: Check regulation freshness + 7-country data completeness
+        # Step 1: Show progress message, then crawl with live % updates
         from src.services.regulatory_crawler import check_regulation_freshness
 
-        freshness = await check_regulation_freshness()
-        _record_freshness_check()  # Mark today's date as done
+        progress_msg = cl.Message(
+            content=t("crossexam.freshness_crawling", percent=0, country="..."),
+            author="Eira",
+        )
+        await progress_msg.send()
+
+        async def _on_country_progress(completed: int, total: int, country_zh: str):
+            pct = round((completed / total) * 100) if total > 0 else 0
+            progress_msg.content = t(
+                "crossexam.freshness_crawling",
+                percent=pct,
+                country=country_zh,
+            )
+            await progress_msg.update()
+
+        freshness = await check_regulation_freshness(
+            progress_callback=_on_country_progress,
+        )
+        _record_freshness_check()
+
+        progress_msg.content = t("crossexam.freshness_crawl_done")
+        await progress_msg.update()
         if freshness.get("announcement_needed"):
             lang = cl.user_session.get("language", "zh-TW")
             if lang.startswith("zh"):
