@@ -49,7 +49,7 @@ chainlit>=2.9.6
 gradio>=4.44.0
 
 # LiteLLM (Multi-provider LLM abstraction)
-litellm>=1.48.0
+litellm==1.81.15
 
 # OpenAI (for Vision API)
 openai>=1.50.0
