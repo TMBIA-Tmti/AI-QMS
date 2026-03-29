@@ -79,13 +79,14 @@ def _check_and_install_dependencies():
                     str(requirements_file),
                     "--quiet",
                     "--disable-pip-version-check",
+                    "--no-deps",
                 ],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.PIPE,
             )
             print("[OK] Dependencies installed successfully.")
         except subprocess.CalledProcessError as e:
-            print(f"[WARN] Some packages failed to install: {e}")
+            print(f"[WARNING] Auto-install failed: {e}")
             print("[WARN] Please run manually: pip install -r requirements.txt")
         except Exception as e:
             print(f"[WARN] Auto-install error: {e}")
@@ -2681,6 +2682,7 @@ async def on_settings_update(settings):
 # Starts on first user session; pre-fetches regulatory data daily.
 
 _regulatory_scheduler_started = False
+_regulatory_scheduler_lock = asyncio.Lock()
 _REGULATORY_SCHEDULE_HOUR = 6  # Run at 6 AM daily
 
 
@@ -2750,6 +2752,7 @@ async def _regulatory_background_scheduler():
 
 
 _daily_audit_scheduler_started = False
+_daily_audit_scheduler_lock = asyncio.Lock()
 _DAILY_AUDIT_SCHEDULE_HOUR = 7  # Run daily audit at 7 AM
 
 
@@ -3432,15 +3435,17 @@ async def on_chat_start():
 
     # Start background regulatory scheduler (first user only)
     global _regulatory_scheduler_started
-    if not _regulatory_scheduler_started:
-        _regulatory_scheduler_started = True
-        asyncio.create_task(_regulatory_background_scheduler())
+    async with _regulatory_scheduler_lock:
+        if not _regulatory_scheduler_started:
+            _regulatory_scheduler_started = True
+            asyncio.create_task(_regulatory_background_scheduler())
 
     # Start background daily audit scheduler (first user only)
     global _daily_audit_scheduler_started
-    if not _daily_audit_scheduler_started:
-        _daily_audit_scheduler_started = True
-        asyncio.create_task(_daily_audit_background_scheduler())
+    async with _daily_audit_scheduler_lock:
+        if not _daily_audit_scheduler_started:
+            _daily_audit_scheduler_started = True
+            asyncio.create_task(_daily_audit_background_scheduler())
 
     # Check for saved user settings (auto-reconnect)
     saved = load_user_settings()
@@ -4344,6 +4349,8 @@ def _get_display_doc_type(
 STREAMING_CHUNK_TIMEOUT = 300  # seconds — max wait for a single chunk (increased from 120 for long regulatory analysis)
 MAX_CONTINUATIONS = 15  # max auto-continuation loops when LLM output is truncated
 
+_STREAM_SENTINEL = object()  # sentinel for detecting generator exhaustion
+
 
 async def _iter_stream_with_timeout(
     sync_generator, chunk_timeout: int = STREAMING_CHUNK_TIMEOUT
@@ -4376,9 +4383,6 @@ async def _iter_stream_with_timeout(
                 sync_generator.close()
             except Exception:
                 pass
-
-
-_STREAM_SENTINEL = object()  # sentinel for detecting generator exhaustion
 
 
 async def _ask_report_type() -> list[str]:

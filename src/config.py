@@ -177,7 +177,7 @@ CHROMA_PERSIST_DIR = os.getenv("CHROMA_PERSIST_DIR", "./data/chroma_db")
 WEAVIATE_URL = os.getenv("WEAVIATE_URL", "http://localhost:8080")
 
 # PostgreSQL
-POSTGRES_URL = os.getenv("POSTGRES_URL", "postgresql://localhost:5432/qms_db")
+POSTGRES_URL = os.getenv("POSTGRES_URL", "")
 
 
 # ============================================================

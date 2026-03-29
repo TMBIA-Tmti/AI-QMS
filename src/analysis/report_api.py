@@ -43,9 +43,11 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import time
 import threading
 from collections import defaultdict
+from html import escape
 from pathlib import Path
 from typing import Optional
 
@@ -115,7 +117,7 @@ def _load_table(run_id: str) -> ComparisonTable:
         return ComparisonTable.load(run_id, _PIPELINE_DIR)
     except Exception as e:
         logger.error(f"Failed to load pipeline state {run_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to load run: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 def _save_table(table: ComparisonTable) -> None:
@@ -124,7 +126,7 @@ def _save_table(table: ComparisonTable) -> None:
         table.save()
     except Exception as e:
         logger.error(f"Failed to save pipeline state: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to save changes: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 def _row_to_api(row_dict: dict) -> dict:
@@ -165,6 +167,9 @@ async def serve_report_page(run_id: str):
         if not run_id:
             raise HTTPException(status_code=404, detail="No valid run_id found")
 
+    if not re.match(r'^[a-zA-Z0-9_\-]+$', run_id):
+        raise HTTPException(status_code=400, detail="Invalid run_id format")
+
     html_path = REPORT_STATIC_DIR / "report.html"
     if not html_path.exists():
         raise HTTPException(status_code=404, detail="Report page not found")
@@ -176,7 +181,7 @@ async def serve_report_page(run_id: str):
 
     # Read and inject run_id into the HTML template
     html_content = html_path.read_text(encoding="utf-8")
-    html_content = html_content.replace("{{RUN_ID}}", run_id)
+    html_content = html_content.replace("{{RUN_ID}}", escape(run_id))
     return HTMLResponse(content=html_content)
 
 
@@ -189,6 +194,9 @@ async def serve_report_static(filename: str):
         raise HTTPException(status_code=403, detail="File type not allowed")
 
     filepath = REPORT_STATIC_DIR / filename
+    filepath = filepath.resolve()
+    if not str(filepath).startswith(str(REPORT_STATIC_DIR.resolve())):
+        raise HTTPException(status_code=403, detail="Access denied")
     if not filepath.exists():
         raise HTTPException(status_code=404, detail=f"File not found: {filename}")
 
@@ -1639,7 +1647,7 @@ async def export_report(run_id: str, fmt: str):
         )
     except Exception as e:
         logger.error(f"Export failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Export failed: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
     if not filepath.exists():
         raise HTTPException(status_code=500, detail="Export file was not created")

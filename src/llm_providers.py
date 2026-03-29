@@ -30,6 +30,7 @@ Updated: 2026-02-11
 Reference: OpenCode /connect providers (https://opencode.ai/docs/providers)
 """
 
+import copy
 import os
 import base64
 from typing import TypedDict, Optional, Any
@@ -714,7 +715,7 @@ class LLMProviderManager:
         Args:
             provider_id: Initial provider to use (default: ollama for local)
         """
-        self.providers = DEFAULT_PROVIDERS.copy()
+        self.providers = copy.deepcopy(DEFAULT_PROVIDERS)
         self.current_provider_id = provider_id
         self.fallback_chain = FALLBACK_CHAIN.copy()
         self.disable_fallback = False  # Set True to skip fallback chain
@@ -898,8 +899,8 @@ class LLMProviderManager:
             api_params = {
                 "model": litellm_model,
                 "messages": messages,
-                "temperature": temperature or provider["temperature"],
-                "max_tokens": max_tokens or provider["max_tokens"],
+                "temperature": temperature if temperature is not None else provider["temperature"],
+                "max_tokens": max_tokens if max_tokens is not None else provider["max_tokens"],
                 "stream": stream,
             }
 
@@ -992,7 +993,7 @@ class LLMProviderManager:
         current_idx = (
             self.fallback_chain.index(self.current_provider_id)
             if self.current_provider_id in self.fallback_chain
-            else -1
+            else len(self.fallback_chain)
         )
 
         for fallback_id in self.fallback_chain[current_idx + 1 :]:
@@ -1005,6 +1006,8 @@ class LLMProviderManager:
             original_provider = self.current_provider_id
             self.current_provider_id = fallback_id
 
+            prev_disable_fallback = self.disable_fallback
+            self.disable_fallback = True
             try:
                 result = self.completion(
                     messages,
@@ -1020,6 +1023,7 @@ class LLMProviderManager:
             except Exception:
                 continue
             finally:
+                self.disable_fallback = prev_disable_fallback
                 # Restore original provider
                 self.current_provider_id = original_provider
 

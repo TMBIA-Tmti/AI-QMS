@@ -66,6 +66,12 @@ ollama>=0.3.3
 # Web Search (for /web command — ddgs is the actively maintained package)
 ddgs>=9.0.0
 
+# Encryption
+cryptography>=41.0.0
+
+# Security
+defusedxml>=0.7.1
+
 # Utilities
 python-multipart>=0.0.17
 aiofiles>=24.1.0

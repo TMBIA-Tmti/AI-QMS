@@ -20,7 +20,7 @@ from src.database.audit_log import ImmutableAuditLog
 from src.database.document_store import DocumentStore
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, origins=["http://localhost:3000", "http://127.0.0.1:3000"])
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH
 
@@ -511,4 +511,4 @@ if __name__ == '__main__':
     print(f"啟動 Web 伺服器: http://localhost:5000")
     print("=" * 60)
     
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='127.0.0.1', port=5000, debug=False)

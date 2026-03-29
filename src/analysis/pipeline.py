@@ -127,7 +127,7 @@ def _run_risk_assessment_row(row_state: RowState) -> None:
                 "found_adequate": found_count,
                 "inadequate": inadequate_count,
                 "outdated": outdated_count,
-                "missing": total_count - found_count - inadequate_count,
+                "missing": sum(1 for e in evidence_items if not e.found and not getattr(e, 'is_inadequate', False) and not getattr(e, 'is_outdated', False)),
             },
         }
 

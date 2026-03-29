@@ -5,10 +5,15 @@ AI-QMS Phase 1 - 防竄改稽核紀錄模組
 
 import hashlib
 import json
+import logging
+import threading
+import uuid
 
 from datetime import datetime
 from typing import TypedDict, Optional
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 from src.utils.safe_io import atomic_write_json
 
@@ -30,6 +35,8 @@ class ImmutableAuditLog:
     使用 SHA-256 雜湊鏈確保紀錄不可竄改
     """
 
+    _lock = threading.Lock()
+
     def __init__(self, log_file: str = "./data/audit_log.json"):
         self.log_file = Path(log_file)
         self.log_file.parent.mkdir(parents=True, exist_ok=True)
@@ -47,8 +54,13 @@ class ImmutableAuditLog:
             with open(self.log_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 return data.get("records", [])
-        except (json.JSONDecodeError, FileNotFoundError):
+        except FileNotFoundError:
             return []
+        except json.JSONDecodeError:
+            logger.error("Corrupt audit log JSON at %s", self.log_file)
+            raise json.JSONDecodeError(
+                f"Corrupt audit log file: {self.log_file}", "", 0
+            )
 
     def _save_records(self, records: list):
         """儲存紀錄"""
@@ -69,38 +81,40 @@ class ImmutableAuditLog:
         Returns:
             建立的稽核紀錄
         """
-        records = self._load_records()
+        with self._lock:
+            records = self._load_records()
 
-        # 取得前一筆紀錄的 hash
-        if records:
-            previous_hash = records[-1].get("current_hash", "GENESIS_BLOCK")
-        else:
-            previous_hash = "GENESIS_BLOCK"
+            # 取得前一筆紀錄的 hash
+            if records:
+                previous_hash = records[-1].get("current_hash", "GENESIS_BLOCK")
+            else:
+                previous_hash = "GENESIS_BLOCK"
 
-        # 建立紀錄
-        record = {
-            "record_id": f"AUD-{datetime.now().strftime('%Y%m%d%H%M%S%f')}",
-            "timestamp": datetime.now().isoformat(),
-            "action": action,
-            "document_id": document_id,
-            "user_id": user_id,
-            "details": details,
-            "previous_hash": previous_hash,
-        }
+            # 建立紀錄
+            now = datetime.now()
+            record = {
+                "record_id": f"AUD-{now.strftime('%Y%m%d%H%M%S%f')}-{uuid.uuid4().hex[:8]}",
+                "timestamp": now.isoformat(),
+                "action": action,
+                "document_id": document_id,
+                "user_id": user_id,
+                "details": details,
+                "previous_hash": previous_hash,
+            }
 
-        # 計算當前 hash
-        record_json = json.dumps(record, sort_keys=True, ensure_ascii=False)
-        current_hash = hashlib.sha256(
-            f"{previous_hash}{record_json}".encode("utf-8")
-        ).hexdigest()
+            # 計算當前 hash
+            record_json = json.dumps(record, sort_keys=True, ensure_ascii=False)
+            current_hash = hashlib.sha256(
+                f"{previous_hash}{record_json}".encode("utf-8")
+            ).hexdigest()
 
-        record["current_hash"] = current_hash
+            record["current_hash"] = current_hash
 
-        # 儲存
-        records.append(record)
-        self._save_records(records)
+            # 儲存
+            records.append(record)
+            self._save_records(records)
 
-        return record
+            return record
 
     def get_all_records(self) -> list:
         """取得所有稽核紀錄"""

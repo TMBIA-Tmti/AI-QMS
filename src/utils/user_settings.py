@@ -28,10 +28,41 @@ import os
 import time
 import tempfile
 import logging
+import uuid as _uuid
 from pathlib import Path
 from datetime import datetime, timedelta
+from cryptography.fernet import Fernet as _Fernet
 
 logger = logging.getLogger(__name__)
+
+
+def _get_fernet() -> _Fernet:
+    """Derive a machine-stable Fernet key from MAC address."""
+    try:
+        machine_id = str(_uuid.getnode())
+    except Exception:
+        machine_id = "ai-qms-fallback"
+    raw = hashlib.sha256(f"ai-qms-{machine_id}".encode()).digest()
+    import base64 as _b64
+    key = _b64.urlsafe_b64encode(raw)
+    return _Fernet(key)
+
+
+def _encrypt_key(api_key: str) -> str:
+    if not api_key:
+        return ""
+    return _get_fernet().encrypt(api_key.encode()).decode()
+
+
+def _decrypt_key(encrypted: str) -> str:
+    if not encrypted:
+        return ""
+    try:
+        return _get_fernet().decrypt(encrypted.encode()).decode()
+    except Exception:
+        return ""
+
+
 _SETTINGS_DIR = Path(__file__).parent.parent.parent / "data" / "user_settings"
 _LAST_USER_PATH = _SETTINGS_DIR / "_last_user.json"
 
@@ -122,7 +153,7 @@ def save_user_settings(
         "provider_id": provider_id,
         "provider_name": provider_name,
         "model_name": model_name,
-        "api_key_b64": base64.b64encode(api_key.encode()).decode() if api_key else "",
+        "api_key_encrypted": _encrypt_key(api_key),
         "language": language,
         "updated_at": datetime.now().isoformat(),
     }
@@ -187,11 +218,10 @@ def load_user_settings(user_id: str = "") -> dict:
             except (ValueError, TypeError):
                 pass  # Malformed timestamp — proceed without TTL enforcement
 
-        # Decode API key
-        if settings.get("api_key_b64"):
-            settings["api_key"] = base64.b64decode(settings["api_key_b64"]).decode()
-        else:
-            settings["api_key"] = ""
+        # Decode API key (supports both new encrypted and legacy base64 formats)
+        settings["api_key"] = _decrypt_key(
+            settings.get("api_key_encrypted", settings.get("api_key_b64", ""))
+        )
         return settings
     except Exception:
         return {}
@@ -200,4 +230,4 @@ def load_user_settings(user_id: str = "") -> dict:
 def has_saved_settings(user_id: str = "") -> bool:
     """Check if user settings exist with a saved provider + API key."""
     settings = load_user_settings(user_id)
-    return bool(settings.get("provider_id") and settings.get("api_key_b64"))
+    return bool(settings.get("provider_id") and (settings.get("api_key_encrypted") or settings.get("api_key_b64")))

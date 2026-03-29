@@ -31,11 +31,13 @@ import time
 import hashlib
 import asyncio
 import logging
+import ipaddress as _ipaddress
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Optional
 from urllib.parse import urlparse
-import xml.etree.ElementTree as ET
+_urlparse = urlparse
+import defusedxml.ElementTree as ET
 
 import httpx
 import aiofiles
@@ -74,6 +76,30 @@ except ImportError:
     MARKITDOWN_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
+
+
+def _is_safe_url(url: str) -> bool:
+    """Return False if URL targets private/internal/loopback networks."""
+    try:
+        parsed = _urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return False
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+        if hostname.lower() in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):
+            return False
+        if hostname.endswith(".internal") or hostname.endswith(".local"):
+            return False
+        try:
+            ip = _ipaddress.ip_address(hostname)
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                return False
+        except ValueError:
+            pass  # hostname, not IP — OK
+        return True
+    except Exception:
+        return False
 
 
 # ============================================================
@@ -802,6 +828,8 @@ class SitemapScanner:
         """
         kw = keywords or _QMS_KEYWORDS
         try:
+            if not _is_safe_url(sitemap_url):
+                raise ValueError(f"Blocked unsafe URL: {sitemap_url}")
             resp = await client.get(
                 sitemap_url,
                 headers={"Accept": "application/xml, text/xml"},
@@ -871,6 +899,8 @@ class SitemapScanner:
     ) -> list:
         """Fetch a single child sitemap and filter URLs."""
         try:
+            if not _is_safe_url(sitemap_url):
+                raise ValueError(f"Blocked unsafe URL: {sitemap_url}")
             resp = await client.get(
                 sitemap_url,
                 headers={"Accept": "application/xml, text/xml"},
@@ -1175,6 +1205,9 @@ async def _fetch_with_retry(
 
     Retries on connection errors, timeouts, and 5xx status codes.
     """
+    if not _is_safe_url(url):
+        raise ValueError(f"Blocked unsafe URL: {url}")
+
     _timeout = timeout or httpx.Timeout(_REQUEST_TIMEOUT, connect=10.0)
     _headers = dict(_DEFAULT_HEADERS)
     if headers:

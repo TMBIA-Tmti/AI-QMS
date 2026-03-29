@@ -289,7 +289,6 @@ class VisionOCRProcessor:
         Returns:
             OCRResult with extracted text and metadata
         """
-        self.model_name = model_name
         start_time = time.time()
         path = Path(file_path)
         suffix = path.suffix.lower()
@@ -306,7 +305,7 @@ class VisionOCRProcessor:
         try:
             # Images always use LLM Vision OCR (MarkItDown can't extract text from images)
             if file_type == "image":
-                return self.process_image(file_path)
+                return self.process_image(file_path, model_name=model_name)
 
             # Legacy formats that need win32com
             if file_type in ("word_legacy", "excel_legacy", "powerpoint_legacy"):
@@ -320,7 +319,7 @@ class VisionOCRProcessor:
 
             # MarkItDown not available or failed: use LLM for PDFs, error for others
             if file_type == "pdf":
-                return self._process_pdf_with_llm(file_path)
+                return self._process_pdf_with_llm(file_path, model_name=model_name)
             else:
                 return self._error_result(
                     "MarkItDown not available and no fallback for this file type.",
@@ -597,9 +596,8 @@ class VisionOCRProcessor:
                 f"File not found: {file_path}", start_time, file_type
             )
 
+        pythoncom.CoInitialize()
         try:
-            pythoncom.CoInitialize()
-
             if file_type == "word_legacy":
                 text_content = self._extract_doc_legacy(path)
             elif file_type == "excel_legacy":
@@ -610,8 +608,6 @@ class VisionOCRProcessor:
                 return self._error_result(
                     f"Unknown legacy format: {file_type}", start_time, file_type
                 )
-
-            pythoncom.CoUninitialize()
 
             processing_time = int((time.time() - start_time) * 1000)
 
@@ -636,13 +632,12 @@ class VisionOCRProcessor:
             )
 
         except Exception as e:
-            try:
-                pythoncom.CoUninitialize()
-            except Exception:
-                pass
             return self._error_result(
                 f"Legacy format processing failed: {e}", start_time, file_type
             )
+
+        finally:
+            pythoncom.CoUninitialize()
 
     def _extract_doc_legacy(self, path: Path) -> str:
         """Extract text from .doc using win32com."""

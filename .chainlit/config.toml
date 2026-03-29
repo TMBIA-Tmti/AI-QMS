@@ -12,7 +12,7 @@ session_timeout = 3600
 cache = false
 
 # Authorized origins
-allow_origins = ["*"]
+allow_origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
 
 # Follow symlink for asset mount (needed for junction at C:\Users\MDR\AI-QMS)
 follow_symlink = true
@@ -37,8 +37,8 @@ edit_message = false
 [features.spontaneous_file_upload]
     enabled = true
     accept = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/vnd.ms-powerpoint", "application/vnd.openxmlformats-officedocument.presentationml.presentation", "image/*", "text/*"]
-    max_files = 100
-    max_size_mb = 500
+    max_files = 10
+    max_size_mb = 50
 
 [UI]
 # Name of the assistant
