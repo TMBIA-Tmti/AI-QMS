@@ -965,7 +965,13 @@ class ComparisonTable:
             )
 
         # Sort by clause_id for consistent ordering
-        rows.sort(key=lambda x: [int(n) for n in x["clause_id"].split(".")])
+        # Guard against non-numeric segments (e.g., malformed crawled data)
+        def _clause_sort_key(row: dict) -> list:
+            try:
+                return [int(n) for n in row["clause_id"].split(".") if n]
+            except (ValueError, KeyError):
+                return [999]
+        rows.sort(key=_clause_sort_key)
         return rows
 
 

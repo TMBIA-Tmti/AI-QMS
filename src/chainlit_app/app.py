@@ -4393,7 +4393,25 @@ async def _ask_report_type() -> list[str]:
         ["phase_4", "phase_5", "phase_6"] = basic    (基礎分析, P0-P3)
         ["phase_5", "phase_6"]            = standard (標準分析, P0-P4)
         []                                = full     (完整分析, P0-P6)
+
+    When the dialog times out or fails, falls back to the phase config persisted
+    via the HTML report panel (/api/report/phase-config), then to standard mode
+    (P0-P4, skip only Phase 5 and 6) so Phase 5 is included when the user has
+    explicitly configured it to run.
     """
+    def _fallback_skip_phases() -> list[str]:
+        """Return persisted phase config or standard default (skip only P5/P6)."""
+        try:
+            from src.analysis.report_api import get_custom_skip_phases
+            saved = get_custom_skip_phases()
+            # Only use saved config if it explicitly excludes Phase 5 (user opted in)
+            if saved is not None:
+                return saved
+        except Exception:
+            pass
+        # Default: standard mode — skip only source-check (P6); keep Phase 5
+        return ["phase_6"]
+
     try:
         res = await cl.AskActionMessage(
             content=(f"{t('report_type.title')}\n\n{t('report_type.description')}"),
@@ -4417,8 +4435,9 @@ async def _ask_report_type() -> list[str]:
             timeout=120,
         ).send()
     except Exception:
+        _fb = _fallback_skip_phases()
         await cl.Message(content=t("report_type.selected_normal")).send()
-        return ["phase_4", "phase_5", "phase_6"]
+        return _fb
 
     action_name = res.get("name", "") if res else ""
     if action_name == "report_type_deep":
@@ -4427,9 +4446,14 @@ async def _ask_report_type() -> list[str]:
     elif action_name == "report_type_risk":
         await cl.Message(content=t("report_type.selected_risk")).send()
         return ["phase_5", "phase_6"]
-    else:
+    elif action_name == "report_type_normal":
         await cl.Message(content=t("report_type.selected_normal")).send()
         return ["phase_4", "phase_5", "phase_6"]
+    else:
+        # Timeout (res is None) — use persisted config or standard default
+        _fb = _fallback_skip_phases()
+        await cl.Message(content=t("report_type.selected_normal")).send()
+        return _fb
 
 
 async def _ask_product_docs_upload() -> Optional[str]:
@@ -4817,9 +4841,15 @@ async def handle_regulatory_list():
                 ).send()
 
             # Resolve selected regions → regulation profile IDs
+            # Reload crawled profiles from disk first so any new profiles saved
+            # during a recent 法規清單更新 are available in PREDEFINED_REGULATIONS.
             try:
-                from src.analysis.compliance_rules import get_profile_ids_for_regions
+                from src.analysis.compliance_rules import (
+                    get_profile_ids_for_regions,
+                    load_all_crawled_regulations,
+                )
 
+                load_all_crawled_regulations()
                 _reg_list_selected_ids = get_profile_ids_for_regions(
                     list(filter_regions)
                 )
@@ -5392,6 +5422,7 @@ async def handle_regulatory_update_rescan(selected_regions: list):
         from src.analysis.compliance_rules import (
             get_regions_without_profile,
             get_profile_ids_for_regions,
+            load_all_crawled_regulations,
         )
         from src.analysis.regulation_analyzer import analyze_regulation_with_llm
 
@@ -5474,6 +5505,11 @@ async def handle_regulatory_update_rescan(selected_regions: list):
                 ).send()
 
         # Resolve selected_regions → profile IDs for pipeline
+        # Reload crawled profiles so any LLM-generated profiles from the steps
+        # above are guaranteed to be in PREDEFINED_REGULATIONS (handles cases
+        # where save_crawled_regulation succeeded on disk but profile generation
+        # path was partially re-entered or interrupted).
+        load_all_crawled_regulations()
         _selected_regulation_ids = get_profile_ids_for_regions(selected_regions)
     except Exception as _profile_setup_err:
         import logging

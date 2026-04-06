@@ -1819,6 +1819,10 @@ def _build_export_assessment(flat_rows: list[dict], summary: dict) -> str:
 # Each queue holds dicts like {"type": "analyzer", "content": "...", ...}
 _event_queues: dict[str, list[asyncio.Queue]] = defaultdict(list)
 
+# Reference to the main event loop — stored when the first SSE connection is made
+# so emit_cross_exam_event can safely call call_soon_threadsafe from worker threads.
+_sse_loop: asyncio.AbstractEventLoop | None = None
+
 # ── Pipeline Control Registry (pause/resume/inject) ──
 # run_id → {"pause_event": threading.Event, "injected_messages": list}
 # The pause_event is SET when running, CLEARED when paused.
@@ -1885,11 +1889,30 @@ def emit_cross_exam_event(run_id: str, event: dict) -> None:
         - human_ack:   {"type": "human_ack", "message": "..."}
     """
     event["timestamp"] = time.time()
-    for queue in _event_queues.get(run_id, []):
-        try:
-            queue.put_nowait(event)
-        except asyncio.QueueFull:
-            logger.warning(f"SSE queue full for run {run_id}, dropping event")
+    queues = list(_event_queues.get(run_id, []))  # snapshot to avoid mutation during iteration
+    if not queues:
+        return
+
+    loop = _sse_loop
+    if loop is not None and loop.is_running():
+        # Called from a worker thread (e.g., Phase 5 ThreadPoolExecutor) — use
+        # call_soon_threadsafe so the asyncio.Queue wakeup is dispatched on the
+        # correct event-loop thread and avoids the race condition that causes
+        # missed notifications when put_nowait() is called cross-thread.
+        for queue in queues:
+            def _put(q=queue, ev=event):
+                try:
+                    q.put_nowait(ev)
+                except asyncio.QueueFull:
+                    logger.warning(f"SSE queue full for run {run_id}, dropping event")
+            loop.call_soon_threadsafe(_put)
+    else:
+        # Called from within the event loop — direct put_nowait is safe
+        for queue in queues:
+            try:
+                queue.put_nowait(event)
+            except asyncio.QueueFull:
+                logger.warning(f"SSE queue full for run {run_id}, dropping event")
 
 
 async def _sse_generator(run_id: str, queue: asyncio.Queue):
@@ -1927,6 +1950,13 @@ async def stream_cross_examination(run_id: str):
     Client connects with EventSource and receives events as they happen.
     Events include analyzer/verifier messages, round results, and final verdict.
     """
+    global _sse_loop
+    # Capture the event loop on first SSE connection so worker threads can use it
+    try:
+        _sse_loop = asyncio.get_running_loop()
+    except RuntimeError:
+        pass
+
     queue: asyncio.Queue = asyncio.Queue(maxsize=100)
     _event_queues[run_id].append(queue)
 
