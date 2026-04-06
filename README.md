@@ -22,7 +22,7 @@ TMBIA-Tmti 深知醫療器材法規人員在品質管理實務中面對的挑戰
 
 系統採用**主 Agent + 子 Agent** 架構設計，由主 Agent 統籌品質管理系統各模組，文件管制子 Agent 負責文件的上傳、OCR 辨識、版本偵測、簽章驗證及稽核紀錄等作業。
 
-> **📌 開發進度：Phase 1（文件管制子 Agent）已完成，即將開始製作 Phase 2（稽核子 Agent）。**
+> **📌 開發進度：Phase 1（文件管制子 Agent）✅ 已完成 v3.5.0。Phase 2A（基礎設施層）✅ 已整合 — SQLite WAL、Docling 表格解析引擎、Ollama 自動偵測、Embedding 三級降級、雙模式任務派發器。Phase 2B（稽核子 Agent）🔜 開發中。**
 
 ## Logo 設計理念
 
@@ -51,7 +51,7 @@ Eira 的 Logo 由兩個核心符號交織而成，每一筆都承載著這個專
 
 ### 文件管制子 Agent (Document Control Sub-Agent) ✅ Phase 1 完成
 - **文件上傳與 OCR 處理** — 支援 PDF、Word、Excel、PowerPoint、圖片等格式
-- **MarkItDown-First OCR 引擎** — 本地處理 ~1 秒/檔案，零 Token 消耗；掃描文件自動切換 LLM Vision 備援
+- **Docling 主引擎 + MarkItDown fallback** — Docling 還原 PDF 表格結構與版面分析（>100KB 文件）；MarkItDown 輕量快速（<100KB）；掃描文件自動切換 LLM Vision 備援
 - **智慧版本偵測** — 自動識別新文件 vs 版本更新，OCR 掃描文件內版本號
 - **多語言簽章/印章偵測** — 支援 15+ 語言、200+ 關鍵字自動偵測簽章狀態
 - **防竄改偵測稽核紀錄** — SHA-256 雜湊鏈，完整記錄所有文件操作，可偵測未經授權的變更
@@ -63,11 +63,27 @@ Eira 的 Logo 由兩個核心符號交織而成，每一筆都承載著這個專
 - **全部文件紀錄匯出** — 所有文件紀錄（含進版、作廢）匯出為 Word/Excel
 - **進版差異比對** — 版本更新後 LLM 自動比對新舊版本內容差異
 
-### 稽核子 Agent (Audit Sub-Agent) 🔜 Phase 2 規劃中
+### 稽核子 Agent (Audit Sub-Agent) — Phase 2A ✅ 基礎設施 / Phase 2B 🔜 稽核 Agent
 - CAPA（矯正與預防措施）管理
 - 內部稽核排程與追蹤
 - 不符合事項管理
 - 稽核報告自動生成
+
+**Phase 2A 已整合基礎設施：**
+- **SQLite WAL 後端** (`src/database/sqlite_backend.py`) — ACID 保證、執行緒安全 Singleton、7 資料表結構
+- **JSON→SQLite 遷移腳本** (`src/database/migration.py`) — 冪等遷移，支援增量更新
+- **Docling 引擎** (`src/ocr/docling_engine.py`) — 表格結構還原，MarkItDown fallback
+- **Ollama 自動偵測** (`src/services/ollama_detector.py`) — 本機/伺服器 Ollama 自動偵測
+- **Embedding 三級降級** (`src/services/embedding_provider.py`) — BGE-M3 (1024d) → nomic-embed-text (768d) → multilingual-MiniLM (384d)
+- **雙模式任務派發** (`src/services/task_dispatcher.py`) — asyncio (standalone) / Celery (server)
+
+### v3.6.0 Phase 2A Infrastructure
+- **SQLite WAL 後端** — ACID 保證，取代 JSON 檔案資料庫
+- **Docling 表格解析引擎** — PDF 表格結構還原（>100KB），MarkItDown fallback（<100KB）
+- **Ollama 自動偵測** — 零設定本機 Embedding
+- **Embedding 三級降級** — BGE-M3 → nomic-embed-text → multilingual-MiniLM
+- **雙模式任務派發** — asyncio (standalone) / Celery (server) 切換
+- **LightRAG 知識圖譜整合** — 跨文件語意搜尋基礎
 
 ### v3.5.0 新增功能（強烈建議更新）
 - **法規地區自動查詢** — 查詢指定地區之最新法規資訊，與本地品質文件進行交叉分析與合規評估
@@ -314,7 +330,7 @@ Phoenix Dashboard：http://localhost:6006
 | UI 框架 | Chainlit 2.9.6 |
 | Agent 框架 | LangGraph |
 | LLM 抽象層 | LiteLLM |
-| OCR 引擎 | MarkItDown + LLM Vision |
+| OCR 引擎 | Docling + MarkItDown + LLM Vision |
 | LLM 可觀測性 | Arize Phoenix |
 | 追蹤框架 | OpenTelemetry + OpenInference |
 | 網路搜尋 | DuckDuckGo |
@@ -337,7 +353,7 @@ TMBIA-Tmti understands the challenges that medical device regulatory professiona
 
 The system adopts a **Main Agent + Sub-Agent** architecture, where the Main Agent orchestrates all QMS modules, and the Document Control Sub-Agent handles document upload, OCR processing, version detection, signature verification, and audit logging.
 
-> **📌 Development Status: Phase 1 (Document Control Sub-Agent) is complete. Phase 2 (Audit Sub-Agent) is coming next.**
+> **📌 Development Status: Phase 1 (Document Control Sub-Agent) ✅ complete v3.5.0. Phase 2A (Infrastructure) ✅ integrated — SQLite WAL, Docling table parsing engine, Ollama auto-detection, 3-tier Embedding fallback, dual-mode task dispatcher. Phase 2B (Audit Sub-Agent) 🔜 in development.**
 
 ## Logo Design
 
@@ -366,7 +382,7 @@ The two symbols **overlap and merge** in the logo — the pen nib touches the se
 
 ### Document Control Sub-Agent ✅ Phase 1 Complete
 - **Document Upload & OCR** — Supports PDF, Word, Excel, PowerPoint, images
-- **MarkItDown-First OCR Engine** — Local processing ~1s/file, zero token cost; auto-fallback to LLM Vision for scanned documents
+- **Docling Primary + MarkItDown Fallback** — Docling restores PDF table structure and layout analysis (>100KB files); MarkItDown lightweight and fast (<100KB); auto-fallback to LLM Vision for scanned documents
 - **Intelligent Version Detection** — Auto-detect new document vs. version update, OCR-based version number scanning
 - **Multilingual Signature/Stamp Detection** — 15+ languages, 200+ keywords for automatic signature status detection
 - **Tamper-Evident Audit Trail** — SHA-256 hash chain recording all document operations, enabling detection of unauthorized changes
@@ -378,11 +394,27 @@ The two symbols **overlap and merge** in the logo — the pen nib touches the se
 - **All Records Export** — Export all document records (incl. versions, obsolete) as Word/Excel
 - **Version Diff Analysis** — LLM auto-compares old and new version content after version updates
 
-### Audit Sub-Agent 🔜 Phase 2 Planned
+### Audit Sub-Agent — Phase 2A ✅ Infrastructure / Phase 2B 🔜 Audit Agent
 - CAPA (Corrective and Preventive Actions) management
 - Internal audit scheduling and tracking
 - Non-conformance management
 - Automated audit report generation
+
+**Phase 2A Infrastructure Integrated:**
+- **SQLite WAL Backend** (`src/database/sqlite_backend.py`) — ACID guarantees, thread-safe Singleton, 7-table schema
+- **JSON→SQLite Migration** (`src/database/migration.py`) — Idempotent migration with incremental updates
+- **Docling Engine** (`src/ocr/docling_engine.py`) — Table structure restoration, MarkItDown fallback
+- **Ollama Auto-Detection** (`src/services/ollama_detector.py`) — Local/server Ollama auto-detection
+- **3-Tier Embedding Fallback** (`src/services/embedding_provider.py`) — BGE-M3 (1024d) → nomic-embed-text (768d) → multilingual-MiniLM (384d)
+- **Dual-Mode Task Dispatch** (`src/services/task_dispatcher.py`) — asyncio (standalone) / Celery (server)
+
+### v3.6.0 Phase 2A Infrastructure
+- **SQLite WAL Backend** — ACID guarantees, replacing JSON file database
+- **Docling Table Parsing Engine** — PDF table structure restoration (>100KB), MarkItDown fallback (<100KB)
+- **Ollama Auto-Detection** — Zero-config local Embedding
+- **3-Tier Embedding Fallback** — BGE-M3 → nomic-embed-text → multilingual-MiniLM
+- **Dual-Mode Task Dispatch** — asyncio (standalone) / Celery (server) switching
+- **LightRAG Knowledge Graph Integration** — Cross-document semantic search foundation
 
 ### v3.5.0 New Features (Strongly Recommended Update)
 - **Regulatory Region Auto-Query** — Retrieves latest regulatory info for selected regions and cross-analyzes with local quality documents for compliance assessment
@@ -629,7 +661,7 @@ Phoenix Dashboard: http://localhost:6006
 | UI Framework | Chainlit 2.9.6 |
 | Agent Framework | LangGraph |
 | LLM Abstraction | LiteLLM |
-| OCR Engine | MarkItDown + LLM Vision |
+| OCR Engine | Docling + MarkItDown + LLM Vision |
 | LLM Observability | Arize Phoenix |
 | Tracing Framework | OpenTelemetry + OpenInference |
 | Web Search | DuckDuckGo |
@@ -652,7 +684,7 @@ TMBIA-Tmti は、医療機器の法規担当者が品質管理において直面
 
 本システムは**メイン Agent + サブ Agent** アーキテクチャを採用しており、メイン Agent が品質管理システム全体のモジュールを統括し、文書管理サブ Agent が文書のアップロード、OCR 処理、バージョン検出、署名検証、監査ログなどの業務を担当します。
 
-> **📌 開発状況：Phase 1（文書管理サブ Agent）完了。Phase 2（監査サブ Agent）の開発を開始予定。**
+> **📌 開発状況：Phase 1（文書管理サブ Agent）✅ v3.5.0 完了。Phase 2A（インフラストラクチャ層）✅ 統合済み — SQLite WAL、Docling テーブル解析エンジン、Ollama 自動検出、Embedding 3段階フォールバック、デュアルモードタスクディスパッチャー。Phase 2B（監査サブ Agent）🔜 開発中。**
 
 ## ロゴデザイン
 
@@ -681,7 +713,7 @@ Eira のロゴは、プロジェクトの使命を体現する 2 つのコアシ
 
 ### 文書管理サブ Agent (Document Control Sub-Agent) ✅ Phase 1 完了
 - **文書アップロードと OCR 処理** — PDF、Word、Excel、PowerPoint、画像に対応
-- **MarkItDown-First OCR エンジン** — ローカル処理 約1秒/ファイル、トークン消費ゼロ；スキャン文書は自動的に LLM Vision にフォールバック
+- **Docling 主エンジン + MarkItDown フォールバック** — Docling で PDF テーブル構造復元とレイアウト分析（>100KB ファイル）；MarkItDown 軽量高速（<100KB）；スキャン文書は自動的に LLM Vision にフォールバック
 - **インテリジェントバージョン検出** — 新規文書 vs バージョン更新を自動識別、OCR によるバージョン番号スキャン
 - **多言語署名・印鑑検出** — 15以上の言語、200以上のキーワードによる署名状態の自動検出
 - **改ざん検出監査証跡** — SHA-256 ハッシュチェーンによる全文書操作の記録、不正な変更の検出が可能
@@ -693,11 +725,27 @@ Eira のロゴは、プロジェクトの使命を体現する 2 つのコアシ
 - **全記録エクスポート** — 全文書記録（版更新・廃止含む）を Word/Excel でエクスポート
 - **バージョン差分分析** — バージョン更新後に LLM が新旧バージョンの内容差異を自動比較
 
-### 監査サブ Agent (Audit Sub-Agent) 🔜 Phase 2 計画中
+### 監査サブ Agent (Audit Sub-Agent) — Phase 2A ✅ インフラ / Phase 2B 🔜 監査 Agent
 - CAPA（是正・予防措置）管理
 - 内部監査スケジュールと追跡
 - 不適合管理
 - 監査報告書の自動生成
+
+**Phase 2A 統合済みインフラストラクチャ：**
+- **SQLite WAL バックエンド** (`src/database/sqlite_backend.py`) — ACID 保証、スレッドセーフ Singleton、7テーブル構造
+- **JSON→SQLite マイグレーション** (`src/database/migration.py`) — 冪等マイグレーション、増分更新対応
+- **Docling エンジン** (`src/ocr/docling_engine.py`) — テーブル構造復元、MarkItDown フォールバック
+- **Ollama 自動検出** (`src/services/ollama_detector.py`) — ローカル/サーバー Ollama 自動検出
+- **Embedding 3段階フォールバック** (`src/services/embedding_provider.py`) — BGE-M3 (1024d) → nomic-embed-text (768d) → multilingual-MiniLM (384d)
+- **デュアルモードタスクディスパッチ** (`src/services/task_dispatcher.py`) — asyncio (standalone) / Celery (server)
+
+### v3.6.0 Phase 2A Infrastructure
+- **SQLite WAL バックエンド** — ACID 保証、JSON ファイルデータベースを置換
+- **Docling テーブル解析エンジン** — PDF テーブル構造復元（>100KB）、MarkItDown フォールバック（<100KB）
+- **Ollama 自動検出** — ゼロ設定ローカル Embedding
+- **Embedding 3段階フォールバック** — BGE-M3 → nomic-embed-text → multilingual-MiniLM
+- **デュアルモードタスクディスパッチ** — asyncio (standalone) / Celery (server) 切替
+- **LightRAG ナレッジグラフ統合** — 文書横断セマンティック検索基盤
 
 ### v3.5.0 新機能（強く推奨されるアップデート）
 - **法規地域自動照会** — 指定地域の最新法規情報を取得し、ローカル品質文書とのクロス分析・準拠評価を実施
@@ -944,7 +992,7 @@ Phoenix ダッシュボード：http://localhost:6006
 | UI フレームワーク | Chainlit 2.9.6 |
 | Agent フレームワーク | LangGraph |
 | LLM 抽象層 | LiteLLM |
-| OCR エンジン | MarkItDown + LLM Vision |
+| OCR エンジン | Docling + MarkItDown + LLM Vision |
 | LLM 可観測性 | Arize Phoenix |
 | トレースフレームワーク | OpenTelemetry + OpenInference |
 | ウェブ検索 | DuckDuckGo |

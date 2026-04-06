@@ -86,3 +86,23 @@ pytest-asyncio>=0.24.0
 arize-phoenix>=9.0.0
 arize-phoenix-otel>=0.8.0
 openinference-instrumentation-litellm>=0.1.18
+
+# ============================================================
+# Phase 2A new dependencies
+# ============================================================
+
+# Document parsing engine (PDF table structure, layout analysis)
+docling>=2.0.0
+
+# Knowledge graph RAG (cross-document semantic search + entity relations)
+lightrag-hku>=1.4.8
+
+# Embedding fallback (auto-downloaded ~420MB on first run when Ollama unavailable)
+# sentence-transformers>=3.0.0
+# torch>=2.0.0
+
+# Server mode only (required only when QMS_MODE=server)
+# celery>=5.3.0
+# redis>=5.0.0
+# flower>=2.0.0
+# bcrypt>=4.0.0

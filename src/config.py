@@ -200,3 +200,58 @@ HARDWARE_CONFIG = {
     "estimated_ocr_speed": "3-5 pages/min",  # olmocr 預估
     "max_concurrent_uploads": 5,
 }
+
+
+# ============================================================
+# Phase 2A Deployment Mode
+# ============================================================
+
+DEPLOYMENT_MODE: Literal["standalone", "server"] = os.getenv("QMS_MODE", "standalone")
+"""
+standalone: Single-machine mode (default) — auto-login, asyncio task management
+server:     Multi-user server mode — password auth, Celery task queue
+"""
+
+# Permission matrix (Server mode)
+PERMISSIONS: dict[str, list[str]] = {
+    "admin":   ["upload", "delete", "create_capa", "close_capa", "manage_users", "view_all_audits", "export"],
+    "auditor": ["upload",           "create_capa", "close_capa",                 "view_all_audits", "export"],
+    "editor":  ["upload",                                                                             "export"],
+    "viewer":  [],
+}
+
+
+# ============================================================
+# Phase 2A SQLite Database
+# ============================================================
+
+SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH", "./data/qms.db")
+
+
+# ============================================================
+# Phase 2A LightRAG
+# ============================================================
+
+LIGHTRAG_WORKING_DIR = os.getenv("LIGHTRAG_WORKING_DIR", "./data/lightrag")
+
+
+# ============================================================
+# Phase 2A Docling Settings
+# ============================================================
+
+import multiprocessing as _mp
+
+DOCLING_ENABLED: bool = os.getenv("DOCLING_ENABLED", "true").lower() == "true"
+
+# Half of CPU cores to avoid blocking the system
+DOCLING_NUM_THREADS: int = int(
+    os.getenv("DOCLING_NUM_THREADS", str(max(1, _mp.cpu_count() // 2)))
+)
+
+# "fast" = TableFormerMode.FAST (CPU optimized), "accurate" = TableFormerMode.ACCURATE
+DOCLING_TABLE_MODE: str = os.getenv("DOCLING_TABLE_MODE", "fast")
+
+# Documents smaller than this use MarkItDown (milliseconds); larger use Docling (high quality)
+DOCLING_SIZE_THRESHOLD_BYTES: int = int(
+    os.getenv("DOCLING_SIZE_THRESHOLD_BYTES", str(100 * 1024))  # Default 100KB
+)
