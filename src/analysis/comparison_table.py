@@ -328,6 +328,10 @@ class ComparisonTable:
           2. Title keyword mapping — domain keywords → known clause families (bonus)
           3. Tags with clause references
           4. Document body scanning — extract clause refs from first ~2000 chars
+          5. Cross-regulation clause expansion — detect non-ISO regulation
+             keywords (e.g. "QMSR", "EU MDR", "TFDA") in title/tags/body
+             and expand to all ISO 13485 clauses mapped by those regulations
+             (via ``PREDEFINED_REGULATIONS`` + crawled regulation profiles)
 
         doc_id is NOT used for clause inference because the encoding
         convention varies across companies (some use clause-based numbering,
@@ -384,6 +388,89 @@ class ComparisonTable:
                     first_digit = clause_ref.split(".")[0]
                     if first_digit in ("4", "5", "6", "7", "8"):
                         found_clauses.add(clause_ref)
+
+        # ---- Strategy 5: Cross-regulation clause expansion ----
+        # Detect non-ISO regulation keywords in title/tags/body and expand
+        # to all ISO 13485 clauses mapped by those regulation profiles.
+        try:
+            from src.analysis.compliance_rules import (
+                MappingStatus,
+                PREDEFINED_REGULATIONS,
+                get_all_regulations,
+                load_all_crawled_regulations,
+            )
+
+            # Keyword mapping for predefined regulations
+            REGULATION_DETECTION_KEYWORDS: dict[str, list[str]] = {
+                "QMSR": ["qmsr", "21 cfr 820", "21cfr820", "fda qms", "us fda", "part 820"],
+                "EU_MDR": ["eu mdr", "mdr 2017/745", "2017/745", "eu regulation", "annex ix", "\u9644\u4ef6 ix", "\u6b50\u76df mdr", "ce marking"],
+                "TFDA": ["tfda", "\u885b\u798f\u90e8", "\u885b\u751f\u798f\u5229\u90e8", "\u91ab\u7642\u5668\u6750", "\u53f0\u7063 fda", "taiwan fda"],
+                "HC": ["health canada", "mdsap", "cmdcas", "canada", "\u52a0\u62ff\u5927"],
+                "PMDA": ["pmda", "j-qms", "jis q 13485", "\u539a\u751f\u52de\u52d5\u7701", "\u65e5\u672c pmd\u6cd5", "japan"],
+                "ANVISA": ["anvisa", "resolu\u00e7\u00e3o rdc", "brazil", "brasil", "\u5df4\u897f"],
+                "TGA": ["tga", "artg", "australia", "\u6fb3\u6d32", "therapeutic goods"],
+            }
+
+            # Load crawled regulations and build dynamic keywords from them
+            try:
+                load_all_crawled_regulations()
+            except Exception:
+                pass  # Non-critical — proceed with predefined only
+
+            all_regs = get_all_regulations()
+
+            # Add dynamic keywords for any regulation not in the static map
+            for reg_id, profile in all_regs.items():
+                if reg_id not in REGULATION_DETECTION_KEYWORDS:
+                    dynamic_kw: list[str] = []
+                    for field_val in (
+                        getattr(profile, "name_en", ""),
+                        getattr(profile, "name_zh", ""),
+                        getattr(profile, "country_name_en", ""),
+                        getattr(profile, "country_name_zh", ""),
+                    ):
+                        if field_val:
+                            dynamic_kw.append(field_val.lower())
+                    if dynamic_kw:
+                        REGULATION_DETECTION_KEYWORDS[reg_id] = dynamic_kw
+
+            # Build searchable text (title + tags + body[:3000])
+            search_text = (title_normalized + " " + " ".join(doc_tags)).lower()
+            if doc_body:
+                search_text += " " + doc_body[:3000].lower()
+
+            # Detect which regulations are mentioned
+            matched_reg_ids: set[str] = set()
+            for reg_id, keywords in REGULATION_DETECTION_KEYWORDS.items():
+                for kw in keywords:
+                    if kw in search_text:
+                        matched_reg_ids.add(reg_id)
+                        break
+
+            # Collect ISO 13485 clause IDs from matched regulations
+            all_clause_set = set(all_clause_ids)
+            for reg_id in matched_reg_ids:
+                profile = all_regs.get(reg_id)
+                if not profile:
+                    continue
+                # (a) iso_mapped keys where status != NOT_APPLICABLE
+                iso_mapped = getattr(profile, "iso_mapped", {})
+                for clause_id, mapping in iso_mapped.items():
+                    status = getattr(mapping, "status", None)
+                    if status != MappingStatus.NOT_APPLICABLE:
+                        if clause_id in all_clause_set:
+                            found_clauses.add(clause_id)
+                # (b) unique_requirements -> related_iso_clauses
+                unique_reqs = getattr(profile, "unique_requirements", [])
+                for req in unique_reqs:
+                    for related_clause in getattr(req, "related_iso_clauses", []):
+                        if related_clause in all_clause_set:
+                            found_clauses.add(related_clause)
+
+        except ImportError:
+            pass  # compliance_rules not available — skip Strategy 5
+        except Exception:
+            pass  # Non-critical — proceed without cross-regulation expansion
 
         # ---- Expand matched clauses to include sub-clauses ----
         expanded: set[str] = set()

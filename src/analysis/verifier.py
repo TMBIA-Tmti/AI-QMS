@@ -382,6 +382,29 @@ def run_verification_row(
             )
 
         # ---- Round 1: Analyzer initial position ----
+
+        # Drain any pending human-injected messages (lazy import to avoid circular)
+        human_injection_block = ""
+        if run_id:
+            from src.analysis.report_api import get_injected_messages
+
+            injected = get_injected_messages(run_id)
+            if injected:
+                human_injection_block = (
+                    "\n\n## Human RA Intervention\n"
+                    + "\n".join(f"- {msg}" for msg in injected)
+                    + "\n\n請在你的分析中考慮以上人工介入的意見。\n"
+                )
+                emit_verification_event(
+                    run_id,
+                    {
+                        "type": "human_injection_applied",
+                        "run_id": run_id,
+                        "clause_id": row_state.clause_id,
+                        "messages": injected,
+                    },
+                )
+
         analyzer_prompt = _ANALYZER_INITIAL_TEMPLATE.format(
             clause_id=row_state.clause_id,
             clause_title=row_state.clause_title,
@@ -390,6 +413,8 @@ def run_verification_row(
             gap_severity=row_state.gap_severity or "未評估",
             evidence_summary=evidence_summary,
         )
+        if human_injection_block:
+            analyzer_prompt += human_injection_block
 
         # Emit SSE: round start
         if run_id:
@@ -435,6 +460,8 @@ def run_verification_row(
         )
         if multi_reg_context:
             verifier_prompt += f"\n\n{multi_reg_context}"
+        if human_injection_block:
+            verifier_prompt += human_injection_block
 
         verifier_response, usage = _call_llm(
             llm_completion_fn,
@@ -500,12 +527,36 @@ def run_verification_row(
                     },
                 )
 
+            # Drain any pending human-injected messages for this round
+            round_injection_block = ""
+            if run_id:
+                from src.analysis.report_api import get_injected_messages
+
+                injected = get_injected_messages(run_id)
+                if injected:
+                    round_injection_block = (
+                        "\n\n## Human RA Intervention\n"
+                        + "\n".join(f"- {msg}" for msg in injected)
+                        + "\n\n請在你的分析中考慮以上人工介入的意見。\n"
+                    )
+                    emit_verification_event(
+                        run_id,
+                        {
+                            "type": "human_injection_applied",
+                            "run_id": run_id,
+                            "clause_id": row_state.clause_id,
+                            "messages": injected,
+                        },
+                    )
+
             # Analyzer responds to verifier's challenge
             analyzer_followup = _ANALYZER_RESPONSE_TEMPLATE.format(
                 verifier_challenge=json.dumps(
                     verifier_response, ensure_ascii=False, indent=2
                 ),
             )
+            if round_injection_block:
+                analyzer_followup += round_injection_block
 
             analyzer_response, usage = _call_llm(
                 llm_completion_fn,
@@ -539,6 +590,8 @@ def run_verification_row(
                     verifier_response, ensure_ascii=False, indent=2
                 ),
             )
+            if round_injection_block:
+                verifier_followup += round_injection_block
 
             verifier_response, usage = _call_llm(
                 llm_completion_fn,
