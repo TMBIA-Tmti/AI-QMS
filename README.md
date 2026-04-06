@@ -22,7 +22,7 @@ TMBIA-Tmti 深知醫療器材法規人員在品質管理實務中面對的挑戰
 
 系統採用**主 Agent + 子 Agent** 架構設計，由主 Agent 統籌品質管理系統各模組，文件管制子 Agent 負責文件的上傳、OCR 辨識、版本偵測、簽章驗證及稽核紀錄等作業。
 
-> **📌 開發進度：Phase 1（文件管制子 Agent）✅ 已完成 v3.5.0。Phase 2A（基礎設施層）✅ 已整合 — SQLite WAL、Docling 表格解析引擎、Ollama 自動偵測、Embedding 三級降級、雙模式任務派發器。Phase 2B（稽核子 Agent）🔜 開發中。**
+> **📌 開發進度：Phase 1（文件管制子 Agent）✅ 已完成 v3.5.0。Phase 2（稽核子 Agent）🔜 開發中。**
 
 ## Logo 設計理念
 
@@ -63,21 +63,13 @@ Eira 的 Logo 由兩個核心符號交織而成，每一筆都承載著這個專
 - **全部文件紀錄匯出** — 所有文件紀錄（含進版、作廢）匯出為 Word/Excel
 - **進版差異比對** — 版本更新後 LLM 自動比對新舊版本內容差異
 
-### 稽核子 Agent (Audit Sub-Agent) — Phase 2A ✅ 基礎設施 / Phase 2B 🔜 稽核 Agent
+### 稽核子 Agent (Audit Sub-Agent) 🔜 開發中
 - CAPA（矯正與預防措施）管理
 - 內部稽核排程與追蹤
 - 不符合事項管理
 - 稽核報告自動生成
 
-**Phase 2A 已整合基礎設施：**
-- **SQLite WAL 後端** (`src/database/sqlite_backend.py`) — ACID 保證、執行緒安全 Singleton、7 資料表結構
-- **JSON→SQLite 遷移腳本** (`src/database/migration.py`) — 冪等遷移，支援增量更新
-- **Docling 引擎** (`src/ocr/docling_engine.py`) — 表格結構還原，MarkItDown fallback
-- **Ollama 自動偵測** (`src/services/ollama_detector.py`) — 本機/伺服器 Ollama 自動偵測
-- **Embedding 三級降級** (`src/services/embedding_provider.py`) — BGE-M3 (1024d) → nomic-embed-text (768d) → multilingual-MiniLM (384d)
-- **雙模式任務派發** (`src/services/task_dispatcher.py`) — asyncio (standalone) / Celery (server)
-
-### v3.6.0 Phase 2A Infrastructure
+### v3.6.0 新增功能
 - **SQLite WAL 後端** — ACID 保證，取代 JSON 檔案資料庫
 - **Docling 表格解析引擎** — PDF 表格結構還原（>100KB），MarkItDown fallback（<100KB）
 - **Ollama 自動偵測** — 零設定本機 Embedding
@@ -353,7 +345,7 @@ TMBIA-Tmti understands the challenges that medical device regulatory professiona
 
 The system adopts a **Main Agent + Sub-Agent** architecture, where the Main Agent orchestrates all QMS modules, and the Document Control Sub-Agent handles document upload, OCR processing, version detection, signature verification, and audit logging.
 
-> **📌 Development Status: Phase 1 (Document Control Sub-Agent) ✅ complete v3.5.0. Phase 2A (Infrastructure) ✅ integrated — SQLite WAL, Docling table parsing engine, Ollama auto-detection, 3-tier Embedding fallback, dual-mode task dispatcher. Phase 2B (Audit Sub-Agent) 🔜 in development.**
+> **📌 Development Status: Phase 1 (Document Control Sub-Agent) ✅ complete v3.5.0. Phase 2 (Audit Sub-Agent) 🔜 in development.**
 
 ## Logo Design
 
@@ -394,21 +386,13 @@ The two symbols **overlap and merge** in the logo — the pen nib touches the se
 - **All Records Export** — Export all document records (incl. versions, obsolete) as Word/Excel
 - **Version Diff Analysis** — LLM auto-compares old and new version content after version updates
 
-### Audit Sub-Agent — Phase 2A ✅ Infrastructure / Phase 2B 🔜 Audit Agent
+### Audit Sub-Agent 🔜 In Development
 - CAPA (Corrective and Preventive Actions) management
 - Internal audit scheduling and tracking
 - Non-conformance management
 - Automated audit report generation
 
-**Phase 2A Infrastructure Integrated:**
-- **SQLite WAL Backend** (`src/database/sqlite_backend.py`) — ACID guarantees, thread-safe Singleton, 7-table schema
-- **JSON→SQLite Migration** (`src/database/migration.py`) — Idempotent migration with incremental updates
-- **Docling Engine** (`src/ocr/docling_engine.py`) — Table structure restoration, MarkItDown fallback
-- **Ollama Auto-Detection** (`src/services/ollama_detector.py`) — Local/server Ollama auto-detection
-- **3-Tier Embedding Fallback** (`src/services/embedding_provider.py`) — BGE-M3 (1024d) → nomic-embed-text (768d) → multilingual-MiniLM (384d)
-- **Dual-Mode Task Dispatch** (`src/services/task_dispatcher.py`) — asyncio (standalone) / Celery (server)
-
-### v3.6.0 Phase 2A Infrastructure
+### v3.6.0 New Features
 - **SQLite WAL Backend** — ACID guarantees, replacing JSON file database
 - **Docling Table Parsing Engine** — PDF table structure restoration (>100KB), MarkItDown fallback (<100KB)
 - **Ollama Auto-Detection** — Zero-config local Embedding
@@ -684,7 +668,7 @@ TMBIA-Tmti は、医療機器の法規担当者が品質管理において直面
 
 本システムは**メイン Agent + サブ Agent** アーキテクチャを採用しており、メイン Agent が品質管理システム全体のモジュールを統括し、文書管理サブ Agent が文書のアップロード、OCR 処理、バージョン検出、署名検証、監査ログなどの業務を担当します。
 
-> **📌 開発状況：Phase 1（文書管理サブ Agent）✅ v3.5.0 完了。Phase 2A（インフラストラクチャ層）✅ 統合済み — SQLite WAL、Docling テーブル解析エンジン、Ollama 自動検出、Embedding 3段階フォールバック、デュアルモードタスクディスパッチャー。Phase 2B（監査サブ Agent）🔜 開発中。**
+> **📌 開発状況：Phase 1（文書管理サブ Agent）✅ v3.5.0 完了。Phase 2（監査サブ Agent）🔜 開発中。**
 
 ## ロゴデザイン
 
@@ -725,21 +709,13 @@ Eira のロゴは、プロジェクトの使命を体現する 2 つのコアシ
 - **全記録エクスポート** — 全文書記録（版更新・廃止含む）を Word/Excel でエクスポート
 - **バージョン差分分析** — バージョン更新後に LLM が新旧バージョンの内容差異を自動比較
 
-### 監査サブ Agent (Audit Sub-Agent) — Phase 2A ✅ インフラ / Phase 2B 🔜 監査 Agent
+### 監査サブ Agent (Audit Sub-Agent) 🔜 開発中
 - CAPA（是正・予防措置）管理
 - 内部監査スケジュールと追跡
 - 不適合管理
 - 監査報告書の自動生成
 
-**Phase 2A 統合済みインフラストラクチャ：**
-- **SQLite WAL バックエンド** (`src/database/sqlite_backend.py`) — ACID 保証、スレッドセーフ Singleton、7テーブル構造
-- **JSON→SQLite マイグレーション** (`src/database/migration.py`) — 冪等マイグレーション、増分更新対応
-- **Docling エンジン** (`src/ocr/docling_engine.py`) — テーブル構造復元、MarkItDown フォールバック
-- **Ollama 自動検出** (`src/services/ollama_detector.py`) — ローカル/サーバー Ollama 自動検出
-- **Embedding 3段階フォールバック** (`src/services/embedding_provider.py`) — BGE-M3 (1024d) → nomic-embed-text (768d) → multilingual-MiniLM (384d)
-- **デュアルモードタスクディスパッチ** (`src/services/task_dispatcher.py`) — asyncio (standalone) / Celery (server)
-
-### v3.6.0 Phase 2A Infrastructure
+### v3.6.0 新機能
 - **SQLite WAL バックエンド** — ACID 保証、JSON ファイルデータベースを置換
 - **Docling テーブル解析エンジン** — PDF テーブル構造復元（>100KB）、MarkItDown フォールバック（<100KB）
 - **Ollama 自動検出** — ゼロ設定ローカル Embedding
