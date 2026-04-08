@@ -37,6 +37,72 @@ EXPORT_DIR = Path("data/exports")
 
 
 # ============================================================
+# Shared: AI Roles Legend
+# ============================================================
+
+
+def _add_ai_roles_legend(doc) -> None:
+    """Insert the AI roles and scoring legend into any Word document."""
+    doc.add_heading("AI 角色說明 / AI Role Definitions & Scoring", level=2)
+    doc.add_paragraph(
+        "本系統採用三角色辯論架構進行 QMS 合規性審查。\n"
+        "This system uses a three-role debate architecture for QMS compliance review."
+    )
+
+    p = doc.add_paragraph()
+    p.add_run("🔍 分析者 / 辯護方（Analyzer / Defender）").bold = True
+    doc.add_paragraph(
+        "  角色定位：針對每個法規條款，分析 QMS 文件是否提供充分書面證據，採取明確立場（符合/不符合）並加以辯護。\n"
+        "  Role: Analyzes QMS documents against each regulatory clause, takes a clear position\n"
+        "        (compliant / non-compliant) and defends it with evidence.\n"
+        "  輸出欄位：\n"
+        "    • position（立場）：compliant / non-compliant / partially_compliant\n"
+        "    • confidence（信心度）：high / medium / low\n"
+        "    • key_evidence（關鍵證據）：文件中支持立場的引用段落\n"
+        "    • regulatory_references（法規引用）：引用的條款編號與條文\n"
+        "  評分方式：QA Auditor 評估其法規引用準確性，計入 Dim A（0–100）\n"
+        "    90–100 引用精確，完全符合 | 70–89 輕微遺漏 | 50–69 部分符合 | 30–49 表面符合 | 0–29 完全不符"
+    )
+
+    p = doc.add_paragraph()
+    p.add_run("⚖️ 驗證者 / 質疑方（Verifier / Reviewer）").bold = True
+    doc.add_paragraph(
+        "  角色定位：以魔鬼代言人角色質疑 Analyzer 的論點，指出未引用的法規要求、矛盾或證據漏洞，\n"
+        "            迫使 Analyzer 進行更深入論證，最終給出同意程度結論。\n"
+        "  Role: Challenges the Analyzer's argument as devil's advocate, identifies uncited\n"
+        "        regulatory requirements, contradictions, or evidence gaps.\n"
+        "  輸出欄位：\n"
+        "    • agreement_level（同意程度）：agree / partial / disagree\n"
+        "    • challenges（質疑點）：具體指出 Analyzer 論點的弱點或漏洞\n"
+        "    • overall_assessment（整體評語）：對整場辯論品質的文字總結\n"
+        "    • remaining_concerns（未解疑慮）：最終仍存在的爭議點\n"
+        "  評分方式：QA Auditor 評估其詰問品質與深度，計入 Dim B（0–100）\n"
+        "    90–100 深度均衡可操作 | 70–89 輕微缺失 | 50–69 明顯缺失 | 30–49 流於形式 | 0–29 嚴重不足"
+    )
+
+    p = doc.add_paragraph()
+    p.add_run("🔎 品質稽核員 / 審查者（QA Auditor）").bold = True
+    doc.add_paragraph(
+        "  角色定位：模擬獨立第三方稽核員，不參與辯論，對整場 Analyzer↔Verifier 辯論進行客觀品質評核。\n"
+        "  Role: Independent third-party auditor — does not debate, only evaluates debate quality.\n"
+        "  輸出欄位：\n"
+        "    • overall_score（整體分數）：0–100，綜合辯論品質評分\n"
+        "    • score_rationale（評分依據）：說明落在哪個分數區間及具體原因\n"
+        "    • question_quality（問題品質）：good / acceptable / poor — 評估稽核問題是否聚焦可查\n"
+        "    • answer_accuracy（回答準確性）：accurate / partially_accurate / inaccurate\n"
+        "    • logic_consistency（邏輯一致性）：consistent / minor_issues / inconsistent\n"
+        "    • hallucination_detected（幻覺偵測）：true / false — AI 是否引用了不存在的法規內容\n"
+        "    • issues（問題清單）：具體列出辯論中發現的品質問題\n"
+        "  審核流程：\n"
+        "    1. 評估稽核問題是否針對該條款的核心要求（question_quality）\n"
+        "    2. 核查 Analyzer 引用的法規條文是否存在且準確（answer_accuracy）\n"
+        "    3. 評估 Verifier 的質疑是否有根據且具建設性（Dim B）\n"
+        "    4. 檢查雙方推理鏈是否完整、無內部矛盾（logic_consistency）\n"
+        "    5. 偵測是否存在虛構條款、錯誤引用等幻覺現象（hallucination_detected）"
+    )
+
+
+# ============================================================
 # Cross-Exam Record Export (individual records)
 # ============================================================
 
@@ -72,6 +138,23 @@ def export_crossexam_record_word(record_dict: dict) -> Path:
     run.font.size = Pt(9)
     run.font.color.rgb = RGBColor(128, 128, 128)
 
+    # ── 角色說明 ──
+    _add_ai_roles_legend(doc)
+
+    doc.add_heading("作用原理 / How Cross-Examination Works", level=2)
+    doc.add_paragraph(
+        "Phase 5 交叉詰問採用辯論式 AI 稽核架構：\n\n"
+        "1. 依 ISO 13485 稽核清單（71 條款）抽取當次問題（以日期為 seed 輪替，全 71 條各有至少 2 個版本）\n"
+        "2. Analyzer（辯護方）分析各 QMS 文件，輸出：立場、信心度、關鍵證據\n"
+        "3. Verifier（質疑方）逐條質疑 Analyzer 論點，挑戰未引用的法規要求或證據漏洞\n"
+        "4. 雙方進行最多 3 輪辯論，達成 agree / partial / disagree 結論\n"
+        "5. QA Auditor（審查者）對整場辯論獨立評分（0–100）\n"
+        "6. 最終判定（verdict）依辯論結論與 gap_severity 由風險矩陣自動計算\n\n"
+        "縮寫對照：verdict — compliant / improvement_plan / deadline_correction / immediate_correction\n"
+        "         gap_severity — none / minor / major / critical\n"
+        "         flagged_for_ra — 需 RA 法規事務人員進一步審查"
+    )
+
     # Summary
     doc.add_heading("摘要", level=2)
     regs = ", ".join(record_dict.get("selected_regulations", [])) or "無"
@@ -87,11 +170,18 @@ def export_crossexam_record_word(record_dict: dict) -> Path:
         f"耗時: {record_dict.get('duration_seconds', 0):.1f}s"
     )
 
+    # Load ISO checklist for expected_evidence lookup
+    try:
+        from src.analysis.compliance_rules import ISO_13485_CHECKLIST as _ISO_CL
+    except Exception:
+        _ISO_CL = {}
+
     # Clause details
     doc.add_heading("條款交叉詰問詳情", level=2)
     for clause in record_dict.get("clauses", []):
+        cid = clause.get('clause_id', '')
         doc.add_heading(
-            f"{clause.get('clause_id', '')} — {clause.get('clause_title', '')}",
+            f"{cid} — {clause.get('clause_title', '')}",
             level=3,
         )
         doc.add_paragraph(
@@ -100,6 +190,21 @@ def export_crossexam_record_word(record_dict: dict) -> Path:
             f"同意: {'✅ 是' if clause.get('agreed') else '❌ 否'}  |  "
             f"RA 標記: {'⚠️ 是' if clause.get('flagged_for_ra') else '否'}"
         )
+
+        # Audit question
+        _cl_def = _ISO_CL.get(cid, {})
+        _aq = clause.get("audit_question") or _cl_def.get("audit_question", "")
+        if _aq:
+            doc.add_paragraph(f"稽核問題: {_aq}")
+
+        # Expected evidence
+        _exp_ev = _cl_def.get("expected_evidence", [])
+        if _exp_ev:
+            doc.add_paragraph(
+                "預期書面證據 / Expected Evidence:\n"
+                + "\n".join(f"  • {e}" for e in _exp_ev),
+                style="Quote",
+            )
 
         for rd in clause.get("rounds", []):
             doc.add_heading(f"Round {rd.get('round', '?')}", level=4)
@@ -319,6 +424,9 @@ def export_deep_report_word(
     )
     run.font.size = Pt(9)
     run.font.color.rgb = RGBColor(128, 128, 128)
+
+    # ── AI Roles Legend ──
+    _add_ai_roles_legend(doc)
 
     # ── Section 1: Executive Summary ──
     doc.add_heading("第一章 執行摘要", level=2)

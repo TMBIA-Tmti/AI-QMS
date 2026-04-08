@@ -3,6 +3,7 @@ AI-QMS Phase 1 - 文件清單與全部紀錄匯出模組
 Export document list (current formal versions) and all records to Word/Excel formats.
 """
 
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
@@ -28,11 +29,45 @@ THIN_BORDER = Border(
 
 
 # ============================================================
+# Download stats helper
+# ============================================================
+
+
+def _build_download_stats(audit_records: list) -> dict:
+    """Build a per-doc_id download summary from DOC_DOWNLOADED audit records.
+
+    Returns:
+        dict mapping doc_id → {"count": int, "recent": str}
+        where "recent" is a comma-joined list of the last 5 downloader names.
+    """
+    counts: dict = defaultdict(int)
+    downloaders: dict = defaultdict(list)
+
+    for r in audit_records:
+        if r.get("action") == "DOC_DOWNLOADED":
+            doc_id = r.get("document_id", "")
+            user = r.get("user_id", "")
+            if doc_id:
+                counts[doc_id] += 1
+                if user:
+                    downloaders[doc_id].append(user)
+
+    stats = {}
+    for doc_id in set(list(counts.keys()) + list(downloaders.keys())):
+        recent_5 = downloaders[doc_id][-5:]
+        stats[doc_id] = {
+            "count": counts[doc_id],
+            "recent": ", ".join(recent_5) if recent_5 else "",
+        }
+    return stats
+
+
+# ============================================================
 # 文件清單 (Document List — Current Formal Versions)
 # ============================================================
 
 
-def export_doclist_to_word(docs: list) -> str:
+def export_doclist_to_word(docs: list, download_stats: dict | None = None) -> str:
     """
     Export current formal document list to a Word (.docx) file.
 
@@ -66,13 +101,15 @@ def export_doclist_to_word(docs: list) -> str:
     if not docs:
         doc.add_paragraph("目前沒有現行有效的正式文件。")
     else:
+        dl_stats = download_stats or {}
+
         # Create table
-        table = doc.add_table(rows=1, cols=5)
+        table = doc.add_table(rows=1, cols=7)
         table.style = "Table Grid"
         table.alignment = WD_TABLE_ALIGNMENT.CENTER
 
         # Header row
-        headers = ["#", "文件編號", "標題", "類型", "現行版本"]
+        headers = ["#", "文件編號", "標題", "類型", "現行版本", "下載次數", "下載者（最近5筆）"]
         for i, header in enumerate(headers):
             cell = table.rows[0].cells[i]
             cell.text = header
@@ -85,12 +122,16 @@ def export_doclist_to_word(docs: list) -> str:
         # Data rows
         for idx, d in enumerate(docs, 1):
             row = table.add_row()
+            doc_id = d.get("doc_id", "")
+            stat = dl_stats.get(doc_id, {})
             values = [
                 str(idx),
-                d.get("doc_id", ""),
+                doc_id,
                 d.get("title", "N/A"),
                 d.get("doc_type", "OTHER"),
                 f"v{d.get('current_version', '?')}",
+                str(stat.get("count", 0)),
+                stat.get("recent", ""),
             ]
             for i, val in enumerate(values):
                 cell = row.cells[i]
@@ -100,7 +141,7 @@ def export_doclist_to_word(docs: list) -> str:
                         run.font.size = Pt(8)
 
         # Set column widths
-        widths = [Cm(1), Cm(3), Cm(6), Cm(2.5), Cm(2.5)]
+        widths = [Cm(0.8), Cm(2.5), Cm(5), Cm(2), Cm(2), Cm(1.5), Cm(4)]
         for row in table.rows:
             for i, width in enumerate(widths):
                 row.cells[i].width = width
@@ -121,7 +162,7 @@ def export_doclist_to_word(docs: list) -> str:
     return str(filepath)
 
 
-def export_doclist_to_excel(docs: list) -> str:
+def export_doclist_to_excel(docs: list, download_stats: dict | None = None) -> str:
     """
     Export current formal document list to an Excel (.xlsx) file.
 
@@ -144,15 +185,17 @@ def export_doclist_to_excel(docs: list) -> str:
     cell_font = Font(name="Microsoft JhengHei", size=9)
     cell_alignment = Alignment(vertical="center", wrap_text=True)
 
+    dl_stats = download_stats or {}
+
     # Title row
-    ws.merge_cells("A1:E1")
+    ws.merge_cells("A1:G1")
     title_cell = ws["A1"]
     title_cell.value = "AI-QMS 文件清單報告 (現行正式版本)"
     title_cell.font = Font(name="Microsoft JhengHei", bold=True, size=14)
     title_cell.alignment = Alignment(horizontal="center")
 
     # Metadata row
-    ws.merge_cells("A2:E2")
+    ws.merge_cells("A2:G2")
     meta_cell = ws["A2"]
     meta_cell.value = (
         f"匯出時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | "
@@ -162,7 +205,7 @@ def export_doclist_to_excel(docs: list) -> str:
     meta_cell.alignment = Alignment(horizontal="right")
 
     # Headers (row 4)
-    headers = ["#", "文件編號", "標題", "類型", "現行版本"]
+    headers = ["#", "文件編號", "標題", "類型", "現行版本", "下載次數", "下載者（最近5筆）"]
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=4, column=col, value=header)
         cell.font = header_font
@@ -173,12 +216,16 @@ def export_doclist_to_excel(docs: list) -> str:
     # Data rows
     for idx, d in enumerate(docs, 1):
         row_num = idx + 4
+        doc_id = d.get("doc_id", "")
+        stat = dl_stats.get(doc_id, {})
         values = [
             idx,
-            d.get("doc_id", ""),
+            doc_id,
             d.get("title", "N/A"),
             d.get("doc_type", "OTHER"),
             f"v{d.get('current_version', '?')}",
+            stat.get("count", 0),
+            stat.get("recent", ""),
         ]
         for col, val in enumerate(values, 1):
             cell = ws.cell(row=row_num, column=col, value=val)
@@ -187,7 +234,7 @@ def export_doclist_to_excel(docs: list) -> str:
             cell.border = THIN_BORDER
 
     # Column widths
-    col_widths = [5, 15, 40, 12, 12]
+    col_widths = [5, 15, 35, 12, 12, 10, 30]
     for i, width in enumerate(col_widths, 1):
         ws.column_dimensions[chr(64 + i)].width = width
 
@@ -196,7 +243,7 @@ def export_doclist_to_excel(docs: list) -> str:
 
     # Footer note
     note_row = len(docs) + 6
-    ws.merge_cells(f"A{note_row}:E{note_row}")
+    ws.merge_cells(f"A{note_row}:G{note_row}")
     note_cell = ws.cell(row=note_row, column=1)
     note_cell.value = "本報告由 AI-QMS 品質管理系統自動產生。"
     note_cell.font = Font(
@@ -233,7 +280,7 @@ def _compute_status(doc: dict, ver_entry: dict) -> str:
         return "已進版"
 
 
-def export_allrecords_to_word(all_docs: list) -> str:
+def export_allrecords_to_word(all_docs: list, download_stats: dict | None = None) -> str:
     """
     Export all document records (incl. version history, obsolete) to Word (.docx).
 
@@ -271,16 +318,18 @@ def export_allrecords_to_word(all_docs: list) -> str:
 
     doc.add_paragraph()  # spacer
 
+    dl_stats = download_stats or {}
+
     if not all_docs:
         doc.add_paragraph("目前沒有任何文件紀錄。")
     else:
         # Create table
-        table = doc.add_table(rows=1, cols=8)
+        table = doc.add_table(rows=1, cols=10)
         table.style = "Table Grid"
         table.alignment = WD_TABLE_ALIGNMENT.CENTER
 
         # Header row
-        headers = ["#", "文件編號", "標題", "類型", "版本", "日期", "操作者", "狀態"]
+        headers = ["#", "文件編號", "標題", "類型", "版本", "日期", "操作者", "狀態", "下載次數", "下載者（最近5筆）"]
         for i, header in enumerate(headers):
             cell = table.rows[0].cells[i]
             cell.text = header
@@ -296,6 +345,7 @@ def export_allrecords_to_word(all_docs: list) -> str:
             doc_id = d.get("doc_id", "")
             title_text = d.get("title", "N/A")
             doc_type = d.get("doc_type", "OTHER")
+            stat = dl_stats.get(doc_id, {})
 
             for ver_entry in d.get("versions", []):
                 row_idx += 1
@@ -314,6 +364,8 @@ def export_allrecords_to_word(all_docs: list) -> str:
                     created_at,
                     created_by,
                     status,
+                    str(stat.get("count", 0)),
+                    stat.get("recent", ""),
                 ]
                 for i, val in enumerate(values):
                     cell = row.cells[i]
@@ -323,7 +375,7 @@ def export_allrecords_to_word(all_docs: list) -> str:
                             run.font.size = Pt(8)
 
         # Set column widths
-        widths = [Cm(0.8), Cm(2.5), Cm(4.5), Cm(1.8), Cm(1.2), Cm(2.5), Cm(1.8), Cm(2)]
+        widths = [Cm(0.6), Cm(2), Cm(3.5), Cm(1.5), Cm(1), Cm(2), Cm(1.5), Cm(1.5), Cm(1.2), Cm(3)]
         for row in table.rows:
             for i, width in enumerate(widths):
                 row.cells[i].width = width
@@ -347,7 +399,7 @@ def export_allrecords_to_word(all_docs: list) -> str:
     return str(filepath)
 
 
-def export_allrecords_to_excel(all_docs: list) -> str:
+def export_allrecords_to_excel(all_docs: list, download_stats: dict | None = None) -> str:
     """
     Export all document records to an Excel (.xlsx) file.
 
@@ -375,15 +427,17 @@ def export_allrecords_to_excel(all_docs: list) -> str:
     active_count = sum(1 for d in all_docs if d.get("status", "active") == "active")
     obsolete_count = sum(1 for d in all_docs if d.get("status") == "obsolete")
 
+    dl_stats = download_stats or {}
+
     # Title row
-    ws.merge_cells("A1:H1")
+    ws.merge_cells("A1:J1")
     title_cell = ws["A1"]
     title_cell.value = "AI-QMS 全部文件紀錄報告"
     title_cell.font = Font(name="Microsoft JhengHei", bold=True, size=14)
     title_cell.alignment = Alignment(horizontal="center")
 
     # Metadata row
-    ws.merge_cells("A2:H2")
+    ws.merge_cells("A2:J2")
     meta_cell = ws["A2"]
     meta_cell.value = (
         f"匯出時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | "
@@ -394,7 +448,7 @@ def export_allrecords_to_excel(all_docs: list) -> str:
     meta_cell.alignment = Alignment(horizontal="right")
 
     # Headers (row 4)
-    headers = ["#", "文件編號", "標題", "類型", "版本", "日期", "操作者", "狀態"]
+    headers = ["#", "文件編號", "標題", "類型", "版本", "日期", "操作者", "狀態", "下載次數", "下載者（最近5筆）"]
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=4, column=col, value=header)
         cell.font = header_font
@@ -408,6 +462,7 @@ def export_allrecords_to_excel(all_docs: list) -> str:
         doc_id = d.get("doc_id", "")
         title_text = d.get("title", "N/A")
         doc_type = d.get("doc_type", "OTHER")
+        stat = dl_stats.get(doc_id, {})
 
         for ver_entry in d.get("versions", []):
             row_idx += 1
@@ -426,6 +481,8 @@ def export_allrecords_to_excel(all_docs: list) -> str:
                 created_at,
                 created_by,
                 status,
+                stat.get("count", 0),
+                stat.get("recent", ""),
             ]
             for col, val in enumerate(values, 1):
                 cell = ws.cell(row=row_num, column=col, value=val)
@@ -434,7 +491,7 @@ def export_allrecords_to_excel(all_docs: list) -> str:
                 cell.border = THIN_BORDER
 
     # Column widths
-    col_widths = [5, 15, 35, 12, 10, 15, 12, 12]
+    col_widths = [5, 15, 30, 12, 10, 15, 12, 12, 10, 30]
     for i, width in enumerate(col_widths, 1):
         ws.column_dimensions[chr(64 + i)].width = width
 
@@ -443,7 +500,7 @@ def export_allrecords_to_excel(all_docs: list) -> str:
 
     # Footer note
     note_row = row_idx + 6
-    ws.merge_cells(f"A{note_row}:H{note_row}")
+    ws.merge_cells(f"A{note_row}:J{note_row}")
     note_cell = ws.cell(row=note_row, column=1)
     note_cell.value = (
         "本報告由 AI-QMS 品質管理系統自動產生。"

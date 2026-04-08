@@ -304,7 +304,7 @@ Phoenix Dashboard：http://localhost:6006
 | `文件清單` | 現行正式版本文件（附 Word/Excel 匯出按鈕） |
 | `列表` / `list` | 所有文件紀錄（含進版、作廢）（附 Word/Excel 匯出按鈕） |
 | `搜尋 <關鍵字>` | 搜尋文件內容 |
-| `下載 <文件編號>` | 下載原始文件（如：下載 QP-852） |
+| `下載 <文件編號>` | 下載原始文件，所有 1-4 階皆可下載，下載自動記錄於稽核紀錄（如：下載 QP-852） |
 | `作廢 <文件編號>` | 作廢文件（如：作廢 OTHER-016） |
 | `文件更動紀錄` | 查看文件更動紀錄（附 Word/Excel 匯出按鈕） |
 | `法規清單` | 列出所有引用的法規標準（附 Word/Excel 匯出按鈕） |
@@ -627,7 +627,7 @@ Phoenix Dashboard: http://localhost:6006
 | `document list` | Current formal document versions (with Word/Excel export buttons) |
 | `list` | All document records (incl. versions, obsolete) (with Word/Excel export buttons) |
 | `search <keyword>` | Search document content |
-| `download <doc_id>` | Download original file (e.g., download QP-852) |
+| `download <doc_id>` | Download original file — all levels 1-4 downloadable, logged to audit trail (e.g., download QP-852) |
 | `obsolete <doc_id>` | Obsolete a document (e.g., obsolete OTHER-016) |
 | `audit trail` | View audit trail records (with Word/Excel export buttons) |
 | `regulatory list` | List all referenced regulatory standards (with Word/Excel export buttons) |

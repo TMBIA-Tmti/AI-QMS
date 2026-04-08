@@ -229,6 +229,43 @@ def export_regulatory_update_to_word(
 
     doc.add_paragraph()
 
+    # ── 縮寫說明 / Abbreviation Legend ──
+    doc.add_heading("縮寫說明 / Abbreviation Legend", level=2)
+    doc.add_paragraph(
+        "FDA / eCFR  — 美國食品藥物管理局 / 聯邦法規電子資料庫（21 CFR 820 QSR/QMSR）\n"
+        "TFDA        — 臺灣食品藥物管理署（醫療器材管理法, GMP）\n"
+        "EMA / MDCG  — 歐洲藥品管理局 / 醫療器材協調小組（EU MDR 2017/745, EU IVDR 2017/746）\n"
+        "PMDA        — 日本藥品與醫療器材局（QMS省令, JIS T 2304）\n"
+        "NMPA        — 中國國家藥品監督管理局（醫療器械生產質量管理規範）\n"
+        "TGA         — 澳洲治療用品管理局（Australian Medical Device Standards）\n"
+        "MFDS        — 韓國食品藥品安全處（KGMP）\n"
+        "HSA         — 新加坡衛生科學局（Singapore Medical Device GMP）\n"
+        "CDSCO       — 印度中央藥品標準控制組織（India MDR 2017）\n"
+        "ANVISA      — 巴西國家衛生監督局（Brazil RDC 665/2022）\n"
+        "Health Canada — 加拿大衛生部（CMDR SOR/98-282, ISO 13485）\n"
+        "MDSAP       — 醫療器材單一稽核計畫（美國/加拿大/巴西/澳洲/日本）\n"
+        "QMS         — 品質管理系統（Quality Management System）\n"
+        "RA          — 法規事務（Regulatory Affairs）"
+    )
+
+    # ── 報告欄位說明 / Report Field Guide ──
+    doc.add_heading("報告欄位說明 / Report Field Guide", level=2)
+    doc.add_paragraph(
+        "【彙總更新清單 / Summary Table 欄位說明】\n"
+        "  地區（Region）：法規機構所在地區，如 US / EU / TW / JP / CN\n"
+        "  機構（Agency）：法規發布機構代碼，如 FDA / TFDA / EMA\n"
+        "  爬取狀態（Crawl Status）：success 表示成功取得更新；failed 表示無法存取\n"
+        "  新增項目數（New Items）：本次爬取中偵測到的新發布文件或指引數量\n"
+        "  更新類型（Update Type）：regulation（法規本文）/ guidance（指引）/ notice（公告）\n"
+        "  相關性（Relevance）：AI 評估與本 QMS 系統的相關程度（high / medium / low）\n"
+        "  對應 QMS 標準（QMS Mapping）：該機構發布的內容所對應的主要 QMS 標準\n\n"
+        "【爬取結果作用原理】\n"
+        "  系統定期從各國法規機構官網爬取最新公告，比對既有紀錄偵測新增內容，\n"
+        "  並由 AI 評估每筆更新與現行 QMS 文件的相關性，協助 RA 人員快速識別需回應的法規變動。\n\n"
+        "【內容摘要（Content Summary）】：爬取內容的前 100 字預覽\n"
+        "【儲存路徑（Storage Path）】：成功爬取的原始文件儲存於 regulatory_markdown_storage 的路徑"
+    )
+
     # Section 1: Summary Table (enhanced with structured columns)
     doc.add_heading(_t("regulatory_update_export.summary_heading", lang), level=2)
 

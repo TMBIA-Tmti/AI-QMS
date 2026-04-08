@@ -81,7 +81,7 @@ def format_audit_table_markdown(records: list) -> str:
     return "\n".join(lines)
 
 
-def export_to_word(records: list) -> str:
+def export_to_word(records: list, download_stats: dict | None = None) -> str:
     """
     Export audit records to a Word (.docx) file.
 
@@ -109,16 +109,18 @@ def export_to_word(records: list) -> str:
 
     doc.add_paragraph()  # spacer
 
+    dl_stats = download_stats or {}
+
     if not records:
         doc.add_paragraph("目前沒有任何文件更動紀錄。")
     else:
         # Create table
-        table = doc.add_table(rows=1, cols=6)
+        table = doc.add_table(rows=1, cols=8)
         table.style = "Table Grid"
         table.alignment = WD_TABLE_ALIGNMENT.CENTER
 
         # Header row
-        headers = ["#", "時間", "操作", "文件編號", "操作者", "詳情"]
+        headers = ["#", "時間", "操作", "文件編號", "操作者", "詳情", "下載次數", "下載者（最近5筆）"]
         for i, header in enumerate(headers):
             cell = table.rows[0].cells[i]
             cell.text = header
@@ -138,13 +140,17 @@ def export_to_word(records: list) -> str:
             except (ValueError, TypeError):
                 ts_short = ts
 
+            doc_id = r.get("document_id", "")
+            stat = dl_stats.get(doc_id, {})
             values = [
                 str(idx),
                 ts_short,
                 _action_label(r.get("action", "")),
-                r.get("document_id", ""),
+                doc_id,
                 r.get("user_id", ""),
                 _format_details(r.get("details", {})),
+                str(stat.get("count", 0)),
+                stat.get("recent", ""),
             ]
             for i, val in enumerate(values):
                 cell = row.cells[i]
@@ -154,7 +160,7 @@ def export_to_word(records: list) -> str:
                         run.font.size = Pt(8)
 
         # Set column widths
-        widths = [Cm(1), Cm(3.5), Cm(2.5), Cm(3), Cm(2.5), Cm(5)]
+        widths = [Cm(0.8), Cm(3), Cm(2.2), Cm(2.5), Cm(2), Cm(4), Cm(1.5), Cm(3)]
         for row in table.rows:
             for i, width in enumerate(widths):
                 row.cells[i].width = width
@@ -177,7 +183,7 @@ def export_to_word(records: list) -> str:
     return str(filepath)
 
 
-def export_to_excel(records: list) -> str:
+def export_to_excel(records: list, download_stats: dict | None = None) -> str:
     """
     Export audit records to an Excel (.xlsx) file.
 
@@ -203,15 +209,17 @@ def export_to_excel(records: list) -> str:
         bottom=Side(style="thin"),
     )
 
+    dl_stats = download_stats or {}
+
     # Title row
-    ws.merge_cells("A1:G1")
+    ws.merge_cells("A1:I1")
     title_cell = ws["A1"]
     title_cell.value = "AI-QMS 文件更動紀錄報告"
     title_cell.font = Font(name="Microsoft JhengHei", bold=True, size=14)
     title_cell.alignment = Alignment(horizontal="center")
 
     # Metadata row
-    ws.merge_cells("A2:G2")
+    ws.merge_cells("A2:I2")
     meta_cell = ws["A2"]
     meta_cell.value = (
         f"匯出時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | "
@@ -221,7 +229,7 @@ def export_to_excel(records: list) -> str:
     meta_cell.alignment = Alignment(horizontal="right")
 
     # Headers (row 4)
-    headers = ["#", "紀錄 ID", "時間", "操作", "文件編號", "操作者", "詳情"]
+    headers = ["#", "紀錄 ID", "時間", "操作", "文件編號", "操作者", "詳情", "下載次數", "下載者（最近5筆）"]
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=4, column=col, value=header)
         cell.font = header_font
@@ -239,14 +247,18 @@ def export_to_excel(records: list) -> str:
         except (ValueError, TypeError):
             ts_str = ts
 
+        doc_id = r.get("document_id", "")
+        stat = dl_stats.get(doc_id, {})
         values = [
             idx,
             r.get("record_id", ""),
             ts_str,
             _action_label(r.get("action", "")),
-            r.get("document_id", ""),
+            doc_id,
             r.get("user_id", ""),
             _format_details(r.get("details", {})),
+            stat.get("count", 0),
+            stat.get("recent", ""),
         ]
         for col, val in enumerate(values, 1):
             cell = ws.cell(row=row_num, column=col, value=val)
@@ -255,7 +267,7 @@ def export_to_excel(records: list) -> str:
             cell.border = thin_border
 
     # Column widths
-    col_widths = [5, 25, 20, 12, 15, 12, 40]
+    col_widths = [5, 25, 20, 12, 15, 12, 35, 10, 30]
     for i, width in enumerate(col_widths, 1):
         ws.column_dimensions[chr(64 + i)].width = width
 
@@ -264,7 +276,7 @@ def export_to_excel(records: list) -> str:
 
     # Hash chain integrity note
     note_row = len(records) + 6
-    ws.merge_cells(f"A{note_row}:G{note_row}")
+    ws.merge_cells(f"A{note_row}:I{note_row}")
     note_cell = ws.cell(row=note_row, column=1)
     note_cell.value = (
         "本報告由 AI-QMS 品質管理系統自動產生。"

@@ -376,6 +376,36 @@ def export_regulatory_to_word(
 
     doc.add_paragraph()
 
+    # ── 縮寫說明 / Abbreviation Legend ──
+    doc.add_heading("縮寫說明 / Abbreviation Legend", level=2)
+    doc.add_paragraph(
+        "ISO 13485  — 醫療器材品質管理系統國際標準（Quality Management Systems for Medical Devices）\n"
+        "EU MDR     — 歐盟醫療器材法規 2017/745（European Union Medical Device Regulation）\n"
+        "EU IVDR    — 歐盟體外診斷法規 2017/746\n"
+        "TFDA       — 臺灣食品藥物管理署（Taiwan Food and Drug Administration）\n"
+        "21 CFR 820 — 美國 FDA 品質系統法規（Quality System Regulation / QMSR）\n"
+        "MDSAP      — 醫療器材單一稽核計畫，涵蓋美國/加拿大/巴西/澳洲/日本\n"
+        "QMS        — 品質管理系統（Quality Management System）\n"
+        "RA         — 法規事務（Regulatory Affairs）；報告中標記為需 RA 審查的項目\n"
+        "GMP        — 良好製造規範（Good Manufacturing Practice）\n"
+        "IVD        — 體外診斷醫療器材（In Vitro Diagnostics）"
+    )
+
+    # ── 報告欄位說明 / Report Field Guide ──
+    doc.add_heading("報告欄位說明 / Report Field Guide", level=2)
+    doc.add_paragraph(
+        "【法規彙總清單 / Aggregate Standards】\n"
+        "  標準名稱（Standard）：文件中引用的法規或標準名稱\n"
+        "  引用文件數（Count）：引用該法規的文件總數\n"
+        "  引用文件清單（Referenced By）：列出所有引用該法規的文件 ID\n\n"
+        "【逐文件詳情 / Per-Document Detail】\n"
+        "  文件 ID / 標題 / 文件類型：來自 QMS 文件庫的基本資訊\n"
+        "  版本（Version）：文件目前版次\n"
+        "  引用法規（Standards）：該文件所引用的全部法規/標準清單\n\n"
+        "【評估報告 / Assessment】：AI 對法規引用完整性與合規性的整體評估意見\n"
+        "【驗證報告 / Verification】：對評估結論的二次核查結果"
+    )
+
     if not aggregate:
         doc.add_paragraph(_t("regulatory_export.no_refs", lang))
     else:
