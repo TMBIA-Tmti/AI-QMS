@@ -95,9 +95,20 @@ _DIM_A_SYSTEM_PROMPTS_MDSAP_ON = {
 4. **跨國比較準確性**: 當 LLM 進行跨國比較時，差異描述是否正確？
 5. **原文一致性**: LLM 的回答是否與法規原文的語義一致？
 
+評分標準（必須嚴格依照此表給分，不得自行裁量）：
+
+| 分數區間 | 條件說明 |
+|---------|---------|
+| 90–100 | 法規引用完整精確，所有條號與原文一致，無遺漏，跨國比較正確，解釋無誤 |
+| 70–89  | 法規引用大致正確，有輕微遺漏或引用不夠精確，但核心要求已涵蓋 |
+| 50–69  | 部分符合，遺漏 1–2 項關鍵要求，或有輕微曲解 |
+| 30–49  | 僅表面符合，缺乏實質法規依據，或重要條文錯誤 |
+| 0–29   | 完全不符合、幻覺性引用、或無法提供有效法規依據 |
+
 回答必須使用以下 JSON 格式：
 {
   "dim_a_score": 0-100,
+  "score_rationale": "說明依照上表選擇此分數區間的理由",
   "checks": [
     {
       "check_type": "reference_accuracy | completeness | interpretation | cross_comparison | text_consistency",
@@ -118,9 +129,20 @@ You need to check:
 4. **Cross-Country Comparison Accuracy**: When the LLM compares across countries, are the differences described correctly?
 5. **Source Text Consistency**: Is the LLM's answer semantically consistent with the regulation's original text?
 
+Scoring Rubric (strictly follow this table — no discretionary scoring):
+
+| Score Range | Criteria |
+|-------------|----------|
+| 90–100 | Fully accurate citations, all article numbers match source, no omissions, correct cross-country comparisons, accurate interpretation |
+| 70–89  | Mostly correct, minor omissions or imprecision, but core requirements covered |
+| 50–69  | Partial compliance, 1–2 key requirements missing, or minor misinterpretation |
+| 30–49  | Surface compliance only, lacks substantive basis, or significant article errors |
+| 0–29   | Non-compliant, hallucinated citations, or unable to provide valid regulatory basis |
+
 Respond in the following JSON format:
 {
   "dim_a_score": 0-100,
+  "score_rationale": "Explain which band applies and why, citing specific evidence",
   "checks": [
     {
       "check_type": "reference_accuracy | completeness | interpretation | cross_comparison | text_consistency",
@@ -146,9 +168,20 @@ _DIM_A_SYSTEM_PROMPTS_MDSAP_OFF = {
 4. **跨國比較準確性**: 當 LLM 比較 TFDA 與 EU MDR 差異時，描述是否正確？
 5. **原文一致性**: LLM 的回答是否與法規原文的語義一致？
 
+評分標準（必須嚴格依照此表給分，不得自行裁量）：
+
+| 分數區間 | 條件說明 |
+|---------|---------|
+| 90–100 | 法規引用完整精確，所有條號與原文一致，無遺漏，跨國比較正確，解釋無誤 |
+| 70–89  | 法規引用大致正確，有輕微遺漏或引用不夠精確，但核心要求已涵蓋 |
+| 50–69  | 部分符合，遺漏 1–2 項關鍵要求，或有輕微曲解 |
+| 30–49  | 僅表面符合，缺乏實質法規依據，或重要條文錯誤 |
+| 0–29   | 完全不符合、幻覺性引用、或無法提供有效法規依據 |
+
 回答必須使用以下 JSON 格式：
 {
   "dim_a_score": 0-100,
+  "score_rationale": "說明依照上表選擇此分數區間的理由",
   "checks": [
     {
       "check_type": "reference_accuracy | completeness | interpretation | cross_comparison | text_consistency",
@@ -171,9 +204,20 @@ You need to check:
 4. **Cross-Country Comparison Accuracy**: When the LLM compares TFDA vs EU MDR differences, are the descriptions correct?
 5. **Source Text Consistency**: Is the LLM's answer semantically consistent with the regulation's original text?
 
+Scoring Rubric (strictly follow this table — no discretionary scoring):
+
+| Score Range | Criteria |
+|-------------|----------|
+| 90–100 | Fully accurate citations, all article numbers match source, no omissions, correct cross-country comparisons, accurate interpretation |
+| 70–89  | Mostly correct, minor omissions or imprecision, but core requirements covered |
+| 50–69  | Partial compliance, 1–2 key requirements missing, or minor misinterpretation |
+| 30–49  | Surface compliance only, lacks substantive basis, or significant article errors |
+| 0–29   | Non-compliant, hallucinated citations, or unable to provide valid regulatory basis |
+
 Respond in the following JSON format:
 {
   "dim_a_score": 0-100,
+  "score_rationale": "Explain which band applies and why, citing specific evidence",
   "checks": [
     {
       "check_type": "reference_accuracy | completeness | interpretation | cross_comparison | text_consistency",
@@ -204,9 +248,20 @@ _DIM_B_SYSTEM_PROMPTS_MDSAP_ON = {
 5. **同意率合理性**: 同意率是否在合理範圍內（過高過低都有問題）？
 6. **可操作性**: 建議和發現是否具有可操作性？
 
+評分標準（必須嚴格依照此表給分，不得自行裁量）：
+
+| 分數區間 | 條件說明 |
+|---------|---------|
+| 90–100 | 問題深度充分，各國覆蓋均衡，回答有實質內容，差異識別正確，同意率合理（55–85%），建議可操作 |
+| 70–89  | 大致符合品質要求，1–2 項評估面向有輕微缺失，整體詰問有效 |
+| 50–69  | 問題深度不足或覆蓋不均衡，有明顯缺失但仍有部分有效詰問 |
+| 30–49  | 問題流於表面，回答缺乏實質，同意率異常（<30% 或 >95%） |
+| 0–29   | 詰問品質嚴重不足，無法識別差異，建議無法操作 |
+
 回答必須使用以下 JSON 格式：
 {
   "dim_b_score": 0-100,
+  "score_rationale": "說明依照上表選擇此分數區間的理由",
   "country_scores": {
     "US": 0-100, "EU": 0-100, "TW": 0-100,
     "CA": 0-100, "JP": 0-100, "BR": 0-100, "AU": 0-100
@@ -231,9 +286,20 @@ You need to assess:
 5. **Agreement Rate Reasonableness**: Is the agreement rate within a reasonable range (both too high and too low are problematic)?
 6. **Actionability**: Are recommendations and findings actionable?
 
+Scoring Rubric (strictly follow this table — no discretionary scoring):
+
+| Score Range | Criteria |
+|-------------|----------|
+| 90–100 | Sufficient question depth, balanced country coverage, substantive answers, correct gap identification, reasonable agreement rate (55–85%), actionable recommendations |
+| 70–89  | Generally meets quality requirements, 1–2 minor deficiencies, overall effective cross-examination |
+| 50–69  | Insufficient question depth or coverage imbalance, notable deficiencies but some effective examination |
+| 30–49  | Superficial questions, lacking substantive answers, abnormal agreement rate (<30% or >95%) |
+| 0–29   | Severely inadequate cross-examination quality, unable to identify gaps, unactionable recommendations |
+
 Respond in the following JSON format:
 {
   "dim_b_score": 0-100,
+  "score_rationale": "Explain which band applies and why, citing specific evidence",
   "country_scores": {
     "US": 0-100, "EU": 0-100, "TW": 0-100,
     "CA": 0-100, "JP": 0-100, "BR": 0-100, "AU": 0-100
@@ -263,9 +329,20 @@ _DIM_B_SYSTEM_PROMPTS_MDSAP_OFF = {
 5. **同意率合理性**: 同意率是否在合理範圍內（過高過低都有問題）？
 6. **可操作性**: 建議和發現是否具有可操作性？
 
+評分標準（必須嚴格依照此表給分，不得自行裁量）：
+
+| 分數區間 | 條件說明 |
+|---------|---------|
+| 90–100 | 問題深度充分，TW/EU 覆蓋均衡，回答有實質內容，差異識別正確，同意率合理（55–85%），建議可操作 |
+| 70–89  | 大致符合品質要求，1–2 項評估面向有輕微缺失，整體詰問有效 |
+| 50–69  | 問題深度不足或覆蓋不均衡，有明顯缺失但仍有部分有效詰問 |
+| 30–49  | 問題流於表面，回答缺乏實質，同意率異常（<30% 或 >95%） |
+| 0–29   | 詰問品質嚴重不足，無法識別差異，建議無法操作 |
+
 回答必須使用以下 JSON 格式：
 {
   "dim_b_score": 0-100,
+  "score_rationale": "說明依照上表選擇此分數區間的理由",
   "country_scores": {
     "EU": 0-100, "TW": 0-100
   },
@@ -291,9 +368,20 @@ You need to assess:
 5. **Agreement Rate Reasonableness**: Is the agreement rate within a reasonable range (both too high and too low are problematic)?
 6. **Actionability**: Are recommendations and findings actionable?
 
+Scoring Rubric (strictly follow this table — no discretionary scoring):
+
+| Score Range | Criteria |
+|-------------|----------|
+| 90–100 | Sufficient question depth, balanced TW/EU coverage, substantive answers, correct gap identification, reasonable agreement rate (55–85%), actionable recommendations |
+| 70–89  | Generally meets quality requirements, 1–2 minor deficiencies, overall effective cross-examination |
+| 50–69  | Insufficient question depth or coverage imbalance, notable deficiencies but some effective examination |
+| 30–49  | Superficial questions, lacking substantive answers, abnormal agreement rate (<30% or >95%) |
+| 0–29   | Severely inadequate cross-examination quality, unable to identify gaps, unactionable recommendations |
+
 Respond in the following JSON format:
 {
   "dim_b_score": 0-100,
+  "score_rationale": "Explain which band applies and why, citing specific evidence",
   "country_scores": {
     "EU": 0-100, "TW": 0-100
   },
@@ -524,10 +612,12 @@ class DailyAuditResult:
         dim_a_score: float = 0.0,
         dim_a_checks: list[dict] | None = None,
         dim_a_summary: str = "",
+        dim_a_score_rationale: str = "",
         dim_b_score: float = 0.0,
         dim_b_country_scores: dict[str, float] | None = None,
         dim_b_findings: list[dict] | None = None,
         dim_b_summary: str = "",
+        dim_b_score_rationale: str = "",
         overall_score: float = 0.0,
         deviation_detected: bool = False,
         deviation_details: str = "",
@@ -545,10 +635,12 @@ class DailyAuditResult:
         self.dim_a_score = dim_a_score
         self.dim_a_checks = dim_a_checks or []
         self.dim_a_summary = dim_a_summary
+        self.dim_a_score_rationale = dim_a_score_rationale
         self.dim_b_score = dim_b_score
         self.dim_b_country_scores = dim_b_country_scores or {}
         self.dim_b_findings = dim_b_findings or []
         self.dim_b_summary = dim_b_summary
+        self.dim_b_score_rationale = dim_b_score_rationale
         self.overall_score = overall_score
         self.deviation_detected = deviation_detected
         self.deviation_details = deviation_details
@@ -568,10 +660,12 @@ class DailyAuditResult:
             "dim_a_score": self.dim_a_score,
             "dim_a_checks": self.dim_a_checks,
             "dim_a_summary": self.dim_a_summary,
+            "dim_a_score_rationale": self.dim_a_score_rationale,
             "dim_b_score": self.dim_b_score,
             "dim_b_country_scores": self.dim_b_country_scores,
             "dim_b_findings": self.dim_b_findings,
             "dim_b_summary": self.dim_b_summary,
+            "dim_b_score_rationale": self.dim_b_score_rationale,
             "overall_score": self.overall_score,
             "deviation_detected": self.deviation_detected,
             "deviation_details": self.deviation_details,
@@ -1046,6 +1140,7 @@ def run_daily_audit(
         result.dim_a_score = dim_a_result.get("dim_a_score", 0.0)
         result.dim_a_checks = dim_a_result.get("checks", [])
         result.dim_a_summary = dim_a_result.get("summary", "")
+        result.dim_a_score_rationale = dim_a_result.get("score_rationale", "")
     if dim_a_err is not None:
         logger.error("Dim A audit failed: %s", dim_a_err)
         result.dim_a_summary = f"Dim A audit failed: {str(dim_a_err)[:200]}"
@@ -1055,6 +1150,7 @@ def run_daily_audit(
         result.dim_b_country_scores = dim_b_result.get("country_scores", {})
         result.dim_b_findings = dim_b_result.get("findings", [])
         result.dim_b_summary = dim_b_result.get("summary", "")
+        result.dim_b_score_rationale = dim_b_result.get("score_rationale", "")
     if dim_b_err is not None:
         logger.error("Dim B audit failed: %s", dim_b_err)
         result.dim_b_summary = f"Dim B audit failed: {str(dim_b_err)[:200]}"
@@ -1258,138 +1354,161 @@ def _run_cross_validation(
     records: list,
     result: "DailyAuditResult",
 ) -> dict:
-    """Cross-validate 7-country vs 5-country (MDSAP) quality metrics.
+    """Cross-validate audit quality via two independent methods.
 
-    Compares cross-examination quality between records covering MDSAP
-    5 countries (US/CA/JP/BR/AU via QMSR/HC/PMDA/ANVISA/TGA) and records
-    that cover all 7 countries (adding EU_MDR/TFDA).  This validates that
-    MDSAP-focused and full-scope cross-examinations produce consistent
-    quality, confirming the third-party LLM is not drifting.
+    Method 1 – Temporal Drift:
+        Compare today's scores against the rolling 30-day historical average
+        stored in DailyCrossExamStore.  Detects whether the LLM is becoming
+        progressively more lenient or strict over time.
+
+    Method 2 – Country Imbalance:
+        Inspect dim_b_country_scores for the current run.  If one country's
+        score is far below the group average it may indicate systematic
+        weakness in that country's regulatory question quality.
 
     Args:
-        records: All CrossExamRecord objects for the current audit window.
-        result:  The DailyAuditResult already populated with dim_b_country_scores.
+        records: Unused (kept for API compatibility).
+        result:  The DailyAuditResult already populated with dim scores and
+                 dim_b_country_scores.
 
     Returns:
-        dict with comparison metrics:
-          - mdsap_record_count / full_record_count
-          - mdsap_avg_agreement / full_avg_agreement
-          - mdsap_avg_flagged_ratio / full_avg_flagged_ratio
-          - country_score_comparison (MDSAP-country scores vs non-MDSAP)
-          - consistency_delta (absolute difference in avg agreement)
-          - consistency_assessment ('consistent' / 'minor_drift' / 'significant_drift')
+        dict with keys:
+          - temporal_drift  : {status, history_count, rolling_avg_*, today_*, delta_*}
+          - country_imbalance: {status, country_scores, avg_score, spread, outlier_countries}
+          - overall_assessment: 'normal' | 'monitor' | 'action_required' | 'insufficient_data'
     """
-    # Regulation IDs that map to MDSAP 5-country scope
-    MDSAP_REG_IDS = {"QMSR", "HC", "PMDA", "ANVISA", "TGA"}
-    # Non-MDSAP regulation IDs (EU + Taiwan)
-    NON_MDSAP_REG_IDS = {"EU_MDR", "TFDA"}
+    from datetime import datetime, timedelta
+
+    from src.database.daily_crossexam_store import get_daily_crossexam_store
+
+    cross_val: dict = {}
 
     # ------------------------------------------------------------------
-    # 1.  Split records by regulation coverage scope
+    # Method 1: Temporal drift – rolling 30-day average
     # ------------------------------------------------------------------
-    mdsap_records: list = []  # records covering MDSAP-only regs
-    full_records: list = []  # records covering ≥ 7 regs (all countries)
-    mixed_records: list = []  # anything else
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    cutoff_str = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
 
-    for r in records:
-        regs = set(getattr(r, "selected_regulations", None) or [])
-        # Full scope: contains at least one non-MDSAP reg
-        has_non_mdsap = bool(regs & NON_MDSAP_REG_IDS)
-        has_mdsap = bool(regs & MDSAP_REG_IDS)
-        if has_non_mdsap and has_mdsap:
-            full_records.append(r)
-        elif has_mdsap and not has_non_mdsap:
-            mdsap_records.append(r)
+    store = get_daily_crossexam_store()
+    historical = [
+        r
+        for r in store.get_all_records()
+        if r.date < today_str and r.date >= cutoff_str and r.overall_score > 0
+    ]
+
+    if len(historical) < 3:
+        cross_val["temporal_drift"] = {
+            "status": "insufficient_data",
+            "reason": f"歷史記錄僅 {len(historical)} 筆（需至少 3 筆）",
+            "history_count": len(historical),
+        }
+    else:
+        n = len(historical)
+        rolling_overall = sum(r.overall_score for r in historical) / n
+        rolling_dim_a = sum(r.dim_a_score for r in historical) / n
+        rolling_dim_b = sum(r.dim_b_score for r in historical) / n
+
+        delta_overall = result.overall_score - rolling_overall
+        delta_dim_a = result.dim_a_score - rolling_dim_a
+        delta_dim_b = result.dim_b_score - rolling_dim_b
+
+        abs_delta = abs(delta_overall)
+        if abs_delta <= 5.0:
+            drift_status = "stable"
+        elif abs_delta <= 15.0:
+            drift_status = "minor_drift"
         else:
-            mixed_records.append(r)
+            drift_status = "significant_drift"
 
-    # ------------------------------------------------------------------
-    # 2.  Compute per-group metrics
-    # ------------------------------------------------------------------
-    def _group_metrics(group: list) -> dict:
-        if not group:
-            return {"count": 0, "avg_agreement": 0.0, "avg_flagged_ratio": 0.0}
-        total_clauses = sum(r.total_clauses for r in group)
-        total_agreed = sum(r.total_agreed for r in group)
-        total_flagged = sum(r.total_flagged for r in group)
-        avg_agreement = (total_agreed / max(total_clauses, 1)) * 100
-        avg_flagged = (total_flagged / max(total_clauses, 1)) * 100
-        return {
-            "count": len(group),
-            "avg_agreement": round(avg_agreement, 2),
-            "avg_flagged_ratio": round(avg_flagged, 2),
+        cross_val["temporal_drift"] = {
+            "status": drift_status,
+            "history_count": n,
+            "rolling_window_days": 30,
+            "rolling_avg_overall": round(rolling_overall, 2),
+            "rolling_avg_dim_a": round(rolling_dim_a, 2),
+            "rolling_avg_dim_b": round(rolling_dim_b, 2),
+            "today_overall": round(result.overall_score, 2),
+            "today_dim_a": round(result.dim_a_score, 2),
+            "today_dim_b": round(result.dim_b_score, 2),
+            "delta_overall": round(delta_overall, 2),
+            "delta_dim_a": round(delta_dim_a, 2),
+            "delta_dim_b": round(delta_dim_b, 2),
         }
 
-    mdsap_metrics = _group_metrics(mdsap_records)
-    full_metrics = _group_metrics(full_records)
-
     # ------------------------------------------------------------------
-    # 3.  Country-score comparison from dim_b_country_scores
+    # Method 2: Country imbalance – per-country Dim B scores
     # ------------------------------------------------------------------
-    # dim_b_country_scores keys are country codes like US, EU, TW, CA, JP, BR, AU
-    # Map regulation IDs → country codes for comparison
-    MDSAP_COUNTRY_CODES = {"US", "CA", "JP", "BR", "AU"}
-    NON_MDSAP_COUNTRY_CODES = {"EU", "TW"}
-
     country_scores = result.dim_b_country_scores or {}
-    mdsap_country_scores = {
-        c: s for c, s in country_scores.items() if c in MDSAP_COUNTRY_CODES
-    }
-    non_mdsap_country_scores = {
-        c: s for c, s in country_scores.items() if c in NON_MDSAP_COUNTRY_CODES
-    }
 
-    mdsap_country_avg = (
-        round(sum(mdsap_country_scores.values()) / len(mdsap_country_scores), 2)
-        if mdsap_country_scores
-        else 0.0
-    )
-    non_mdsap_country_avg = (
-        round(sum(non_mdsap_country_scores.values()) / len(non_mdsap_country_scores), 2)
-        if non_mdsap_country_scores
-        else 0.0
-    )
-
-    # ------------------------------------------------------------------
-    # 4.  Consistency assessment
-    # ------------------------------------------------------------------
-    consistency_delta = abs(
-        mdsap_metrics["avg_agreement"] - full_metrics["avg_agreement"]
-    )
-    if consistency_delta <= 5.0:
-        assessment = "consistent"
-    elif consistency_delta <= 15.0:
-        assessment = "minor_drift"
+    if len(country_scores) < 2:
+        cross_val["country_imbalance"] = {
+            "status": "insufficient_data",
+            "reason": f"只有 {len(country_scores)} 個國家分數（需至少 2 個）",
+            "country_count": len(country_scores),
+        }
     else:
-        assessment = "significant_drift"
+        scores_list = list(country_scores.values())
+        avg_score = sum(scores_list) / len(scores_list)
+        min_score = min(scores_list)
+        max_score = max(scores_list)
+        spread = max_score - min_score
 
-    cross_val = {
-        "mdsap_record_count": mdsap_metrics["count"],
-        "full_record_count": full_metrics["count"],
-        "mixed_record_count": len(mixed_records),
-        "mdsap_avg_agreement": mdsap_metrics["avg_agreement"],
-        "full_avg_agreement": full_metrics["avg_agreement"],
-        "mdsap_avg_flagged_ratio": mdsap_metrics["avg_flagged_ratio"],
-        "full_avg_flagged_ratio": full_metrics["avg_flagged_ratio"],
-        "country_score_comparison": {
-            "mdsap_countries": mdsap_country_scores,
-            "non_mdsap_countries": non_mdsap_country_scores,
-            "mdsap_country_avg": mdsap_country_avg,
-            "non_mdsap_country_avg": non_mdsap_country_avg,
-        },
-        "consistency_delta": round(consistency_delta, 2),
-        "consistency_assessment": assessment,
-    }
+        # Countries more than 15 points below the group average are outliers
+        outlier_threshold = avg_score - 15
+        outlier_countries = {
+            c: round(s, 2)
+            for c, s in country_scores.items()
+            if s < outlier_threshold
+        }
+
+        if spread <= 10:
+            imbalance_status = "balanced"
+        elif spread <= 25:
+            imbalance_status = "minor_imbalance"
+        else:
+            imbalance_status = "significant_imbalance"
+
+        cross_val["country_imbalance"] = {
+            "status": imbalance_status,
+            "country_count": len(country_scores),
+            "country_scores": {c: round(s, 2) for c, s in country_scores.items()},
+            "avg_score": round(avg_score, 2),
+            "min_score": round(min_score, 2),
+            "max_score": round(max_score, 2),
+            "spread": round(spread, 2),
+            "outlier_countries": outlier_countries,
+        }
+
+    # ------------------------------------------------------------------
+    # Overall assessment
+    # ------------------------------------------------------------------
+    drift_status = cross_val.get("temporal_drift", {}).get("status", "insufficient_data")
+    imbalance_status = cross_val.get("country_imbalance", {}).get("status", "insufficient_data")
+
+    if drift_status == "significant_drift" or imbalance_status == "significant_imbalance":
+        overall_assessment = "action_required"
+    elif drift_status in ("minor_drift", "stable") or imbalance_status in (
+        "minor_imbalance",
+        "balanced",
+    ):
+        if drift_status == "minor_drift" or imbalance_status == "minor_imbalance":
+            overall_assessment = "monitor"
+        else:
+            overall_assessment = "normal"
+    elif drift_status == "insufficient_data" and imbalance_status == "insufficient_data":
+        overall_assessment = "insufficient_data"
+    else:
+        overall_assessment = "normal"
+
+    cross_val["overall_assessment"] = overall_assessment
 
     logger.info(
-        "Cross-validation: mdsap=%d records (%.1f%% agree), "
-        "full=%d records (%.1f%% agree), delta=%.1f → %s",
-        mdsap_metrics["count"],
-        mdsap_metrics["avg_agreement"],
-        full_metrics["count"],
-        full_metrics["avg_agreement"],
-        consistency_delta,
-        assessment,
+        "Cross-validation: temporal=%s (delta=%.1f), country=%s (spread=%.1f) → %s",
+        drift_status,
+        cross_val.get("temporal_drift", {}).get("delta_overall", 0.0),
+        imbalance_status,
+        cross_val.get("country_imbalance", {}).get("spread", 0.0),
+        overall_assessment,
     )
     return cross_val
 
@@ -1981,6 +2100,53 @@ def export_daily_audit_word(result: DailyAuditResult) -> Path:
     rpr = mode_banner_run._element.get_or_add_rPr()
     rpr.append(shading)
 
+    doc.add_heading("縮寫說明 / Abbreviation Legend", level=2)
+    doc.add_paragraph(
+        "Dim A      — Dimension A：法規準確性評分（0–100），衡量 AI 引用法規條文的精確程度\n"
+        "Dim B      — Dimension B：交叉詰問品質評分（0–100），衡量 Analyzer/Verifier 辯論流程品質\n"
+        "RA         — 法規事務（Regulatory Affairs）；標記為需 RA 人員審查的高風險條款\n"
+        "QA Auditor — 第三方品質稽核員角色，由 AI 模擬獨立第三方對辯論記錄進行評分\n"
+        "Analyzer   — 分析者角色：針對法規條款分析文件是否符合，提出立場與證據\n"
+        "Verifier   — 驗證者角色：質疑 Analyzer 的論點，提出反證或挑戰\n"
+        "Agreement Level — 辯論結論：agree（同意）/ partial（部分同意）/ disagree（不同意）\n"
+        "MDSAP      — 醫療器材單一稽核計畫（美國/加拿大/巴西/澳洲/日本 5 國）\n"
+        "TFDA       — 臺灣食品藥物管理署；EU MDR — 歐盟醫療器材法規 2017/745\n"
+        "ISO 13485  — 醫療器材品質管理系統國際標準（71 條稽核問題的依據）\n"
+        "score_rationale — AI 對評分依據的文字說明，解釋落在哪個分數區間及原因"
+    )
+
+    doc.add_heading("作用原理 / How This Report Works", level=2)
+    doc.add_paragraph(
+        "每日交叉詰問稽核採用三層架構：\n\n"
+        "【第一層：Phase 5 交叉詰問】\n"
+        "  Analyzer 分析每份 QMS 文件是否符合 ISO 13485 / TFDA / EU MDR 條款，\n"
+        "  Verifier 逐條質疑 Analyzer 的論點，雙方進行多輪辯論直到達成共識或標記為爭議。\n\n"
+        "【第二層：每日抽樣稽核（本報告）】\n"
+        "  從當天所有辯論記錄中隨機抽取 20% 條款，\n"
+        "  QA Auditor 以第三方視角評分辯論品質（Dim A：法規準確性，Dim B：詰問品質），\n"
+        "  並偵測時間軸分數偏差與國家評分失衡。\n\n"
+        "【第三層：10 日 Meta Review】\n"
+        "  累積 10 次以上每日稽核後，進行趨勢分析，偵測 overfitting / 系統性偏差。\n\n"
+        "【問題輪替機制】\n"
+        "  稽核問題以當天日期為 seed 確定性輪替。同一天所有執行使用相同問題（便於比較），\n"
+        "  不同天自動切換至下一個問題版本（目前前 10 條款各有 2 個問題，其餘條款固定）。\n"
+        "  預期答案（expected_evidence）為靜態清單，定義各條款應提供的書面證據種類。"
+    )
+
+    doc.add_heading("評分說明 / Scoring Legend", level=2)
+    doc.add_paragraph(
+        "風險等級說明：\n"
+        "🔴 immediate_correction（立即矯正）= 重大不符合，須立即採取行動\n"
+        "🟠 deadline_correction（限期矯正）= 不符合，須在指定期限內完成矯正\n"
+        "🟡 improvement_plan（改善計畫）= 有缺口，須制定改善計畫\n"
+        "🟢 suggested_improvement（建議改善）= 輕微缺失，建議改善\n"
+        "✅ compliant（符合）= 符合法規要求\n\n"
+        "Dim A 評分（法規準確性）：\n"
+        "90–100 引用精確無誤 | 70–89 輕微遺漏 | 50–69 部分符合 | 30–49 表面符合 | 0–29 完全不符\n\n"
+        "Dim B 評分（詰問品質）：\n"
+        "90–100 深度均衡可操作 | 70–89 輕微缺失 | 50–69 明顯缺失 | 30–49 表面流於形式 | 0–29 嚴重不足"
+    )
+
     doc.add_heading("評分摘要 / Score Summary", level=2)
     doc.add_paragraph(
         f"Overall Score: {result.overall_score:.0f}/100\n"
@@ -2034,6 +2200,13 @@ def export_daily_audit_word(result: DailyAuditResult) -> Path:
             row[7].text = "🚨" if clause.get("hallucination_detected") else "—"
 
         doc.add_heading("逐條辯論紀錄與第三方稽核 / Debate & QA Audit Details", level=3)
+
+        # Load ISO checklist for expected_evidence lookup
+        try:
+            from src.analysis.compliance_rules import ISO_13485_CHECKLIST as _ISO_CL
+        except Exception:
+            _ISO_CL = {}
+
         for clause in audit_clauses:
             cid = clause.get("clause_id", "")
             ctitle = clause.get("clause_title", "")
@@ -2044,6 +2217,16 @@ def export_daily_audit_word(result: DailyAuditResult) -> Path:
             aq = clause.get("audit_question", "")
             if aq:
                 doc.add_paragraph(f"稽核問題: {aq}")
+
+            # Expected evidence from compliance rules
+            _clause_def = _ISO_CL.get(cid, {})
+            _exp_ev = _clause_def.get("expected_evidence", [])
+            if _exp_ev:
+                doc.add_paragraph(
+                    "預期書面證據 / Expected Evidence:\n"
+                    + "\n".join(f"  • {e}" for e in _exp_ev),
+                    style="Quote",
+                )
 
             rounds = clause.get("rounds", [])
             if rounds:
@@ -2142,6 +2325,8 @@ def export_daily_audit_word(result: DailyAuditResult) -> Path:
     )
     doc.add_heading(dim_a_title, level=2)
     doc.add_paragraph(result.dim_a_summary or "N/A")
+    if result.dim_a_score_rationale:
+        doc.add_paragraph(f"評分依據: {result.dim_a_score_rationale}", style="Quote")
     if result.dim_a_checks:
         doc.add_heading("檢查項目", level=3)
         for check in result.dim_a_checks:
@@ -2158,6 +2343,8 @@ def export_daily_audit_word(result: DailyAuditResult) -> Path:
     )
     doc.add_heading(dim_b_title, level=2)
     doc.add_paragraph(result.dim_b_summary or "N/A")
+    if result.dim_b_score_rationale:
+        doc.add_paragraph(f"評分依據: {result.dim_b_score_rationale}", style="Quote")
     if result.dim_b_country_scores:
         doc.add_heading("各國評分", level=3)
         for country, score in sorted(result.dim_b_country_scores.items()):
@@ -2172,31 +2359,72 @@ def export_daily_audit_word(result: DailyAuditResult) -> Path:
 
     cv = result.cross_validation or {}
     if cv and not cv.get("error"):
-        mdsap_count = cv.get("mdsap_record_count", 0)
-        full_count = cv.get("full_record_count", 0)
-        if mdsap_count > 0 or full_count > 0:
-            doc.add_heading("7國 vs MDSAP 5國 交叉驗證", level=2)
+        doc.add_heading("交叉驗證 / Cross-Validation", level=2)
+
+        # Method 1: Temporal drift
+        td = cv.get("temporal_drift", {})
+        td_status = td.get("status", "insufficient_data")
+        td_labels = {
+            "stable": "穩定 ✅",
+            "minor_drift": "輕微漂移 ⚠️",
+            "significant_drift": "顯著漂移 🔴",
+            "insufficient_data": "資料不足",
+        }
+        doc.add_heading("方法一：時間軸偏差（30天滾動平均）", level=3)
+        if td_status == "insufficient_data":
+            doc.add_paragraph(td.get("reason", "資料不足，無法比較"))
+        else:
             doc.add_paragraph(
-                f"MDSAP 5國記錄: {mdsap_count} 筆  |  全部 7國記錄: {full_count} 筆\n"
-                f"MDSAP 5國平均同意率: {cv.get('mdsap_avg_agreement', 0.0):.1f}%\n"
-                f"全部 7國平均同意率: {cv.get('full_avg_agreement', 0.0):.1f}%"
+                f"狀態: {td_labels.get(td_status, td_status)}\n"
+                f"歷史筆數: {td.get('history_count', 0)} 筆（過去30天）\n"
+                f"30天滾動均分: {td.get('rolling_avg_overall', 0):.1f} "
+                f"(DimA {td.get('rolling_avg_dim_a', 0):.1f} / "
+                f"DimB {td.get('rolling_avg_dim_b', 0):.1f})\n"
+                f"今日分數: {td.get('today_overall', 0):.1f} "
+                f"(DimA {td.get('today_dim_a', 0):.1f} / "
+                f"DimB {td.get('today_dim_b', 0):.1f})\n"
+                f"差距: {td.get('delta_overall', 0):+.1f} "
+                f"(DimA {td.get('delta_dim_a', 0):+.1f} / "
+                f"DimB {td.get('delta_dim_b', 0):+.1f})"
             )
-            csc = cv.get("country_score_comparison", {})
-            if csc:
-                doc.add_paragraph(
-                    f"MDSAP 國家平均分: {csc.get('mdsap_country_avg', 0.0):.1f}\n"
-                    f"非 MDSAP 國家平均分: {csc.get('non_mdsap_country_avg', 0.0):.1f}"
-                )
-            assessment = cv.get("consistency_assessment", "consistent")
-            delta = cv.get("consistency_delta", 0.0)
-            labels = {
-                "consistent": "一致",
-                "minor_drift": "輕微偏移",
-                "significant_drift": "顯著偏移",
-            }
+
+        # Method 2: Country imbalance
+        ci = cv.get("country_imbalance", {})
+        ci_status = ci.get("status", "insufficient_data")
+        ci_labels = {
+            "balanced": "均衡 ✅",
+            "minor_imbalance": "輕微失衡 ⚠️",
+            "significant_imbalance": "顯著失衡 🔴",
+            "insufficient_data": "資料不足",
+        }
+        doc.add_heading("方法二：國家間分數失衡", level=3)
+        if ci_status == "insufficient_data":
+            doc.add_paragraph(ci.get("reason", "資料不足，無法比較"))
+        else:
+            outliers = ci.get("outlier_countries", {})
+            outlier_text = (
+                "、".join(f"{c}({s:.0f})" for c, s in outliers.items())
+                if outliers
+                else "無"
+            )
             doc.add_paragraph(
-                f"一致性評估: {labels.get(assessment, assessment)} (差異 {delta:.1f}%)"
+                f"狀態: {ci_labels.get(ci_status, ci_status)}\n"
+                f"國家數: {ci.get('country_count', 0)}\n"
+                f"平均分: {ci.get('avg_score', 0):.1f}  "
+                f"最高: {ci.get('max_score', 0):.1f}  "
+                f"最低: {ci.get('min_score', 0):.1f}  "
+                f"落差: {ci.get('spread', 0):.1f}\n"
+                f"異常國家（低於均分15分以上）: {outlier_text}"
             )
+
+        overall_labels = {
+            "normal": "正常 ✅",
+            "monitor": "需持續觀察 ⚠️",
+            "action_required": "需立即處理 🔴",
+            "insufficient_data": "資料不足",
+        }
+        overall = cv.get("overall_assessment", "insufficient_data")
+        doc.add_paragraph(f"整體評估: {overall_labels.get(overall, overall)}")
 
     fixed_steps, dynamic_recs = _generate_adjustment_guidance(result)
 
@@ -2318,45 +2546,72 @@ def export_daily_audit_excel(result: DailyAuditResult) -> Path:
 
     cv = result.cross_validation or {}
     if cv and not cv.get("error"):
-        mdsap_count = cv.get("mdsap_record_count", 0)
-        full_count = cv.get("full_record_count", 0)
-        if mdsap_count > 0 or full_count > 0:
-            ws_cv = wb.create_sheet("Cross-Validation")
-            cv_headers = ["Metric", "Value"]
-            for col, h in enumerate(cv_headers, 1):
-                cell = ws_cv.cell(row=1, column=col, value=h)
-                cell.font = header_text_font
-                cell.fill = header_fill
+        ws_cv = wb.create_sheet("Cross-Validation")
+        cv_headers = ["Metric", "Value"]
+        for col, h in enumerate(cv_headers, 1):
+            cell = ws_cv.cell(row=1, column=col, value=h)
+            cell.font = header_text_font
+            cell.fill = header_fill
 
-            csc = cv.get("country_score_comparison", {})
-            assessment = cv.get("consistency_assessment", "consistent")
-            labels = {
-                "consistent": "Consistent",
-                "minor_drift": "Minor Drift",
-                "significant_drift": "Significant Drift",
-            }
-            cv_data = [
-                ("MDSAP 5-Country Record Count", mdsap_count),
-                ("Full 7-Country Record Count", full_count),
-                ("Mixed Record Count", cv.get("mixed_record_count", 0)),
-                ("MDSAP Avg Agreement (%)", cv.get("mdsap_avg_agreement", 0.0)),
-                ("Full Avg Agreement (%)", cv.get("full_avg_agreement", 0.0)),
-                ("MDSAP Avg Flagged Ratio (%)", cv.get("mdsap_avg_flagged_ratio", 0.0)),
-                ("Full Avg Flagged Ratio (%)", cv.get("full_avg_flagged_ratio", 0.0)),
-                ("MDSAP Country Avg Score", csc.get("mdsap_country_avg", 0.0)),
-                ("Non-MDSAP Country Avg Score", csc.get("non_mdsap_country_avg", 0.0)),
-                ("Consistency Delta (%)", cv.get("consistency_delta", 0.0)),
-                ("Consistency Assessment", labels.get(assessment, assessment)),
-            ]
-            for row_idx, (metric, val) in enumerate(cv_data, start=2):
-                ws_cv.cell(row=row_idx, column=1, value=metric)
-                ws_cv.cell(
-                    row=row_idx,
-                    column=2,
-                    value=val if not isinstance(val, float) else round(val, 2),
-                )
-            ws_cv.column_dimensions["A"].width = 35
-            ws_cv.column_dimensions["B"].width = 20
+        td = cv.get("temporal_drift", {})
+        ci = cv.get("country_imbalance", {})
+        overall = cv.get("overall_assessment", "insufficient_data")
+
+        drift_labels = {
+            "stable": "Stable",
+            "minor_drift": "Minor Drift",
+            "significant_drift": "Significant Drift",
+            "insufficient_data": "Insufficient Data",
+        }
+        imbalance_labels = {
+            "balanced": "Balanced",
+            "minor_imbalance": "Minor Imbalance",
+            "significant_imbalance": "Significant Imbalance",
+            "insufficient_data": "Insufficient Data",
+        }
+        overall_labels = {
+            "normal": "Normal",
+            "monitor": "Monitor",
+            "action_required": "Action Required",
+            "insufficient_data": "Insufficient Data",
+        }
+
+        outliers = ci.get("outlier_countries", {})
+        outlier_str = (
+            ", ".join(f"{c}({s:.0f})" for c, s in outliers.items()) if outliers else "None"
+        )
+
+        cv_data = [
+            # Method 1: Temporal drift
+            ("[Method 1] Temporal Drift Status", drift_labels.get(td.get("status", ""), td.get("status", "N/A"))),
+            ("[Method 1] History Count (30-day)", td.get("history_count", "N/A")),
+            ("[Method 1] Rolling Avg Overall", td.get("rolling_avg_overall", "N/A")),
+            ("[Method 1] Rolling Avg Dim A", td.get("rolling_avg_dim_a", "N/A")),
+            ("[Method 1] Rolling Avg Dim B", td.get("rolling_avg_dim_b", "N/A")),
+            ("[Method 1] Today Overall", td.get("today_overall", "N/A")),
+            ("[Method 1] Delta Overall", td.get("delta_overall", "N/A")),
+            ("[Method 1] Delta Dim A", td.get("delta_dim_a", "N/A")),
+            ("[Method 1] Delta Dim B", td.get("delta_dim_b", "N/A")),
+            # Method 2: Country imbalance
+            ("[Method 2] Country Imbalance Status", imbalance_labels.get(ci.get("status", ""), ci.get("status", "N/A"))),
+            ("[Method 2] Country Count", ci.get("country_count", "N/A")),
+            ("[Method 2] Avg Score", ci.get("avg_score", "N/A")),
+            ("[Method 2] Max Score", ci.get("max_score", "N/A")),
+            ("[Method 2] Min Score", ci.get("min_score", "N/A")),
+            ("[Method 2] Spread", ci.get("spread", "N/A")),
+            ("[Method 2] Outlier Countries", outlier_str),
+            # Overall
+            ("Overall Assessment", overall_labels.get(overall, overall)),
+        ]
+        for row_idx, (metric, val) in enumerate(cv_data, start=2):
+            ws_cv.cell(row=row_idx, column=1, value=metric)
+            ws_cv.cell(
+                row=row_idx,
+                column=2,
+                value=round(val, 2) if isinstance(val, float) else val,
+            )
+        ws_cv.column_dimensions["A"].width = 40
+        ws_cv.column_dimensions["B"].width = 25
 
     clauses = sd.get("clauses", [])
     if clauses:

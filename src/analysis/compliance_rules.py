@@ -69,7 +69,48 @@ __all__ = [
     "get_all_standards",
     "get_applicable_standards",
     "adjust_standard_clause_mapping",
+    "get_audit_question",
 ]
+
+
+# ============================================================
+# Question rotation helper
+# ============================================================
+
+from datetime import date as _date
+
+
+def get_audit_question(clause: dict, seed: int | None = None) -> str:
+    """Return an audit question from the clause using date-based rotation.
+
+    If the clause has an ``audit_questions`` list with multiple entries,
+    rotates through them deterministically using *seed* (default: today's
+    date as YYYYMMDD int).  This ensures all documents on the same day
+    receive the same question, while different days naturally rotate.
+
+    Falls back to ``audit_question`` for backwards compatibility when
+    ``audit_questions`` is absent or has only one entry.
+
+    Args:
+        clause: A single entry from ISO_13485_CHECKLIST or a delta-question dict.
+        seed:   Integer seed for rotation. Defaults to today's date (YYYYMMDD).
+
+    Returns:
+        The selected audit question string.
+
+    Example:
+        >>> clause = ISO_13485_CHECKLIST["4.1"]
+        >>> q = get_audit_question(clause)          # uses today's date
+        >>> q = get_audit_question(clause, seed=0)  # always first question
+    """
+    questions = clause.get("audit_questions") or []
+    if len(questions) > 1:
+        if seed is None:
+            seed = int(_date.today().strftime("%Y%m%d"))
+        return questions[seed % len(questions)]
+    if questions:
+        return questions[0]
+    return clause.get("audit_question", "")
 
 
 # ============================================================
@@ -88,6 +129,14 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "是否鑑別品質管理系統所需的過程及其在整個組織的應用？"
             "是否對外包過程實施管制？"
         ),
+        "audit_questions": [
+            (
+                "組織是否建立、文件化、實施及維持品質管理系統，並維持其有效性？"
+                "是否鑑別品質管理系統所需的過程及其在整個組織的應用？"
+                "是否對外包過程實施管制？"
+            ),
+            "品質管理系統的範圍邊界如何定義？是否涵蓋所有影響產品品質的過程？外包過程的風險管控措施為何？",
+        ],
         "expected_evidence": [
             "品質手冊",
             "品質管理系統過程圖或過程清單",
@@ -102,6 +151,14 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "本國際標準所要求的程序與紀錄、以及組織確定為確保過程有效策劃、"
             "運作及管制所需的文件？"
         ),
+        "audit_questions": [
+            (
+                "品質管理系統文件是否包含品質政策與品質目標的聲明、品質手冊、"
+                "本國際標準所要求的程序與紀錄、以及組織確定為確保過程有效策劃、"
+                "運作及管制所需的文件？"
+            ),
+            "品質管理系統文件是否定期審查更新？各層級文件的控制責任是否明確指派給特定人員？",
+        ],
         "expected_evidence": [
             "品質政策聲明",
             "品質目標",
@@ -116,6 +173,13 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "組織是否建立並維持品質手冊，包含品質管理系統的範圍（含排除的理由）、"
             "文件化程序或其引用、以及品質管理系統過程之間的交互作用描述？"
         ),
+        "audit_questions": [
+            (
+                "組織是否建立並維持品質手冊，包含品質管理系統的範圍（含排除的理由）、"
+                "文件化程序或其引用、以及品質管理系統過程之間的交互作用描述？"
+            ),
+            "品質手冊是否反映組織實際運作？上次審查日期與版次為何？排除條款的理由是否充分說明？",
+        ],
         "expected_evidence": [
             "品質手冊",
             "品質管理系統範圍說明",
@@ -130,6 +194,13 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "組織是否建立文件管制程序，涵蓋審查、核准、發行、變更、"
             "版本識別、外來文件管制及作廢文件管制？"
         ),
+        "audit_questions": [
+            (
+                "組織是否建立文件管制程序，涵蓋審查、核准、發行、變更、"
+                "版本識別、外來文件管制及作廢文件管制？"
+            ),
+            "文件變更管制程序是否有效防止使用作廢版本？請舉例說明最近一次文件變更的完整管制流程。",
+        ],
         "expected_evidence": [
             "文件管制程序書",
             "文件發行/變更紀錄",
@@ -143,6 +214,13 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "組織是否建立紀錄管制程序，確保紀錄的識別、儲存、保護、"
             "檢索、保存期限及處置？"
         ),
+        "audit_questions": [
+            (
+                "組織是否建立紀錄管制程序，確保紀錄的識別、儲存、保護、"
+                "檢索、保存期限及處置？"
+            ),
+            "紀錄保存期限的依據為何？是否符合各適用法規（MDSAP/TFDA/EU MDR）的最低要求？電子紀錄是否有備份機制？",
+        ],
         "expected_evidence": [
             "紀錄管制程序書",
             "紀錄保存期限清單",
@@ -155,6 +233,13 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "組織是否為每一醫療器材類型或醫療器材族建立並維持醫療器材檔案，"
             "包含或引用產生的文件以展示符合本標準要求及適用法規要求？"
         ),
+        "audit_questions": [
+            (
+                "組織是否為每一醫療器材類型或醫療器材族建立並維持醫療器材檔案，"
+                "包含或引用產生的文件以展示符合本標準要求及適用法規要求？"
+            ),
+            "醫療器材檔案的完整性如何定期確認？若發現文件缺失，其偵測與補救機制為何？",
+        ],
         "expected_evidence": [
             "醫療器材檔案 (Device Master Record / Technical File)",
             "產品規格書",
@@ -171,6 +256,13 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "最高管理階層是否提供其對品質管理系統之開發與實施、"
             "以及維持其有效性之承諾的證據？"
         ),
+        "audit_questions": [
+            (
+                "最高管理階層是否提供其對品質管理系統之開發與實施、"
+                "以及維持其有效性之承諾的證據？"
+            ),
+            "最高管理階層對品質管理系統的承諾如何量化展示？品質目標達成率是否定期向管理階層報告？",
+        ],
         "expected_evidence": [
             "品質政策聲明",
             "管理審查會議紀錄",
@@ -183,6 +275,10 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
         "audit_question": (
             "最高管理階層是否確保顧客要求與適用法規要求已被確定並予以滿足？"
         ),
+        "audit_questions": [
+            "最高管理階層是否確保顧客要求與適用法規要求已被確定並予以滿足？",
+            "顧客要求如何被系統性地識別並轉化為內部品質要求？是否有追溯機制確保每項顧客要求都被落實？",
+        ],
         "expected_evidence": [
             "顧客要求確認紀錄",
             "顧客滿意度調查（如適用）",
@@ -197,6 +293,14 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "品質管理系統有效性的承諾、提供建立及審查品質目標的架構、"
             "在組織內被溝通與理解、並被審查以持續適切？"
         ),
+        "audit_questions": [
+            (
+                "最高管理階層是否確保品質政策適合組織的目的、包含對滿足要求及維持"
+                "品質管理系統有效性的承諾、提供建立及審查品質目標的架構、"
+                "在組織內被溝通與理解、並被審查以持續適切？"
+            ),
+            "品質政策是否被所有相關人員理解？如何驗證員工對品質政策的理解程度？上次政策審查的時間與結論為何？",
+        ],
         "expected_evidence": [
             "品質政策文件",
             "品質政策溝通紀錄",
@@ -209,6 +313,13 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "最高管理階層是否確保在組織內相關職能與層級建立品質目標？"
             "品質目標是否可量測且與品質政策一致？"
         ),
+        "audit_questions": [
+            (
+                "最高管理階層是否確保在組織內相關職能與層級建立品質目標？"
+                "品質目標是否可量測且與品質政策一致？"
+            ),
+            "品質目標是否為 SMART 目標（具體、可量測、可達成、相關、有時限）？目標未達成時有何應對措施與改善計畫？",
+        ],
         "expected_evidence": [
             "品質目標清單",
             "品質目標達成率追蹤紀錄",

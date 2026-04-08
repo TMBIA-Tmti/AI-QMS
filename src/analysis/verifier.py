@@ -282,6 +282,7 @@ def run_verification_row(
     llm_completion_fn: callable,
     model: str = "default",
     temperature: float = 0.2,
+    verifier_temperature: float = 0.0,
     max_tokens: int = 4096,
     selected_regulations: list[str] | None = None,
     run_id: str = "",
@@ -300,7 +301,8 @@ def run_verification_row(
         state: Pipeline state
         llm_completion_fn: LLM completion function
         model: Model name
-        temperature: LLM temperature
+        temperature: Analyzer LLM temperature (default 0.2 for creative reasoning)
+        verifier_temperature: Verifier LLM temperature (default 0.0 for deterministic challenges)
         max_tokens: Max response tokens
         selected_regulations: Country regulation IDs (e.g., ['QMSR', 'EU_MDR', 'TFDA'])
         run_id: Pipeline run ID for SSE event emission
@@ -469,7 +471,7 @@ def run_verification_row(
             verifier_prompt,
             state,
             model,
-            temperature,
+            verifier_temperature,
             max_tokens,
         )
         _merge_usage(total_usage, usage)
@@ -599,7 +601,7 @@ def run_verification_row(
                 verifier_followup,
                 state,
                 model,
-                temperature,
+                verifier_temperature,
                 max_tokens,
             )
             _merge_usage(total_usage, usage)
@@ -729,6 +731,7 @@ def run_verification_document(
     llm_completion_fn: callable,
     model: str = "default",
     temperature: float = 0.2,
+    verifier_temperature: float = 0.0,
     max_tokens: int = 8192,
     selected_regulations: list[str] | None = None,
     run_id: str = "",
@@ -747,7 +750,8 @@ def run_verification_document(
         state: Pipeline state
         llm_completion_fn: LLM completion function (returns dict)
         model: LLM model name
-        temperature: LLM temperature
+        temperature: Analyzer LLM temperature (default 0.2)
+        verifier_temperature: Verifier LLM temperature (default 0.0)
         max_tokens: Max tokens per LLM call
         selected_regulations: Country regulation IDs
         run_id: Pipeline run ID for SSE emission
@@ -918,7 +922,7 @@ def run_verification_document(
                 verifier_prompt,
                 state,
                 model,
-                temperature,
+                verifier_temperature,
                 max_tokens,
             )
             _merge_usage(total_usage, usage)
@@ -1022,7 +1026,7 @@ def run_verification_document(
                     verifier_followup,
                     state,
                     model,
-                    temperature,
+                    verifier_temperature,
                     max_tokens,
                 )
                 _merge_usage(total_usage, usage)
@@ -1159,13 +1163,30 @@ _QA_AUDITOR_SYSTEM_PROMPT = """你是品質管理系統的「第三方交叉詰�
 5. **深度充分性**: 討論是否足夠深入，還是流於表面應付？
 6. **最終結論合理性**: 最終的同意/不同意結論是否與辯論內容一致？
 
+**評分標準（overall_score 與每條款 score，必須嚴格依照此表給分）：**
+
+| 分數區間 | 條件說明 |
+|---------|---------|
+| 90–100 | 無幻覺，證據引用精確，邏輯完全連貫，質疑有深度，結論與辯論一致 |
+| 70–89  | 輕微瑕疵（引用略有不精確或論述稍淺），但整體品質良好，無幻覺 |
+| 50–69  | 有明顯問題（1–2 項邏輯跳躍或證據薄弱），或有疑似但未確認的幻覺 |
+| 30–49  | 嚴重問題（多項矛盾、或確認幻覺、或結論與辯論不符） |
+| 0–29   | 完全失效（大量捏造、無實質辯論內容、或結論完全錯誤） |
+
+**各欄位說明：**
+- `question_quality: good` = 問題具體有深度；`acceptable` = 可接受但稍淺；`poor` = 流於表面或錯誤
+- `answer_accuracy: accurate` = 法規引用正確；`partially_accurate` = 部分正確；`inaccurate` = 引用錯誤
+- `logic_consistency: consistent` = 全程邏輯連貫；`minor_issues` = 輕微不一致；`inconsistent` = 明顯矛盾
+
 回答使用以下 JSON 格式：
 {
   "overall_score": 0-100,
+  "score_rationale": "說明 overall_score 依照上表選擇此分數區間的理由",
   "clause_audits": [
     {
       "clause_id": "條款編號",
       "score": 0-100,
+      "score_rationale": "說明此條款評分依據",
       "question_quality": "good | acceptable | poor",
       "answer_accuracy": "accurate | partially_accurate | inaccurate",
       "hallucination_detected": false,
