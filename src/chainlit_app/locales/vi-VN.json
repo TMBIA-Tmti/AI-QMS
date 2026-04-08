@@ -295,5 +295,9 @@
   "crossexam.upload_reminder_instruction": "Eira: Vui lòng sử dụng chức năng 'Tải lên tài liệu quy định' để tải lên các tài liệu mới nhất.",
   "crossexam.pipeline_running": "Eira: 📊 Tiến độ phân tích: [{bar}] {completed}/{total} ({percent}%) — Giai đoạn hiện tại: {phase}",
   "crossexam.pipeline_completed": "Eira: ✅ Phân tích hoàn tất. Tổng cộng: {total} mục đã phân tích.",
-  "crossexam.pipeline_not_started": "Eira: ⏳ Phân tích chưa bắt đầu. Vui lòng chạy 'Danh sách quy định' hoặc 'Cập nhật quy định' trước."
+  "crossexam.pipeline_not_started": "Eira: ⏳ Phân tích chưa bắt đầu. Vui lòng chạy 'Danh sách quy định' hoặc 'Cập nhật quy định' trước.",
+  "_commands.cmd.verify": [
+    "verify",
+    "kiểm tra toàn vẹn"
+  ]
 }

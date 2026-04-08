@@ -295,5 +295,9 @@
   "crossexam.upload_reminder_instruction": "Eira: يرجى استخدام وظيفة 'رفع مستند تنظيمي' لرفع أحدث المستندات.",
   "crossexam.pipeline_running": "Eira: 📊 تقدم التحليل: [{bar}] {completed}/{total} ({percent}%) — المرحلة الحالية: {phase}",
   "crossexam.pipeline_completed": "Eira: ✅ اكتمل التحليل. الإجمالي: {total} عنصر تم تحليله.",
-  "crossexam.pipeline_not_started": "Eira: ⏳ لم يبدأ التحليل بعد. يرجى تنفيذ 'قائمة اللوائح' أو 'تحديث اللوائح' أولاً."
+  "crossexam.pipeline_not_started": "Eira: ⏳ لم يبدأ التحليل بعد. يرجى تنفيذ 'قائمة اللوائح' أو 'تحديث اللوائح' أولاً.",
+  "_commands.cmd.verify": [
+    "verify",
+    "التحقق من السلامة"
+  ]
 }

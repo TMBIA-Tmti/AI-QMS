@@ -293,5 +293,9 @@
   "crossexam.upload_reminder_instruction": "Eira: กรุณาใช้ฟังก์ชัน 'อัปโหลดเอกสารกฎระเบียบ' เพื่ออัปโหลดเอกสารล่าสุด",
   "crossexam.pipeline_running": "Eira: 📊 ความคืบหน้าการวิเคราะห์: [{bar}] {completed}/{total} ({percent}%) — ขั้นตอนปัจจุบัน: {phase}",
   "crossexam.pipeline_completed": "Eira: ✅ การวิเคราะห์เสร็จสมบูรณ์ ทั้งหมด: {total} รายการที่วิเคราะห์",
-  "crossexam.pipeline_not_started": "Eira: ⏳ การวิเคราะห์ยังไม่เริ่มต้น กรุณาเรียกใช้ 'รายการกฎระเบียบ' หรือ 'อัปเดตกฎระเบียบ' ก่อน"
+  "crossexam.pipeline_not_started": "Eira: ⏳ การวิเคราะห์ยังไม่เริ่มต้น กรุณาเรียกใช้ 'รายการกฎระเบียบ' หรือ 'อัปเดตกฎระเบียบ' ก่อน",
+  "_commands.cmd.verify": [
+    "verify",
+    "ตรวจสอบความสมบูรณ์"
+  ]
 }

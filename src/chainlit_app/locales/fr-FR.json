@@ -297,5 +297,10 @@
   "crossexam.upload_reminder_instruction": "Eira : Veuillez utiliser la fonction 'Télécharger un document réglementaire' pour télécharger les derniers documents pour les pays correspondants.",
   "crossexam.pipeline_running": "Eira : 📊 Progression de l'analyse : [{bar}] {completed}/{total} ({percent}%) — Phase actuelle : {phase}",
   "crossexam.pipeline_completed": "Eira : ✅ Analyse terminée. Total : {total} éléments analysés.",
-  "crossexam.pipeline_not_started": "Eira : ⏳ L'analyse n'a pas encore commencé. Veuillez d'abord exécuter 'Liste réglementaire' ou 'Mise à jour réglementaire'."
+  "crossexam.pipeline_not_started": "Eira : ⏳ L'analyse n'a pas encore commencé. Veuillez d'abord exécuter 'Liste réglementaire' ou 'Mise à jour réglementaire'.",
+  "_commands.cmd.verify": [
+    "verify",
+    "vérification intégrité",
+    "audit vérifier"
+  ]
 }

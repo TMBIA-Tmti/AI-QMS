@@ -307,6 +307,7 @@ Phoenix Dashboard：http://localhost:6006
 | `下載 <文件編號>` | 下載原始文件，所有 1-4 階皆可下載，下載自動記錄於稽核紀錄（如：下載 QP-852） |
 | `作廢 <文件編號>` | 作廢文件（如：作廢 OTHER-016） |
 | `文件更動紀錄` | 查看文件更動紀錄（附 Word/Excel 匯出按鈕） |
+| `稽核驗證` | 驗證稽核紀錄 Hash 鏈完整性，顯示各資料檔 SHA-256 指紋供外部留存比對 |
 | `法規清單` | 列出所有引用的法規標準（附 Word/Excel 匯出按鈕） |
 | `法規清單更新` | 法規清單最新資訊評估分析（附 Word/Excel 匯出按鈕） |
 | `下載法規更新報告 word/excel` | 匯出法規更新報告 |
@@ -630,6 +631,7 @@ Phoenix Dashboard: http://localhost:6006
 | `download <doc_id>` | Download original file — all levels 1-4 downloadable, logged to audit trail (e.g., download QP-852) |
 | `obsolete <doc_id>` | Obsolete a document (e.g., obsolete OTHER-016) |
 | `audit trail` | View audit trail records (with Word/Excel export buttons) |
+| `verify` | Verify audit log hash chain integrity and display SHA-256 fingerprints of all key data files for external archiving |
 | `regulatory list` | List all referenced regulatory standards (with Word/Excel export buttons) |
 | `regulatory update` | Regulatory list latest info assessment and analysis (with Word/Excel export buttons) |
 | `download regulatory update word/excel` | Export regulatory update report |

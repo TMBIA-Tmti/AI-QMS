@@ -295,5 +295,9 @@
   "crossexam.upload_reminder_instruction": "Eira: Lütfen en güncel belgeleri yüklemek için 'Düzenleyici Belge Yükle' işlevini kullanın.",
   "crossexam.pipeline_running": "Eira: 📊 Analiz ilerlemesi: [{bar}] {completed}/{total} ({percent}%) — Mevcut aşama: {phase}",
   "crossexam.pipeline_completed": "Eira: ✅ Analiz tamamlandı. Toplam: {total} öğe analiz edildi.",
-  "crossexam.pipeline_not_started": "Eira: ⏳ Analiz henüz başlamadı. Lütfen önce 'Düzenleme Listesi' veya 'Düzenleme Güncellemesi' çalıştırın."
+  "crossexam.pipeline_not_started": "Eira: ⏳ Analiz henüz başlamadı. Lütfen önce 'Düzenleme Listesi' veya 'Düzenleme Güncellemesi' çalıştırın.",
+  "_commands.cmd.verify": [
+    "verify",
+    "bütünlük kontrolü"
+  ]
 }

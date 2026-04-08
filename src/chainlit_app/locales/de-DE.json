@@ -296,5 +296,10 @@
   "crossexam.upload_reminder_instruction": "Eira: Bitte verwenden Sie die Funktion 'Regulierungsdokument hochladen', um die neuesten Dokumente hochzuladen.",
   "crossexam.pipeline_running": "Eira: 📊 Analysefortschritt: [{bar}] {completed}/{total} ({percent}%) — Aktuelle Phase: {phase}",
   "crossexam.pipeline_completed": "Eira: ✅ Analyse abgeschlossen. Gesamt: {total} analysierte Elemente.",
-  "crossexam.pipeline_not_started": "Eira: ⏳ Die Analyse wurde noch nicht gestartet. Bitte führen Sie zuerst 'Regulierungsliste' oder 'Regulierungsaktualisierung' aus."
+  "crossexam.pipeline_not_started": "Eira: ⏳ Die Analyse wurde noch nicht gestartet. Bitte führen Sie zuerst 'Regulierungsliste' oder 'Regulierungsaktualisierung' aus.",
+  "_commands.cmd.verify": [
+    "verify",
+    "integritätsprüfung",
+    "audit verifizieren"
+  ]
 }

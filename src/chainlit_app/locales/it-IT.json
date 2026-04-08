@@ -297,5 +297,9 @@
   "crossexam.upload_reminder_instruction": "Eira: Si prega di utilizzare la funzione 'Carica documento normativo' per caricare i documenti più recenti.",
   "crossexam.pipeline_running": "Eira: 📊 Progresso analisi: [{bar}] {completed}/{total} ({percent}%) — Fase attuale: {phase}",
   "crossexam.pipeline_completed": "Eira: ✅ Analisi completata. Totale: {total} elementi analizzati.",
-  "crossexam.pipeline_not_started": "Eira: ⏳ L'analisi non è ancora iniziata. Si prega di eseguire prima 'Lista normativa' o 'Aggiornamento normativo'."
+  "crossexam.pipeline_not_started": "Eira: ⏳ L'analisi non è ancora iniziata. Si prega di eseguire prima 'Lista normativa' o 'Aggiornamento normativo'.",
+  "_commands.cmd.verify": [
+    "verify",
+    "verifica integrità"
+  ]
 }

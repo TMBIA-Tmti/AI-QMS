@@ -4028,6 +4028,69 @@ async def handle_audit() -> str:
     return table_md
 
 
+async def handle_verify() -> str:
+    """
+    Standalone integrity verification report.
+    Shows audit chain status, record stats, chain-tip hash, and SHA-256
+    fingerprints of all key data JSON files so users can store them externally
+    as a tamper-evidence baseline.
+    """
+    import hashlib as _hashlib
+
+    audit_log = ImmutableAuditLog()
+    records = audit_log.get_all_records()
+    is_valid, integrity_msg = audit_log.verify_chain_integrity()
+
+    lines: list[str] = [t("verify.title"), ""]
+
+    # ── Chain integrity ──────────────────────────────────────────────
+    if is_valid:
+        lines.append(t("verify.chain_ok"))
+    else:
+        lines.append(t("verify.chain_fail", msg=integrity_msg))
+
+    lines.append("")
+
+    # ── Record stats ─────────────────────────────────────────────────
+    if not records:
+        lines.append(t("verify.no_records"))
+    else:
+        lines.append(t("verify.records", count=len(records)))
+        first_ts = records[0].get("timestamp", "")[:19].replace("T", " ")
+        last_ts = records[-1].get("timestamp", "")[:19].replace("T", " ")
+        lines.append(t("verify.first", ts=first_ts))
+        lines.append(t("verify.last", ts=last_ts))
+        lines.append("")
+        tip_hash = records[-1].get("current_hash", "N/A")
+        lines.append(t("verify.tip_hash", hash=tip_hash))
+
+    lines.append("")
+
+    # ── Key data file fingerprints ────────────────────────────────────
+    lines.append(t("verify.file_checksums"))
+    key_files = [
+        ("data/audit_log.json", "audit_log.json"),
+        ("data/doc_hierarchy.json", "doc_hierarchy.json"),
+        ("data/document_store.json", "document_store.json"),
+        (
+            "markdown_storage/metadata/document_registry.json",
+            "document_registry.json",
+        ),
+    ]
+    for rel_path, label in key_files:
+        p = Path(rel_path)
+        if p.exists():
+            sha = _hashlib.sha256(p.read_bytes()).hexdigest()
+            lines.append(t("verify.file_row", name=label, checksum=sha))
+        else:
+            lines.append(t("verify.file_missing", name=label))
+
+    lines.append("")
+    lines.append(t("verify.hint"))
+
+    return "\n".join(lines)
+
+
 async def handle_audit_export(format_type: str):
     """Handle audit export to Word/Excel, returns file element"""
     audit_log = ImmutableAuditLog()
@@ -9483,6 +9546,12 @@ async def on_message(message: cl.Message):
         except Exception:
             pass
         await cl.Message(content=response, elements=elements).send()
+        return
+
+    # Integrity verification report
+    if _match_cmd(text, "cmd.verify"):
+        response = await handle_verify()
+        await cl.Message(content=response).send()
         return
 
     # Obsolete (prefix command: "obsolete doc_id")

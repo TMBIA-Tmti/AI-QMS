@@ -294,5 +294,9 @@
   "crossexam.upload_reminder_instruction": "Eira: कृपया संबंधित देशों के नवीनतम नियामक दस्तावेज़ अपलोड करने के लिए 'नियामक दस्तावेज़ अपलोड' फ़ंक्शन का उपयोग करें।",
   "crossexam.pipeline_running": "Eira: 📊 विश्लेषण प्रगति: [{bar}] {completed}/{total} ({percent}%) — वर्तमान चरण: {phase}",
   "crossexam.pipeline_completed": "Eira: ✅ विश्लेषण पूर्ण। कुल: {total} आइटम विश्लेषित।",
-  "crossexam.pipeline_not_started": "Eira: ⏳ विश्लेषण अभी शुरू नहीं हुआ है। कृपया पहले 'नियामक सूची' या 'नियामक अपडेट' चलाएं।"
+  "crossexam.pipeline_not_started": "Eira: ⏳ विश्लेषण अभी शुरू नहीं हुआ है। कृपया पहले 'नियामक सूची' या 'नियामक अपडेट' चलाएं।",
+  "_commands.cmd.verify": [
+    "verify",
+    "अखंडता जांच"
+  ]
 }

@@ -294,5 +294,10 @@
   "crossexam.upload_reminder_instruction": "Eira: Silakan gunakan fungsi 'Unggah Dokumen Regulasi' untuk mengunggah dokumen terbaru.",
   "crossexam.pipeline_running": "Eira: 📊 Kemajuan analisis: [{bar}] {completed}/{total} ({percent}%) — Fase saat ini: {phase}",
   "crossexam.pipeline_completed": "Eira: ✅ Analisis selesai. Total: {total} item dianalisis.",
-  "crossexam.pipeline_not_started": "Eira: ⏳ Analisis belum dimulai. Silakan jalankan 'Daftar Regulasi' atau 'Pembaruan Regulasi' terlebih dahulu."
+  "crossexam.pipeline_not_started": "Eira: ⏳ Analisis belum dimulai. Silakan jalankan 'Daftar Regulasi' atau 'Pembaruan Regulasi' terlebih dahulu.",
+  "_commands.cmd.verify": [
+    "verify",
+    "verifikasi integritas",
+    "periksa rantai"
+  ]
 }

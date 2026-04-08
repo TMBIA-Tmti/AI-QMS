@@ -297,5 +297,9 @@
   "crossexam.upload_reminder_instruction": "Eira: Gebruik de functie 'Regelgevingsdocument uploaden' om de nieuwste documenten te uploaden.",
   "crossexam.pipeline_running": "Eira: 📊 Analysevoortgang: [{bar}] {completed}/{total} ({percent}%) — Huidige fase: {phase}",
   "crossexam.pipeline_completed": "Eira: ✅ Analyse voltooid. Totaal: {total} items geanalyseerd.",
-  "crossexam.pipeline_not_started": "Eira: ⏳ De analyse is nog niet gestart. Voer eerst 'Regelgevingslijst' of 'Regelgevingsupdate' uit."
+  "crossexam.pipeline_not_started": "Eira: ⏳ De analyse is nog niet gestart. Voer eerst 'Regelgevingslijst' of 'Regelgevingsupdate' uit.",
+  "_commands.cmd.verify": [
+    "verify",
+    "integriteitscontrole"
+  ]
 }

@@ -296,5 +296,9 @@
   "crossexam.upload_reminder_instruction": "Eira: Proszę użyć funkcji 'Prześlij dokument regulacyjny' aby przesłać najnowsze dokumenty.",
   "crossexam.pipeline_running": "Eira: 📊 Postęp analizy: [{bar}] {completed}/{total} ({percent}%) — Bieżąca faza: {phase}",
   "crossexam.pipeline_completed": "Eira: ✅ Analiza zakończona. Łącznie: {total} przeanalizowanych elementów.",
-  "crossexam.pipeline_not_started": "Eira: ⏳ Analiza jeszcze się nie rozpoczęła. Proszę najpierw uruchomić 'Listę przepisów' lub 'Aktualizację przepisów'."
+  "crossexam.pipeline_not_started": "Eira: ⏳ Analiza jeszcze się nie rozpoczęła. Proszę najpierw uruchomić 'Listę przepisów' lub 'Aktualizację przepisów'.",
+  "_commands.cmd.verify": [
+    "verify",
+    "weryfikacja integralności"
+  ]
 }

@@ -295,5 +295,10 @@
   "crossexam.upload_reminder_instruction": "Eira: Por favor utilice la función 'Cargar documento regulatorio' para cargar los documentos más recientes.",
   "crossexam.pipeline_running": "Eira: 📊 Progreso del análisis: [{bar}] {completed}/{total} ({percent}%) — Fase actual: {phase}",
   "crossexam.pipeline_completed": "Eira: ✅ Análisis completado. Total: {total} elementos analizados.",
-  "crossexam.pipeline_not_started": "Eira: ⏳ El análisis aún no ha comenzado. Por favor ejecute primero 'Lista regulatoria' o 'Actualización regulatoria'."
+  "crossexam.pipeline_not_started": "Eira: ⏳ El análisis aún no ha comenzado. Por favor ejecute primero 'Lista regulatoria' o 'Actualización regulatoria'.",
+  "_commands.cmd.verify": [
+    "verify",
+    "verificar integridad",
+    "auditoría verificar"
+  ]
 }

@@ -298,5 +298,9 @@
   "crossexam.upload_reminder_instruction": "Eira: Пожалуйста, используйте функцию 'Загрузить нормативный документ' для загрузки последних документов.",
   "crossexam.pipeline_running": "Eira: 📊 Прогресс анализа: [{bar}] {completed}/{total} ({percent}%) — Текущая фаза: {phase}",
   "crossexam.pipeline_completed": "Eira: ✅ Анализ завершён. Всего: {total} проанализированных элементов.",
-  "crossexam.pipeline_not_started": "Eira: ⏳ Анализ ещё не начат. Пожалуйста, сначала выполните 'Список нормативов' или 'Обновление нормативов'."
+  "crossexam.pipeline_not_started": "Eira: ⏳ Анализ ещё не начат. Пожалуйста, сначала выполните 'Список нормативов' или 'Обновление нормативов'.",
+  "_commands.cmd.verify": [
+    "verify",
+    "проверка целостности"
+  ]
 }

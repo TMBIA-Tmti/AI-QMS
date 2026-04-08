@@ -305,5 +305,12 @@
   "crossexam.upload_reminder_instruction": "Eira：请使用「上传法规文件」功能，上传对应国家的最新法规文件。",
   "crossexam.pipeline_running": "Eira：📊 分析进度：[{bar}] {completed}/{total} ({percent}%) — 当前阶段：{phase}",
   "crossexam.pipeline_completed": "Eira：✅ 分析已完成，共 {total} 笔分析项目。",
-  "crossexam.pipeline_not_started": "Eira：⏳ 分析尚未开始，请先执行法规清单或法规清单更新。"
+  "crossexam.pipeline_not_started": "Eira：⏳ 分析尚未开始，请先执行法规清单或法规清单更新。",
+  "_commands.cmd.verify": [
+    "稽核验证",
+    "验证记录",
+    "完整性验证",
+    "数据验证",
+    "verify"
+  ]
 }
