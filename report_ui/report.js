@@ -2996,6 +2996,12 @@
             case 'human_injection':
                 addExamMessage('human', `🙋 ${data.user_id || '人工'}`, data.message, null, data.timestamp);
                 break;
+            case 'human_injection_applied': {
+                const clauseId = data.clause_id ? ` (條款 ${data.clause_id})` : '';
+                const msgCount = Array.isArray(data.messages) ? data.messages.length : 1;
+                addSystemMessage(`✅ LLM 已讀取你的介入訊息${clauseId}，共 ${msgCount} 則已注入本輪辯論`);
+                break;
+            }
 
             // ── Control events ──
             case 'complete':
