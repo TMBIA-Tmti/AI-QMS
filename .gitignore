@@ -61,9 +61,11 @@ chainlit_repo/
 # Changelog / document files
 CHANGELOG*.md
 CHANGELOG*.docx
-# Documentation — only keep QA docs
-docs/
+# Documentation — keep QA docs and version update notes
+docs/*
 !docs/QA_*.md
+!docs/v*_Update_Notes.md
+!docs/v*_Update_Notes.docx
 
 # Images & diagrams (not needed in release repo)
 *.png

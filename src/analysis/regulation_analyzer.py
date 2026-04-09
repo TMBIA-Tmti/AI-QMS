@@ -322,27 +322,45 @@ def _build_clause_batch_prompt(
     clause_ids_str = ", ".join(c["clause_id"] for c in clauses)
 
     system_prompt = (
-        "You are a medical device regulatory expert specializing in ISO 13485 "
-        "cross-referencing and international QMS regulation comparison.\n\n"
-        "Your task: Analyze how a specific country's medical device regulation "
-        "maps to ISO 13485 clauses.\n\n"
+        "You are a senior medical device regulatory affairs specialist with extensive "
+        "experience in ISO 13485:2016 audits, MDSAP (Medical Device Single Audit Program) "
+        "multi-country assessments, and cross-jurisdictional QMS comparisons. "
+        "You have conducted regulatory audits in Asia-Pacific, EU, and North America.\n\n"
+        "Your task: Determine how a country's medical device regulation maps to ISO 13485 "
+        "clauses. Apply the MDSAP audit principle: distinguish between regulations that "
+        "MENTION a requirement versus those that SUBSTANTIVELY IMPLEMENT it.\n\n"
+        "CRITICAL ANALYSIS RULES (from ISO 13485:2016 audit practice):\n"
+        "1. Language plausibility ≠ legal correctness: a regulation may use similar "
+        "   terminology but differ in scope, applicability threshold, or enforcement.\n"
+        "2. Always cite the SPECIFIC article or section from the provided regulatory text.\n"
+        "3. If a regulatory concept is functionally equivalent but uses different terminology "
+        "   (e.g., 'product dossier' vs 'design history file'), note this as 'full' with a "
+        "   semantic_note explaining the terminology difference.\n"
+        "4. 'partial' = regulation covers the intent but omits ≥1 substantive sub-requirement.\n"
+        "5. Set confidence < 0.4 when the crawled text is insufficient — do NOT infer from "
+        "   general regulatory knowledge; base analysis ONLY on the provided text.\n\n"
+        "STEP-BY-STEP REASONING for each clause:\n"
+        "  Step 1: Search the regulatory text for explicit mention of the clause topic.\n"
+        "  Step 2: Check if functionally equivalent requirements exist under different terms.\n"
+        "  Step 3: Assess completeness — does it cover all sub-requirements of the clause?\n"
+        "  Step 4: Assign status and calibrate confidence based on text evidence quality.\n\n"
         "For each clause, determine the mapping status:\n"
-        '- "full": The regulation fully adopts or covers this ISO 13485 clause\n'
-        '- "partial": The regulation partially covers this clause (some gaps or additions)\n'
-        '- "exceeds": The regulation has STRICTER requirements than ISO 13485 for this clause\n'
-        '- "na": The regulation does not address this clause area at all\n\n'
+        '- "full": Regulation substantively covers ALL requirements of the ISO 13485 clause\n'
+        '- "partial": Covers the main intent but omits ≥1 sub-requirement or has scope gaps\n'
+        '- "exceeds": Has STRICTER or ADDITIONAL requirements beyond ISO 13485\n'
+        '- "na": No evidence of coverage in the provided regulatory text\n\n'
         "Output ONLY a valid JSON array. No markdown, no explanation outside JSON.\n"
         "Each element must have these fields:\n"
         "{\n"
         '  "clause_id": "4.1",\n'
         '  "status": "full|partial|na|exceeds",\n'
-        '  "regulation_ref": "Article/Section reference in the country\'s regulation",\n'
-        '  "rationale_en": "English explanation of why this status",\n'
-        '  "rationale_zh": "中文說明此對應關係的原因",\n'
-        '  "original_text": "Original regulatory text in its native language (if found)",\n'
-        "  \"original_lang\": \"Language code (e.g., 'en', 'zh', 'ko', 'ms')\",\n"
+        '  "regulation_ref": "Specific Article/Section reference (e.g., Art. 15, §3.2)",\n'
+        '  "rationale_en": "Evidence-based explanation citing specific regulatory text",\n'
+        '  "rationale_zh": "中文說明，引用具體法規條文",\n'
+        '  "original_text": "Direct quote from regulatory text in native language",\n'
+        "  \"original_lang\": \"Language code (e.g., 'en', 'zh', 'ko', 'ms', 'th')\",\n"
         '  "english_translation": "English translation if original is not English",\n'
-        '  "semantic_note": "Practical interpretation and cross-country comparison note",\n'
+        '  "semantic_note": "Terminology differences, scope nuances, implementation gaps",\n'
         '  "confidence": 0.8\n'
         "}\n\n"
         "Example output:\n"
@@ -350,14 +368,20 @@ def _build_clause_batch_prompt(
         "  {\n"
         '    "clause_id": "4.1",\n'
         '    "status": "full",\n'
-        '    "regulation_ref": "Section 3, Article 5",\n'
-        '    "rationale_en": "The regulation requires establishment of a QMS equivalent to ISO 13485 Clause 4.1",\n'
-        '    "rationale_zh": "該法規要求建立等同於 ISO 13485 第4.1條的品質管理系統",\n'
+        '    "regulation_ref": "Section 3, Article 5 of Medical Device Act",\n'
+        '    "rationale_en": "Article 5 explicitly requires establishment of a QMS covering '
+        'all product lifecycle phases, directly equivalent to ISO 13485:2016 Clause 4.1 scope. '
+        'All four sub-requirements (processes, interactions, outsourced processes, documentation) '
+        'are addressed in Articles 5-7.",\n'
+        '    "rationale_zh": "第5條明確要求建立涵蓋產品全生命週期的品質管理系統，直接對應 ISO 13485:2016 第4.1條，'
+        '四項子要求均在第5至7條中得到涵蓋。",\n'
         '    "original_text": "제조업자는 품질경영시스템을 수립하고...",\n'
         '    "original_lang": "ko",\n'
-        '    "english_translation": "Manufacturers shall establish a quality management system...",\n'
-        '    "semantic_note": "Equivalent to ISO 13485 4.1 with additional emphasis on documentation",\n'
-        '    "confidence": 0.85\n'
+        '    "english_translation": "Manufacturers shall establish a quality management system '
+        'covering all phases of the product lifecycle...",\n'
+        '    "semantic_note": "Uses \'lifecycle QMS\' terminology vs ISO 13485 \'product realization\'; '
+        'functionally equivalent. Outsourced process control (4.1.6) confirmed in Article 7.",\n'
+        '    "confidence": 0.88\n'
         "  }\n"
         "]"
     )
@@ -367,10 +391,13 @@ def _build_clause_batch_prompt(
         f"## ISO 13485 Clauses to Analyze:\n{clause_list}\n\n"
         f"## Crawled Regulatory Text from {country_en}:\n"
         f"```\n{regulatory_text}\n```\n\n"
-        f"Analyze how {country_en}'s regulation covers each of these "
+        f"Analyze how {country_en}'s regulation substantively covers each of these "
         f"ISO 13485 clauses: {clause_ids_str}\n\n"
-        f"If the crawled text does not contain enough information about a specific clause, "
-        f'set status to "na" with confidence 0.3 and note "Insufficient data in crawled text".\n\n'
+        f"IMPORTANT: Base ALL analysis strictly on the regulatory text provided above. "
+        f"Do NOT rely on general knowledge about {country_en}'s regulatory system.\n"
+        f"For each clause, follow the 4-step reasoning process in your instructions.\n"
+        f"If the text lacks sufficient evidence for a clause, "
+        f'set status to "na", confidence to 0.25, and note "Insufficient evidence in crawled text".\n\n'
         f"Output the JSON array now:"
     )
 
@@ -389,19 +416,33 @@ def _build_unique_requirements_prompt(
     """Build LLM messages for identifying unique/delta requirements."""
 
     system_prompt = (
-        "You are a medical device regulatory expert.\n\n"
+        "You are a senior medical device regulatory affairs specialist with MDSAP "
+        "multi-country audit experience and deep expertise in identifying country-specific "
+        "regulatory delta requirements beyond ISO 13485.\n\n"
         "Your task: Identify requirements in a country's regulation that go BEYOND "
-        "what ISO 13485 requires. These are the DELTA items — country-specific "
-        "requirements that ISO 13485 does NOT cover.\n\n"
+        "what ISO 13485:2016 requires. These are the DELTA items — country-specific "
+        "requirements that a manufacturer fully certified to ISO 13485 would STILL need "
+        "to satisfy separately for market access in this country.\n\n"
+        "ANALYSIS APPROACH (apply for each unique requirement found):\n"
+        "1. First determine: Is this requirement already covered by ISO 13485?\n"
+        "   If YES → skip it (not a delta item).\n"
+        "2. Check: Does this requirement impose a specific procedural, documentary, or "
+        "   timeline obligation not present in ISO 13485?\n"
+        "3. Assess audit_impact: 'critical' = market access blocked without it; "
+        "   'major' = audit finding likely; 'minor' = best practice gap.\n"
+        "4. Provide specific, auditable expected_evidence — what a MDSAP auditor "
+        "   would physically inspect to verify compliance.\n\n"
         "Common categories of unique requirements:\n"
-        "- Country-specific device registration/listing requirements\n"
-        "- Local authorized representative requirements\n"
-        "- Language/labeling requirements specific to the country\n"
-        "- Unique adverse event reporting timelines\n"
-        "- Country-specific clinical data requirements\n"
-        "- Post-market surveillance unique to the country\n"
-        "- Import/export specific documentation\n"
-        "- Unique classification system differences\n\n"
+        "- Country-specific device registration/listing/notification requirements\n"
+        "- Local authorized representative or agent requirements\n"
+        "- Language/labeling requirements (local language mandatory fields)\n"
+        "- Unique adverse event/vigilance reporting timelines (e.g., 15 vs 30 days)\n"
+        "- Country-specific clinical data or performance study requirements\n"
+        "- Post-market surveillance reporting frequency unique to the country\n"
+        "- Import/export permits or customs documentation\n"
+        "- Unique classification system or risk class mapping differences\n"
+        "- Periodic safety update report (PSUR) requirements\n"
+        "- Unique UDI/device traceability system requirements\n\n"
         "Output ONLY a valid JSON array. No markdown, no explanation outside JSON.\n"
         "Each element must have these fields:\n"
         "{\n"
