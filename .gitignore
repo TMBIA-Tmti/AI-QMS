@@ -58,14 +58,27 @@ generate_phoenix_report.py
 tests/
 chainlit_repo/
 
-# Changelog / document files
-CHANGELOG*.md
-CHANGELOG*.docx
-# Documentation — keep QA docs and version update notes
-docs/*
-!docs/QA_*.md
-!docs/v*_Update_Notes.md
-!docs/v*_Update_Notes.docx
+# ── All documentation files (except README.md) ──
+# Markdown
+*.md
+!README.md
+# Word / Office documents
+*.doc
+*.docx
+*.pptx
+*.xlsx
+*.xls
+*.odt
+*.rtf
+# PDF
+*.pdf
+# Other document formats
+*.rst
+*.adoc
+*.tex
+# Directories containing docs
+docs/
+presentation/
 
 # Images & diagrams (not needed in release repo)
 *.png
