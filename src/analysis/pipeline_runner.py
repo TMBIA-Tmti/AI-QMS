@@ -79,6 +79,7 @@ class PipelineRunResult:
         self.risk_distribution: dict[str, int] = {}
         self.flagged_for_ra: int = 0
         self.llm_budget_used: dict = {}
+        self.verification_report: Optional[dict] = None
 
     def to_summary_markdown(self) -> str:
         """Generate a summary markdown for inline Chainlit display."""
@@ -441,6 +442,30 @@ async def run_pipeline_analysis(
         result.risk_distribution = summary.get("risk_distribution", {})
         result.flagged_for_ra = summary.get("flagged_for_ra", 0)
         result.llm_budget_used = pipeline.state.get_budget().to_dict()
+
+        # Phase 5 verification report — build from flagged rows
+        try:
+            ver_rows = pipeline.state.rows
+            flagged_items = [
+                {
+                    "clause_id": getattr(r, "clause_id", ""),
+                    "doc_id": getattr(r, "doc_id", ""),
+                    "verdict": getattr(r, "verdict", ""),
+                    "flagged_for_ra": getattr(r, "flagged_for_ra", False),
+                    "verification_rounds": len(getattr(r, "verification_rounds", []) or []),
+                }
+                for r in ver_rows
+                if getattr(r, "flagged_for_ra", False)
+            ]
+            result.verification_report = {
+                "has_data": True,
+                "verified_at": pipeline.state.completed_at or time.time(),
+                "total_rows": len(ver_rows),
+                "flagged_count": len(flagged_items),
+                "flagged_items": flagged_items,
+            }
+        except Exception as _ver_exc:
+            logger.warning(f"Could not build verification_report: {_ver_exc}")
 
     except Exception as e:
         result.success = False

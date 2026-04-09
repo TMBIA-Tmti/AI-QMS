@@ -397,6 +397,7 @@ from src.storage.regulatory_analysis_storage import (
 )
 from src.storage.product_docs_storage import get_product_docs_store
 from src.analysis.pipeline_runner import run_pipeline_analysis, PipelineRunResult
+from src.services.regulatory_verifier import verify_all as _run_regulatory_verify
 from src.analysis.report_api import report_router
 from src.utils.user_settings import save_user_settings, load_user_settings
 from src.utils.analysis_cache import (
@@ -4848,13 +4849,24 @@ async def handle_regulatory_list():
     # ── Step 0.5: Ask user for report type (normal vs deep) ──
     _skip_phases = await _ask_report_type()
 
+    # ── Step 0.7: Run regulatory data verification ──
+    _verification_report: Optional[dict] = None
+    try:
+        _ver_result = _run_regulatory_verify()
+        if _ver_result and _ver_result.has_data:
+            _verification_report = _ver_result.to_dict()
+    except Exception as _ver_err:
+        import logging as _logging
+        _logging.getLogger(__name__).warning(f"Regulatory verification failed: {_ver_err}")
+
     # ── Step 1: Generate baseline Word/Excel BEFORE LLM (guaranteed report) ──
     _cache_id = f"regulatory_list_{datetime.now().strftime('%Y%m%d%H%M%S')}"
     baseline_word_path = ""
     baseline_excel_path = ""
     try:
         baseline_word_path = export_regulatory_to_word(
-            scan_result, assessment=None, source_command="regulatory_list"
+            scan_result, assessment=None, verification_report=_verification_report,
+            source_command="regulatory_list"
         )
         baseline_excel_path = export_regulatory_to_excel(
             scan_result, assessment=None, source_command="regulatory_list"
@@ -5051,6 +5063,7 @@ async def handle_regulatory_list():
                 word_path = export_regulatory_to_word(
                     scan_result_for_export,
                     assessment=assessment,
+                    verification_report=_verification_report,
                     source_command="regulatory_list",
                 )
                 excel_path = export_regulatory_to_excel(
@@ -5138,8 +5151,17 @@ async def handle_regulatory_export(format_type: str):
 
     if format_type == "word":
         assessment = cl.user_session.get("last_regulatory_assessment")
+        _dl_ver_report: Optional[dict] = None
+        try:
+            _dl_ver = _run_regulatory_verify()
+            if _dl_ver and _dl_ver.has_data:
+                _dl_ver_report = _dl_ver.to_dict()
+        except Exception:
+            pass
         filepath = export_regulatory_to_word(
-            scan_result, assessment=assessment, source_command="regulatory_list"
+            scan_result, assessment=assessment,
+            verification_report=_dl_ver_report,
+            source_command="regulatory_list"
         )
         msg = t("regulatory.export_word", count=len(aggregate))
     elif format_type == "excel":
