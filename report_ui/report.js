@@ -2356,7 +2356,7 @@
                 const uniqueCount = reg.unique_requirements_count || 0;
                 html += `
                 <label class="country-check-item" data-reg-id="${escapeAttr(reg.regulation_id)}">
-                    <input type="checkbox" value="${escapeAttr(reg.regulation_id)}" checked>
+                    <input type="checkbox" value="${escapeAttr(reg.regulation_id)}" ${reg.is_user_selected !== false ? 'checked' : ''}>
                     <span class="country-flag">${flag}</span>
                     <div>
                         <div class="country-name">${escapeHtml(reg.country_name_zh)} (${escapeHtml(reg.country)})</div>

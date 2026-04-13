@@ -258,12 +258,19 @@ class RegulatoryMarkdownStorage:
                 f"Replaced {replaced_count} old docs from regions: {crawled_regions}"
             )
 
+        skipped_details = []
+
         for r in results:
             status = r.get("crawl_status", "")
             content = r.get("content_markdown", "")
 
             if status != "success" or not content:
                 skipped_count += 1
+                skipped_details.append({
+                    "region": r.get("region", ""),
+                    "agency": r.get("agency", ""),
+                    "reason": r.get("failure_reason", "內容為空" if not content else "爬取失敗"),
+                })
                 continue
 
             result = self.save_regulatory_document(
@@ -292,6 +299,7 @@ class RegulatoryMarkdownStorage:
         return {
             "saved_count": saved_count,
             "skipped_count": skipped_count,
+            "skipped_details": skipped_details,
             "replaced_count": replaced_count,
             "doc_ids": doc_ids,
         }

@@ -213,15 +213,6 @@ REGION_SITES = {
             "strategy": "api_json",
             "crawl_delay": 3,
         },
-        {
-            "agency": "UK-Legislation",
-            "name": "UK MDR 2002",
-            "url": "https://www.legislation.gov.uk/uksi/2002/618/contents",
-            "tier": 3,
-            "strategy": "html",
-            "crawl_delay": 3,
-            "note": "CloudFront 437 from Asia IPs — Jina Reader fallback",
-        },
     ],
     "日本 (Japan)": [
         {
@@ -1695,18 +1686,38 @@ class AsyncRegulatoryUpdateCrawler:
         return await self._crawl_regions(valid_regions)
 
     async def _crawl_regions(self, regions: list) -> dict:
-        """Internal: crawl a list of regions in parallel."""
+        """Internal: crawl a list of regions in parallel with URL deduplication.
+
+        When multiple regions share the same URL (e.g. Canada and MDSAP both
+        reference mdsap.global pages), each unique URL is crawled only once.
+        The result is then cloned for every alias region that shares it.
+        """
         await self._ensure_client()
         await self._etag_cache.load()
 
         start_time = time.time()
 
-        # Build task list
-        tasks = []
+        # --- URL deduplication ------------------------------------------------
+        # url_to_primary: URL -> (primary_region, site_dict)  (first seen wins)
+        # url_to_aliases: URL -> [(alias_region, site_dict), ...]
+        url_to_primary: dict[str, tuple[str, dict]] = {}
+        url_to_aliases: dict[str, list[tuple[str, dict]]] = {}
+
         for region in regions:
             sites = REGION_SITES.get(region, [])
             for site in sites:
-                tasks.append(self._crawl_single_site(site, region))
+                url = site.get("url", "")
+                if url in url_to_primary:
+                    url_to_aliases.setdefault(url, []).append((region, site))
+                else:
+                    url_to_primary[url] = (region, site)
+
+        # Build one task per *unique* URL
+        task_keys: list[str] = []  # parallel list of URLs for index lookup
+        tasks = []
+        for url, (primary_region, site) in url_to_primary.items():
+            task_keys.append(url)
+            tasks.append(self._crawl_single_site(site, primary_region))
 
         # Execute all in parallel
         raw_results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -1714,27 +1725,34 @@ class AsyncRegulatoryUpdateCrawler:
         # Process results — convert exceptions to failed results
         all_results = []
         for i, r in enumerate(raw_results):
-            if isinstance(r, Exception):
-                # Find which site this corresponds to
-                idx = 0
-                site_info = {"agency": "Unknown", "url": "", "name": "Unknown"}
-                site_region = "Unknown"
-                for region in regions:
-                    sites = REGION_SITES.get(region, [])
-                    for site in sites:
-                        if idx == i:
-                            site_info = site
-                            site_region = region
-                        idx += 1
+            url = task_keys[i]
+            primary_region, site_info = url_to_primary[url]
 
-                failed_result = _make_result_template(site_info, site_region)
+            if isinstance(r, Exception):
+                failed_result = _make_result_template(site_info, primary_region)
                 failed_result["failure_reason"] = _classify_failure(
                     r, site_info.get("url", "")
                 )
                 failed_result["crawl_duration_seconds"] = 0.0
                 all_results.append(failed_result)
+                # Clone failure for aliases
+                for alias_region, alias_site in url_to_aliases.get(url, []):
+                    alias_result = _make_result_template(alias_site, alias_region)
+                    alias_result["failure_reason"] = failed_result["failure_reason"]
+                    alias_result["crawl_duration_seconds"] = 0.0
+                    alias_result["shared_from"] = primary_region
+                    all_results.append(alias_result)
             elif isinstance(r, dict):
                 all_results.append(r)
+                # Clone success for aliases
+                for alias_region, alias_site in url_to_aliases.get(url, []):
+                    import copy
+                    alias_result = copy.deepcopy(r)
+                    alias_result["region"] = alias_region
+                    alias_result["agency"] = alias_site.get("agency", r.get("agency", ""))
+                    alias_result["agency_name"] = alias_site.get("name", r.get("agency_name", ""))
+                    alias_result["shared_from"] = primary_region
+                    all_results.append(alias_result)
 
         # Save ETag cache
         await self._etag_cache.save()
@@ -2094,7 +2112,7 @@ def get_crossexam_country_map() -> dict:
     return result
 
 
-_MIN_COMPLETE_CONTENT_LEN = 50  # same threshold as _crawl_tier2_httpx
+_MIN_COMPLETE_CONTENT_LEN = 500  # same threshold as _crawl_tier2_httpx
 
 
 async def check_country_data_completeness(

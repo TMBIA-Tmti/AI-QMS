@@ -4728,10 +4728,10 @@ async def handle_regulatory_list():
     if filter_regions:
         for region in filter_regions:
             region_docs = reg_md_store.list_documents(region=region, status="active")
-            for rd in region_docs[:10]:  # Limit per region to avoid token overflow
+            for rd in region_docs[:15]:  # Limit per region to avoid token overflow
                 doc_full = reg_md_store.get_document(rd.get("doc_id", ""))
                 if doc_full:
-                    content = doc_full.get("content", "")[:800]
+                    content = doc_full.get("content", "")[:2000]
                     reg_db_parts.append(
                         f"### {rd.get('region', '')} \u2014 {rd.get('agency', '')} ({rd.get('title', '')[:60]})\n"
                         f"\u5132\u5b58\u8def\u5f91: {rd.get('markdown_path', '')}\n"
@@ -5323,6 +5323,15 @@ async def handle_regulatory_update():
         await cl.Message(
             content=f"💾 已儲存 {saved_count} 份法規文件至法規 Markdown DB"
         ).send()
+    skipped_details = save_result.get("skipped_details", [])
+    if skipped_details:
+        skip_lines = [
+            f"  - {d['region']} / {d['agency']}: {d['reason']}"
+            for d in skipped_details
+        ]
+        await cl.Message(
+            content="⚠️ 以下網站未能儲存（爬取失敗或內容為空）：\n" + "\n".join(skip_lines)
+        ).send()
     # Build per-country status summary
     summary = crawl_results.get("summary", {})
     results = crawl_results.get("results", [])
@@ -5494,7 +5503,21 @@ async def handle_regulatory_update_rescan(selected_regions: list):
 
     # Save individual markdown files to independent regulatory markdown DB
     reg_md_store = get_regulatory_markdown_store()
-    reg_md_store.save_from_crawl_results(crawl_results)
+    _rescan_save = reg_md_store.save_from_crawl_results(crawl_results)
+    _rescan_saved = _rescan_save.get("saved_count", 0)
+    if _rescan_saved > 0:
+        await cl.Message(
+            content=f"💾 Rescan 已更新 {_rescan_saved} 份法規文件至 Markdown DB"
+        ).send()
+    _rescan_skipped = _rescan_save.get("skipped_details", [])
+    if _rescan_skipped:
+        _skip_lines = [
+            f"  - {d['region']} / {d['agency']}: {d['reason']}"
+            for d in _rescan_skipped
+        ]
+        await cl.Message(
+            content="⚠️ 以下網站未能儲存（爬取失敗或內容為空）：\n" + "\n".join(_skip_lines)
+        ).send()
 
     _crawl_summary = crawl_results.get("summary", {})
     _success_n = _crawl_summary.get("success_count", 0)

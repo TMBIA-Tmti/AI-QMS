@@ -305,25 +305,46 @@ async def list_regulations():
             }
         )
 
+    # Determine which regulations match the user's selected regions
+    try:
+        from src.storage.regulatory_storage import get_regulatory_config
+        from src.analysis.compliance_rules import get_profile_ids_for_regions
+        config = get_regulatory_config()
+        if config.has_config():
+            _sel_regions = config.get_selected_regions()
+            _sel_ids = set(get_profile_ids_for_regions(list(_sel_regions)))
+        else:
+            _sel_ids = {r["regulation_id"] for r in regulations}  # all selected if no config
+    except Exception:
+        _sel_ids = {r["regulation_id"] for r in regulations}
+
+    for reg in regulations:
+        reg["is_user_selected"] = reg["regulation_id"] in _sel_ids
+
     failed_regions = []
     try:
         crawl_results_path = Path("data") / "regulatory_crawl_results.json"
         if crawl_results_path.exists():
             with open(crawl_results_path, "r", encoding="utf-8") as f:
                 crawl_data = json.load(f)
-            available_profile_regions = set()
-            for profile in all_regs.values():
-                if profile.country_name_zh:
-                    available_profile_regions.add(profile.country_name_zh)
-                if profile.country_name_en:
-                    available_profile_regions.add(profile.country_name_en)
+            available_profile_regions_zh = {
+                p.country_name_zh for p in all_regs.values() if p.country_name_zh
+            }
+            available_profile_regions_en = {
+                p.country_name_en.lower() for p in all_regs.values() if p.country_name_en
+            }
             for cr in crawl_data.get("results", []):
                 if cr.get("crawl_status") != "success":
                     region = cr.get("region", "")
-                    has_profile = any(
-                        region in str(available_profile_regions)
-                        or cr.get("agency", "") in (p.source or "")
-                        for p in all_regs.values()
+                    region_zh = region.split(" (")[0] if " (" in region else region
+                    region_en = (
+                        region.split("(")[-1].rstrip(")").lower()
+                        if "(" in region
+                        else ""
+                    )
+                    has_profile = (
+                        region_zh in available_profile_regions_zh
+                        or (region_en and region_en in available_profile_regions_en)
                     )
                     if not has_profile:
                         failed_regions.append(
