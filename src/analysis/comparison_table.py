@@ -24,7 +24,7 @@ from src.analysis.state import (
     Phase,
     PhaseStatus,
 )
-from src.analysis.compliance_rules import get_checklist, list_clauses
+from src.analysis.compliance_rules import get_checklist, list_clauses, get_audit_question
 from src.analysis.risk_matrix import (
     VERDICT_DISPLAY,
     RISK_LEVEL_DISPLAY,
@@ -163,7 +163,7 @@ class ComparisonTable:
                     doc_title=doc_title,
                     clause_title=clause_info.get("title", ""),
                     audit_impact=clause_info.get("audit_impact", "minor"),
-                    audit_question=clause_info.get("audit_question", ""),
+                    audit_question=get_audit_question(clause_info),
                     expected_evidence=clause_info.get("expected_evidence", []),
                 )
                 self._state.add_row(row)
@@ -197,7 +197,7 @@ class ComparisonTable:
                         doc_title=doc_title,
                         clause_title=clause_info.get("title", ""),
                         audit_impact=clause_info.get("audit_impact", "minor"),
-                        audit_question=clause_info.get("audit_question", ""),
+                        audit_question=get_audit_question(clause_info),
                         expected_evidence=clause_info.get("expected_evidence", []),
                     )
                     self._state.add_row(row)
