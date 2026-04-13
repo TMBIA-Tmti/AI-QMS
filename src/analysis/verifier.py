@@ -144,8 +144,9 @@ _VERIFIER_CHALLENGE_TEMPLATE = """## 分析者的評估
   "challenges": [
     {{
       "point": "質疑要點",
-      "regulation_basis": "法規依據",
-      "expected_evidence": "你認為應該有的證據"
+      "regulation_basis": "法規依據（引用 ISO 13485:2016 條款或子要求）",
+      "expected_evidence": "你認為應該有的證據（具體文件、記錄或程序）",
+      "worst_case_impact": "此合規落差在最壞情況下的風險影響（ISO 14971 視角）"
     }}
   ],
   "overall_assessment": "整體評語"

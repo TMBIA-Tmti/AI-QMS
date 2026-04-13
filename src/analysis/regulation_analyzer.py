@@ -423,6 +423,18 @@ def _build_unique_requirements_prompt(
         "what ISO 13485:2016 requires. These are the DELTA items — country-specific "
         "requirements that a manufacturer fully certified to ISO 13485 would STILL need "
         "to satisfy separately for market access in this country.\n\n"
+        "CRITICAL ANALYSIS RULES:\n"
+        "1. Language plausibility ≠ legal obligation: a country's regulation may "
+        "   MENTION a concept (e.g., UDI, PSUR) without imposing a substantive, "
+        "   enforceable requirement. Do NOT flag a mention as a unique requirement.\n"
+        "2. Base ALL analysis STRICTLY on the regulatory text provided. Do NOT "
+        "   infer requirements from general knowledge about this country's regulatory "
+        "   system — that knowledge may be outdated or jurisdiction-incorrect.\n"
+        "3. Confidence calibration (base on text evidence quality, not assumption):\n"
+        "   - 0.8-1.0: Explicit statutory article with clear obligation and penalty\n"
+        "   - 0.5-0.7: Implied requirement or indirect reference with partial evidence\n"
+        "   - 0.3-0.5: Regulatory intent unclear; text evidence limited\n"
+        "   - < 0.3: Very limited crawled text — flag as insufficient evidence\n\n"
         "ANALYSIS APPROACH (apply for each unique requirement found):\n"
         "1. First determine: Is this requirement already covered by ISO 13485?\n"
         "   If YES → skip it (not a delta item).\n"
@@ -463,16 +475,24 @@ def _build_unique_requirements_prompt(
         '  "original_lang": "Language code",\n'
         '  "english_translation": "English translation if not English",\n'
         '  "semantic_note": "Practical impact on manufacturers",\n'
-        '  "confidence": 0.8\n'
+        '  "confidence": 0.75\n'
         "}\n\n"
         "If no unique requirements are found, output an empty array: []\n"
-        "Typically, most countries have 3-10 unique requirements beyond ISO 13485."
+        "Typically, most countries have 3-10 unique requirements beyond ISO 13485.\n"
+        "If the crawled text is insufficient to identify requirements confidently, "
+        "set confidence < 0.4 and note the limitation in semantic_note."
     )
 
     user_prompt = (
         f"## Country: {country_zh} ({country_en})\n\n"
         f"## Crawled Regulatory Text:\n"
         f"```\n{regulatory_text}\n```\n\n"
+        f"IMPORTANT: Base ALL analysis STRICTLY on the regulatory text provided above. "
+        f"Do NOT rely on general knowledge about {country_en}'s regulatory system — "
+        f"use only requirements explicitly stated in the crawled text.\n"
+        f"If the text lacks sufficient evidence for a specific requirement, "
+        f'set confidence below 0.4 and note "Insufficient evidence in crawled text" '
+        f"in semantic_note.\n\n"
         f"Identify ALL requirements in {country_en}'s medical device regulation "
         f"that go BEYOND ISO 13485. Focus on country-specific requirements that "
         f"a manufacturer certified to ISO 13485 would still need to address "
