@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Optional
 
 from src.database.daily_crossexam_store import DailySamplingRecord
+from src.analysis.compliance_rules import get_audit_question as _get_audit_question, get_checklist as _get_checklist
 from src.utils.safe_io import atomic_write_json
 
 logger = logging.getLogger(__name__)
@@ -926,7 +927,9 @@ def run_daily_sampling_crossexam(
                 if matched_row:
                     original_rounds = matched_row.verification_rounds or []
                     clause_title = getattr(matched_row, "clause_title", "")
-                    audit_question = getattr(matched_row, "audit_question", "")
+                    _checklist = _get_checklist("ISO_13485")
+                    _clause_info = _checklist.get(cid, {})
+                    audit_question = _get_audit_question(_clause_info) if _clause_info else getattr(matched_row, "audit_question", "")
                     verdict = getattr(matched_row, "verdict", "")
 
                 clause_results.append(
