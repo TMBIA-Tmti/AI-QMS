@@ -358,11 +358,8 @@ The Eira logo weaves together two core symbols, each embodying the project's mis
 - **🐍 Rod of Asclepius** (blue) — The single serpent entwined around a staff is the oldest and most universal symbol of medicine and healing. It declares Eira's core domain: **medical device quality management**.
 - **🖊️ Pen Nib** (gold) — Represents the **entirety of the Quality Management System (QMS)** — document control, audit management, CAPA, non-conformance handling, design control, and more. Every QMS process must be rigorously recorded and governed. Gold signifies authority and formality. Phase 1 (Document Control) is complete; subsequent phases will progressively realize the full QMS vision.
 
-The two symbols **overlap and merge** in the logo — the pen nib touches the serpent staff, symbolizing how Eira unifies "medical domain expertise" with "comprehensive quality management capability." This is also a tribute to the name itself:
+The two symbols **overlap and merge** in the logo — the pen nib touches the serpent staff, symbolizing how Eira unifies "medical domain expertise" with "comprehensive quality management capability.
 
-> **Eira** is named after the **Norse goddess of healing and protection**. Also a Valkyrie, her role was to choose who would survive and recover on the battlefield. In Old Norse, Eira's core meaning is **"Protection"** and **"Help"** — precisely the ultimate purpose of a quality management system: protecting patient safety and helping enterprises achieve compliance.
-
-*Logo uses [Font Awesome](https://fontawesome.com/) icons (CC BY 4.0): `staff-snake` (Rod of Asclepius) and `pen-nib` (fountain pen).*
 
 ## Core Features
 
@@ -682,11 +679,8 @@ Eira のロゴは、プロジェクトの使命を体現する 2 つのコアシ
 - **🐍 アスクレピオスの杖（Rod of Asclepius）**（青）— 杖に一匹の蛇が巻きついた、世界最古かつ最も普遍的な医療のシンボル。Eira のコア領域である**医療機器品質管理**を宣言しています。
 - **🖊️ 万年筆のペン先（Pen Nib）**（金）— **品質管理システム（QMS）のすべてのプロセス**を象徴しています。文書管理、監査管理、CAPA、不適合管理、設計管理など、QMS のあらゆるプロセスは厳密に記録・管理される必要があります。金色は権威と正式性を表します。Phase 1（文書管理）は完了済み、今後のフェーズで完全な QMS 管理を段階的に実現します。
 
-ロゴでは 2 つのシンボルが**重なり融合**しています。ペン先が蛇杖に触れ、Eira が「医療分野の専門知識」と「品質管理の包括的な管理能力」を統合することを表現しています。これは名前そのものへのオマージュでもあります：
+ロゴでは 2 つのシンボルが**重なり融合**しています。ペン先が蛇杖に触れ、Eira が「医療分野の専門知識」と「品質管理の包括的な管理能力」を統合することを表現しています。
 
-> **Eira** は、北欧神話の**医療と庇護の女神**に由来します。ヴァルキリーでもある彼女の役割は、戦場で誰が生存し回復するかを選ぶことでした。古ノルド語における Eira の核心的な意味は**「保護（Protection）」**と**「助力（Help）」**— まさに品質管理システムの究極の目的：患者の安全を守り、企業のコンプライアンスを支援することです。
-
-*ロゴは [Font Awesome](https://fontawesome.com/) アイコン（CC BY 4.0）を使用：`staff-snake`（アスクレピオスの杖）と `pen-nib`（万年筆）。*
 
 ## コア機能
 
