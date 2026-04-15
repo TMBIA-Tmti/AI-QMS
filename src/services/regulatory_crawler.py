@@ -36,7 +36,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Optional
 from urllib.parse import urlparse
+
 _urlparse = urlparse
+import xml.etree.ElementTree as _stdlib_ET
 import defusedxml.ElementTree as ET
 
 import httpx
@@ -845,7 +847,7 @@ class SitemapScanner:
     async def _scan_index(
         self,
         client: httpx.AsyncClient,
-        root: ET.Element,
+        root: _stdlib_ET.Element,
         last_crawl_time: Optional[str],
         keywords: list,
     ) -> list:
@@ -906,7 +908,7 @@ class SitemapScanner:
 
     @staticmethod
     def _filter_urls(
-        root: ET.Element,
+        root: _stdlib_ET.Element,
         last_crawl_time: Optional[str],
         keywords: list,
     ) -> list:
@@ -1747,10 +1749,15 @@ class AsyncRegulatoryUpdateCrawler:
                 # Clone success for aliases
                 for alias_region, alias_site in url_to_aliases.get(url, []):
                     import copy
+
                     alias_result = copy.deepcopy(r)
                     alias_result["region"] = alias_region
-                    alias_result["agency"] = alias_site.get("agency", r.get("agency", ""))
-                    alias_result["agency_name"] = alias_site.get("name", r.get("agency_name", ""))
+                    alias_result["agency"] = alias_site.get(
+                        "agency", r.get("agency", "")
+                    )
+                    alias_result["agency_name"] = alias_site.get(
+                        "name", r.get("agency_name", "")
+                    )
                     alias_result["shared_from"] = primary_region
                     all_results.append(alias_result)
 
