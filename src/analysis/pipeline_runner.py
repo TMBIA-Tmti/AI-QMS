@@ -204,7 +204,8 @@ async def run_pipeline_analysis(
     model: str = "default",
     mode: ExecutionMode = ExecutionMode.AUTO_RUN,
     standard: str = "ISO_13485",
-    max_tokens_budget: int = 500_000,
+    max_tokens_budget: int = 10_000_000_000,
+    max_time_seconds: int = 86400,
     source_command: str = "regulatory_list",
     send_message_fn: Optional[Callable] = None,
     phoenix_trace_ctx: Optional[Callable] = None,
@@ -223,7 +224,8 @@ async def run_pipeline_analysis(
         model: LLM model name
         mode: Execution mode
         standard: Regulatory standard to analyze
-        max_tokens_budget: Max LLM token budget
+        max_tokens_budget: Max LLM token budget (default: no practical limit)
+        max_time_seconds: Max wall-clock seconds for LLM phases (default: 24h)
         source_command: "regulatory_list" or "regulatory_update"
         send_message_fn: Async callback to send Chainlit messages (optional)
         phoenix_trace_ctx: Phoenix trace context manager (optional)
@@ -247,6 +249,7 @@ async def run_pipeline_analysis(
             model=model,
             mode=mode,
             max_tokens_budget=max_tokens_budget,
+            max_time_seconds=max_time_seconds,
             standard=standard,
             selected_regulations=selected_regulations,
         )

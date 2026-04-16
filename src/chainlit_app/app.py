@@ -4960,6 +4960,7 @@ async def handle_regulatory_list():
                 if _reg_list_selected_ids
                 else None,
                 custom_skip_phases=_skip_phases if _skip_phases else None,
+                max_tokens_budget=10_000_000_000,
             )
 
         if pipeline_result and pipeline_result.success:
@@ -5749,6 +5750,7 @@ async def handle_regulatory_update_rescan(selected_regions: list):
                     custom_skip_phases=_skip_phases_update
                     if _skip_phases_update
                     else None,
+                    max_tokens_budget=10_000_000_000,
                 )
 
             if pipeline_result and pipeline_result.success:

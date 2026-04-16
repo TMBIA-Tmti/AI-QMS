@@ -191,17 +191,36 @@ def export_crossexam_record_word(record_dict: dict) -> Path:
             f"RA 標記: {'⚠️ 是' if clause.get('flagged_for_ra') else '否'}"
         )
 
-        # Audit question
+        # Audit question source label (A/B hybrid)
         _cl_def = _ISO_CL.get(cid, {})
+        _q_source = clause.get("question_source", "")
+        if _q_source == "B":
+            _src_label = doc.add_paragraph(
+                "🤖 [LLM 動態生成問題 / AI-Generated Question (Side B)]",
+                style="Quote",
+            )
+            _focus = clause.get("focus_area", "")
+            if _focus:
+                doc.add_paragraph(f"  聚焦面向: {_focus}")
+            _verifiable = clause.get("verifiable_by", "")
+            if _verifiable:
+                doc.add_paragraph(f"  驗證方式: {_verifiable}")
+        elif _q_source == "A":
+            doc.add_paragraph(
+                "📋 [靜態題庫問題 / Static Question Pool (Side A)]",
+                style="Quote",
+            )
+
+        # Audit question
         _aq = clause.get("audit_question") or _cl_def.get("audit_question", "")
         if _aq:
             doc.add_paragraph(f"稽核問題: {_aq}")
 
-        # Expected evidence
+        # Expected evidence (static checklist)
         _exp_ev = _cl_def.get("expected_evidence", [])
         if _exp_ev:
             doc.add_paragraph(
-                "預期書面證據 / Expected Evidence:\n"
+                "預期書面證據（靜態清單）/ Expected Evidence (Static):\n"
                 + "\n".join(f"  • {e}" for e in _exp_ev),
                 style="Quote",
             )
@@ -211,13 +230,13 @@ def export_crossexam_record_word(record_dict: dict) -> Path:
 
             analyzer = rd.get("analyzer", {})
             p = doc.add_paragraph()
-            r = p.add_run("🔍 分析者: ")
+            r = p.add_run("🔍 分析者（實際看到）: ")
             r.bold = True
             _render_role_content(p, analyzer)
 
             verifier = rd.get("verifier", {})
             p = doc.add_paragraph()
-            r = p.add_run("⚖️ 驗證者: ")
+            r = p.add_run("⚖️ 驗證者（期望看到）: ")
             r.bold = True
             _render_role_content(p, verifier)
 
@@ -290,22 +309,25 @@ def export_crossexam_record_excel(record_dict: dict) -> Path:
     # Sheet 2: Clause Details
     ws_detail = wb.create_sheet("條款詳情")
     headers = [
-        "條款 ID",
-        "條款名稱",
-        "文件 ID",
-        "判定",
-        "差距",
-        "同意",
-        "RA 標記",
-        "輪次數",
-        "R1 分析者立場",
-        "R1 分析者信心",
-        "R1 驗證者評估",
-        "R1 Agreement",
-        "QA 分數",
-        "問題品質",
-        "回答準確",
-        "幻覺偵測",
+        "條款 ID",          # 1
+        "條款名稱",          # 2
+        "文件 ID",           # 3
+        "判定",              # 4
+        "差距",              # 5
+        "同意",              # 6
+        "RA 標記",           # 7
+        "問題來源(A/B)",     # 8  ← new
+        "輪次數",            # 9
+        "R1 分析者立場",     # 10
+        "R1 分析者信心",     # 11
+        "R1 實際看到(證據)", # 12  ← new
+        "R1 驗證者評估",     # 13
+        "R1 Agreement",      # 14
+        "R1 期望看到(證據)", # 15  ← new
+        "QA 分數",           # 16
+        "問題品質",          # 17
+        "回答準確",          # 18
+        "幻覺偵測",          # 19
     ]
     for ci, h in enumerate(headers, 1):
         c = ws_detail.cell(row=1, column=ci, value=h)
@@ -323,43 +345,56 @@ def export_crossexam_record_excel(record_dict: dict) -> Path:
         ws_detail.cell(
             row=ri, column=7, value="Y" if clause.get("flagged_for_ra") else ""
         )
+        ws_detail.cell(row=ri, column=8, value=clause.get("question_source", ""))
         rounds = clause.get("rounds", [])
-        ws_detail.cell(row=ri, column=8, value=len(rounds))
+        ws_detail.cell(row=ri, column=9, value=len(rounds))
         if rounds:
             r1 = rounds[0]
             a = r1.get("analyzer", {})
             v = r1.get("verifier", {})
             ws_detail.cell(
                 row=ri,
-                column=9,
+                column=10,
                 value=_flatten_role_text(a, "position")[:500],
             )
             ws_detail.cell(
                 row=ri,
-                column=10,
+                column=11,
                 value=str(a.get("confidence", a.get("confidence_score", ""))),
             )
+            # R1 實際看到：Analyzer key_evidence
+            _actual_ev = a.get("key_evidence", [])
+            if isinstance(_actual_ev, list):
+                _actual_ev = "; ".join(str(x) for x in _actual_ev)
+            ws_detail.cell(row=ri, column=12, value=str(_actual_ev)[:500])
             ws_detail.cell(
                 row=ri,
-                column=11,
+                column=13,
                 value=_flatten_role_text(v, "assessment")[:500],
             )
             ws_detail.cell(
                 row=ri,
-                column=12,
+                column=14,
                 value=v.get("agreement_level", ""),
             )
+            # R1 期望看到：Verifier challenges[*].expected_evidence
+            _challenges = v.get("challenges", [])
+            _exp_parts = []
+            for _ch in (_challenges if isinstance(_challenges, list) else []):
+                if isinstance(_ch, dict) and _ch.get("expected_evidence"):
+                    _exp_parts.append(_ch["expected_evidence"])
+            ws_detail.cell(row=ri, column=15, value="; ".join(_exp_parts)[:500])
         qa = clause.get("qa_audit", {})
-        ws_detail.cell(row=ri, column=13, value=qa.get("score", "") if qa else "")
+        ws_detail.cell(row=ri, column=16, value=qa.get("score", "") if qa else "")
         ws_detail.cell(
-            row=ri, column=14, value=qa.get("question_quality", "") if qa else ""
+            row=ri, column=17, value=qa.get("question_quality", "") if qa else ""
         )
         ws_detail.cell(
-            row=ri, column=15, value=qa.get("answer_accuracy", "") if qa else ""
+            row=ri, column=18, value=qa.get("answer_accuracy", "") if qa else ""
         )
         ws_detail.cell(
             row=ri,
-            column=16,
+            column=19,
             value="Yes"
             if qa and qa.get("hallucination_detected")
             else ("No" if qa else ""),
@@ -1012,7 +1047,15 @@ def _split_text(text: str, max_len: int = 3000) -> list[str]:
 
 
 def _render_role_content(paragraph, data: dict) -> None:
-    """Render Analyzer/Verifier structured data as readable text in a Word paragraph."""
+    """Render Analyzer/Verifier structured data as readable text in a Word paragraph.
+
+    Includes structured display of Verifier challenges with:
+      - 質疑要點 (point)
+      - 法規依據 (regulation_basis)
+      - ▸ 期望看到 (expected_evidence)   ← "expected" side
+      - ⚠ 風險影響 (worst_case_impact)
+    Analyzer key_evidence renders as "▸ 實際看到" for the "actual" side.
+    """
     if not data or not isinstance(data, dict):
         paragraph.add_run("（無資料）")
         return
@@ -1025,6 +1068,7 @@ def _render_role_content(paragraph, data: dict) -> None:
         "confidence_score",
         "evidence",
         "evidence_cited",
+        "key_evidence",
         "reasoning",
         "analysis",
         "agreement_level",
@@ -1035,13 +1079,42 @@ def _render_role_content(paragraph, data: dict) -> None:
         if val is None:
             continue
         if isinstance(val, list):
-            val = "; ".join(str(v) for v in val)
+            label = "▸ 實際看到" if key == "key_evidence" else key
+            parts.append(f"{label}:")
+            for item in val:
+                parts.append(f"    • {item}")
         elif isinstance(val, dict):
-            val = json.dumps(val, ensure_ascii=False)
-        parts.append(f"{key}: {val}")
+            parts.append(f"{key}: {json.dumps(val, ensure_ascii=False)}")
+        else:
+            parts.append(f"{key}: {val}")
+
+    # Render Verifier challenges in structured "期望 vs 實際" format
+    challenges = data.get("challenges", [])
+    if challenges and isinstance(challenges, list):
+        parts.append("─── 驗證者質疑 / Verifier Challenges ───")
+        for i, ch in enumerate(challenges, 1):
+            if isinstance(ch, dict):
+                parts.append(f"  [{i}] {ch.get('point', '')}")
+                reg_basis = ch.get("regulation_basis", "")
+                if reg_basis:
+                    parts.append(f"      法規依據: {reg_basis}")
+                exp_ev = ch.get("expected_evidence", "")
+                if exp_ev:
+                    parts.append(f"      ▸ 期望看到: {exp_ev}")
+                wci = ch.get("worst_case_impact", "")
+                if wci:
+                    parts.append(f"      ⚠ 風險影響: {wci}")
+            else:
+                parts.append(f"  [{i}] {ch}")
+
+    remaining = data.get("remaining_concerns", [])
+    if remaining and isinstance(remaining, list):
+        parts.append("─── 未解疑慮 / Remaining Concerns ───")
+        for c in remaining:
+            parts.append(f"  • {c}")
 
     if parts:
-        paragraph.add_run("\n".join(parts)[:3000])
+        paragraph.add_run("\n".join(parts)[:4000])
     else:
         paragraph.add_run(json.dumps(data, ensure_ascii=False, indent=2)[:3000])
 
