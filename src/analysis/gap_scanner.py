@@ -39,6 +39,7 @@ __all__ = [
     "run_gap_scan_row",
     "run_gap_scan_document",
     "build_gap_scan_prompt",
+    "filter_relevant_clauses",
 ]
 
 
@@ -378,6 +379,117 @@ def _emit_pipeline_event(run_id: str, event: dict) -> None:
 
 
 # ============================================================
+# Clause relevance pre-filter (Phase 0.5)
+# ============================================================
+
+_FILTER_SYSTEM_PROMPT = """你是 ISO 13485:2016 文件範疇判斷助手。
+給定一份品質文件的標題和摘要，判斷哪些 ISO 13485 條款「可能」在此文件中有對應內容。
+
+規則：
+1. 以文件的功能、類型和標題為主要判斷依據。
+2. 遇到不確定時，保留該條款（寬鬆篩選）。
+3. 只有明顯與文件範疇無關的條款才排除（例如：生產製造條款不會出現在「文件編號系統」文件中）。
+4. 僅回傳 JSON 陣列，不附加任何說明文字。"""
+
+_FILTER_USER_TEMPLATE = """文件編號: {doc_id}
+文件標題: {doc_title}
+
+文件摘要（前 2000 字）:
+{doc_excerpt}
+
+---
+以下是待判斷的 ISO 13485:2016 條款清單（共 {clause_count} 條）：
+
+{clause_list}
+
+---
+請回傳 JSON 陣列，列出「與此文件可能相關」的條款編號：
+```json
+["條款編號1", "條款編號2", ...]
+```"""
+
+
+def filter_relevant_clauses(
+    doc_id: str,
+    doc_title: str,
+    doc_content: str,
+    rows: list[RowState],
+    llm_completion_fn: Callable,
+    model: str = "default",
+) -> list[str]:
+    """Pre-filter: ask LLM which clauses are plausibly relevant to this document.
+
+    Uses only the document title + first 2000 chars (no full content) and a
+    compact clause list, so the call is cheap (max_tokens=512).
+
+    Returns:
+        List of clause_ids that should be included in the full gap scan.
+        Falls back to all clause IDs if the call fails or returns an empty list.
+    """
+    all_clause_ids = [row.clause_id for row in rows]
+
+    # Build compact clause list: "4.1: 一般要求"
+    clause_lines = [f"{row.clause_id}: {row.clause_title}" for row in rows]
+    clause_list = "\n".join(clause_lines)
+
+    user_prompt = _FILTER_USER_TEMPLATE.format(
+        doc_id=doc_id,
+        doc_title=doc_title,
+        doc_excerpt=doc_content[:2000],
+        clause_count=len(rows),
+        clause_list=clause_list,
+    )
+
+    try:
+        response = llm_completion_fn(
+            messages=[
+                {"role": "system", "content": _FILTER_SYSTEM_PROMPT},
+                {"role": "user", "content": user_prompt},
+            ],
+            model=model,
+            temperature=0.0,
+            max_tokens=512,
+            stream=False,
+        )
+        text = response.get("content", "") if response else ""
+        if not text or text.startswith("[ERROR]"):
+            logger.warning("filter_relevant_clauses: LLM call failed, using all clauses")
+            return all_clause_ids
+
+        # Parse JSON array from response
+        json_str = text.strip()
+        if "```json" in json_str:
+            start = json_str.index("```json") + 7
+            end = json_str.index("```", start) if "```" in json_str[start:] else len(json_str)
+            json_str = json_str[start:end].strip()
+        elif "```" in json_str:
+            start = json_str.index("```") + 3
+            end = json_str.index("```", start) if "```" in json_str[start:] else len(json_str)
+            json_str = json_str[start:end].strip()
+
+        relevant = json.loads(json_str)
+        if not isinstance(relevant, list) or not relevant:
+            logger.warning("filter_relevant_clauses: empty or invalid result, using all clauses")
+            return all_clause_ids
+
+        # Validate: keep only IDs that actually exist in rows
+        valid_ids = set(all_clause_ids)
+        filtered = [cid for cid in relevant if cid in valid_ids]
+        if not filtered:
+            return all_clause_ids
+
+        logger.info(
+            "filter_relevant_clauses: %s → %d/%d clauses retained",
+            doc_id, len(filtered), len(all_clause_ids),
+        )
+        return filtered
+
+    except Exception as exc:
+        logger.warning("filter_relevant_clauses exception: %s — using all clauses", exc)
+        return all_clause_ids
+
+
+# ============================================================
 # Per-document prompt construction
 # ============================================================
 
@@ -573,9 +685,62 @@ def run_gap_scan_document(
         max_content_chars = 15000
         final_content = doc_content[:max_content_chars]
 
-        # Build clauses section
+        # --- Phase 0.5: clause relevance pre-filter ---
+        # Cheap call (max_tokens=512) to drop clauses clearly outside this
+        # document's scope before the expensive full-scan prompt is built.
+        relevant_ids = filter_relevant_clauses(
+            doc_id=doc_id,
+            doc_title=doc_title,
+            doc_content=doc_content,
+            rows=rows,
+            llm_completion_fn=llm_completion_fn,
+            model=model,
+        )
+        relevant_id_set = set(relevant_ids)
+        scan_rows = [r for r in rows if r.clause_id in relevant_id_set]
+        skipped_rows = [r for r in rows if r.clause_id not in relevant_id_set]
+
+        # Mark skipped clauses as out-of-scope immediately (no LLM cost)
+        for row in skipped_rows:
+            row.evidence_items = [
+                EvidenceItem(
+                    evidence_name=ev,
+                    found=False,
+                    relevance_score=0.0,
+                    llm_reasoning="文件範疇不涵蓋此條款（預篩選排除）",
+                ).to_dict()
+                for ev in row.expected_evidence
+            ]
+
+        _emit_pipeline_event(
+            run_id,
+            {
+                "type": "phase_1_filter",
+                "doc_id": doc_id,
+                "total_clauses": len(rows),
+                "scan_clauses": len(scan_rows),
+                "skipped_clauses": len(skipped_rows),
+                "skipped_ids": [r.clause_id for r in skipped_rows],
+            },
+        )
+
+        if not scan_rows:
+            # All clauses filtered out — mark phase complete with zero findings
+            phase_result.status = PhaseStatus.COMPLETED.value
+            phase_result.output = {
+                "doc_id": doc_id,
+                "clause_count": 0,
+                "total_found": 0,
+                "total_not_found": sum(len(r.expected_evidence) for r in rows),
+                "total_inadequate": 0,
+                "note": "全部條款均被預篩選排除",
+            }
+            phase_result.completed_at = time.time()
+            return phase_result
+
+        # Build clauses section (only relevant clauses)
         clauses_parts = []
-        for i, row in enumerate(rows, 1):
+        for i, row in enumerate(scan_rows, 1):
             evidence_lines = []
             for j, ev in enumerate(row.expected_evidence, 1):
                 evidence_lines.append(f"   {j}. {ev}")
@@ -588,7 +753,7 @@ def run_gap_scan_document(
         clauses_section = "\n\n".join(clauses_parts)
 
         user_prompt = _DOC_USER_PROMPT_TEMPLATE.format(
-            clause_count=len(rows),
+            clause_count=len(scan_rows),
             clauses_section=clauses_section,
             doc_id=doc_id,
             doc_title=doc_title,
@@ -616,8 +781,8 @@ def run_gap_scan_document(
                 "phase": "gap_scan",
                 "doc_id": doc_id,
                 "doc_title": doc_title,
-                "clause_ids": [r.clause_id for r in rows],
-                "clause_count": len(rows),
+                "clause_ids": [r.clause_id for r in scan_rows],
+                "clause_count": len(scan_rows),
                 "prompt_preview": user_prompt[:500],
             },
         )
@@ -673,24 +838,29 @@ def run_gap_scan_document(
         budget.record_usage(usage)
         state.update_budget(budget)
 
-        # Parse per-clause results
-        clause_evidence = _parse_doc_gap_scan_response(response_text, rows)
+        # Parse per-clause results (only scan_rows were sent to LLM)
+        clause_evidence = _parse_doc_gap_scan_response(response_text, scan_rows)
 
-        # Distribute results back to individual rows
+        # Distribute results back to scanned rows
         total_found = 0
         total_not_found = 0
         total_inadequate = 0
-        for row in rows:
+        for row in scan_rows:
             items = clause_evidence.get(row.clause_id, [])
             row.evidence_items = [item.to_dict() for item in items]
             total_found += sum(1 for e in items if e.found)
             total_not_found += sum(1 for e in items if not e.found)
             total_inadequate += sum(1 for e in items if e.is_inadequate)
 
+        # Count skipped rows as not-found in totals
+        total_not_found += sum(len(r.expected_evidence) for r in skipped_rows)
+
         phase_result.status = PhaseStatus.COMPLETED.value
         phase_result.output = {
             "doc_id": doc_id,
             "clause_count": len(rows),
+            "scan_clause_count": len(scan_rows),
+            "skipped_clause_count": len(skipped_rows),
             "total_found": total_found,
             "total_not_found": total_not_found,
             "total_inadequate": total_inadequate,
@@ -707,7 +877,7 @@ def run_gap_scan_document(
                 "phase": "gap_scan",
                 "doc_id": doc_id,
                 "doc_title": doc_title,
-                "clause_ids": [r.clause_id for r in rows],
+                "clause_ids": [r.clause_id for r in scan_rows],
                 "llm_response": response_text[:2000],
                 "evidence_summary": {
                     "found": total_found,
@@ -720,7 +890,7 @@ def run_gap_scan_document(
 
         # SSE: conversation-style event for human-readable display
         _clause_details = []
-        for row in rows:
+        for row in scan_rows:
             items = clause_evidence.get(row.clause_id, [])
             _clause_details.append(
                 {
@@ -735,16 +905,16 @@ def run_gap_scan_document(
             {
                 "type": "phase_1_conversation",
                 "doc_id": doc_id,
-                "clause_ids": [r.clause_id for r in rows],
+                "clause_ids": [r.clause_id for r in scan_rows],
                 "question_summary": (
-                    f"請在文件「{doc_title}」({doc_id}) 中搜尋 {len(rows)} 個 ISO 13485 條款"
-                    f"的合規證據。每個條款需要找到對應的程序、記錄或政策文件。"
+                    f"請在文件「{doc_title}」({doc_id}) 中搜尋 {len(scan_rows)} 個相關 ISO 13485 條款"
+                    f"的合規證據（共 {len(rows)} 條款，{len(skipped_rows)} 條預篩選排除）。"
                 ),
                 "answer_summary": (
-                    f"文件掃描完成：共 {total_found + total_not_found} 項證據，"
+                    f"文件掃描完成：掃描 {len(scan_rows)} 條款，"
                     f"找到 {total_found} 項 ✅、未找到 {total_not_found} 項 ❌"
                     + (f"、不充分 {total_inadequate} 項 ⚠️" if total_inadequate else "")
-                    + "。"
+                    + f"（{len(skipped_rows)} 條款範疇外，略過）。"
                 ),
                 "details": {"clauses": _clause_details},
             },
