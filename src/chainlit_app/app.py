@@ -5164,13 +5164,19 @@ async def handle_regulatory_export(format_type: str):
             verification_report=_dl_ver_report,
             source_command="regulatory_list"
         )
-        msg = t("regulatory.export_word", count=len(aggregate))
+        if assessment:
+            msg = t("regulatory.export_word", count=len(aggregate))
+        else:
+            msg = t("regulatory.export_word_no_analysis", count=len(aggregate))
     elif format_type == "excel":
         assessment = cl.user_session.get("last_regulatory_assessment")
         filepath = export_regulatory_to_excel(
             scan_result, assessment=assessment, source_command="regulatory_list"
         )
-        msg = t("regulatory.export_excel", count=len(aggregate))
+        if assessment:
+            msg = t("regulatory.export_excel", count=len(aggregate))
+        else:
+            msg = t("regulatory.export_excel_no_analysis", count=len(aggregate))
     else:
         return None, t("regulatory.export_hint")
 

@@ -187,6 +187,8 @@
   "reference.no_data": "Eira：📋 参照リストデータがありません。まず版更新を行ってください。システムが自動的に参照リストを生成します。",
   "reference.no_refs": "Eira：📋 他の文書が {doc_id} を参照していません。エクスポート不要です。",
   "regulatory.export_excel": "Eira：📋 規制リスト Excel レポートを生成しました ({count} 件の標準)。",
+  "regulatory.export_excel_no_analysis": "Eira：📋 規制リスト Excel レポートを生成しました ({count} 件の標準)。⚠️ 今回のエクスポートには分析結果が含まれていません（完全なレポートを取得するには、先に「規制リスト」分析を実行してからダウンロードしてください）。",
+  "regulatory.export_word_no_analysis": "Eira：📋 規制リスト Word レポートを生成しました ({count} 件の標準)。⚠️ 今回のエクスポートには分析結果が含まれていません（完全なレポートを取得するには、先に「規制リスト」分析を実行してからダウンロードしてください）。",
   "regulatory.export_word": "Eira：📋 規制リスト Word レポートを生成しました ({count} 件の標準)。",
   "regulatory.no_refs": "Eira：📋 データベースの文書に法規・標準の引用がありません。エクスポートできません。",
   "regulatory_update.assessment_analyzing": "Eira：🧠 LLM で法規と QMS 文書のコンプライアンスを分析中...",
