@@ -390,12 +390,12 @@ _DOC_VERIFY_USER_TEMPLATE = """## 驗證任務
 
 ## 回答格式
 
-請以 JSON 格式回答，按條款編號分組：
+請以 JSON 格式回答，按**條款的原始編號**（如 "4.1"、"7.1.2"）分組，key 必須與上方「條款 X.X」完全一致：
 
 ```json
 {{
   "clause_results": {{
-    "條款編號": {{
+    "{example_clause_id}": {{
       "verification_results": [
         {{
           "evidence_name": "證據名稱",
@@ -410,11 +410,21 @@ _DOC_VERIFY_USER_TEMPLATE = """## 驗證任務
 ```"""
 
 
+def _normalize_clause_id(clause_id: str) -> str:
+    """Normalize a clause ID for fuzzy matching (strip spaces, dashes, titles)."""
+    # Take only the first token that looks like a clause number (digits and dots)
+    m = re.match(r"[\d]+(?:\.[\d]+)*", clause_id.strip())
+    return m.group(0) if m else clause_id.strip().lower()
+
+
 def _parse_doc_verify_response(
     response_text: str,
     rows: list,
 ) -> dict[str, list[dict]]:
     """Parse per-document verification LLM response into per-clause results.
+
+    Uses fuzzy matching so LLM keys like "4.1 — 組織背景" still map to
+    row.clause_id == "4.1".
 
     Returns:
         Dict mapping clause_id -> list of verification result dicts
@@ -435,19 +445,36 @@ def _parse_doc_verify_response(
         )
         json_str = json_str[start:end].strip()
 
+    # Build normalized lookup: norm_key -> row.clause_id
+    row_norm_map: dict[str, str] = {
+        _normalize_clause_id(row.clause_id): row.clause_id for row in rows
+    }
+
     result: dict[str, list[dict]] = {}
 
     try:
         data = json.loads(json_str)
         clause_results = data.get("clause_results", {})
 
-        for clause_id, clause_data in clause_results.items():
-            result[clause_id] = clause_data.get("verification_results", [])
+        for llm_key, clause_data in clause_results.items():
+            verification_results = clause_data.get("verification_results", [])
+
+            # Try exact match first, then normalized fuzzy match
+            if llm_key in row_norm_map.values():
+                result[llm_key] = verification_results
+            else:
+                norm_key = _normalize_clause_id(llm_key)
+                canonical = row_norm_map.get(norm_key)
+                if canonical:
+                    result[canonical] = verification_results
+                else:
+                    # Keep as-is (may be matched later or discarded)
+                    result[llm_key] = verification_results
 
     except (json.JSONDecodeError, KeyError, TypeError):
         pass
 
-    # Ensure all clauses have entries
+    # Ensure all row clause_ids have entries (empty list if LLM missed them)
     for row in rows:
         if row.clause_id not in result:
             result[row.clause_id] = []
@@ -523,9 +550,13 @@ def run_checklist_verify_document(
 
         clauses_evidence_section = "\n\n".join(clauses_parts)
 
+        # Use first row's clause_id as example in the JSON template
+        example_clause_id = rows[0].clause_id if rows else "4.1"
+
         user_prompt = _DOC_VERIFY_USER_TEMPLATE.format(
             clause_count=len(rows),
             clauses_evidence_section=clauses_evidence_section,
+            example_clause_id=example_clause_id,
         )
 
         messages = [
@@ -557,25 +588,38 @@ def run_checklist_verify_document(
             },
         )
 
-        # Call LLM
-        response = llm_completion_fn(
-            messages=messages,
-            model=model,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            stream=False,
-        )
+        # Call LLM with retry (handles transient network errors like incomplete chunked read)
+        response = None
+        last_error = ""
+        for _attempt in range(3):
+            response = llm_completion_fn(
+                messages=messages,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stream=False,
+            )
+            response_text_attempt = response.get("content", "")
+            if (
+                response_text_attempt
+                and not response_text_attempt.startswith("[ERROR]")
+                and not response.get("all_failed")
+            ):
+                break
+            last_error = response_text_attempt[:200] if response_text_attempt else "LLM 回應為空"
+            import time as _time
+            _time.sleep(2 * (_attempt + 1))  # back-off: 2s, 4s
 
-        response_text = response.get("content", "")
-        usage = response.get("usage", {})
+        response_text = response.get("content", "") if response else ""
+        usage = response.get("usage", {}) if response else {}
 
-        # 檢測 LLM 錯誤回應
+        # 檢測 LLM 錯誤回應（所有重試均失敗）
         if (
             not response_text
             or response_text.startswith("[ERROR]")
-            or response.get("all_failed")
+            or (response and response.get("all_failed"))
         ):
-            error_detail = response_text[:200] if response_text else "LLM 回應為空"
+            error_detail = last_error or (response_text[:200] if response_text else "LLM 回應為空")
             phase_result.status = PhaseStatus.FAILED.value
             phase_result.error = f"LLM 呼叫失敗: {error_detail}"
             phase_result.completed_at = time.time()
@@ -585,7 +629,7 @@ def run_checklist_verify_document(
                     "type": "phase_2_error",
                     "phase": "checklist_verify",
                     "doc_id": doc_id,
-                    "error": f"LLM 呼叫失敗: {error_detail}",
+                    "error": f"LLM 呼叫失敗 (3次重試後): {error_detail}",
                 },
             )
             return phase_result
