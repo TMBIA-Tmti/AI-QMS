@@ -382,31 +382,73 @@ def _emit_pipeline_event(run_id: str, event: dict) -> None:
 # Clause relevance pre-filter (Phase 0.5)
 # ============================================================
 
-_FILTER_SYSTEM_PROMPT = """你是 ISO 13485:2016 文件範疇判斷助手。
-給定一份品質文件的標題和摘要，判斷哪些 ISO 13485 條款「可能」在此文件中有對應內容。
+_FILTER_SYSTEM_PROMPT = """你是 ISO 13485:2016 稽核範疇分析師。
 
-規則：
-1. 以文件的功能、類型和標題為主要判斷依據。
-2. 遇到不確定時，保留該條款（寬鬆篩選）。
-3. 只有明顯與文件範疇無關的條款才排除（例如：生產製造條款不會出現在「文件編號系統」文件中）。
-4. 僅回傳 JSON 陣列，不附加任何說明文字。"""
+任務：給定一份品質文件的標題、編號與摘要，找出「稽核員在審查此文件時，合理預期能在文件內容中找到直接程序或要求」的 ISO 13485 條款。
+
+判斷標準（必須同時符合才保留）：
+A. 此條款要求的「程序/控制措施」屬於此文件的主要主題或直接相關功能。
+B. 稽核員審查此文件時，若找不到此條款的證據，會認定為此文件的缺失。
+
+排除標準（符合任一即排除）：
+X1. 此條款屬於完全不同的業務功能（例如：採購程序文件 → 排除設計開發條款）。
+X2. 此條款可能在文件中被「提及」或「引用」，但文件不負責描述該條款的執行程序。
+X3. 此條款的執行單位與此文件所屬部門/功能無直接關係。
+
+文件類型參考範疇：
+- WI（作業指導書）：僅涵蓋該操作步驟直接相關的 2-8 個條款
+- QP（品質程序）：涵蓋該程序主題相關的 5-15 個條款
+- SOP（標準作業程序）：涵蓋該操作領域相關的 3-10 個條款
+- FM（表單）：通常只對應 1-3 個條款
+
+重要：寧可少選（漏掉邊緣案例），也不要多選（讓主掃描浪費 token 在必定 found=false 的條款上）。
+僅回傳 JSON 陣列，不附加任何說明。"""
 
 _FILTER_USER_TEMPLATE = """文件編號: {doc_id}
 文件標題: {doc_title}
+文件類型: {doc_type}
 
 文件摘要（前 2000 字）:
 {doc_excerpt}
 
 ---
-以下是待判斷的 ISO 13485:2016 條款清單（共 {clause_count} 條）：
+ISO 13485:2016 條款清單（共 {clause_count} 條），格式為「條款編號: 條款標題」：
 
 {clause_list}
 
 ---
-請回傳 JSON 陣列，列出「與此文件可能相關」的條款編號：
+根據上述判斷標準，列出「稽核員審查此文件時，預期能直接找到程序證據」的條款編號。
+
 ```json
 ["條款編號1", "條款編號2", ...]
 ```"""
+
+
+_DOC_TYPE_LABELS = {
+    "WI": "WI（作業指導書）",
+    "QP": "QP（品質程序）",
+    "SOP": "SOP（標準作業程序）",
+    "FM": "FM（表單）",
+    "MN": "MN（手冊）",
+    "SP": "SP（規格書）",
+    "PL": "PL（計畫書）",
+}
+
+
+def _infer_doc_type(doc_id: str, doc_title: str) -> str:
+    """Infer document type label from doc_id prefix or title keywords."""
+    prefix = doc_id.split("-")[0].upper() if "-" in doc_id else doc_id[:2].upper()
+    if prefix in _DOC_TYPE_LABELS:
+        return _DOC_TYPE_LABELS[prefix]
+    # fallback: check title keywords
+    title_lower = doc_title.lower()
+    if "work instruction" in title_lower or "作業指導" in title_lower:
+        return _DOC_TYPE_LABELS["WI"]
+    if "procedure" in title_lower or "程序" in title_lower:
+        return _DOC_TYPE_LABELS["QP"]
+    if "form" in title_lower or "表單" in title_lower:
+        return _DOC_TYPE_LABELS["FM"]
+    return f"品質文件（前綴：{prefix}）"
 
 
 def filter_relevant_clauses(
@@ -417,7 +459,7 @@ def filter_relevant_clauses(
     llm_completion_fn: Callable,
     model: str = "default",
 ) -> list[str]:
-    """Pre-filter: ask LLM which clauses are plausibly relevant to this document.
+    """Pre-filter: ask LLM which clauses are directly relevant to this document.
 
     Uses only the document title + first 2000 chars (no full content) and a
     compact clause list, so the call is cheap (max_tokens=512).
@@ -432,9 +474,12 @@ def filter_relevant_clauses(
     clause_lines = [f"{row.clause_id}: {row.clause_title}" for row in rows]
     clause_list = "\n".join(clause_lines)
 
+    doc_type = _infer_doc_type(doc_id, doc_title)
+
     user_prompt = _FILTER_USER_TEMPLATE.format(
         doc_id=doc_id,
         doc_title=doc_title,
+        doc_type=doc_type,
         doc_excerpt=doc_content[:2000],
         clause_count=len(rows),
         clause_list=clause_list,
