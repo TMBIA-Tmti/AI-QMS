@@ -392,39 +392,56 @@ import re as _re
 # ---------------------------------------------------------------------------
 _KEYWORD_CLAUSE_RULES: list[tuple[str, list[str]]] = [
     # ── Document / Record Control ──────────────────────────────────────────
-    (r"document.control|文件管制|文件控制|document.numbering|文件編號|numbering.system",
+    (r"document.control|document.review|document.numbering|external.document"
+     r"|文件管制|文件控制|文件編號|numbering.system",
      ["4.2.1", "4.2.3", "4.2.4", "4.2.5"]),
-    (r"record.control|記錄管制|記錄控制",
+    (r"record.control|record.retention|electronic.record|記錄管制|記錄控制",
      ["4.2.4", "4.2.5"]),
     (r"quality.manual|品質手冊|qm-",
      ["4.1", "4.2.1", "4.2.2", "5.1", "5.3"]),
 
+    # ── QMS General Requirements ──────────────────────────────────────────
+    (r"general.require|general.document|documentation.require|general_require",
+     ["4.1", "4.2.1", "4.2.2", "4.2.3", "4.2.4", "4.2.5"]),
+
     # ── Management ────────────────────────────────────────────────────────
     (r"management.review|管理審查|管理評審",
      ["5.1", "5.2", "5.6.1", "5.6.2", "5.6.3", "8.4", "8.5.1"]),
+    (r"management.responsib|management.commit|management_responsib|management_commit",
+     ["5.1", "5.2", "5.3", "5.4.1", "5.4.2", "5.5.1", "5.5.2", "5.5.3",
+      "5.6.1", "5.6.2", "5.6.3"]),
     (r"quality.policy|品質政策|quality.objective|品質目標",
      ["5.1", "5.2", "5.3", "5.4.1", "5.4.2"]),
+    (r"planning(?!.of.product)|計畫|規劃",
+     ["5.4.1", "5.4.2"]),
+    (r"responsibility.authority|responsibility_authority|¾responsibility",
+     ["5.5.1", "5.5.2", "5.5.3"]),
     (r"organization|組織|organ.chart|組織圖",
      ["5.5.1", "5.5.2", "5.5.3", "6.1"]),
+    (r"customer.focus|customer_focus",
+     ["5.2", "7.2.1"]),
 
     # ── Human Resources / Infrastructure ──────────────────────────────────
-    (r"training|訓練|培訓|教育訓練|competenc",
+    (r"resource.management|resource_management|provision.of.resource|provision_of_resource",
+     ["6.1", "6.2", "6.3", "6.4.1", "6.4.2"]),
+    (r"training|訓練|培訓|教育訓練|competenc|onboard|human.resource|human_resource",
      ["6.2"]),
-    (r"infrastruct|基礎設施|facility|設施|環境|work.environment",
+    (r"infrastruct|基礎設施|facility|設施|環境|work.environment|equipment.mainten"
+     r"|backup|pest.control|temperature.monitor|waste.disposal|cleanroom|gown",
      ["6.3", "6.4.1", "6.4.2"]),
 
     # ── Product Realization Planning ──────────────────────────────────────
     (r"product.realiz|產品實現|realiz.planning",
      ["7.1"]),
-    (r"risk.manag|風險管理|risk.assessment|風險評估",
-     ["7.1"]),
-    (r"customer.require|顧客要求|customer.review|合約審查|order.review",
+    (r"customer.require|顧客要求|customer.review|合約審查|order.review"
+     r"|order.entry|order_entry|customer.related|customer_related",
      ["7.2.1", "7.2.2", "7.2.3"]),
     (r"customer.communicat|顧客溝通|customer.feedback",
      ["7.2.3", "8.2.1"]),
 
     # ── Design & Development ──────────────────────────────────────────────
-    (r"design.develop|設計開發|design.control|design.plan",
+    (r"design.develop|design.and.develop|設計開發|design.control|design.plan"
+     r"|design.verif|design.histor|clinical.eval",
      ["7.3.1", "7.3.2", "7.3.3", "7.3.4", "7.3.5",
       "7.3.6", "7.3.7", "7.3.8", "7.3.9", "7.3.10",
       "4.2.3", "4.2.4"]),
@@ -434,33 +451,41 @@ _KEYWORD_CLAUSE_RULES: list[tuple[str, list[str]]] = [
      ["7.4.1", "7.4.2", "7.4.3", "4.2.3", "4.2.4"]),
 
     # ── Production & Service ──────────────────────────────────────────────
-    (r"production.control|生產管制|manufactur|製造|process.control|製程",
+    (r"production.control|production.and.service|production.setup|production_setup"
+     r"|service.provision|生產管制|manufactur|製造|process.control|製程"
+     r"|line.clearance|line_clearance|rework",
      ["7.5.1", "7.5.2", "7.5.3", "7.5.4", "4.2.3", "4.2.4"]),
+    (r"packaging",
+     ["7.5.1", "7.5.3", "4.2.4"]),
     (r"clean.room|cleanroom|潔淨室|contamination|污染控制",
      ["6.4.1", "7.5.1", "7.5.2"]),
     (r"steril|滅菌|灭菌",
      ["7.5.2", "7.5.5", "4.2.3", "4.2.4"]),
     (r"label|標示|標籤|marking",
      ["7.5.6", "7.5.7"]),
-    (r"traceab|可追溯|追溯|lot.control|批號管制",
+    (r"product.identif|product_identif|identification|traceab|可追溯|追溯|lot.control|批號管制",
      ["7.5.8", "7.5.9", "7.5.9.1", "7.5.9.2"]),
     (r"implant|植入|active.implant",
      ["7.5.10", "7.5.11"]),
     (r"customer.property|顧客財產|customer.supplied",
      ["7.5.4"]),
 
-    # ── Calibration / Measurement ─────────────────────────────────────────
-    (r"calibrat|校準|校正|measurement.equipment|量測設備|instrument.control",
+    # ── Calibration / Measurement Equipment ──────────────────────────────
+    (r"calibrat|校準|校正|instrument.control|caliper|thermometer|scale"
+     r"|measuring.equipment|monitoring.and.measuring.equipment"
+     r"|control.of.monitoring|量測設備",
      ["7.6", "4.2.4"]),
 
     # ── Monitoring & Measurement ──────────────────────────────────────────
-    (r"internal.audit|內部稽核|audit.procedure",
+    (r"internal.audit|內部稽核|audit.checklist|auditor.qualif|audit.procedure",
      ["8.2.1", "8.2.2", "4.2.3", "4.2.4"]),
-    (r"customer.satisf|顧客滿意|satisfaction.survey",
+    (r"customer.satisf|顧客滿意|satisfaction.survey|customer.survey",
      ["8.2.1"]),
-    (r"process.monitor|製程監控|monitoring.measurement",
-     ["8.2.3"]),
-    (r"product.inspect|產品檢驗|incoming.inspect|進料检验|ipqc|oqc|iqc",
+    (r"monitoring.and.measurement.of.process|monitoring.measurement.of.process"
+     r"|process.monitor|製程監控|statistical|sampling",
+     ["8.2.3", "8.2.4"]),
+    (r"monitoring.and.measurement.of.product|monitoring.measurement.of.product"
+     r"|product.inspect|產品檢驗|incoming.inspect|進料检验|ipqc|oqc|iqc",
      ["8.2.4", "8.2.4.1", "8.2.4.2", "4.2.4"]),
 
     # ── Nonconforming Product ─────────────────────────────────────────────
@@ -470,14 +495,18 @@ _KEYWORD_CLAUSE_RULES: list[tuple[str, list[str]]] = [
      ["8.3.3", "8.3.4"]),
 
     # ── Data Analysis / Improvement ───────────────────────────────────────
-    (r"data.analysis|數據分析|資料分析|statistical",
+    (r"data.analysis|data.trend|data_trend|數據分析|資料分析|statistical|general.measurement|general_measurement",
      ["8.4"]),
     (r"improvement|改進|改善|continual.improv|持續改善",
      ["8.5.1"]),
-    (r"corrective.action|矯正措施|corrective.action|capa",
+    (r"corrective.action|矯正措施|capa|root.cause|root_cause",
      ["8.5.1", "8.5.2", "8.3", "8.2.2", "4.2.4"]),
-    (r"preventive.action|預防措施|preventive",
+    (r"preventive.action|預防措施|preventive|fmea",
      ["8.5.1", "8.5.3", "4.2.4"]),
+    (r"risk.manag|risk.analysis|risk_analysis|風險管理|風險分析|risk.assessment|風險評估",
+     ["7.1"]),
+    (r"technical.file|technical_file",
+     ["4.2.3", "4.2.4", "7.3.10", "8.2.6"]),
 
     # ── Complaint Handling ────────────────────────────────────────────────
     (r"complaint|客訴|抱怨|customer.complaint",
