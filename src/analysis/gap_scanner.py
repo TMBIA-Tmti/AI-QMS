@@ -246,7 +246,7 @@ def run_gap_scan_row(
     llm_completion_fn: callable,
     model: str = "default",
     temperature: float = 0.1,
-    max_tokens: int = 4096,
+    max_tokens: int = 8192,
 ) -> PhaseResult:
     """Execute Phase 1 gap scan for a single row.
 
@@ -622,26 +622,39 @@ def run_gap_scan_document(
             },
         )
 
-        # Call LLM (non-streaming)
-        response = llm_completion_fn(
-            messages=messages,
-            model=model,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            stream=False,
-        )
+        # Call LLM with retry for rate limit / transient errors
+        response = None
+        last_error = ""
+        _retry_waits = [60, 90, 120]  # seconds to wait on rate limit
+        for _attempt, _wait in enumerate([0] + _retry_waits):
+            if _wait:
+                time.sleep(_wait)
+            response = llm_completion_fn(
+                messages=messages,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stream=False,
+            )
+            _rt = response.get("content", "")
+            if _rt and not _rt.startswith("[ERROR]") and not response.get("all_failed"):
+                break
+            last_error = _rt[:300] if _rt else "LLM 回應為空"
+            is_rate_limit = "rate_limit" in last_error.lower() or "429" in last_error
+            if not is_rate_limit:
+                break  # non-rate-limit error — no point retrying
 
-        response_text = response.get("content", "")
-        usage = response.get("usage", {})
-        llm_model = response.get("model", model)
+        response_text = response.get("content", "") if response else ""
+        usage = response.get("usage", {}) if response else {}
+        llm_model = response.get("model", model) if response else model
 
         # 檢測 LLM 錯誤回應
         if (
             not response_text
             or response_text.startswith("[ERROR]")
-            or response.get("all_failed")
+            or (response and response.get("all_failed"))
         ):
-            error_detail = response_text[:200] if response_text else "LLM 回應為空"
+            error_detail = last_error or (response_text[:200] if response_text else "LLM 回應為空")
             phase_result.status = PhaseStatus.FAILED.value
             phase_result.error = f"LLM 呼叫失敗: {error_detail}"
             phase_result.completed_at = time.time()

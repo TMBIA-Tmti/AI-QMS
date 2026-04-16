@@ -259,7 +259,7 @@ def run_meta_analysis(
     llm_completion_fn: callable,
     model: str = "default",
     temperature: float = 0.3,
-    max_tokens: int = 4096,
+    max_tokens: int = 8192,
     lang: str = "zh-TW",
     store: CrossExamStore | None = None,
 ) -> MetaAnalysisResult:

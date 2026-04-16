@@ -1029,7 +1029,7 @@ def run_daily_audit(
     llm_completion_fn: callable,
     model: str = "default",
     temperature: float = 0.3,
-    max_tokens: int = 4096,
+    max_tokens: int = 8192,
     lang: str = "zh-TW",
     store=None,
     feedback_context: str = "",
@@ -1525,7 +1525,7 @@ def run_10day_meta_review(
     llm_completion_fn: callable,
     model: str = "default",
     temperature: float = 0.3,
-    max_tokens: int = 4096,
+    max_tokens: int = 8192,
     lang: str = "zh-TW",
     feedback_context: str = "",
 ) -> MetaReviewResult:

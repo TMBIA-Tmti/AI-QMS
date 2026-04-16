@@ -222,7 +222,7 @@ async def analyze_regulation_with_llm(
             messages=messages,
             model=model,
             temperature=0.1,
-            max_tokens=4096,
+            max_tokens=8192,
             stream=False,
         )
         response_text = response.get("content", "")

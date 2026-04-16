@@ -176,7 +176,7 @@ def run_remediation_row(
     llm_completion_fn: callable,
     model: str = "default",
     temperature: float = 0.3,
-    max_tokens: int = 4096,
+    max_tokens: int = 8192,
 ) -> PhaseResult:
     """Execute Phase 4 remediation suggestions for a single row.
 

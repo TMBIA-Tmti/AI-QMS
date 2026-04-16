@@ -33,7 +33,7 @@ class MajorAgentConfig:
     model: str = "qwen2.5:32b"           # Ollama 模型
     openai_model: str = "gpt-4o-mini"    # OpenAI 備援
     temperature: float = 0.1
-    max_tokens: int = 4096
+    max_tokens: int = 8192
     
     system_prompt: str = """你是 AI-QMS 文件控制系統的中央協調 Agent。
 你的職責：
@@ -99,7 +99,7 @@ OCR_POSTPROCESS_AGENT = SubAgentConfig(
     model="qwen2.5-vl:7b",
     openai_model="gpt-4o",
     temperature=0.1,
-    max_tokens=4096,
+    max_tokens=8192,
     system_prompt="""你是 OCR 後處理專家。
 分析 OCR 輸出的文字內容，識別：
 1. 印章區域與內容
@@ -115,7 +115,7 @@ REGULATION_AGENT = SubAgentConfig(
     model="qwen2.5:14b",
     openai_model="gpt-4o",
     temperature=0.1,
-    max_tokens=4096,
+    max_tokens=8192,
     system_prompt="""你是醫療器材法規專家。
 從文件中識別所有法規引用：
 - ISO 標準 (ISO 13485, ISO 14971 等)

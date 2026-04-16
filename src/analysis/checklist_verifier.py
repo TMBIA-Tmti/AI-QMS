@@ -192,7 +192,7 @@ def run_checklist_verify_row(
     llm_completion_fn: callable,
     model: str = "default",
     temperature: float = 0.1,
-    max_tokens: int = 4096,
+    max_tokens: int = 8192,
 ) -> PhaseResult:
     """Execute Phase 2 checklist verification for a single row.
 

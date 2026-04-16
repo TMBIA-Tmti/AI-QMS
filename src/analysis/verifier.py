@@ -285,7 +285,7 @@ def run_verification_row(
     model: str = "default",
     temperature: float = 0.2,
     verifier_temperature: float = 0.0,
-    max_tokens: int = 4096,
+    max_tokens: int = 8192,
     selected_regulations: list[str] | None = None,
     run_id: str = "",
 ) -> PhaseResult:
