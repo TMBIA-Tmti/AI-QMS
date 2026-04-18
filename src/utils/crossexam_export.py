@@ -831,6 +831,10 @@ def export_deep_report_excel(
         "RA 標記",
         "RA 覆寫",
         "RA 備註",
+        "改善建議 (LLM P4)",
+        "法規引用 (LLM P4)",
+        "分析者立場 (LLM P5)",
+        "驗證者評語 (LLM P5)",
     ]
     for ci, h in enumerate(comp_headers, 1):
         c = ws_comp.cell(row=1, column=ci, value=h)
@@ -867,6 +871,10 @@ def export_deep_report_excel(
             value=override.get("reason", "") if isinstance(override, dict) else "",
         )
         ws_comp.cell(row=ri, column=13, value=row.get("ra_notes", "") or "")
+        ws_comp.cell(row=ri, column=14, value=row.get("remediation_suggestion", "") or "")
+        ws_comp.cell(row=ri, column=15, value=row.get("remediation_regulation_cite", "") or "")
+        ws_comp.cell(row=ri, column=16, value=row.get("analyzer_position", "") or "")
+        ws_comp.cell(row=ri, column=17, value=row.get("verifier_position", "") or "")
 
     # ── Sheet 3: LLM Interactions ──
     if interactions:

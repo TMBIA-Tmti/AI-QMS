@@ -647,6 +647,13 @@ class AnalysisPipeline:
                         self._save_state()
                 except Exception as e:
                     logger.error(f"Phase 2 failed for doc {doc_id}: {e}")
+                    with self._state_lock:
+                        for row in doc_groups.get(doc_id, []):
+                            failed = PhaseResult(phase=Phase.CHECKLIST_VERIFY.value, status=PhaseStatus.FAILED.value, error=str(e))
+                            row.set_phase_result(Phase.CHECKLIST_VERIFY, failed)
+                            row.advance_to_next_phase()
+                            self._state.update_row(row)
+                        self._save_state()
 
         self._notify_phase_complete(Phase.CHECKLIST_VERIFY)
         self._advance_global_phase(Phase.RISK_ASSESSMENT)
@@ -789,6 +796,13 @@ class AnalysisPipeline:
                         self._save_state()
                 except Exception as e:
                     logger.error(f"Phase 4 failed for doc {doc_id}: {e}")
+                    with self._state_lock:
+                        for row in doc_groups.get(doc_id, []):
+                            failed = PhaseResult(phase=Phase.REMEDIATION.value, status=PhaseStatus.FAILED.value, error=str(e))
+                            row.set_phase_result(Phase.REMEDIATION, failed)
+                            row.advance_to_next_phase()
+                            self._state.update_row(row)
+                        self._save_state()
 
         self._notify_phase_complete(Phase.REMEDIATION)
         self._advance_global_phase(Phase.VERIFICATION)
@@ -864,6 +878,13 @@ class AnalysisPipeline:
                             self._on_row_complete(row, self._state)
                 except Exception as e:
                     logger.error(f"Phase 5 failed for doc {doc_id}: {e}")
+                    with self._state_lock:
+                        for row in doc_groups.get(doc_id, []):
+                            failed = PhaseResult(phase=Phase.VERIFICATION.value, status=PhaseStatus.FAILED.value, error=str(e))
+                            row.set_phase_result(Phase.VERIFICATION, failed)
+                            row.advance_to_next_phase()
+                            self._state.update_row(row)
+                        self._save_state()
 
         # ── Step 2: Third-party QA audit of all completed debates ──
         logger.info(

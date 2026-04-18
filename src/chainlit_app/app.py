@@ -4100,12 +4100,13 @@ async def handle_audit_export(format_type: str):
         return None, t("audit.no_records")
 
     download_stats = _build_download_stats(records)
+    lang = cl.user_session.get("language", "zh-TW")
 
     if format_type == "word":
-        filepath = export_to_word(records, download_stats=download_stats)
+        filepath = export_to_word(records, download_stats=download_stats, lang=lang)
         msg = t("audit.export_word", count=len(records))
     elif format_type == "excel":
-        filepath = export_to_excel(records, download_stats=download_stats)
+        filepath = export_to_excel(records, download_stats=download_stats, lang=lang)
         msg = t("audit.export_excel", count=len(records))
     else:
         return (
@@ -5150,6 +5151,7 @@ async def handle_regulatory_export(format_type: str):
     if not aggregate:
         return None, t("regulatory.no_refs")
 
+    _lang = cl.user_session.get("language", "zh-TW")
     if format_type == "word":
         assessment = cl.user_session.get("last_regulatory_assessment")
         _dl_ver_report: Optional[dict] = None
@@ -5162,7 +5164,8 @@ async def handle_regulatory_export(format_type: str):
         filepath = export_regulatory_to_word(
             scan_result, assessment=assessment,
             verification_report=_dl_ver_report,
-            source_command="regulatory_list"
+            source_command="regulatory_list",
+            lang=_lang,
         )
         if assessment:
             msg = t("regulatory.export_word", count=len(aggregate))
@@ -5171,7 +5174,8 @@ async def handle_regulatory_export(format_type: str):
     elif format_type == "excel":
         assessment = cl.user_session.get("last_regulatory_assessment")
         filepath = export_regulatory_to_excel(
-            scan_result, assessment=assessment, source_command="regulatory_list"
+            scan_result, assessment=assessment, source_command="regulatory_list",
+            lang=_lang,
         )
         if assessment:
             msg = t("regulatory.export_excel", count=len(aggregate))

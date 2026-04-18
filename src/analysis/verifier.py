@@ -767,11 +767,15 @@ def run_verification_document(
     )
 
     try:
-        rows_with_evidence = [r for r in rows if r.evidence_items]
+        # Skip rows with no evidence or already fully compliant (no gaps to cross-examine)
+        rows_with_evidence = [
+            r for r in rows
+            if r.evidence_items and r.verdict not in ("full_compliance", "not_applicable")
+        ]
 
         if not rows_with_evidence:
             phase_result.status = PhaseStatus.SKIPPED.value
-            phase_result.output = {"reason": "No evidence items to verify"}
+            phase_result.output = {"reason": "No gaps to verify (all compliant or no evidence)"}
             phase_result.completed_at = time.time()
             return phase_result
 
@@ -1237,7 +1241,7 @@ def _build_debate_transcript(
         analyzer = rd.get("analyzer", {})
         verifier = rd.get("verifier", {})
 
-        a_position = str(analyzer.get("position", analyzer.get("response", "")))[:400]
+        a_position = str(analyzer.get("position", analyzer.get("response", "")))[:800]
         a_confidence = analyzer.get(
             "confidence", analyzer.get("revised_confidence", "N/A")
         )
@@ -1249,7 +1253,7 @@ def _build_debate_transcript(
         v_challenges = verifier.get(
             "challenges", verifier.get("remaining_concerns", [])
         )
-        v_assessment = verifier.get("overall_assessment", "")[:300]
+        v_assessment = verifier.get("overall_assessment", "")[:600]
 
         parts.append(f"  輪次 {round_num}:")
         parts.append(f"    分析者: confidence={a_confidence}")

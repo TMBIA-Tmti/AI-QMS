@@ -17,23 +17,75 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
 
-# Action name mapping (English → Traditional Chinese)
-ACTION_LABELS = {
+# Action name mapping per language
+_ACTION_LABELS_ZH = {
     "document_created": "文件建立",
     "document_version_updated": "文件進版",
     "bulk_delete": "批次刪除",
     "FILE_UPLOADED": "文件上傳",
     "VERSION_CONFIRMED": "版本確認",
 }
+_ACTION_LABELS_EN = {
+    "document_created": "Document Created",
+    "document_version_updated": "Version Updated",
+    "bulk_delete": "Bulk Delete",
+    "FILE_UPLOADED": "File Uploaded",
+    "VERSION_CONFIRMED": "Version Confirmed",
+}
+# Keep legacy name for backward compat
+ACTION_LABELS = _ACTION_LABELS_ZH
+
+# UI strings per language
+_UI = {
+    "zh-TW": {
+        "title": "AI-QMS 文件更動紀錄報告",
+        "export_time": "匯出時間",
+        "total_records": "紀錄總數",
+        "no_records": "目前沒有任何文件更動紀錄。",
+        "headers": ["#", "時間", "操作", "文件編號", "操作者", "詳情", "下載次數", "下載者（最近5筆）"],
+        "sheet_name": "文件更動紀錄",
+        "integrity": "紀錄鏈完整性",
+        "hash_protected": "SHA-256 雜湊鏈保護",
+    },
+    "en-US": {
+        "title": "AI-QMS Document Change Records Report",
+        "export_time": "Export Time",
+        "total_records": "Total Records",
+        "no_records": "No document change records found.",
+        "headers": ["#", "Time", "Action", "Document ID", "Operator", "Details", "Downloads", "Recent Downloaders"],
+        "sheet_name": "Change Records",
+        "integrity": "Record Chain Integrity",
+        "hash_protected": "SHA-256 Hash Chain Protected",
+    },
+    "ja-JP": {
+        "title": "AI-QMS 文書変更記録レポート",
+        "export_time": "エクスポート時刻",
+        "total_records": "レコード総数",
+        "no_records": "文書変更記録がありません。",
+        "headers": ["#", "時刻", "操作", "文書番号", "担当者", "詳細", "ダウンロード数", "最近のDL者（最大5件）"],
+        "sheet_name": "変更記録",
+        "integrity": "記録チェーン整合性",
+        "hash_protected": "SHA-256ハッシュチェーン保護",
+    },
+}
+
+
+def _ui(lang: str = "zh-TW") -> dict:
+    return _UI.get(lang, _UI["zh-TW"])
+
+
+def _action_label_lang(action: str, lang: str = "zh-TW") -> str:
+    labels = _ACTION_LABELS_EN if lang == "en-US" else _ACTION_LABELS_ZH
+    return labels.get(action, action)
 
 # Output directory for generated files
 EXPORT_DIR = Path("data/exports")
 EXPORT_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def _action_label(action: str) -> str:
+def _action_label(action: str, lang: str = "zh-TW") -> str:
     """Convert action code to display label."""
-    return ACTION_LABELS.get(action, action)
+    return _action_label_lang(action, lang)
 
 
 def _format_details(details: dict) -> str:
@@ -81,29 +133,30 @@ def format_audit_table_markdown(records: list) -> str:
     return "\n".join(lines)
 
 
-def export_to_word(records: list, download_stats: dict | None = None) -> str:
+def export_to_word(records: list, download_stats: dict | None = None, lang: str = "zh-TW") -> str:
     """
     Export audit records to a Word (.docx) file.
 
     Returns:
         Path to the generated .docx file.
     """
+    ui = _ui(lang)
     doc = Document()
 
     # Title
-    title = doc.add_heading("AI-QMS 文件更動紀錄報告", level=1)
+    title = doc.add_heading(ui["title"], level=1)
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     # Metadata
     meta = doc.add_paragraph()
     meta.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    run = meta.add_run(f"匯出時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    run = meta.add_run(f"{ui['export_time']}: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     run.font.size = Pt(9)
     run.font.color.rgb = RGBColor(128, 128, 128)
 
     meta2 = doc.add_paragraph()
     meta2.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    run2 = meta2.add_run(f"紀錄總數: {len(records)} 筆")
+    run2 = meta2.add_run(f"{ui['total_records']}: {len(records)}")
     run2.font.size = Pt(9)
     run2.font.color.rgb = RGBColor(128, 128, 128)
 
@@ -112,7 +165,7 @@ def export_to_word(records: list, download_stats: dict | None = None) -> str:
     dl_stats = download_stats or {}
 
     if not records:
-        doc.add_paragraph("目前沒有任何文件更動紀錄。")
+        doc.add_paragraph(ui["no_records"])
     else:
         # Create table
         table = doc.add_table(rows=1, cols=8)
@@ -120,7 +173,7 @@ def export_to_word(records: list, download_stats: dict | None = None) -> str:
         table.alignment = WD_TABLE_ALIGNMENT.CENTER
 
         # Header row
-        headers = ["#", "時間", "操作", "文件編號", "操作者", "詳情", "下載次數", "下載者（最近5筆）"]
+        headers = ui["headers"]
         for i, header in enumerate(headers):
             cell = table.rows[0].cells[i]
             cell.text = header
@@ -145,7 +198,7 @@ def export_to_word(records: list, download_stats: dict | None = None) -> str:
             values = [
                 str(idx),
                 ts_short,
-                _action_label(r.get("action", "")),
+                _action_label(r.get("action", ""), lang),
                 doc_id,
                 r.get("user_id", ""),
                 _format_details(r.get("details", {})),
@@ -183,16 +236,17 @@ def export_to_word(records: list, download_stats: dict | None = None) -> str:
     return str(filepath)
 
 
-def export_to_excel(records: list, download_stats: dict | None = None) -> str:
+def export_to_excel(records: list, download_stats: dict | None = None, lang: str = "zh-TW") -> str:
     """
     Export audit records to an Excel (.xlsx) file.
 
     Returns:
         Path to the generated .xlsx file.
     """
+    ui = _ui(lang)
     wb = Workbook()
     ws = wb.active
-    ws.title = "文件更動紀錄"
+    ws.title = ui["sheet_name"]
 
     # Styles
     header_font = Font(name="Microsoft JhengHei", bold=True, size=10, color="FFFFFF")
@@ -214,7 +268,7 @@ def export_to_excel(records: list, download_stats: dict | None = None) -> str:
     # Title row
     ws.merge_cells("A1:I1")
     title_cell = ws["A1"]
-    title_cell.value = "AI-QMS 文件更動紀錄報告"
+    title_cell.value = ui["title"]
     title_cell.font = Font(name="Microsoft JhengHei", bold=True, size=14)
     title_cell.alignment = Alignment(horizontal="center")
 
@@ -222,14 +276,16 @@ def export_to_excel(records: list, download_stats: dict | None = None) -> str:
     ws.merge_cells("A2:I2")
     meta_cell = ws["A2"]
     meta_cell.value = (
-        f"匯出時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | "
-        f"紀錄總數: {len(records)} 筆"
+        f"{ui['export_time']}: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | "
+        f"{ui['total_records']}: {len(records)}"
     )
     meta_cell.font = Font(name="Microsoft JhengHei", size=9, color="808080")
     meta_cell.alignment = Alignment(horizontal="right")
 
-    # Headers (row 4)
-    headers = ["#", "紀錄 ID", "時間", "操作", "文件編號", "操作者", "詳情", "下載次數", "下載者（最近5筆）"]
+    # Headers (row 4) — 9 cols (prepend record-id to the 8-col list)
+    base_headers = ui["headers"]
+    record_id_label = "Record ID" if lang == "en-US" else ("レコードID" if lang == "ja-JP" else "紀錄 ID")
+    headers = [base_headers[0], record_id_label] + base_headers[1:]
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=4, column=col, value=header)
         cell.font = header_font
@@ -253,7 +309,7 @@ def export_to_excel(records: list, download_stats: dict | None = None) -> str:
             idx,
             r.get("record_id", ""),
             ts_str,
-            _action_label(r.get("action", "")),
+            _action_label(r.get("action", ""), lang),
             doc_id,
             r.get("user_id", ""),
             _format_details(r.get("details", {})),

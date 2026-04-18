@@ -1041,6 +1041,8 @@ class ComparisonTable:
                     "verdict_icon": verdict_disp.get("icon", ""),
                     "verdict_label": verdict_disp.get("label_zh", ""),
                     "remediation": r.remediation_suggestion,
+                    "remediation_suggestion": r.remediation_suggestion,
+                    "remediation_regulation_cite": r.remediation_regulation_cite,
                     "flagged_for_ra": r.flagged_for_ra,
                     "ra_override": r.ra_override,
                     "ra_notes": r.ra_notes,
@@ -1048,6 +1050,8 @@ class ComparisonTable:
                     "verification_rounds": len(r.verification_rounds),
                     "qa_audit": r.qa_audit,
                     "phase_status_summary": phase_status_summary,
+                    "analyzer_position": _extract_analyzer_position(r),
+                    "verifier_position": _extract_verifier_position(r),
                 }
             )
 
@@ -1060,6 +1064,30 @@ class ComparisonTable:
                 return [999]
         rows.sort(key=_clause_sort_key)
         return rows
+
+
+def _extract_analyzer_position(row_state) -> str:
+    """Extract P5 analyzer position text from verification_rounds."""
+    rounds = getattr(row_state, "verification_rounds", []) or []
+    for rd in rounds:
+        if isinstance(rd, dict):
+            analyzer = rd.get("analyzer", {})
+            pos = analyzer.get("position", analyzer.get("response", ""))
+            if pos:
+                return str(pos)[:800]
+    return ""
+
+
+def _extract_verifier_position(row_state) -> str:
+    """Extract P5 verifier overall_assessment from verification_rounds."""
+    rounds = getattr(row_state, "verification_rounds", []) or []
+    for rd in rounds:
+        if isinstance(rd, dict):
+            verifier = rd.get("verifier", {})
+            assessment = verifier.get("overall_assessment", "")
+            if assessment:
+                return str(assessment)[:600]
+    return ""
 
 
 def build_initial_rows(

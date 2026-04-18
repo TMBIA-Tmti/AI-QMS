@@ -90,8 +90,12 @@ class Verdict:
     PARTIAL_COMPLIANCE = "partial_compliance"  # ⚠️ 部分符合
     NON_COMPLIANCE = "non_compliance"  # ❌ 未符合
     INSUFFICIENT_DATA = "insufficient_data"  # ⬜ 資料不足
+    NOT_APPLICABLE = "not_applicable"  # ➖ 不適用（無證據項目，跳過 LLM 階段）
 
-    ALL = (FULL_COMPLIANCE, PARTIAL_COMPLIANCE, NON_COMPLIANCE, INSUFFICIENT_DATA)
+    ALL = (FULL_COMPLIANCE, PARTIAL_COMPLIANCE, NON_COMPLIANCE, INSUFFICIENT_DATA, NOT_APPLICABLE)
+
+    # Verdicts that do not require LLM phases (P2/P4/P5)
+    LLM_SKIP = (FULL_COMPLIANCE, NOT_APPLICABLE)
 
 
 # ============================================================
@@ -151,6 +155,11 @@ VERDICT_DISPLAY = {
         "icon": "⬜",
         "label_zh": "資料不足",
         "label_en": "Insufficient Data",
+    },
+    Verdict.NOT_APPLICABLE: {
+        "icon": "➖",
+        "label_zh": "不適用",
+        "label_en": "Not Applicable",
     },
 }
 

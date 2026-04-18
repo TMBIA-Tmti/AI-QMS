@@ -474,6 +474,20 @@ async def run_pipeline_analysis(
         result.success = False
         result.error = str(e)
         logger.error(f"Pipeline runner failed: {e}", exc_info=True)
+        # Save partial state so the report is still accessible
+        try:
+            pipeline._state.status = PhaseStatus.FAILED.value
+            pipeline._save_state()
+            result.run_id = pipeline.state.run_id
+            result.state = pipeline.state
+            result.table = pipeline.table
+            result.total_rows = pipeline.state.total_rows
+            result.completed_rows = pipeline.state.completed_rows
+            result.state_file_path = str(
+                pipeline._state_dir / f"{pipeline.state.run_id}.json"
+            )
+        except Exception as _save_err:
+            logger.warning(f"Could not save partial state after failure: {_save_err}")
 
     result.duration_seconds = time.time() - start_time
     return result
