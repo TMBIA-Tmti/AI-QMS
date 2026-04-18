@@ -4949,6 +4949,7 @@ async def handle_regulatory_list():
             except Exception:
                 _reg_list_selected_ids = []
 
+            _pipeline_lang = cl.user_session.get("language", "zh-TW")
             pipeline_result = await run_pipeline_analysis(
                 scan_result=scan_result,
                 llm_completion_fn=manager.completion,
@@ -4962,6 +4963,7 @@ async def handle_regulatory_list():
                 else None,
                 custom_skip_phases=_skip_phases if _skip_phases else None,
                 max_tokens_budget=10_000_000_000,
+                lang=_pipeline_lang,
             )
 
         if pipeline_result and pipeline_result.success:
@@ -5746,6 +5748,7 @@ async def handle_regulatory_update_rescan(selected_regions: list):
                         f"{t('report.page_online')}"
                     ).send()
 
+                _pipeline_lang_update = cl.user_session.get("language", "zh-TW")
                 pipeline_result = await run_pipeline_analysis(
                     scan_result=scan_result_local,
                     llm_completion_fn=manager.completion,
@@ -5761,6 +5764,7 @@ async def handle_regulatory_update_rescan(selected_regions: list):
                     if _skip_phases_update
                     else None,
                     max_tokens_budget=10_000_000_000,
+                    lang=_pipeline_lang_update,
                 )
 
             if pipeline_result and pipeline_result.success:

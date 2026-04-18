@@ -1417,7 +1417,11 @@ async def reset_for_rerun(run_id: str, row_id: str, body: dict = None):
 
 
 @report_router.get("/{run_id}/export/{fmt}")
-async def export_report(run_id: str, fmt: str):
+async def export_report(
+    run_id: str,
+    fmt: str,
+    lang: str = Query(default="zh-TW"),
+):
     """Export summary report (摘要匯出) as Word or Excel.
 
     fmt: "word" or "excel"
@@ -1429,7 +1433,7 @@ async def export_report(run_id: str, fmt: str):
     # Forward deep report requests to the dedicated handler
     if fmt in ("deep_word", "deep_excel"):
         deep_fmt = fmt.replace("deep_", "")
-        return await export_deep_report(run_id, deep_fmt)
+        return await export_deep_report(run_id, deep_fmt, lang=lang)
 
     if fmt not in ("word", "excel"):
         raise HTTPException(status_code=400, detail="Format must be 'word' or 'excel'")
@@ -2112,7 +2116,11 @@ async def get_crossexam_record(record_id: str):
 
 
 @report_router.get("/crossexam/history/{record_id}/export/{fmt}")
-async def export_crossexam_record(record_id: str, fmt: str):
+async def export_crossexam_record(
+    record_id: str,
+    fmt: str,
+    lang: str = Query(default="zh-TW"),
+):
     """Export a single cross-exam record as Word or Excel.
 
     fmt: 'word' or 'excel'
@@ -2134,9 +2142,15 @@ async def export_crossexam_record(record_id: str, fmt: str):
         )
 
         if fmt == "word":
-            filepath = export_crossexam_record_word(record.to_dict())
+            try:
+                filepath = export_crossexam_record_word(record.to_dict(), lang=lang)
+            except TypeError:
+                filepath = export_crossexam_record_word(record.to_dict())
         else:
-            filepath = export_crossexam_record_excel(record.to_dict())
+            try:
+                filepath = export_crossexam_record_excel(record.to_dict(), lang=lang)
+            except TypeError:
+                filepath = export_crossexam_record_excel(record.to_dict())
 
         content_type = (
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -2159,7 +2173,11 @@ async def export_crossexam_record(record_id: str, fmt: str):
 
 
 @report_router.get("/{run_id}/export/deep_{fmt}")
-async def export_deep_report(run_id: str, fmt: str):
+async def export_deep_report(
+    run_id: str,
+    fmt: str,
+    lang: str = Query(default="zh-TW"),
+):
     """Export a full report including ALL LLM interactions.
 
     This is the "完整匯出" (Full Export) — includes comparison table,
@@ -2216,26 +2234,52 @@ async def export_deep_report(run_id: str, fmt: str):
             export_deep_report_excel,
         )
 
+        # Try calling with lang first; fall back gracefully if the export
+        # function does not yet accept a lang keyword (backward compatibility).
         if fmt == "word":
-            filepath = export_deep_report_word(
-                run_id,
-                flat_rows,
-                summary,
-                interactions,
-                crossexam_record,
-                meta_analysis,
-                qa_audit_summary,
-            )
+            try:
+                filepath = export_deep_report_word(
+                    run_id,
+                    flat_rows,
+                    summary,
+                    interactions,
+                    crossexam_record,
+                    meta_analysis,
+                    qa_audit_summary,
+                    lang=lang,
+                )
+            except TypeError:
+                filepath = export_deep_report_word(
+                    run_id,
+                    flat_rows,
+                    summary,
+                    interactions,
+                    crossexam_record,
+                    meta_analysis,
+                    qa_audit_summary,
+                )
         else:
-            filepath = export_deep_report_excel(
-                run_id,
-                flat_rows,
-                summary,
-                interactions,
-                crossexam_record,
-                meta_analysis,
-                qa_audit_summary,
-            )
+            try:
+                filepath = export_deep_report_excel(
+                    run_id,
+                    flat_rows,
+                    summary,
+                    interactions,
+                    crossexam_record,
+                    meta_analysis,
+                    qa_audit_summary,
+                    lang=lang,
+                )
+            except TypeError:
+                filepath = export_deep_report_excel(
+                    run_id,
+                    flat_rows,
+                    summary,
+                    interactions,
+                    crossexam_record,
+                    meta_analysis,
+                    qa_audit_summary,
+                )
 
         content_type = (
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -2273,7 +2317,10 @@ async def get_meta_analysis():
 
 
 @report_router.get("/crossexam/meta-analysis/export/{fmt}")
-async def export_meta_analysis(fmt: str):
+async def export_meta_analysis(
+    fmt: str,
+    lang: str = Query(default="zh-TW"),
+):
     """Export meta-analysis report as Word or Excel.
 
     fmt: 'word' or 'excel'
@@ -2294,14 +2341,27 @@ async def export_meta_analysis(fmt: str):
 
         # Export as a standalone report with just the meta-analysis section
         meta_analysis = result.llm_response
+        run_id_for_export = f"meta_analysis_{result.analysis_id}"
         if fmt == "word":
-            filepath = export_deep_report_word(
-                f"meta_analysis_{result.analysis_id}", [], {}, None, None, meta_analysis
-            )
+            try:
+                filepath = export_deep_report_word(
+                    run_id_for_export, [], {}, None, None, meta_analysis,
+                    lang=lang,
+                )
+            except TypeError:
+                filepath = export_deep_report_word(
+                    run_id_for_export, [], {}, None, None, meta_analysis
+                )
         else:
-            filepath = export_deep_report_excel(
-                f"meta_analysis_{result.analysis_id}", [], {}, None, None, meta_analysis
-            )
+            try:
+                filepath = export_deep_report_excel(
+                    run_id_for_export, [], {}, None, None, meta_analysis,
+                    lang=lang,
+                )
+            except TypeError:
+                filepath = export_deep_report_excel(
+                    run_id_for_export, [], {}, None, None, meta_analysis
+                )
 
         content_type = (
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document"

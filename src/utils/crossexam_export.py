@@ -37,6 +37,97 @@ EXPORT_DIR = Path("data/exports")
 
 
 # ============================================================
+# Language helpers (bilingual section headers)
+# ============================================================
+
+
+def _lang_key(lang: str) -> str:
+    """Normalize a UI language code to a key (zh / en / ja)."""
+    if not lang:
+        return "zh"
+    if lang.startswith("zh"):
+        return "zh"
+    if lang.startswith("ja"):
+        return "ja"
+    if lang.startswith("en"):
+        return "en"
+    return "en"
+
+
+_EXPORT_HEADERS: dict[str, dict[str, str]] = {
+    "zh": {
+        "title_crossexam": "AI-QMS 交叉詰問記錄",
+        "title_deep": "AI-QMS 完整分析報告",
+        "summary": "摘要",
+        "clause_details": "條款交叉詰問詳情",
+        "record_id": "記錄 ID",
+        "analysis_id": "分析 ID",
+        "time": "時間",
+        "regulations": "法規",
+        "countries": "國家",
+        "clause_count": "條款數",
+        "agreed": "同意",
+        "flagged_ra": "標記 RA",
+        "total_rounds": "總輪次",
+        "model": "模型",
+        "duration": "耗時",
+        "none": "無",
+        "doc": "文件",
+        "verdict": "判定",
+        "gap": "差距",
+        "yes": "是",
+        "no": "否",
+    },
+    "en": {
+        "title_crossexam": "AI-QMS Cross-Examination Record",
+        "title_deep": "AI-QMS Full Analysis Report",
+        "summary": "Summary",
+        "clause_details": "Clause Cross-Examination Details",
+        "record_id": "Record ID",
+        "analysis_id": "Run ID",
+        "time": "Time",
+        "regulations": "Regulations",
+        "countries": "Countries",
+        "clause_count": "Clause count",
+        "agreed": "Agreed",
+        "flagged_ra": "Flagged for RA",
+        "total_rounds": "Total rounds",
+        "model": "Model",
+        "duration": "Duration",
+        "none": "None",
+        "doc": "Document",
+        "verdict": "Verdict",
+        "gap": "Gap",
+        "yes": "Yes",
+        "no": "No",
+    },
+    "ja": {
+        "title_crossexam": "AI-QMS 相互尋問記録",
+        "title_deep": "AI-QMS 完全分析レポート",
+        "summary": "サマリー",
+        "clause_details": "条項相互尋問詳細",
+        "record_id": "記録ID",
+        "analysis_id": "実行ID",
+        "time": "時刻",
+        "regulations": "規制",
+        "countries": "国",
+        "clause_count": "条項数",
+        "agreed": "同意",
+        "flagged_ra": "RA要確認",
+        "total_rounds": "総ラウンド数",
+        "model": "モデル",
+        "duration": "所要時間",
+        "none": "なし",
+        "doc": "文書",
+        "verdict": "判定",
+        "gap": "ギャップ",
+        "yes": "はい",
+        "no": "いいえ",
+    },
+}
+
+
+# ============================================================
 # Shared: AI Roles Legend
 # ============================================================
 
@@ -107,11 +198,12 @@ def _add_ai_roles_legend(doc) -> None:
 # ============================================================
 
 
-def export_crossexam_record_word(record_dict: dict) -> Path:
+def export_crossexam_record_word(record_dict: dict, lang: str = "zh-TW") -> Path:
     """Export a single cross-exam record as a Word document.
 
     Args:
         record_dict: CrossExamRecord.to_dict() output
+        lang: UI language code (e.g., 'zh-TW', 'en', 'ja') — controls section headers
 
     Returns:
         Path to the generated .docx file
@@ -120,11 +212,14 @@ def export_crossexam_record_word(record_dict: dict) -> Path:
     from docx.shared import Pt, RGBColor, Inches
     from docx.enum.text import WD_ALIGN_PARAGRAPH
 
+    lk = _lang_key(lang)
+    h = _EXPORT_HEADERS[lk]
+
     EXPORT_DIR.mkdir(parents=True, exist_ok=True)
     filepath = EXPORT_DIR / f"crossexam_{record_dict.get('record_id', 'unknown')}.docx"
 
     doc = Document()
-    title = doc.add_heading("AI-QMS 交叉詰問記錄", level=1)
+    title = doc.add_heading(h["title_crossexam"], level=1)
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     # Metadata
@@ -261,17 +356,21 @@ def export_crossexam_record_word(record_dict: dict) -> Path:
     return filepath
 
 
-def export_crossexam_record_excel(record_dict: dict) -> Path:
+def export_crossexam_record_excel(record_dict: dict, lang: str = "zh-TW") -> Path:
     """Export a single cross-exam record as an Excel file.
 
     Args:
         record_dict: CrossExamRecord.to_dict() output
+        lang: UI language code (e.g., 'zh-TW', 'en', 'ja')
 
     Returns:
         Path to the generated .xlsx file
     """
     from openpyxl import Workbook
     from openpyxl.styles import Font, Alignment, PatternFill
+
+    # lang reserved for future localization of sheet/section names
+    _lk = _lang_key(lang)
 
     EXPORT_DIR.mkdir(parents=True, exist_ok=True)
     filepath = EXPORT_DIR / f"crossexam_{record_dict.get('record_id', 'unknown')}.xlsx"
@@ -422,6 +521,7 @@ def export_deep_report_word(
     crossexam_record: dict | None = None,
     meta_analysis: dict | None = None,
     qa_audit_summary: dict | None = None,
+    lang: str = "zh-TW",
 ) -> Path:
     """Export a deep analysis report as Word document.
 
@@ -434,10 +534,13 @@ def export_deep_report_word(
         interactions: InteractionLog interactions list
         crossexam_record: CrossExamRecord.to_dict() (optional)
         meta_analysis: Meta-analysis QA results (optional)
+        qa_audit_summary: QA-audit summary (optional)
+        lang: UI language code (e.g., 'zh-TW', 'en', 'ja')
 
     Returns:
         Path to generated .docx
     """
+    _lk = _lang_key(lang)
     from docx import Document
     from docx.shared import Pt, RGBColor, Inches
     from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -774,13 +877,20 @@ def export_deep_report_excel(
     crossexam_record: dict | None = None,
     meta_analysis: dict | None = None,
     qa_audit_summary: dict | None = None,
+    lang: str = "zh-TW",
 ) -> Path:
     """Export a deep analysis report as Excel workbook.
 
     Multiple sheets: Summary, Compliance Table, LLM Interactions, Cross-Exam, Meta-Analysis.
+
+    Args:
+        lang: UI language code (e.g., 'zh-TW', 'en', 'ja') — reserved for
+            future localization of sheet/section names.
     """
     from openpyxl import Workbook
     from openpyxl.styles import Font, Alignment, PatternFill
+
+    _lk = _lang_key(lang)
 
     EXPORT_DIR.mkdir(parents=True, exist_ok=True)
     filepath = EXPORT_DIR / f"deep_report_{run_id}.xlsx"

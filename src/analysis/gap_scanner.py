@@ -44,10 +44,28 @@ __all__ = [
 
 
 # ============================================================
-# Prompt construction
+# Prompt construction (bilingual: zh / en / ja)
 # ============================================================
 
-_SYSTEM_PROMPT = """你是 ISO 13485:2016 稽核支援文件搜尋助手，專精於依照客觀證據原則（Objective Evidence）在品質文件中定位合規依據。
+
+def _lang_key(lang: str) -> str:
+    """Normalize a UI language code to a prompt dict key (zh / en / ja).
+
+    Falls back to 'en' for anything other than zh/ja.
+    """
+    if not lang:
+        return "zh"
+    if lang.startswith("zh"):
+        return "zh"
+    if lang.startswith("ja"):
+        return "ja"
+    if lang.startswith("en"):
+        return "en"
+    return "en"
+
+
+_SYSTEM_PROMPTS: dict[str, str] = {
+    "zh": """你是 ISO 13485:2016 稽核支援文件搜尋助手，專精於依照客觀證據原則（Objective Evidence）在品質文件中定位合規依據。
 
 嚴格規則：
 1. 你只負責「搜尋」和「精確引用」，不做合規性判斷。
@@ -59,9 +77,37 @@ _SYSTEM_PROMPT = """你是 ISO 13485:2016 稽核支援文件搜尋助手，專�
    - 缺失 (found=false)：文件中完全找不到相關內容。
 5. 語言符合性 ≠ 法規正確性：文件使用相似術語不等於實質涵蓋法規要求，需確認實質程序內容。
 6. 如發現文件版本日期或引用標準已過期（如引用 ISO 13485:2003 而非 2016 版），標示 is_outdated=true。
-7. 回答必須使用指定的 JSON 格式。"""
+7. 回答必須使用指定的 JSON 格式。""",
+    "en": """You are an ISO 13485:2016 audit evidence search assistant, specializing in locating compliance evidence within quality documents based on the Objective Evidence principle.
 
-_USER_PROMPT_TEMPLATE = """## 搜尋任務
+Strict rules:
+1. Your role is to "search" and "quote precisely" — do not make final compliance judgments.
+2. When you find a relevant passage, you must quote the original text verbatim and label its section title and location.
+3. When not found, clearly mark found=false; never fabricate, speculate, or add content that does not appear in the document.
+4. Distinguish three outcomes (per ISO 13485 audit practice):
+   - Adequate (found=true, is_inadequate=false): the document explicitly describes "how to execute" the requirement (not just "mentions" it), including procedures, responsible roles, and measurable criteria.
+   - Inadequate (found=true, is_inadequate=true): the document mentions the requirement but lacks specific procedures, responsible roles, frequency, or measurable criteria.
+   - Missing (found=false): no relevant content can be located in the document.
+5. Linguistic similarity is NOT regulatory correctness: using similar terminology does not mean the regulatory requirement is substantively covered — confirm actual procedural content.
+6. If the document version or referenced standard is outdated (e.g. referencing ISO 13485:2003 instead of 2016), mark is_outdated=true.
+7. Respond strictly in the specified JSON format.""",
+    "ja": """あなたは ISO 13485:2016 監査支援文書検索アシスタントです。客観的証拠（Objective Evidence）の原則に基づき、品質文書の中から適合性の根拠を特定することに特化しています。
+
+厳格なルール：
+1. あなたの役割は「検索」と「正確な引用」であり、最終的な適合性判定は行わないこと。
+2. 関連する記述を見つけた場合、原文を逐語引用し、出典の章節タイトルと段落位置を明示すること。
+3. 見つからない場合は found=false と明示し、文書に存在しない内容を捏造・推測・補足してはならない。
+4. ISO 13485 の監査実務に従い、以下の 3 種類を区別すること：
+   - 十分 (found=true, is_inadequate=false)：文書が要件の「実施方法」を明確に記述し、手順、責任者、測定可能な基準を含む。
+   - 不十分 (found=true, is_inadequate=true)：文書が要件に言及しているものの、具体的な手順、責任者、頻度、測定可能な基準を欠いている。
+   - 欠落 (found=false)：関連する内容が文書に一切存在しない。
+5. 言語的類似性 ≠ 法規制上の正しさ：類似用語の使用は、規制要件を実質的にカバーしていることを意味しない。実質的な手順内容を確認すること。
+6. 文書のバージョンまたは引用規格が陳腐化している場合（例：ISO 13485:2016 ではなく 2003 を引用）、is_outdated=true とマークすること。
+7. 回答は必ず指定の JSON 形式で行うこと。""",
+}
+
+_USER_PROMPT_TEMPLATES: dict[str, str] = {
+    "zh": """## 搜尋任務
 
 **法規條款**: {clause_id} — {clause_title}
 **稽核問題**: {audit_question}
@@ -95,7 +141,82 @@ _USER_PROMPT_TEMPLATE = """## 搜尋任務
     }}
   ]
 }}
-```"""
+```""",
+    "en": """## Search Task
+
+**Regulatory Clause**: {clause_id} — {clause_title}
+**Audit Question**: {audit_question}
+
+**Evidence items to search for** (total: {evidence_count}):
+{evidence_list}
+
+## Company Document Content
+
+**Document ID**: {doc_id}
+**Document Title**: {doc_title}
+
+{doc_content}
+
+## Response Format
+
+Respond in JSON, one object per evidence item:
+
+```json
+{{
+  "evidence_results": [
+    {{
+      "evidence_name": "Evidence item name (must match the list above exactly)",
+      "found": true/false,
+      "source_section": "Section title where the passage is located",
+      "source_quote": "Verbatim quotation from the document (max 200 characters)",
+      "relevance_score": 0.0-1.0,
+      "is_inadequate": true/false,
+      "is_outdated": true/false,
+      "reasoning": "Brief explanation of why it was judged as found / not found"
+    }}
+  ]
+}}
+```""",
+    "ja": """## 検索タスク
+
+**規制条項**: {clause_id} — {clause_title}
+**監査質問**: {audit_question}
+
+**検索対象の証拠項目**（合計 {evidence_count} 件）：
+{evidence_list}
+
+## 会社文書の内容
+
+**文書番号**: {doc_id}
+**文書タイトル**: {doc_title}
+
+{doc_content}
+
+## 回答形式
+
+各証拠項目につき 1 オブジェクトを JSON 形式で回答してください：
+
+```json
+{{
+  "evidence_results": [
+    {{
+      "evidence_name": "証拠項目名（上記リストと完全一致）",
+      "found": true/false,
+      "source_section": "該当箇所の章節タイトル",
+      "source_quote": "原文からの逐語引用（最大200文字）",
+      "relevance_score": 0.0-1.0,
+      "is_inadequate": true/false,
+      "is_outdated": true/false,
+      "reasoning": "見つかった / 見つからないと判断した理由の簡潔な説明"
+    }}
+  ]
+}}
+```""",
+}
+
+# Back-compat aliases (some callers may still reference these names)
+_SYSTEM_PROMPT = _SYSTEM_PROMPTS["zh"]
+_USER_PROMPT_TEMPLATE = _USER_PROMPT_TEMPLATES["zh"]
 
 
 def build_gap_scan_prompt(
@@ -103,6 +224,7 @@ def build_gap_scan_prompt(
     doc_content: str,
     candidate_sections: Optional[list[dict]] = None,
     max_content_chars: int = 15000,
+    lang: str = "zh-TW",
 ) -> list[dict]:
     """Build the LLM prompt for gap scanning a single row.
 
@@ -125,6 +247,15 @@ def build_gap_scan_prompt(
         evidence_lines.append(f"{i}. {ev}")
     evidence_list = "\n".join(evidence_lines)
 
+    lk = _lang_key(lang)
+    # Localized headings for "unknown section" / "other document content"
+    _unknown_section = {"zh": "未知章節", "en": "Unknown Section", "ja": "不明な章節"}[lk]
+    _other_content = {
+        "zh": "其他文件內容",
+        "en": "Other Document Content",
+        "ja": "その他の文書内容",
+    }[lk]
+
     # Prepare document content — prioritize candidate sections
     if candidate_sections and len(doc_content) > max_content_chars:
         # Include candidate sections first, then fill remaining with context
@@ -136,20 +267,20 @@ def build_gap_scan_prompt(
             if preview and remaining_budget > 0:
                 chunk = preview[:remaining_budget]
                 prioritized_parts.append(
-                    f"### {cs.get('heading', '未知章節')}\n{chunk}"
+                    f"### {cs.get('heading', _unknown_section)}\n{chunk}"
                 )
                 remaining_budget -= len(chunk)
 
         # Fill remaining budget with document head/tail
         if remaining_budget > 500:
             remaining_content = doc_content[:remaining_budget]
-            prioritized_parts.append(f"\n### 其他文件內容\n{remaining_content}")
+            prioritized_parts.append(f"\n### {_other_content}\n{remaining_content}")
 
         final_content = "\n\n".join(prioritized_parts)
     else:
         final_content = doc_content[:max_content_chars]
 
-    user_prompt = _USER_PROMPT_TEMPLATE.format(
+    user_prompt = _USER_PROMPT_TEMPLATES[lk].format(
         clause_id=row.clause_id,
         clause_title=row.clause_title,
         audit_question=row.audit_question,
@@ -161,20 +292,46 @@ def build_gap_scan_prompt(
     )
 
     return [
-        {"role": "system", "content": _SYSTEM_PROMPT},
+        {"role": "system", "content": _SYSTEM_PROMPTS[lk]},
         {"role": "user", "content": user_prompt},
     ]
+
+
+_PARSE_ERROR_MSGS = {
+    "parse_failed": {
+        "zh": "LLM 回應格式錯誤，無法解析",
+        "en": "LLM response format error; could not be parsed",
+        "ja": "LLM 応答の形式が不正で解析できません",
+    },
+    "item_missing": {
+        "zh": "LLM 回應中未包含此項目",
+        "en": "LLM response did not include this item",
+        "ja": "LLM の応答にこの項目が含まれていません",
+    },
+    "clause_missing": {
+        "zh": "LLM 回應中未包含此條款的結果",
+        "en": "LLM response did not include results for this clause",
+        "ja": "LLM の応答にこの条項の結果が含まれていません",
+    },
+    "out_of_scope": {
+        "zh": "文件範疇不涵蓋此條款（預篩選排除）",
+        "en": "Document scope does not cover this clause (filtered out)",
+        "ja": "文書の範囲にこの条項は含まれません（事前フィルタで除外）",
+    },
+}
 
 
 def _parse_gap_scan_response(
     response_text: str,
     expected_evidence: list[str],
+    lang: str = "zh-TW",
 ) -> list[EvidenceItem]:
     """Parse the LLM's JSON response into EvidenceItem objects.
 
     Handles partial/malformed JSON gracefully.
     """
     evidence_items: list[EvidenceItem] = []
+    lk = _lang_key(lang)
 
     # Try to extract JSON from response
     json_str = response_text.strip()
@@ -217,7 +374,7 @@ def _parse_gap_scan_response(
                 EvidenceItem(
                     evidence_name=ev_name,
                     found=False,
-                    llm_reasoning="LLM 回應格式錯誤，無法解析",
+                    llm_reasoning=_PARSE_ERROR_MSGS["parse_failed"][lk],
                 )
             )
 
@@ -229,7 +386,7 @@ def _parse_gap_scan_response(
                 EvidenceItem(
                     evidence_name=ev_name,
                     found=False,
-                    llm_reasoning="LLM 回應中未包含此項目",
+                    llm_reasoning=_PARSE_ERROR_MSGS["item_missing"][lk],
                 )
             )
 
@@ -248,6 +405,7 @@ def run_gap_scan_row(
     model: str = "default",
     temperature: float = 0.1,
     max_tokens: int = 8192,
+    lang: str = "zh-TW",
 ) -> PhaseResult:
     """Execute Phase 1 gap scan for a single row.
 
@@ -274,9 +432,31 @@ def run_gap_scan_row(
         service = MarkdownStoreService()
         doc_result = service.get_document(row_state.doc_id)
 
+        lk = _lang_key(lang)
+        _err_read = {
+            "zh": f"無法讀取文件 {row_state.doc_id}",
+            "en": f"Could not read document {row_state.doc_id}",
+            "ja": f"文書 {row_state.doc_id} を読み込めません",
+        }[lk]
+        _err_budget = {
+            "zh": "LLM token 預算已用盡",
+            "en": "LLM token budget exhausted",
+            "ja": "LLM トークン予算を使い切りました",
+        }[lk]
+        _err_empty = {
+            "zh": "LLM 回應為空",
+            "en": "LLM response was empty",
+            "ja": "LLM の応答が空です",
+        }[lk]
+        _err_call_prefix = {
+            "zh": "LLM 呼叫失敗",
+            "en": "LLM call failed",
+            "ja": "LLM 呼び出しに失敗しました",
+        }[lk]
+
         if not doc_result or not doc_result.get("success"):
             phase_result.status = PhaseStatus.FAILED.value
-            phase_result.error = f"無法讀取文件 {row_state.doc_id}"
+            phase_result.error = _err_read
             phase_result.completed_at = time.time()
             return phase_result
 
@@ -293,13 +473,14 @@ def run_gap_scan_row(
             row_state,
             doc_content,
             candidate_sections,
+            lang=lang,
         )
 
         # Check budget
         budget = state.get_budget()
         if budget.exceeded:
             phase_result.status = PhaseStatus.FAILED.value
-            phase_result.error = "LLM token 預算已用盡"
+            phase_result.error = _err_budget
             phase_result.completed_at = time.time()
             return phase_result
 
@@ -317,15 +498,15 @@ def run_gap_scan_row(
         usage = response.get("usage", {})
         llm_model = response.get("model", model)
 
-        # 檢測 LLM 錯誤回應
+        # LLM error detection
         if (
             not response_text
             or response_text.startswith("[ERROR]")
             or response.get("all_failed")
         ):
-            error_detail = response_text[:200] if response_text else "LLM 回應為空"
+            error_detail = response_text[:200] if response_text else _err_empty
             phase_result.status = PhaseStatus.FAILED.value
-            phase_result.error = f"LLM 呼叫失敗: {error_detail}"
+            phase_result.error = f"{_err_call_prefix}: {error_detail}"
             phase_result.completed_at = time.time()
             return phase_result
 
@@ -337,6 +518,7 @@ def run_gap_scan_row(
         evidence_items = _parse_gap_scan_response(
             response_text,
             row_state.expected_evidence,
+            lang=lang,
         )
 
         # Store results
@@ -644,7 +826,8 @@ def filter_relevant_clauses(
 # Per-document prompt construction
 # ============================================================
 
-_DOC_SYSTEM_PROMPT = """你是 ISO 13485:2016 稽核支援文件搜尋助手，專精於依照客觀證據原則（Objective Evidence）在品質文件中定位多個法規條款的合規依據。
+_DOC_SYSTEM_PROMPTS: dict[str, str] = {
+    "zh": """你是 ISO 13485:2016 稽核支援文件搜尋助手，專精於依照客觀證據原則（Objective Evidence）在品質文件中定位多個法規條款的合規依據。
 
 嚴格規則：
 1. 你只負責「搜尋」和「精確引用」，不做合規性判斷。
@@ -656,9 +839,37 @@ _DOC_SYSTEM_PROMPT = """你是 ISO 13485:2016 稽核支援文件搜尋助手，�
    - 缺失 (found=false)：文件中完全找不到相關內容。
 5. 語言符合性 ≠ 法規正確性：文件使用相似術語不等於實質涵蓋法規要求，需確認實質程序內容。
 6. 如發現文件版本日期或引用標準已過期，標示 is_outdated=true。
-7. 回答必須使用指定的 JSON 格式，按條款編號分組。"""
+7. 回答必須使用指定的 JSON 格式，按條款編號分組。""",
+    "en": """You are an ISO 13485:2016 audit evidence search assistant, specializing in locating compliance evidence for multiple regulatory clauses within a quality document, based on the Objective Evidence principle.
 
-_DOC_USER_PROMPT_TEMPLATE = """## 搜尋任務
+Strict rules:
+1. Your role is to "search" and "quote precisely" — do not make final compliance judgments.
+2. When you find a relevant passage, you must quote the original text verbatim and label its section title and location.
+3. When not found, clearly mark found=false; never fabricate, speculate, or add content that does not appear in the document.
+4. Distinguish three outcomes (per ISO 13485:2016 audit practice):
+   - Adequate (found=true, is_inadequate=false): the document explicitly describes how to execute the requirement, including procedures, responsible roles, and measurable criteria.
+   - Inadequate (found=true, is_inadequate=true): the document mentions the requirement but lacks specific procedures, responsible roles, frequency, or measurable criteria.
+   - Missing (found=false): no relevant content is found in the document.
+5. Linguistic similarity is NOT regulatory correctness — confirm actual procedural content.
+6. If the document version or referenced standard is outdated, mark is_outdated=true.
+7. Respond in the specified JSON format, grouped by clause ID.""",
+    "ja": """あなたは ISO 13485:2016 監査支援文書検索アシスタントです。客観的証拠（Objective Evidence）の原則に基づき、単一の品質文書の中で複数の規制条項に対する適合性の根拠を特定することに特化しています。
+
+厳格なルール：
+1. あなたの役割は「検索」と「正確な引用」であり、最終的な適合性判定は行わないこと。
+2. 関連する記述を見つけた場合、原文を逐語引用し、出典の章節タイトルと段落位置を明示すること。
+3. 見つからない場合は found=false と明示し、文書に存在しない内容を捏造・推測・補足してはならない。
+4. ISO 13485:2016 の監査実務に従い、以下の 3 種類を区別すること：
+   - 十分 (found=true, is_inadequate=false)：文書が要件の実施方法を明確に記述し、手順、責任者、測定可能な基準を含む。
+   - 不十分 (found=true, is_inadequate=true)：文書が要件に言及しているものの、具体的な手順、責任者、頻度、測定可能な基準を欠いている。
+   - 欠落 (found=false)：関連する内容が文書に一切存在しない。
+5. 言語的類似性 ≠ 法規制上の正しさ：実質的な手順内容を確認すること。
+6. 文書のバージョンまたは引用規格が陳腐化している場合は is_outdated=true とマークすること。
+7. 回答は必ず指定の JSON 形式で、条項 ID ごとにグループ化して行うこと。""",
+}
+
+_DOC_USER_PROMPT_TEMPLATES: dict[str, str] = {
+    "zh": """## 搜尋任務
 
 你需要在以下品質文件中，針對 {clause_count} 個法規條款搜尋對應的證據項目。
 
@@ -696,18 +907,103 @@ _DOC_USER_PROMPT_TEMPLATE = """## 搜尋任務
     }}
   }}
 }}
-```"""
+```""",
+    "en": """## Search Task
+
+Within the quality document below, search for evidence items covering {clause_count} regulatory clauses.
+
+### List of Regulatory Clauses
+
+{clauses_section}
+
+## Company Document Content
+
+**Document ID**: {doc_id}
+**Document Title**: {doc_title}
+
+{doc_content}
+
+## Response Format
+
+Respond in JSON, grouped by clause ID:
+
+```json
+{{
+  "clause_results": {{
+    "clause_id": {{
+      "evidence_results": [
+        {{
+          "evidence_name": "Evidence item name (must match the list exactly)",
+          "found": true/false,
+          "source_section": "Section title where the passage is located",
+          "source_quote": "Verbatim quotation from the document (max 200 characters)",
+          "relevance_score": 0.0-1.0,
+          "is_inadequate": true/false,
+          "is_outdated": true/false,
+          "reasoning": "Brief explanation of the judgment"
+        }}
+      ]
+    }}
+  }}
+}}
+```""",
+    "ja": """## 検索タスク
+
+以下の品質文書の中から、{clause_count} 個の規制条項に対応する証拠項目を検索してください。
+
+### 規制条項一覧
+
+{clauses_section}
+
+## 会社文書の内容
+
+**文書番号**: {doc_id}
+**文書タイトル**: {doc_title}
+
+{doc_content}
+
+## 回答形式
+
+条項 ID ごとにグループ化した JSON 形式で回答してください：
+
+```json
+{{
+  "clause_results": {{
+    "条項ID": {{
+      "evidence_results": [
+        {{
+          "evidence_name": "証拠項目名（上記リストと完全一致）",
+          "found": true/false,
+          "source_section": "該当箇所の章節タイトル",
+          "source_quote": "原文からの逐語引用（最大200文字）",
+          "relevance_score": 0.0-1.0,
+          "is_inadequate": true/false,
+          "is_outdated": true/false,
+          "reasoning": "判断理由の簡潔な説明"
+        }}
+      ]
+    }}
+  }}
+}}
+```""",
+}
+
+# Back-compat aliases
+_DOC_SYSTEM_PROMPT = _DOC_SYSTEM_PROMPTS["zh"]
+_DOC_USER_PROMPT_TEMPLATE = _DOC_USER_PROMPT_TEMPLATES["zh"]
 
 
 def _parse_doc_gap_scan_response(
     response_text: str,
     rows: list[RowState],
+    lang: str = "zh-TW",
 ) -> dict[str, list[EvidenceItem]]:
     """Parse per-document LLM response into per-clause evidence items.
 
     Returns:
         Dict mapping clause_id -> list of EvidenceItem
     """
+    lk = _lang_key(lang)
     json_str = response_text.strip()
 
     # Handle markdown code blocks
@@ -763,7 +1059,7 @@ def _parse_doc_gap_scan_response(
                 EvidenceItem(
                     evidence_name=ev,
                     found=False,
-                    llm_reasoning="LLM 回應中未包含此條款的結果",
+                    llm_reasoning=_PARSE_ERROR_MSGS["clause_missing"][lk],
                 )
                 for ev in row.expected_evidence
             ]
@@ -776,7 +1072,7 @@ def _parse_doc_gap_scan_response(
                         EvidenceItem(
                             evidence_name=ev,
                             found=False,
-                            llm_reasoning="LLM 回應中未包含此項目",
+                            llm_reasoning=_PARSE_ERROR_MSGS["item_missing"][lk],
                         )
                     )
 
@@ -797,6 +1093,7 @@ def run_gap_scan_document(
     temperature: float = 0.1,
     max_tokens: int = 8192,
     run_id: str = "",
+    lang: str = "zh-TW",
 ) -> PhaseResult:
     """Execute Phase 1 gap scan for ALL clauses of one document in a single LLM call.
 
@@ -819,6 +1116,39 @@ def run_gap_scan_document(
     )
 
     try:
+        lk = _lang_key(lang)
+        _err_read = {
+            "zh": f"無法讀取文件 {doc_id}",
+            "en": f"Could not read document {doc_id}",
+            "ja": f"文書 {doc_id} を読み込めません",
+        }[lk]
+        _err_budget = {
+            "zh": "LLM token 預算已用盡",
+            "en": "LLM token budget exhausted",
+            "ja": "LLM トークン予算を使い切りました",
+        }[lk]
+        _err_empty = {
+            "zh": "LLM 回應為空",
+            "en": "LLM response was empty",
+            "ja": "LLM の応答が空です",
+        }[lk]
+        _err_call_prefix = {
+            "zh": "LLM 呼叫失敗",
+            "en": "LLM call failed",
+            "ja": "LLM 呼び出しに失敗しました",
+        }[lk]
+        _note_all_skipped = {
+            "zh": "全部條款均被預篩選排除",
+            "en": "All clauses were excluded by pre-filtering",
+            "ja": "すべての条項が事前フィルタで除外されました",
+        }[lk]
+        _audit_question_label = {"zh": "稽核問題", "en": "Audit Question", "ja": "監査質問"}[lk]
+        _evidence_to_search_label = {
+            "zh": "待搜尋證據",
+            "en": "Evidence to search",
+            "ja": "検索対象の証拠",
+        }[lk]
+
         # Get document content (once for all clauses)
         from src.services.markdown_store_service import MarkdownStoreService
 
@@ -827,7 +1157,7 @@ def run_gap_scan_document(
 
         if not doc_result or not doc_result.get("success"):
             phase_result.status = PhaseStatus.FAILED.value
-            phase_result.error = f"無法讀取文件 {doc_id}"
+            phase_result.error = _err_read
             phase_result.completed_at = time.time()
             return phase_result
 
@@ -858,7 +1188,7 @@ def run_gap_scan_document(
                     evidence_name=ev,
                     found=False,
                     relevance_score=0.0,
-                    llm_reasoning="文件範疇不涵蓋此條款（預篩選排除）",
+                    llm_reasoning=_PARSE_ERROR_MSGS["out_of_scope"][lk],
                 ).to_dict()
                 for ev in row.expected_evidence
             ]
@@ -884,7 +1214,7 @@ def run_gap_scan_document(
                 "total_found": 0,
                 "total_not_found": sum(len(r.expected_evidence) for r in rows),
                 "total_inadequate": 0,
-                "note": "全部條款均被預篩選排除",
+                "note": _note_all_skipped,
             }
             phase_result.completed_at = time.time()
             return phase_result
@@ -898,12 +1228,12 @@ def run_gap_scan_document(
             ev_text = "\n".join(evidence_lines)
             clauses_parts.append(
                 f"{i}. **{row.clause_id}** — {row.clause_title}\n"
-                f"   稽核問題: {row.audit_question}\n"
-                f"   待搜尋證據:\n{ev_text}"
+                f"   {_audit_question_label}: {row.audit_question}\n"
+                f"   {_evidence_to_search_label}:\n{ev_text}"
             )
         clauses_section = "\n\n".join(clauses_parts)
 
-        user_prompt = _DOC_USER_PROMPT_TEMPLATE.format(
+        user_prompt = _DOC_USER_PROMPT_TEMPLATES[lk].format(
             clause_count=len(scan_rows),
             clauses_section=clauses_section,
             doc_id=doc_id,
@@ -912,7 +1242,7 @@ def run_gap_scan_document(
         )
 
         messages = [
-            {"role": "system", "content": _DOC_SYSTEM_PROMPT},
+            {"role": "system", "content": _DOC_SYSTEM_PROMPTS[lk]},
             {"role": "user", "content": user_prompt},
         ]
 
@@ -920,7 +1250,7 @@ def run_gap_scan_document(
         budget = state.get_budget()
         if budget.exceeded:
             phase_result.status = PhaseStatus.FAILED.value
-            phase_result.error = "LLM token 預算已用盡"
+            phase_result.error = _err_budget
             phase_result.completed_at = time.time()
             return phase_result
 
@@ -955,7 +1285,7 @@ def run_gap_scan_document(
             _rt = response.get("content", "")
             if _rt and not _rt.startswith("[ERROR]") and not response.get("all_failed"):
                 break
-            last_error = _rt[:300] if _rt else "LLM 回應為空"
+            last_error = _rt[:300] if _rt else _err_empty
             is_rate_limit = "rate_limit" in last_error.lower() or "429" in last_error
             if not is_rate_limit:
                 break  # non-rate-limit error — no point retrying
@@ -964,15 +1294,15 @@ def run_gap_scan_document(
         usage = response.get("usage", {}) if response else {}
         llm_model = response.get("model", model) if response else model
 
-        # 檢測 LLM 錯誤回應
+        # LLM error detection
         if (
             not response_text
             or response_text.startswith("[ERROR]")
             or (response and response.get("all_failed"))
         ):
-            error_detail = last_error or (response_text[:200] if response_text else "LLM 回應為空")
+            error_detail = last_error or (response_text[:200] if response_text else _err_empty)
             phase_result.status = PhaseStatus.FAILED.value
-            phase_result.error = f"LLM 呼叫失敗: {error_detail}"
+            phase_result.error = f"{_err_call_prefix}: {error_detail}"
             phase_result.completed_at = time.time()
             _emit_pipeline_event(
                 run_id,
@@ -980,7 +1310,7 @@ def run_gap_scan_document(
                     "type": "phase_1_error",
                     "phase": "gap_scan",
                     "doc_id": doc_id,
-                    "error": f"LLM 呼叫失敗: {error_detail}",
+                    "error": f"{_err_call_prefix}: {error_detail}",
                 },
             )
             return phase_result
@@ -990,7 +1320,7 @@ def run_gap_scan_document(
         state.update_budget(budget)
 
         # Parse per-clause results (only scan_rows were sent to LLM)
-        clause_evidence = _parse_doc_gap_scan_response(response_text, scan_rows)
+        clause_evidence = _parse_doc_gap_scan_response(response_text, scan_rows, lang=lang)
 
         # Distribute results back to scanned rows
         total_found = 0
@@ -1051,22 +1381,59 @@ def run_gap_scan_document(
                     "inadequate": sum(1 for e in items if e.is_inadequate),
                 }
             )
+        # Localized question/answer summary for SSE conversation event
+        if lk == "ja":
+            _question_summary = (
+                f"文書「{doc_title}」({doc_id}) 内で、関連する {len(scan_rows)} 個の ISO 13485 条項に対する"
+                f"適合性証拠を検索してください（全 {len(rows)} 条項中、{len(skipped_rows)} 条項は事前フィルタで除外）。"
+            )
+            _inadequate_part = (
+                f"、不十分 {total_inadequate} 件 ⚠️" if total_inadequate else ""
+            )
+            _answer_summary = (
+                f"文書スキャン完了：{len(scan_rows)} 条項をスキャンし、"
+                f"発見 {total_found} 件 ✅、未発見 {total_not_found} 件 ❌"
+                + _inadequate_part
+                + f"（{len(skipped_rows)} 条項は範囲外のためスキップ）。"
+            )
+        elif lk == "en":
+            _question_summary = (
+                f"Please search document \"{doc_title}\" ({doc_id}) for compliance evidence "
+                f"covering {len(scan_rows)} relevant ISO 13485 clauses "
+                f"(of {len(rows)} total clauses; {len(skipped_rows)} excluded by pre-filtering)."
+            )
+            _inadequate_part = (
+                f", inadequate: {total_inadequate} ⚠️" if total_inadequate else ""
+            )
+            _answer_summary = (
+                f"Document scan complete: scanned {len(scan_rows)} clauses, "
+                f"found {total_found} ✅, not found {total_not_found} ❌"
+                + _inadequate_part
+                + f" ({len(skipped_rows)} clauses out of scope, skipped)."
+            )
+        else:
+            _question_summary = (
+                f"請在文件「{doc_title}」({doc_id}) 中搜尋 {len(scan_rows)} 個相關 ISO 13485 條款"
+                f"的合規證據（共 {len(rows)} 條款，{len(skipped_rows)} 條預篩選排除）。"
+            )
+            _inadequate_part = (
+                f"、不充分 {total_inadequate} 項 ⚠️" if total_inadequate else ""
+            )
+            _answer_summary = (
+                f"文件掃描完成：掃描 {len(scan_rows)} 條款，"
+                f"找到 {total_found} 項 ✅、未找到 {total_not_found} 項 ❌"
+                + _inadequate_part
+                + f"（{len(skipped_rows)} 條款範疇外，略過）。"
+            )
+
         _emit_pipeline_event(
             run_id,
             {
                 "type": "phase_1_conversation",
                 "doc_id": doc_id,
                 "clause_ids": [r.clause_id for r in scan_rows],
-                "question_summary": (
-                    f"請在文件「{doc_title}」({doc_id}) 中搜尋 {len(scan_rows)} 個相關 ISO 13485 條款"
-                    f"的合規證據（共 {len(rows)} 條款，{len(skipped_rows)} 條預篩選排除）。"
-                ),
-                "answer_summary": (
-                    f"文件掃描完成：掃描 {len(scan_rows)} 條款，"
-                    f"找到 {total_found} 項 ✅、未找到 {total_not_found} 項 ❌"
-                    + (f"、不充分 {total_inadequate} 項 ⚠️" if total_inadequate else "")
-                    + f"（{len(skipped_rows)} 條款範疇外，略過）。"
-                ),
+                "question_summary": _question_summary,
+                "answer_summary": _answer_summary,
                 "details": {"clauses": _clause_details},
             },
         )

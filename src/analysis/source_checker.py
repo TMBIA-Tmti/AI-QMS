@@ -155,11 +155,25 @@ def _collect_urls_from_pipeline(state: PipelineState) -> list[dict]:
 # ============================================================
 
 
+def _lang_key(lang: str) -> str:
+    """Normalize a UI language code to a key (zh / en / ja)."""
+    if not lang:
+        return "zh"
+    if lang.startswith("zh"):
+        return "zh"
+    if lang.startswith("ja"):
+        return "ja"
+    if lang.startswith("en"):
+        return "en"
+    return "en"
+
+
 def run_source_check(
     state: PipelineState,
     max_urls: int = 50,
     timeout_per_url: int = 15,
     skip_content_verify: bool = False,
+    lang: str = "zh-TW",
 ) -> PhaseResult:
     """Execute Phase 6 source verification — batch URL re-check.
 
@@ -171,10 +185,18 @@ def run_source_check(
         max_urls: Maximum number of URLs to verify (to avoid excessive requests)
         timeout_per_url: HTTP timeout per URL in seconds
         skip_content_verify: If True, only check accessibility (HEAD), skip content hash
+        lang: UI language code (e.g., 'zh-TW', 'en', 'ja')
 
     Returns:
         PhaseResult with verification summary
     """
+    lk = _lang_key(lang)
+    _no_urls_msg = {
+        "zh": "No regulatory URLs found to verify",
+        "en": "No regulatory URLs found to verify",
+        "ja": "検証対象の規制URLが見つかりませんでした",
+    }[lk]
+
     phase_result = PhaseResult(
         phase=Phase.SOURCE_CHECK.value,
         started_at=time.time(),
@@ -186,7 +208,7 @@ def run_source_check(
 
         if not url_entries:
             phase_result.status = PhaseStatus.SKIPPED.value
-            phase_result.output = {"reason": "No regulatory URLs found to verify"}
+            phase_result.output = {"reason": _no_urls_msg}
             phase_result.completed_at = time.time()
             return phase_result
 

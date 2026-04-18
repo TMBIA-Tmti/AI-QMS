@@ -565,6 +565,7 @@ class AnalysisPipeline:
                 llm_completion_fn=self._llm_fn,
                 model=self._model,
                 run_id=self._state.run_id,
+                lang=self._lang,
             )
             return (doc_id, rows, result)
 
@@ -623,6 +624,7 @@ class AnalysisPipeline:
                 llm_completion_fn=self._llm_fn,
                 model=self._model,
                 run_id=self._state.run_id,
+                lang=self._lang,
             )
             return (doc_id, rows, result)
 
@@ -772,6 +774,7 @@ class AnalysisPipeline:
                 llm_completion_fn=self._llm_fn,
                 model=self._model,
                 run_id=self._state.run_id,
+                lang=self._lang,
             )
             return (doc_id, rows, result)
 
@@ -846,6 +849,7 @@ class AnalysisPipeline:
                 model=self._model,
                 selected_regulations=self._selected_regulations,
                 run_id=self._state.run_id,
+                lang=self._lang,
             )
             return (doc_id, rows, result)
 
@@ -925,6 +929,7 @@ class AnalysisPipeline:
                             model=self._model,
                             selected_regulations=self._selected_regulations,
                             run_id=self._state.run_id,
+                            lang=self._lang,
                         ): did
                         for did, drows in verified_doc_groups.items()
                     }
@@ -974,7 +979,7 @@ class AnalysisPipeline:
         logger.info("Executing Phase 6: Source Verification")
         self._state.current_phase = Phase.SOURCE_CHECK.value
 
-        result = run_source_check(self._state)
+        result = run_source_check(self._state, lang=self._lang)
 
         self._notify_phase_complete(Phase.SOURCE_CHECK)
         self._save_state()
@@ -1048,14 +1053,16 @@ class AnalysisPipeline:
                 row.advance_to_next_phase()
 
         elif phase == Phase.GAP_SCAN:
-            result = run_gap_scan_row(row, self._state, self._llm_fn, self._model)
+            result = run_gap_scan_row(
+                row, self._state, self._llm_fn, self._model, lang=self._lang
+            )
             row.set_phase_result(Phase.GAP_SCAN, result)
             if result.status == PhaseStatus.COMPLETED.value:
                 row.advance_to_next_phase()
 
         elif phase == Phase.CHECKLIST_VERIFY:
             result = run_checklist_verify_row(
-                row, self._state, self._llm_fn, self._model
+                row, self._state, self._llm_fn, self._model, lang=self._lang
             )
             row.set_phase_result(Phase.CHECKLIST_VERIFY, result)
             if result.status == PhaseStatus.COMPLETED.value:
@@ -1068,7 +1075,9 @@ class AnalysisPipeline:
                 row.advance_to_next_phase()
 
         elif phase == Phase.REMEDIATION:
-            result = run_remediation_row(row, self._state, self._llm_fn, self._model)
+            result = run_remediation_row(
+                row, self._state, self._llm_fn, self._model, lang=self._lang
+            )
             row.set_phase_result(Phase.REMEDIATION, result)
             if result.status in (
                 PhaseStatus.COMPLETED.value,
@@ -1084,6 +1093,7 @@ class AnalysisPipeline:
                 self._model,
                 selected_regulations=self._selected_regulations,
                 run_id=self._state.run_id,
+                lang=self._lang,
             )
             row.set_phase_result(Phase.VERIFICATION, result)
             if result.status in (
