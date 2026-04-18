@@ -1217,7 +1217,7 @@
         } else if (lang && lang.startsWith("zh")) {
             currentLang = "zh-TW"; // zh-CN → zh-TW (Traditional Chinese as default)
         } else {
-            currentLang = "zh-TW"; // Default fallback
+            currentLang = "en-US"; // Default fallback for unsupported languages
         }
         applyAll();
     }
