@@ -8,53 +8,9 @@ import json
 from pathlib import Path
 
 
-# ─── Language metadata (unchanged) ──────────────────────────────────────────
+# ─── Language metadata (single source of truth: lang_config.py) ─────────────
 
-SUPPORTED_LANGUAGES = [
-    "繁體中文 (zh-TW)",
-    "English (en-US)",
-    "日本語 (ja-JP)",
-    "简体中文 (zh-CN)",
-    "한국어 (ko-KR)",
-    "Français (fr-FR)",
-    "Deutsch (de-DE)",
-    "Español (es-ES)",
-    "Português (pt-BR)",
-    "Italiano (it-IT)",
-    "Русский (ru-RU)",
-    "العربية (ar-SA)",
-    "हिन्दी (hi-IN)",
-    "ไทย (th-TH)",
-    "Tiếng Việt (vi-VN)",
-    "Bahasa Indonesia (id-ID)",
-    "Bahasa Melayu (ms-MY)",
-    "Türkçe (tr-TR)",
-    "Nederlands (nl-NL)",
-    "Polski (pl-PL)",
-]
-
-LANG_CODE_MAP = {
-    "繁體中文 (zh-TW)": "zh-TW",
-    "English (en-US)": "en-US",
-    "日本語 (ja-JP)": "ja-JP",
-    "简体中文 (zh-CN)": "zh-CN",
-    "한국어 (ko-KR)": "ko-KR",
-    "Français (fr-FR)": "fr-FR",
-    "Deutsch (de-DE)": "de-DE",
-    "Español (es-ES)": "es-ES",
-    "Português (pt-BR)": "pt-BR",
-    "Italiano (it-IT)": "it-IT",
-    "Русский (ru-RU)": "ru-RU",
-    "العربية (ar-SA)": "ar-SA",
-    "हिन्दी (hi-IN)": "hi-IN",
-    "ไทย (th-TH)": "th-TH",
-    "Tiếng Việt (vi-VN)": "vi-VN",
-    "Bahasa Indonesia (id-ID)": "id-ID",
-    "Bahasa Melayu (ms-MY)": "ms-MY",
-    "Türkçe (tr-TR)": "tr-TR",
-    "Nederlands (nl-NL)": "nl-NL",
-    "Polski (pl-PL)": "pl-PL",
-}
+from src.chainlit_app.lang_config import DEFAULT_LANG, SUPPORTED_LANGUAGES, LANG_CODE_MAP
 
 
 # ─── Load translations + commands from JSON files ──────────────────────────

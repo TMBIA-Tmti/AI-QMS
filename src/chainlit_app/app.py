@@ -469,8 +469,8 @@ except ImportError:
         get_all_command_keywords,
     )
 
-# Default language when no preference has been set by the user.
-DEFAULT_LANG = "en-US"
+# Default language and region display helper — single source of truth.
+from src.chainlit_app.lang_config import DEFAULT_LANG, display_region as _display_region
 
 
 def t(key: str, lang: str = None, **kwargs) -> str:
@@ -494,17 +494,6 @@ def t(key: str, lang: str = None, **kwargs) -> str:
         except (KeyError, IndexError):
             pass
     return text
-
-
-def _display_region(region_key: str, lang: str) -> str:
-    """Return region display name for the given language.
-    Stored keys are bilingual 'Chinese (English)' — extract English for non-zh display.
-    """
-    if lang.startswith("zh"):
-        return region_key  # e.g. "美國 (USA)"
-    import re as _re
-    m = _re.search(r'\(([^)]+)\)', region_key)
-    return m.group(1) if m else region_key  # e.g. "USA"
 
 
 def _match_cmd(text: str, cmd_key: str) -> bool:

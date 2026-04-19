@@ -75,7 +75,7 @@ _LANGUAGE_PATH = Path(__file__).parent.parent.parent / "data" / "user_language.j
 _SETTINGS_TTL_SECONDS = 90
 
 # Default language when no user preference is recorded.
-DEFAULT_LANG = "en-US"
+from src.chainlit_app.lang_config import DEFAULT_LANG
 
 # Legacy single-file path (for migration)
 _LEGACY_PATH = Path(__file__).parent.parent.parent / "data" / "user_settings.json"

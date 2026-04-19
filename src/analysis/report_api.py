@@ -85,7 +85,7 @@ _PIPELINE_DIR = Path("data/analysis_pipeline")
 report_router = APIRouter(prefix="/api/report", tags=["report"])
 
 # Default language when no user preference is recorded.
-DEFAULT_LANG = "en-US"
+from src.chainlit_app.lang_config import DEFAULT_LANG, display_region as _display_region_fn
 
 
 # ── Phoenix tracing helper ──
@@ -603,6 +603,38 @@ async def get_user_language():
     except Exception:
         language = DEFAULT_LANG
     return JSONResponse(content={"language": language})
+
+
+@report_router.get("/i18n/translations/{lang_code}")
+async def get_report_translations(lang_code: str):
+    """Serve locale translations for the report HTML page.
+
+    Returns the full locale JSON for lang_code, falling back to DEFAULT_LANG.
+    The JS report page fetches this instead of using a static TRANSLATIONS dict.
+    """
+    import json as _json2
+    locales_dir = Path(__file__).parent.parent / "chainlit_app" / "locales"
+
+    # Normalize: zh-CN maps to zh-TW for report (Traditional Chinese as default)
+    if lang_code.startswith("zh") and lang_code != "zh-TW":
+        lang_code = "zh-TW"
+
+    locale_file = locales_dir / f"{lang_code}.json"
+    if not locale_file.exists():
+        # Fall back to DEFAULT_LANG
+        locale_file = locales_dir / f"{DEFAULT_LANG}.json"
+
+    if not locale_file.exists():
+        return {}
+
+    try:
+        with open(locale_file, "r", encoding="utf-8") as f:
+            data = _json2.load(f)
+        # Filter out _commands.* keys — those are for Chainlit command matching, not UI display
+        translations = {k: v for k, v in data.items() if not k.startswith("_commands.")}
+        return translations
+    except Exception:
+        return {}
 
 
 @report_router.get("/crossref/upload-reminders")
