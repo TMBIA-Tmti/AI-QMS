@@ -74,6 +74,9 @@ _LANGUAGE_PATH = Path(__file__).parent.parent.parent / "data" / "user_language.j
 # 90 seconds = middle of user-requested 60-100s range.
 _SETTINGS_TTL_SECONDS = 90
 
+# Default language when no user preference is recorded.
+DEFAULT_LANG = "en-US"
+
 # Legacy single-file path (for migration)
 _LEGACY_PATH = Path(__file__).parent.parent.parent / "data" / "user_settings.json"
 
@@ -115,7 +118,7 @@ def _migrate_legacy() -> dict:
             provider_name=settings.get("provider_name", ""),
             model_name=settings.get("model_name", ""),
             api_key=settings.get("api_key", ""),
-            language=settings.get("language", "en-US"),
+            language=settings.get("language", DEFAULT_LANG),
         )
 
         # Remove legacy file after successful migration
@@ -137,7 +140,7 @@ def save_user_settings(
     provider_name: str = "",
     model_name: str = "",
     api_key: str = "",
-    language: str = "en-US",
+    language: str = DEFAULT_LANG,
     user_id: str = "",
 ):
     """Save user settings to per-user JSON file.

@@ -15,6 +15,9 @@
 (function () {
     "use strict";
 
+    // Default language when no user preference is detected.
+    const DEFAULT_LANG = "en-US";
+
     // ── Translation Dictionaries ──
     // Keys follow dot-notation: section.subsection.name
     const TRANSLATIONS = {
@@ -1974,7 +1977,7 @@
     };
 
     // ── State ──
-    let currentLang = "en-US";
+    let currentLang = DEFAULT_LANG;
 
     // ── Core API ──
 
@@ -1985,11 +1988,11 @@
      * @returns {string}
      */
     function t(key, params) {
-        const dict = TRANSLATIONS[currentLang] || TRANSLATIONS["en-US"];
+        const dict = TRANSLATIONS[currentLang] || TRANSLATIONS[DEFAULT_LANG];
         let str = dict[key];
         if (str === undefined) {
             // Fallback to en-US
-            str = (TRANSLATIONS["en-US"] || {})[key];
+            str = (TRANSLATIONS[DEFAULT_LANG] || {})[key];
         }
         if (str === undefined) return key; // Last resort: return key itself
 
@@ -2036,7 +2039,7 @@
         } else if (lang && lang.startsWith("zh")) {
             currentLang = "zh-TW"; // zh-CN → zh-TW (Traditional Chinese as default)
         } else {
-            currentLang = "en-US"; // Default fallback for unsupported languages
+            currentLang = DEFAULT_LANG; // Default fallback for unsupported languages
         }
         applyAll();
     }
@@ -2056,7 +2059,7 @@
             const resp = await fetch("/api/report/user/language");
             if (resp.ok) {
                 const data = await resp.json();
-                setLang(data.language || "en-US");
+                setLang(data.language || DEFAULT_LANG);
             }
         } catch (_) {
             // Silent: keep default en-US
