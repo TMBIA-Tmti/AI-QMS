@@ -864,6 +864,33 @@
             populateFilters(filters);
             applyFilters();
 
+            // Auto-poll while pipeline is still running
+            const activeStatuses = ["running", "pending"];
+            if (activeStatuses.includes(data.status)) {
+                if (!window.__autoPollTimer) {
+                    window.__autoPollTimer = setInterval(async () => {
+                        try {
+                            const fresh = await apiFetch(`/${RUN_ID}`);
+                            if (fresh && fresh.rows && fresh.rows.length > 0) {
+                                reportData = fresh;
+                                renderHeader(fresh);
+                                renderSummary(fresh);
+                                applyFilters();
+                            }
+                            if (!activeStatuses.includes(fresh.status)) {
+                                clearInterval(window.__autoPollTimer);
+                                window.__autoPollTimer = null;
+                            }
+                        } catch (_) { /* ignore transient errors */ }
+                    }, 8000);
+                }
+            } else {
+                if (window.__autoPollTimer) {
+                    clearInterval(window.__autoPollTimer);
+                    window.__autoPollTimer = null;
+                }
+            }
+
         } catch (err) {
             els.tableBody.innerHTML = `<tr><td colspan="8" class="loading-cell">❌ ${t('toast.loadFailed', {msg: escapeHtml(err.message)})}</td></tr>`;
             showToast(t('toast.loadFailed', {msg: err.message}), "error");

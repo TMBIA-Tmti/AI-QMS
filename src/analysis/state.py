@@ -596,10 +596,8 @@ class PipelineState:
 
     def save(self, path: Path) -> None:
         """Persist pipeline state to a JSON file."""
-        path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_suffix(".tmp")
-        tmp.write_text(self.to_json(), encoding="utf-8")
-        tmp.replace(path)  # Atomic write
+        from src.utils.safe_io import atomic_write_json
+        atomic_write_json(path, self.to_dict())
 
     @classmethod
     def load(cls, path: Path) -> "PipelineState":
