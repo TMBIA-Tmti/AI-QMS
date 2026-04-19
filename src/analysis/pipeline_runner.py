@@ -691,6 +691,22 @@ async def run_pipeline_analysis(
                                     _last_progress_time = asyncio.get_event_loop().time()
                             await asyncio.sleep(0.3)
                         pipeline._phase1_doc_callback = None
+                        # Drain any remaining queue items (docs that completed
+                        # while the loop was sleeping or exiting)
+                        while True:
+                            try:
+                                done, total, _doc_id = _doc_q.get_nowait()
+                                pct = round(done / total * 100) if total > 0 else 0
+                                progress_text = (
+                                    f"{_phase_icon} **{_phase_name}** "
+                                    + _t(lang, "gap_scan_doc_progress",
+                                         done=done, total=total, pct=pct)
+                                )
+                                await asyncio.wait_for(send_message_fn(progress_text), timeout=10.0)
+                            except _queue.Empty:
+                                break
+                            except Exception:
+                                break
                         await phase_task  # propagate any exception
                     else:
                         await loop.run_in_executor(None, executor)
