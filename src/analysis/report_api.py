@@ -111,11 +111,12 @@ def _phoenix_report_span(name: str, attributes: dict = None):
 # ============================================================
 
 
-def _load_table(run_id: str) -> ComparisonTable:
-    """Load a comparison table by run_id. Raises 404 if not found."""
+def _load_table_sync(run_id: str) -> ComparisonTable:
+    """Synchronous inner loader with retry — call via run_in_executor only."""
+    import time as _time
     filepath = _PIPELINE_DIR / f"{run_id}.json"
     if not filepath.exists():
-        raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
+        raise FileNotFoundError(run_id)
     last_exc = None
     for attempt in range(3):
         try:
@@ -123,10 +124,21 @@ def _load_table(run_id: str) -> ComparisonTable:
         except Exception as e:
             last_exc = e
             if attempt < 2:
-                import time as _time
                 _time.sleep(0.3 * (attempt + 1))
-    logger.error(f"Failed to load pipeline state {run_id} after 3 attempts: {last_exc}")
-    raise HTTPException(status_code=500, detail="Internal server error")
+    raise RuntimeError(f"Failed after 3 attempts: {last_exc}")
+
+
+async def _load_table(run_id: str) -> ComparisonTable:
+    """Load a comparison table by run_id. Raises 404/500 if not found/failed."""
+    import asyncio
+    try:
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, _load_table_sync, run_id)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
+    except Exception as e:
+        logger.error(f"Failed to load pipeline state {run_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 def _save_table(table: ComparisonTable) -> None:
@@ -975,7 +987,7 @@ async def adjust_standard_mapping(request: Request):
 @report_router.get("/{run_id}")
 async def get_report(run_id: str):
     """Get full report data for a specific run."""
-    table = _load_table(run_id)
+    table = await _load_table(run_id)
     state = table.state
 
     # Build enriched row list
@@ -1025,7 +1037,7 @@ async def get_report(run_id: str):
 @report_router.get("/{run_id}/summary")
 async def get_summary(run_id: str):
     """Get summary statistics only."""
-    table = _load_table(run_id)
+    table = await _load_table(run_id)
     summary = table.summary()
     progress = table.state.progress_summary()
     budget = table.state.get_budget().to_dict()
@@ -1053,7 +1065,7 @@ async def get_rows(
     search: Optional[str] = Query(None, description="Search in clause/doc titles"),
 ):
     """Get rows with optional filters."""
-    table = _load_table(run_id)
+    table = await _load_table(run_id)
     flat_rows = table.to_flat_rows()
 
     # Apply filters
@@ -1091,7 +1103,7 @@ async def get_rows(
 @report_router.get("/{run_id}/row/{row_id}")
 async def get_row_detail(run_id: str, row_id: str):
     """Get detailed data for a single row, including all phase results."""
-    table = _load_table(run_id)
+    table = await _load_table(run_id)
     row = table.state.get_row(row_id)
     if row is None:
         raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
@@ -1105,7 +1117,7 @@ async def get_row_detail(run_id: str, row_id: str):
 @report_router.get("/{run_id}/row/{row_id}/history")
 async def get_row_history(run_id: str, row_id: str):
     """Get version history for a specific row."""
-    table = _load_table(run_id)
+    table = await _load_table(run_id)
     row = table.state.get_row(row_id)
     if row is None:
         raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
@@ -1312,7 +1324,7 @@ async def override_verdict(run_id: str, row_id: str, body: dict):
         if not reason:
             raise HTTPException(status_code=400, detail="Missing 'reason' field")
 
-        table = _load_table(run_id)
+        table = await _load_table(run_id)
         updated = table.override_verdict(row_id, new_verdict, reason, user_id)
         if updated is None:
             raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
@@ -1345,7 +1357,7 @@ async def add_note(run_id: str, row_id: str, body: dict):
         if not note:
             raise HTTPException(status_code=400, detail="Missing 'note' field")
 
-        table = _load_table(run_id)
+        table = await _load_table(run_id)
         updated = table.add_clause_note(row_id, note, user_id)
         if updated is None:
             raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
@@ -1362,7 +1374,7 @@ async def restore_original(run_id: str, row_id: str):
     with _phoenix_report_span(
         "report_restore_original", {"run_id": run_id, "row_id": row_id}
     ):
-        table = _load_table(run_id)
+        table = await _load_table(run_id)
         updated = table.restore_llm_original(row_id)
         if updated is None:
             raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
@@ -1388,7 +1400,7 @@ async def preview_evidence_recalc(run_id: str, row_id: str, body: dict):
     with _phoenix_report_span(
         "report_evidence_preview", {"run_id": run_id, "row_id": row_id}
     ):
-        table = _load_table(run_id)
+        table = await _load_table(run_id)
         result = table.preview_evidence_recalc(row_id, evidence_items)
         if result is None:
             raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
@@ -1408,7 +1420,7 @@ async def confirm_evidence_update(run_id: str, row_id: str, body: dict):
     with _phoenix_report_span(
         "report_evidence_confirm", {"run_id": run_id, "row_id": row_id}
     ):
-        table = _load_table(run_id)
+        table = await _load_table(run_id)
         updated = table.update_evidence_items(row_id, evidence_items, user_id)
         if updated is None:
             raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
@@ -1426,7 +1438,7 @@ async def deep_recalc_evidence(run_id: str, row_id: str, body: dict = None):
     with _phoenix_report_span(
         "report_evidence_deep_recalc", {"run_id": run_id, "row_id": row_id}
     ):
-        table = _load_table(run_id)
+        table = await _load_table(run_id)
         row = table._state.get_row(row_id)
         if row is None:
             raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
@@ -1475,7 +1487,7 @@ async def reset_for_rerun(run_id: str, row_id: str, body: dict = None):
                 detail=f"Invalid phase: {from_phase_str}",
             )
 
-        table = _load_table(run_id)
+        table = await _load_table(run_id)
         updated = table.reset_row_for_rerun(row_id, from_phase)
         if updated is None:
             raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
@@ -1520,7 +1532,7 @@ async def export_report(
     if fmt not in ("word", "excel"):
         raise HTTPException(status_code=400, detail="Format must be 'word' or 'excel'")
 
-    table = _load_table(run_id)
+    table = await _load_table(run_id)
     flat_rows = table.to_flat_rows()
     summary = table.summary()
 
@@ -1779,7 +1791,7 @@ async def export_report(
 @report_router.get("/{run_id}/filters")
 async def get_filter_options(run_id: str):
     """Get available filter options for the report (documents, clauses, verdicts, risks)."""
-    table = _load_table(run_id)
+    table = await _load_table(run_id)
     flat_rows = table.to_flat_rows()
 
     # Unique documents
@@ -2006,20 +2018,36 @@ def emit_cross_exam_event(run_id: str, event: dict) -> None:
         # call_soon_threadsafe so the asyncio.Queue wakeup is dispatched on the
         # correct event-loop thread and avoids the race condition that causes
         # missed notifications when put_nowait() is called cross-thread.
+        is_terminal = event.get("type") in ("complete", "error", "pipeline_complete")
         for queue in queues:
-            def _put(q=queue, ev=event):
+            def _put(q=queue, ev=event, terminal=is_terminal):
                 try:
                     q.put_nowait(ev)
                 except asyncio.QueueFull:
-                    logger.warning(f"SSE queue full for run {run_id}, dropping event")
+                    if terminal:
+                        try:
+                            q.get_nowait()  # drop oldest to make room for terminal event
+                        except asyncio.QueueEmpty:
+                            pass
+                        q.put_nowait(ev)
+                    else:
+                        logger.warning(f"SSE queue full for run {run_id}, dropping event")
             loop.call_soon_threadsafe(_put)
     else:
         # Called from within the event loop — direct put_nowait is safe
+        is_terminal = event.get("type") in ("complete", "error", "pipeline_complete")
         for queue in queues:
             try:
                 queue.put_nowait(event)
             except asyncio.QueueFull:
-                logger.warning(f"SSE queue full for run {run_id}, dropping event")
+                if is_terminal:
+                    try:
+                        queue.get_nowait()
+                    except asyncio.QueueEmpty:
+                        pass
+                    queue.put_nowait(event)
+                else:
+                    logger.warning(f"SSE queue full for run {run_id}, dropping event")
 
 
 async def _sse_generator(run_id: str, queue: asyncio.Queue):
@@ -2264,7 +2292,7 @@ async def export_deep_report(
     if fmt not in ("word", "excel"):
         raise HTTPException(status_code=400, detail="Format must be 'word' or 'excel'")
 
-    table = _load_table(run_id)
+    table = await _load_table(run_id)
     flat_rows = table.to_flat_rows()
     summary = table.summary()
 

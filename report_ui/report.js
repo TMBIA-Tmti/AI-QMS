@@ -864,9 +864,10 @@
             populateFilters(filters);
             applyFilters();
 
-            // Auto-poll while pipeline is still running
-            const activeStatuses = ["running", "pending"];
-            if (activeStatuses.includes(data.status)) {
+            // Auto-poll until pipeline reaches a terminal state
+            const terminalStatuses = ["completed", "failed"];
+            const nonTerminal = !terminalStatuses.includes(data.status);
+            if (nonTerminal) {
                 if (!window.__autoPollTimer) {
                     window.__autoPollTimer = setInterval(async () => {
                         try {
@@ -877,8 +878,8 @@
                                 renderSummary(fresh);
                                 applyFilters();
                             }
-                            if (!activeStatuses.includes(fresh.status)) {
-                                console.log('[report] auto-poll stopping, status=', fresh.status);
+                            if (terminalStatuses.includes(fresh.status)) {
+                                console.log('[report] auto-poll stopping, terminal status=', fresh.status);
                                 clearInterval(window.__autoPollTimer);
                                 window.__autoPollTimer = null;
                             }
