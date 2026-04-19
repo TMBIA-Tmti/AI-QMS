@@ -925,8 +925,11 @@
     // ============================================================
 
     function populateFilters(filters) {
+        const _lang = window.__i18n ? window.__i18n.lang : "zh-TW";
+        const _isEn = _lang && !_lang.startsWith("zh") && !_lang.startsWith("ja");
+        const _isJa = _lang && _lang.startsWith("ja");
         // Documents
-        els.filterDoc.innerHTML = '<option value="">全部文件</option>';
+        els.filterDoc.innerHTML = `<option value="">${window.__i18n ? window.__i18n.t("filter.allDocs") : "全部文件"}</option>`;
         (filters.documents || []).forEach((d) => {
             const opt = document.createElement("option");
             opt.value = d.id;
@@ -935,20 +938,22 @@
         });
 
         // Verdicts
-        els.filterVerdict.innerHTML = '<option value="">全部結果</option>';
+        els.filterVerdict.innerHTML = `<option value="">${window.__i18n ? window.__i18n.t("filter.allVerdicts") : "全部結果"}</option>`;
         (filters.verdicts || []).forEach((v) => {
             const opt = document.createElement("option");
             opt.value = v.value;
-            opt.textContent = `${v.icon || ""} ${v.label_zh || v.value}`;
+            const _lbl = _isEn ? (v.label_en || v.label_zh || v.value) : _isJa ? (v.label_ja || v.label_zh || v.value) : (v.label_zh || v.value);
+            opt.textContent = `${v.icon || ""} ${_lbl}`;
             els.filterVerdict.appendChild(opt);
         });
 
         // Risk levels
-        els.filterRisk.innerHTML = '<option value="">全部等級</option>';
+        els.filterRisk.innerHTML = `<option value="">${window.__i18n ? window.__i18n.t("filter.allRisks") : "全部等級"}</option>`;
         (filters.risk_levels || []).forEach((r) => {
             const opt = document.createElement("option");
             opt.value = r.value;
-            opt.textContent = `${r.icon || ""} ${r.label_zh || r.value}`;
+            const _rlbl = _isEn ? (r.label_en || r.label_zh || r.value) : _isJa ? (r.label_ja || r.label_zh || r.value) : (r.label_zh || r.value);
+            opt.textContent = `${r.icon || ""} ${_rlbl}`;
             els.filterRisk.appendChild(opt);
         });
     }
@@ -1168,22 +1173,26 @@
             let html = "";
 
             // Basic info
+            const _dLang = window.__i18n ? window.__i18n.lang : "zh-TW";
+            const _dIsEn = _dLang && !_dLang.startsWith("zh") && !_dLang.startsWith("ja");
+            const _dIsJa = _dLang && _dLang.startsWith("ja");
+            const _i18nT = window.__i18n ? (k) => window.__i18n.t(k) : (k) => k;
             html += `<div class="detail-section">
-                <h3>📋 基本資訊</h3>
+                <h3>📋 ${_dIsEn ? "Basic Information" : _dIsJa ? "基本情報" : "基本資訊"}</h3>
                 <div class="detail-grid">
-                    <span class="detail-label">條款 ID</span>
+                    <span class="detail-label">${_dIsEn ? "Clause ID" : _dIsJa ? "条項 ID" : "條款 ID"}</span>
                     <span class="detail-value">${escapeHtml(row.clause_id)}</span>
-                    <span class="detail-label">條款標題</span>
+                    <span class="detail-label">${_dIsEn ? "Clause Title" : _dIsJa ? "条項タイトル" : "條款標題"}</span>
                     <span class="detail-value">${escapeHtml(row.clause_title)}</span>
-                    <span class="detail-label">品質文件</span>
+                    <span class="detail-label">${_dIsEn ? "QMS Document" : _dIsJa ? "品質文書" : "品質文件"}</span>
                     <span class="detail-value">${escapeHtml(row.doc_id)} — ${escapeHtml(row.doc_title)}</span>
-                    <span class="detail-label">稽核影響</span>
+                    <span class="detail-label">${_dIsEn ? "Audit Impact" : _dIsJa ? "監査影響" : "稽核影響"}</span>
                     <span class="detail-value">${escapeHtml(row.audit_impact)}</span>
-                    <span class="detail-label">稽核問題</span>
+                    <span class="detail-label">${_dIsEn ? "Audit Question" : _dIsJa ? "監査質問" : "稽核問題"}</span>
                     <span class="detail-value">${escapeHtml(row.audit_question || "—")}</span>
-                    <span class="detail-label">判定結果</span>
+                    <span class="detail-label">${_dIsEn ? "Verdict" : _dIsJa ? "判定結果" : "判定結果"}</span>
                     <span class="detail-value">${getVerdictBadge(row.verdict, row.verdict_icon, row.verdict_label_zh, !!row.ra_override)}</span>
-                    <span class="detail-label">風險等級</span>
+                    <span class="detail-label">${_dIsEn ? "Risk Level" : _dIsJa ? "リスクレベル" : "風險等級"}</span>
                     <span class="detail-value">${getRiskBadge(row.risk_level, row.risk_icon, row.risk_label_zh)}</span>
                 </div>
             </div>`;
@@ -2596,7 +2605,14 @@
         }
 
         els.crossrefTableBody.innerHTML = bodyHtml;
-        els.crossrefTableCount.textContent = `顯示 ${rows.length} 條 ISO 13485 條款 × ${regIds.length} 國家法規`;
+        const _crLang = window.__i18n ? window.__i18n.lang : "zh-TW";
+        if (_crLang.startsWith("zh")) {
+            els.crossrefTableCount.textContent = `顯示 ${rows.length} 條 ISO 13485 條款 × ${regIds.length} 國家法規`;
+        } else if (_crLang.startsWith("ja")) {
+            els.crossrefTableCount.textContent = `${rows.length} 件の ISO 13485 条項 × ${regIds.length} カ国の規制`;
+        } else {
+            els.crossrefTableCount.textContent = `Showing ${rows.length} ISO 13485 clauses × ${regIds.length} country regulations`;
+        }
     }
 
     function toggleRationale(rowId) {

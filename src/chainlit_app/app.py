@@ -4567,16 +4567,30 @@ async def _ask_product_docs_upload() -> Optional[str]:
         session_id (str) if user uploaded documents, None if skipped.
     """
     try:
-        res = await cl.AskActionMessage(
-            content=(
+        _prod_lang = cl.user_session.get("language", "zh-TW")
+        if _prod_lang.startswith("zh"):
+            _prod_upload_msg = (
                 "📦 **產品文件上傳（選填）**\n\n"
                 "您可以在分析前上傳產品相關文件，讓 LLM 更準確地評估法規符合性：\n"
-                "- 使用說明書 (IFU)\n"
-                "- 產品規格書\n"
-                "- 產品介紹\n"
-                "- 其他產品相關文件\n\n"
+                "- 使用說明書 (IFU)\n- 產品規格書\n- 產品介紹\n- 其他產品相關文件\n\n"
                 "📌 上傳的文件僅用於本次分析，報告產生後將自動刪除。"
-            ),
+            )
+        elif _prod_lang.startswith("ja"):
+            _prod_upload_msg = (
+                "📦 **製品文書のアップロード（任意）**\n\n"
+                "分析前に製品関連文書をアップロードすると、LLMがより正確に規制適合性を評価できます：\n"
+                "- 使用説明書 (IFU)\n- 製品仕様書\n- 製品紹介\n- その他製品関連文書\n\n"
+                "📌 アップロードされた文書は本分析のみに使用され、レポート生成後に自動削除されます。"
+            )
+        else:
+            _prod_upload_msg = (
+                "📦 **Product Document Upload (Optional)**\n\n"
+                "You can upload product-related documents before analysis to help the LLM evaluate regulatory compliance more accurately:\n"
+                "- Instructions for Use (IFU)\n- Product Specification\n- Product Introduction\n- Other product-related documents\n\n"
+                "📌 Uploaded documents are used only for this analysis and will be automatically deleted after report generation."
+            )
+        res = await cl.AskActionMessage(
+            content=_prod_upload_msg,
             actions=[
                 cl.Action(
                     name="upload_product_docs",
@@ -4996,23 +5010,48 @@ async def handle_regulatory_list():
             except Exception:
                 pass
         else:
-            err_msg = pipeline_result.error if pipeline_result else "未知錯誤"
-            assessment = f"⚠️ 分析管線執行失敗: {err_msg}"
+            _pl_lang = cl.user_session.get("language", "zh-TW")
+            if _pl_lang.startswith("zh"):
+                err_msg = pipeline_result.error if pipeline_result else "未知錯誤"
+                assessment = f"⚠️ 分析管線執行失敗: {err_msg}"
+            elif _pl_lang.startswith("ja"):
+                err_msg = pipeline_result.error if pipeline_result else "不明なエラー"
+                assessment = f"⚠️ 分析パイプラインの実行に失敗しました: {err_msg}"
+            else:
+                err_msg = pipeline_result.error if pipeline_result else "Unknown error"
+                assessment = f"⚠️ Analysis pipeline failed: {err_msg}"
             try:
                 await cl.Message(content=assessment).send()
             except Exception:
                 pass
 
     except Exception as e:
-        assessment = (
-            f"⚠️ QMS 評估報告產生失敗: {str(e)[:200]}\n\n"
-            f"📋 **可能的阻塞原因：**\n"
-            f"- 🔌 **連線中斷**：網路不穩定或 LLM 提供商服務異常\n"
-            f"- 🔑 **API Key 無效或過期**：請檢查 API Key 是否正確\n"
-            f"- 💾 **提供商限流**：API 請求頻率或 Token 配額已達提供商限制\n"
-            f"- ⚙️ **模型不支援**：所選模型可能不支援此類長文分析\n\n"
-            f"請確認 LLM 設定正確後重試。"
-        )
+        _pl_lang2 = cl.user_session.get("language", "zh-TW")
+        if _pl_lang2.startswith("zh"):
+            assessment = (
+                f"⚠️ QMS 評估報告產生失敗: {str(e)[:200]}\n\n"
+                f"📋 **可能的阻塞原因：**\n"
+                f"- 🔌 **連線中斷**：網路不穩定或 LLM 提供商服務異常\n"
+                f"- 🔑 **API Key 無效或過期**：請檢查 API Key 是否正確\n"
+                f"- 💾 **提供商限流**：API 請求頻率或 Token 配額已達提供商限制\n"
+                f"- ⚙️ **模型不支援**：所選模型可能不支援此類長文分析\n\n"
+                f"請確認 LLM 設定正確後重試。"
+            )
+        elif _pl_lang2.startswith("ja"):
+            assessment = (
+                f"⚠️ QMS 評価レポートの生成に失敗しました: {str(e)[:200]}\n\n"
+                f"LLM 設定を確認してから再試行してください。"
+            )
+        else:
+            assessment = (
+                f"⚠️ QMS assessment report generation failed: {str(e)[:200]}\n\n"
+                f"📋 **Possible causes:**\n"
+                f"- 🔌 **Connection lost**: Unstable network or LLM provider outage\n"
+                f"- 🔑 **Invalid or expired API key**: Please check your API key\n"
+                f"- 💾 **Provider rate limit**: API request frequency or token quota exceeded\n"
+                f"- ⚙️ **Model not supported**: Selected model may not support long-form analysis\n\n"
+                f"Please verify your LLM settings and retry."
+            )
         try:
             await cl.Message(content=assessment).send()
         except Exception:
@@ -5620,9 +5659,14 @@ async def handle_regulatory_update_rescan(selected_regions: list):
     _rescan_save = reg_md_store.save_from_crawl_results(crawl_results)
     _rescan_saved = _rescan_save.get("saved_count", 0)
     if _rescan_saved > 0:
-        await cl.Message(
-            content=f"💾 Rescan 已更新 {_rescan_saved} 份法規文件至 Markdown DB"
-        ).send()
+        _rescan_lang = cl.user_session.get("language", "zh-TW")
+        if _rescan_lang.startswith("zh"):
+            _rescan_msg = f"💾 Rescan 已更新 {_rescan_saved} 份法規文件至 Markdown DB"
+        elif _rescan_lang.startswith("ja"):
+            _rescan_msg = f"💾 Rescan: {_rescan_saved} 件の規制文書を Markdown DB に保存しました"
+        else:
+            _rescan_msg = f"💾 Rescan updated {_rescan_saved} regulatory documents in Markdown DB"
+        await cl.Message(content=_rescan_msg).send()
     _rescan_skipped = _rescan_save.get("skipped_details", [])
     if _rescan_skipped:
         _skip_lines = [
@@ -5646,12 +5690,28 @@ async def handle_regulatory_update_rescan(selected_regions: list):
             _failed_regions_set.add(_cr.get("region", ""))
     _failed_only = _failed_regions_set - _success_regions_set
 
-    _summary_lines = [f"📡 爬蟲完成：{_success_n}/{_total_n} 個網站成功"]
-    if _failed_only:
-        _summary_lines.append(
-            f"⚠️ 以下國家所有網站均爬取失敗，將嘗試備援方式生成 Profile：\n"
-            + "\n".join(f"  ❌ {r}" for r in sorted(_failed_only))
-        )
+    _crawl_done_lang = cl.user_session.get("language", "zh-TW")
+    if _crawl_done_lang.startswith("zh"):
+        _summary_lines = [f"📡 爬蟲完成：{_success_n}/{_total_n} 個網站成功"]
+        if _failed_only:
+            _summary_lines.append(
+                f"⚠️ 以下國家所有網站均爬取失敗，將嘗試備援方式生成 Profile：\n"
+                + "\n".join(f"  ❌ {r}" for r in sorted(_failed_only))
+            )
+    elif _crawl_done_lang.startswith("ja"):
+        _summary_lines = [f"📡 クロール完了：{_success_n}/{_total_n} サイト成功"]
+        if _failed_only:
+            _summary_lines.append(
+                f"⚠️ 以下の国はすべてのサイトでクロールに失敗しました：\n"
+                + "\n".join(f"  ❌ {r}" for r in sorted(_failed_only))
+            )
+    else:
+        _summary_lines = [f"📡 Crawl complete: {_success_n}/{_total_n} sites succeeded"]
+        if _failed_only:
+            _summary_lines.append(
+                f"⚠️ All sites failed for these regions, will attempt fallback profile generation:\n"
+                + "\n".join(f"  ❌ {r}" for r in sorted(_failed_only))
+            )
     await cl.Message(content="\n".join(_summary_lines)).send()
 
     # ── Step 0.5: Generate RegulationProfile for countries without one ──
@@ -5768,11 +5828,12 @@ async def handle_regulatory_update_rescan(selected_regions: list):
             export_regulatory_update_to_excel,
         )
 
+        _baseline_lang = cl.user_session.get("language", "zh-TW")
         baseline_word_path_upd = export_regulatory_update_to_word(
-            crawl_results, assessment=None, source_command="regulatory_update"
+            crawl_results, assessment=None, source_command="regulatory_update", lang=_baseline_lang
         )
         baseline_excel_path_upd = export_regulatory_update_to_excel(
-            crawl_results, assessment=None, source_command="regulatory_update"
+            crawl_results, assessment=None, source_command="regulatory_update", lang=_baseline_lang
         )
         save_analysis_cache(
             cache_id=_cache_id_update,
@@ -5875,23 +5936,41 @@ async def handle_regulatory_update_rescan(selected_regions: list):
                 except Exception:
                     pass
             else:
-                err_msg = pipeline_result.error if pipeline_result else "未知錯誤"
-                assessment = f"⚠️ 分析管線執行失敗: {err_msg}"
+                _pl2_lang = cl.user_session.get("language", "zh-TW")
+                if _pl2_lang.startswith("zh"):
+                    err_msg = pipeline_result.error if pipeline_result else "未知錯誤"
+                    assessment = f"⚠️ 分析管線執行失敗: {err_msg}"
+                elif _pl2_lang.startswith("ja"):
+                    err_msg = pipeline_result.error if pipeline_result else "不明なエラー"
+                    assessment = f"⚠️ 分析パイプラインの実行に失敗しました: {err_msg}"
+                else:
+                    err_msg = pipeline_result.error if pipeline_result else "Unknown error"
+                    assessment = f"⚠️ Analysis pipeline failed: {err_msg}"
                 try:
                     await cl.Message(content=assessment).send()
                 except Exception:
                     pass
         else:
-            assessment = "⚠️ 未設定 LLM 提供商或 API Key，無法執行分析。"
+            _no_llm_lang = cl.user_session.get("language", "zh-TW")
+            if _no_llm_lang.startswith("zh"):
+                assessment = "⚠️ 未設定 LLM 提供商或 API Key，無法執行分析。"
+            elif _no_llm_lang.startswith("ja"):
+                assessment = "⚠️ LLM プロバイダーまたは API キーが設定されていません。分析を実行できません。"
+            else:
+                assessment = "⚠️ LLM provider or API key not configured. Cannot run analysis."
             try:
                 await cl.Message(content=assessment).send()
             except Exception:
                 pass
 
     except Exception as e:
-        assessment = (
-            f"⚠️ QMS 評估報告產生失敗: {str(e)[:200]}\n\n請確認 LLM 設定正確後重試。"
-        )
+        _pl3_lang = cl.user_session.get("language", "zh-TW")
+        if _pl3_lang.startswith("zh"):
+            assessment = f"⚠️ QMS 評估報告產生失敗: {str(e)[:200]}\n\n請確認 LLM 設定正確後重試。"
+        elif _pl3_lang.startswith("ja"):
+            assessment = f"⚠️ QMS 評価レポートの生成に失敗しました: {str(e)[:200]}\n\nLLM 設定を確認してから再試行してください。"
+        else:
+            assessment = f"⚠️ QMS assessment report generation failed: {str(e)[:200]}\n\nPlease verify your LLM settings and retry."
         import logging
 
         logging.getLogger(__name__).warning(f"Regulatory update pipeline failed: {e}")
@@ -5968,16 +6047,17 @@ async def handle_regulatory_update_rescan(selected_regions: list):
             pass
 
     # Format crawl summary
-    response = format_regulatory_update_markdown(crawl_results, assessment=None)
+    _fmt_lang = cl.user_session.get("language", "zh-TW")
+    response = format_regulatory_update_markdown(crawl_results, assessment=None, lang=_fmt_lang)
 
     # Generate Word/Excel exports with pipeline assessment
     if assessment and not assessment.startswith("⚠️"):
         try:
             word_path = export_regulatory_update_to_word(
-                crawl_results, assessment=assessment, source_command="regulatory_update"
+                crawl_results, assessment=assessment, source_command="regulatory_update", lang=_fmt_lang
             )
             excel_path = export_regulatory_update_to_excel(
-                crawl_results, assessment=assessment, source_command="regulatory_update"
+                crawl_results, assessment=assessment, source_command="regulatory_update", lang=_fmt_lang
             )
             save_analysis_cache(
                 cache_id=_cache_id_update,
@@ -6051,13 +6131,14 @@ async def _show_regulatory_update_export_buttons():
         return
 
     assessment = cl.user_session.get("last_regulatory_update_assessment", "")
-    response = format_regulatory_update_markdown(crawl_results, assessment=assessment)
+    _export_lang = cl.user_session.get("language", "zh-TW")
+    response = format_regulatory_update_markdown(crawl_results, assessment=assessment, lang=_export_lang)
 
     # Pre-generate Word + Excel for direct download
     elements = []
     try:
         word_path = export_regulatory_update_to_word(
-            crawl_results, assessment=assessment, source_command="regulatory_update"
+            crawl_results, assessment=assessment, source_command="regulatory_update", lang=_export_lang
         )
         if word_path and Path(word_path).exists():
             wname = re.sub(r"^\d{14}_", "", Path(word_path).name)
@@ -6066,7 +6147,7 @@ async def _show_regulatory_update_export_buttons():
         pass
     try:
         excel_path = export_regulatory_update_to_excel(
-            crawl_results, assessment=assessment, source_command="regulatory_update"
+            crawl_results, assessment=assessment, source_command="regulatory_update", lang=_export_lang
         )
         if excel_path and Path(excel_path).exists():
             ename = re.sub(r"^\d{14}_", "", Path(excel_path).name)
@@ -6104,16 +6185,17 @@ async def handle_regulatory_update_export(format_type: str):
             return None, "⚠️ Regulatory update results are empty."
 
     total = len(results)
+    _dl_lang = cl.user_session.get("language", "zh-TW")
     if format_type == "word":
         assessment = cl.user_session.get("last_regulatory_update_assessment")
         filepath = export_regulatory_update_to_word(
-            crawl_results, assessment=assessment, source_command="regulatory_update"
+            crawl_results, assessment=assessment, source_command="regulatory_update", lang=_dl_lang
         )
         msg = t("regulatory_update.export_word", count=total)
     elif format_type == "excel":
         assessment = cl.user_session.get("last_regulatory_update_assessment")
         filepath = export_regulatory_update_to_excel(
-            crawl_results, assessment=assessment, source_command="regulatory_update"
+            crawl_results, assessment=assessment, source_command="regulatory_update", lang=_dl_lang
         )
         msg = t("regulatory_update.export_excel", count=total)
     else:
