@@ -1101,6 +1101,13 @@
         return badge;
     }
 
+    function getClauseTitle(r) {
+        const lang = (window.__i18n && window.__i18n.lang) || "en-US";
+        if (lang.startsWith("ja")) return r.clause_title_ja || r.clause_title_en || r.clause_title || "";
+        if (!lang.startsWith("zh")) return r.clause_title_en || r.clause_title || "";
+        return r.clause_title || "";
+    }
+
     function renderRow(r) {
         const flagged = r.flagged_for_ra;
         const rowClass = flagged ? "row-flagged" : "";
@@ -1126,7 +1133,7 @@
         <tr class="${rowClass}" data-row-id="${escapeAttr(r.row_id)}">
             <td class="col-clause">
                 <div class="clause-id">${escapeHtml(r.clause_id)}</div>
-                <div class="clause-title">${escapeHtml(r.clause_title)}</div>
+                <div class="clause-title">${escapeHtml(getClauseTitle(r))}</div>
             </td>
             <td class="col-doc">
                 <div class="doc-id">${escapeHtml(r.doc_id)}</div>
@@ -1203,14 +1210,15 @@
             const data = await apiFetch(`/${RUN_ID}/row/${rowId}`);
             const row = data.row;
 
-            els.detailTitle.textContent = `${row.clause_id} — ${row.clause_title}`;
+            const _dLang = window.__i18n ? window.__i18n.lang : "en-US";
+            const _dIsEn = _dLang && !_dLang.startsWith("zh") && !_dLang.startsWith("ja");
+            const _dIsJa = _dLang && _dLang.startsWith("ja");
+            const _rowClauseTitle = getClauseTitle(row);
+            els.detailTitle.textContent = `${row.clause_id} — ${_rowClauseTitle}`;
 
             let html = "";
 
             // Basic info
-            const _dLang = window.__i18n ? window.__i18n.lang : "en-US";
-            const _dIsEn = _dLang && !_dLang.startsWith("zh") && !_dLang.startsWith("ja");
-            const _dIsJa = _dLang && _dLang.startsWith("ja");
             const _i18nT = window.__i18n ? (k) => window.__i18n.t(k) : (k) => k;
             html += `<div class="detail-section">
                 <h3>📋 ${_i18nT("detail.basicInfo")}</h3>
@@ -1218,7 +1226,7 @@
                     <span class="detail-label">${_i18nT("detail.clauseId")}</span>
                     <span class="detail-value">${escapeHtml(row.clause_id)}</span>
                     <span class="detail-label">${_i18nT("detail.clauseTitle")}</span>
-                    <span class="detail-value">${escapeHtml(row.clause_title)}</span>
+                    <span class="detail-value">${escapeHtml(_rowClauseTitle)}</span>
                     <span class="detail-label">${_i18nT("detail.qmsDocument")}</span>
                     <span class="detail-value">${escapeHtml(row.doc_id)} — ${escapeHtml(row.doc_title)}</span>
                     <span class="detail-label">${_i18nT("detail.auditImpact")}</span>
@@ -1541,7 +1549,7 @@
         const row = findRow(rowId);
         if (!row) return;
 
-        els.noteClauseInfo.textContent = `${row.clause_id} — ${row.clause_title}`;
+        els.noteClauseInfo.textContent = `${row.clause_id} — ${getClauseTitle(row)}`;
         els.noteText.value = row.ra_notes || "";
 
         openModal(els.noteModal);
@@ -2392,19 +2400,23 @@
                 return;
             }
 
+            const _crLang = (window.__i18n && window.__i18n.lang) || "en-US";
+            const _crIsZh = _crLang.startsWith("zh");
             let html = "";
             for (const reg of crossrefRegulations) {
                 const flag = FLAG_EMOJIS[reg.country] || "🏳️";
                 const fullCount = reg.status_counts.full || 0;
                 const exceedsCount = reg.status_counts.exceeds || 0;
                 const uniqueCount = reg.unique_requirements_count || 0;
+                const countryDisplay = _crIsZh ? reg.country_name_zh : (reg.country_name_en || reg.country_name_zh);
+                const regNameDisplay = _crIsZh ? reg.name_zh : (reg.name_en || reg.name_zh);
                 html += `
                 <label class="country-check-item" data-reg-id="${escapeAttr(reg.regulation_id)}">
                     <input type="checkbox" value="${escapeAttr(reg.regulation_id)}" ${reg.is_user_selected !== false ? 'checked' : ''}>
                     <span class="country-flag">${flag}</span>
                     <div>
-                        <div class="country-name">${escapeHtml(reg.country_name_zh)} (${escapeHtml(reg.country)})</div>
-                        <div class="country-meta">${escapeHtml(reg.name_zh)}</div>
+                        <div class="country-name">${escapeHtml(countryDisplay)} (${escapeHtml(reg.country)})</div>
+                        <div class="country-meta">${escapeHtml(regNameDisplay)}</div>
                         <div class="country-meta">✅${fullCount} ⬆️${exceedsCount} 🚨${uniqueCount} ${t('ui.unique')}</div>
                     </div>
                 </label>`;
@@ -2474,6 +2486,8 @@
     function renderCrossrefSummary(data) {
         const meta = data.regulation_meta || {};
         const regIds = data.regulation_ids || [];
+        const _sumLang = (window.__i18n && window.__i18n.lang) || "en-US";
+        const _sumIsZh = _sumLang.startsWith("zh");
         let html = "";
 
         for (const rid of regIds) {
@@ -2491,9 +2505,10 @@
             }
             const uniqueReqs = (data.unique_requirements || {})[rid] || [];
 
+            const _sumCountry = _sumIsZh ? (m.country_name_zh || rid) : (m.country_name_en || m.country_name_zh || rid);
             html += `
             <div class="crossref-stat-card">
-                <h4>${flag} ${escapeHtml(m.country_name_zh || rid)}</h4>
+                <h4>${flag} ${escapeHtml(_sumCountry)}</h4>
                 <div class="stat-row"><span>✅ ${t('crossref.legendFull')}</span><strong>${fullCount}</strong></div>
                 <div class="stat-row"><span>⬆️ ${t('crossref.legendExceeds')}</span><strong style="color:#2563eb">${exceedsCount}</strong></div>
                 <div class="stat-row"><span>⚠️ ${t('crossref.legendPartial')}</span><strong style="color:var(--partial)">${partialCount}</strong></div>
@@ -2512,13 +2527,16 @@
         const regIds = data.regulation_ids || [];
         const meta = data.regulation_meta || {};
         const rows = data.rows || [];
+        const _tblLang = (window.__i18n && window.__i18n.lang) || "en-US";
+        const _tblIsZh = _tblLang.startsWith("zh");
 
         // Build header
         let headHtml = `<tr><th>ISO 13485 ${t('table.clause')}</th>`;
         for (const rid of regIds) {
             const m = meta[rid] || {};
             const flag = FLAG_EMOJIS[m.country] || "";
-            headHtml += `<th>${flag} ${escapeHtml(m.country_name_zh || rid)}</th>`;
+            const _tblCountry = _tblIsZh ? (m.country_name_zh || rid) : (m.country_name_en || m.country_name_zh || rid);
+            headHtml += `<th>${flag} ${escapeHtml(_tblCountry)}</th>`;
         }
         headHtml += `</tr>`;
         els.crossrefTableHead.innerHTML = headHtml;
@@ -2529,7 +2547,7 @@
             const rowId = `cr-${row.clause_id.replace(/\./g, "-")}`;
             bodyHtml += `<tr class="crossref-data-row" data-row-id="${rowId}">`;
             bodyHtml += `<td><div class="clause-id">${escapeHtml(row.clause_id)}</div>
-                <div class="clause-title">${escapeHtml(row.clause_title)}</div></td>`;
+                <div class="clause-title">${escapeHtml(getClauseTitle(row))}</div></td>`;
 
             for (const rid of regIds) {
                 const reg = (row.regulations || {})[rid] || {};

@@ -132,6 +132,19 @@ def _save_table(table: ComparisonTable) -> None:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
+def _enrich_clause_titles(row_dict: dict) -> None:
+    """Add clause_title_en and clause_title_ja fields by looking up the ISO 13485 checklist."""
+    try:
+        from src.analysis.compliance_rules import ISO_13485_CHECKLIST
+        info = ISO_13485_CHECKLIST.get(row_dict.get("clause_id", ""), {})
+        if not row_dict.get("clause_title_en"):
+            row_dict["clause_title_en"] = info.get("title_en", "")
+        if not row_dict.get("clause_title_ja"):
+            row_dict["clause_title_ja"] = info.get("title_ja", "")
+    except Exception:
+        pass
+
+
 def _row_to_api(row_dict: dict) -> dict:
     """Enrich a flat row dict with display labels for the frontend."""
     verdict = row_dict.get("verdict")
@@ -147,6 +160,8 @@ def _row_to_api(row_dict: dict) -> dict:
     row_dict["risk_label_zh"] = r_disp.get("label_zh", risk or "")
     row_dict["risk_label_en"] = r_disp.get("label_en", risk or "")
     row_dict["risk_action_zh"] = r_disp.get("action_zh", "")
+
+    _enrich_clause_titles(row_dict)
 
     return row_dict
 
@@ -416,6 +431,8 @@ async def get_crossref_table(
         row = {
             "clause_id": clause_id,
             "clause_title": _pick_clause_title(clause_info, lang),
+            "clause_title_en": clause_info.get("title_en", ""),
+            "clause_title_ja": clause_info.get("title_ja", ""),
             "audit_impact": clause_info.get("audit_impact", ""),
             "regulations": {},
         }
@@ -486,6 +503,7 @@ async def get_crossref_table(
             "name_en": p.name_en,
             "name_zh": p.name_zh,
             "country": p.country,
+            "country_name_en": p.country_name_en,
             "country_name_zh": p.country_name_zh,
             "source": p.source,
             "effective_date": p.effective_date,
