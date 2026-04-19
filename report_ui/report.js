@@ -878,6 +878,7 @@
                                 applyFilters();
                             }
                             if (!activeStatuses.includes(fresh.status)) {
+                                console.log('[report] auto-poll stopping, status=', fresh.status);
                                 clearInterval(window.__autoPollTimer);
                                 window.__autoPollTimer = null;
                             }
@@ -3121,6 +3122,9 @@
                 els.btnResumeExam.disabled = true;
                 break;
             case 'heartbeat':
+                break;
+            case 'phase_1_filter':
+                // Phase 1 per-document clause filter result — no UI action needed
                 break;
             default:
                 console.warn('Unknown SSE event type:', type, data);
