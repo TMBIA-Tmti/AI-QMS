@@ -4,8 +4,8 @@ title AI-QMS - Phoenix Observability Server
 
 echo ========================================================
 echo  AI-QMS - Arize Phoenix LLM Observability
-echo  Version: v3.5.0
-echo  Date: 2026-02-28
+echo  Version: v3.6.0
+echo  Date: 2026-04-19
 echo ========================================================
 echo.
 echo  Phoenix provides:

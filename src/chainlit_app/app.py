@@ -481,8 +481,9 @@ def t(key: str, lang: str = None, **kwargs) -> str:
             lang = cl.user_session.get("language", "zh-TW")
         except Exception:
             lang = "zh-TW"
-    translations = I18N.get(lang, I18N["zh-TW"])
-    text = translations.get(key, I18N["zh-TW"].get(key, key))
+    translations = I18N.get(lang, I18N.get("en-US", {}))
+    _fallback = I18N.get("zh-TW", {}) if lang.startswith("zh") else I18N.get("en-US", {})
+    text = translations.get(key, _fallback.get(key, key))
     if kwargs:
         try:
             text = text.format(**kwargs)
