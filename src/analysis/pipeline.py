@@ -512,7 +512,7 @@ class AnalysisPipeline:
         logger.info("Executing Phase 0: Data Quality Gate")
         self._state.current_phase = Phase.DATA_QUALITY.value
 
-        dq_result = run_data_quality_gate(self._state)
+        dq_result = run_data_quality_gate(self._state, lang=self._lang)
 
         self._notify_phase_complete(Phase.DATA_QUALITY)
         self._advance_global_phase(Phase.REFERENCE_MAPPING)

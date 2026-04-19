@@ -675,5 +675,6 @@
     "verify.records": "📋 総記録数: **{count}**",
     "verify.tip_hash": "🔑 現在のチェーンヒットハッシュ (比較のために外部に保存):\n`{hash}`",
     "verify.title": "🔒 **監査ログ整合性検証レポート**",
-    "watermark.applied_summary": "✅ 透かし適用完了！{applied} 件に適用、{skipped} 件スキップ（管理範囲外）。"
+    "watermark.applied_summary": "✅ 透かし適用完了！{applied} 件に適用、{skipped} 件スキップ（管理範囲外）。",
+    "web.compare_local_web": "（ローカルの文書データベースのバージョンと上記でウェブ検索して見つかったオンラインバージョンを照合し、一致しているかどうかを明確に述べてください。）"
 }

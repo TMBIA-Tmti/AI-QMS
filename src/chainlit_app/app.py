@@ -492,6 +492,17 @@ def t(key: str, lang: str = None, **kwargs) -> str:
     return text
 
 
+def _display_region(region_key: str, lang: str) -> str:
+    """Return region display name for the given language.
+    Stored keys are bilingual 'Chinese (English)' — extract English for non-zh display.
+    """
+    if lang.startswith("zh"):
+        return region_key  # e.g. "美國 (USA)"
+    import re as _re
+    m = _re.search(r'\(([^)]+)\)', region_key)
+    return m.group(1) if m else region_key  # e.g. "USA"
+
+
 def _match_cmd(text: str, cmd_key: str) -> bool:
     """Check if text matches any keyword for the given command across all languages."""
     all_kw = get_all_command_keywords(cmd_key)
@@ -5312,12 +5323,13 @@ async def handle_regulatory_update():
         else:
             db_lines = [f"\n📂 **Regulatory Markdown DB** — {reg_active} saved documents\n"]
         for rg, cnt in sorted(by_region.items()):
+            _rdisp = _display_region(rg, lang)
             if lang.startswith("zh"):
-                db_lines.append(f"- {rg}: {cnt} 份")
+                db_lines.append(f"- {_rdisp}: {cnt} 份")
             elif lang.startswith("ja"):
-                db_lines.append(f"- {rg}: {cnt} 件")
+                db_lines.append(f"- {_rdisp}: {cnt} 件")
             else:
-                db_lines.append(f"- {rg}: {cnt}")
+                db_lines.append(f"- {_rdisp}: {cnt}")
         db_lines.append("\n---")
         await cl.Message(content="\n".join(db_lines)).send()
 
@@ -5492,13 +5504,13 @@ async def handle_regulatory_update():
         if success_sites:
             success_regions.append(region)
             agencies = ", ".join(s["agency"] for s in success_sites)
+            _rdisp = _display_region(region, lang)
             if lang.startswith("zh"):
-                lines.append(f"- ✅ **{region}** — {len(success_sites)}/{total_sites} 個網站成功 ({agencies})")
+                lines.append(f"- ✅ **{_rdisp}** — {len(success_sites)}/{total_sites} 個網站成功 ({agencies})")
             elif lang.startswith("ja"):
-                lines.append(f"- ✅ **{region}** — {len(success_sites)}/{total_sites} サイト成功 ({agencies})")
+                lines.append(f"- ✅ **{_rdisp}** — {len(success_sites)}/{total_sites} サイト成功 ({agencies})")
             else:
-                lines.append(f"- ✅ **{region}** — {len(success_sites)}/{total_sites} sites succeeded ({agencies})")
-            # If some sites failed in this region, note them
+                lines.append(f"- ✅ **{_rdisp}** — {len(success_sites)}/{total_sites} sites succeeded ({agencies})")
             for fs in failed_sites:
                 if lang.startswith("zh"):
                     reason = fs.get("failure_reason", "未知原因")
@@ -5517,12 +5529,13 @@ async def handle_regulatory_update():
             lines.append("\n### ❌ Countries/Regions That Could Not Be Crawled\n")
         for region in failed_regions:
             failed_sites = region_status[region]["failed"]
+            _rdisp = _display_region(region, lang)
             for fs in failed_sites:
                 if lang.startswith("zh"):
                     reason = fs.get("failure_reason", "未知原因")
                 else:
                     reason = fs.get("failure_reason", "Unknown reason")
-                lines.append(f"- ❌ **{region}** — {fs['agency']}: {reason[:100]}")
+                lines.append(f"- ❌ **{_rdisp}** — {fs['agency']}: {reason[:100]}")
 
     # Ask user which countries to keep
     lines.append("\n---\n")
@@ -5553,13 +5566,14 @@ async def handle_regulatory_update():
 
     available_regions = get_available_regions()
     for i, region in enumerate(available_regions, 1):
+        _rdisp = _display_region(region, lang)
         if region in success_regions:
-            lines.append(f"{i}. ✅ {region}")
+            lines.append(f"{i}. ✅ {_rdisp}")
         elif region in failed_regions:
             _fail_lbl = "(爬取失敗)" if lang.startswith("zh") else "(クロール失敗)" if lang.startswith("ja") else "(crawl failed)"
-            lines.append(f"{i}. ❌ {region} {_fail_lbl}")
+            lines.append(f"{i}. ❌ {_rdisp} {_fail_lbl}")
         else:
-            lines.append(f"{i}. ⬜ {region}")
+            lines.append(f"{i}. ⬜ {_rdisp}")
 
     # Store region mapping in session for later use
     cl.user_session.set("regulatory_available_regions", available_regions)
@@ -6381,11 +6395,12 @@ async def handle_doclist_export(format_type: str):
     audit_log = ImmutableAuditLog()
     download_stats = _build_download_stats(audit_log.get_all_records())
 
+    _lang = cl.user_session.get("language", "zh-TW")
     if format_type == "word":
-        filepath = export_doclist_to_word(active_docs, download_stats=download_stats)
+        filepath = export_doclist_to_word(active_docs, download_stats=download_stats, lang=_lang)
         msg = t("doclist.export_word", count=len(active_docs))
     elif format_type == "excel":
-        filepath = export_doclist_to_excel(active_docs, download_stats=download_stats)
+        filepath = export_doclist_to_excel(active_docs, download_stats=download_stats, lang=_lang)
         msg = t("doclist.export_excel", count=len(active_docs))
     else:
         return None, t("doclist.export_hint")
@@ -6404,11 +6419,12 @@ async def handle_allrecords_export(format_type: str):
     audit_log = ImmutableAuditLog()
     download_stats = _build_download_stats(audit_log.get_all_records())
 
+    _lang = cl.user_session.get("language", "zh-TW")
     if format_type == "word":
-        filepath = export_allrecords_to_word(all_docs, download_stats=download_stats)
+        filepath = export_allrecords_to_word(all_docs, download_stats=download_stats, lang=_lang)
         msg = t("allrecords.export_word", count=len(all_docs))
     elif format_type == "excel":
-        filepath = export_allrecords_to_excel(all_docs, download_stats=download_stats)
+        filepath = export_allrecords_to_excel(all_docs, download_stats=download_stats, lang=_lang)
         msg = t("allrecords.export_excel", count=len(all_docs))
     else:
         return None, t("allrecords.export_hint")
@@ -8096,6 +8112,11 @@ async def chat_with_llm(message_text: str, profile: str):
     # Build system prompt
     lang = cl.user_session.get("language", "zh-TW")
     system_prompt = get_system_prompt(profile, lang)
+    if not lang.startswith("zh"):
+        if lang.startswith("ja"):
+            system_prompt += "\n\nIMPORTANT: You MUST always respond in Japanese (日本語). Never respond in Chinese or English."
+        else:
+            system_prompt += "\n\nIMPORTANT: You MUST always respond in English. Never respond in Chinese, Japanese, or other languages."
     if db_context:
         system_prompt += db_context
         system_prompt += t("llm.answer_from_docs")
@@ -9095,6 +9116,11 @@ async def chat_with_llm_web(message_text: str, profile: str):
     # --- Step 3: Build combined system prompt ---
     lang = cl.user_session.get("language", "zh-TW")
     system_prompt = get_system_prompt(profile, lang)
+    if not lang.startswith("zh"):
+        if lang.startswith("ja"):
+            system_prompt += "\n\nIMPORTANT: You MUST always respond in Japanese (日本語). Never respond in Chinese or English."
+        else:
+            system_prompt += "\n\nIMPORTANT: You MUST always respond in English. Never respond in Chinese, Japanese, or other languages."
 
     # When web search is active, remove the "never display URLs" restriction
     # because we WANT the LLM to cite web sources
@@ -9129,7 +9155,7 @@ async def chat_with_llm_web(message_text: str, profile: str):
     # so lightweight LLMs don't miss it buried in system prompt
     user_content = message_text
     if web_context and db_context:
-        user_content += "\n\n（請同時比對本地文件資料庫的版本與網路查到的最新版本，明確說明是否一致）"
+        user_content += "\n\n" + t("web.compare_local_web")
 
     messages.append({"role": "user", "content": user_content})
 

@@ -679,5 +679,6 @@
     "ui.reg_list_report": "📋 法規清單 Word/Excel 報告",
     "ui.ref_list_report": "📋 引用清單 Word/Excel 報告",
     "ui.profile_mapped_count": "條對應",
-    "ui.profile_unique_count": "項獨有要求"
+    "ui.profile_unique_count": "項獨有要求",
+    "web.compare_local_web": "（請同時比對本地文件資料庫的版本與網路查到的最新版本，明確說明是否一致）"
 }

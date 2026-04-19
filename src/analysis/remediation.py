@@ -88,8 +88,8 @@ Strict Rules:
 6. 【コンテンツの完全性】各提案のactionとexample_contentフィールドはそれぞれ最大2000語；summaryは最大500語；各項目の出力上限は10000語。切り捨てないこと。""",
 }
 
-# Backward-compatible alias (original single-language variable)
-_SYSTEM_PROMPT = _SYSTEM_PROMPTS["zh"]
+# Backward-compatible alias removed — language is routed via _SYSTEM_PROMPTS[lk] at call site.
+# _SYSTEM_PROMPT = _SYSTEM_PROMPTS["zh"]
 
 _USER_PROMPT_TEMPLATES: dict[str, str] = {
     "zh": """## 改善建議任務
@@ -579,7 +579,8 @@ Strict Rules:
 5. 指定されたJSON形式で、条項番号ごとにグループ化して回答する。""",
 }
 
-_DOC_REMEDIATION_SYSTEM_PROMPT = _DOC_REMEDIATION_SYSTEM_PROMPTS["zh"]
+# _DOC_REMEDIATION_SYSTEM_PROMPT alias removed — language routed via _DOC_REMEDIATION_SYSTEM_PROMPTS[lk] at call site.
+# _DOC_REMEDIATION_SYSTEM_PROMPT = _DOC_REMEDIATION_SYSTEM_PROMPTS["zh"]
 
 _DOC_REMEDIATION_USER_TEMPLATES: dict[str, str] = {
     "zh": """## 改善建議任務

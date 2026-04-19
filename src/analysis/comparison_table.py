@@ -60,6 +60,30 @@ class ComparisonTable:
     def state(self) -> PipelineState:
         return self._state
 
+    @classmethod
+    def build_initial_rows(
+        cls,
+        scan_result: dict,
+        standard: str = "ISO_13485",
+        storage_dir: Path = _DEFAULT_DIR,
+        llm_completion_fn=None,
+        model: str = "default",
+        lang: str = "en",
+    ) -> "ComparisonTable":
+        """Classmethod wrapper around the module-level ``build_initial_rows``.
+
+        Allows callers to use ``ComparisonTable.build_initial_rows(...)`` for
+        parity with ``populate_from_scan`` on an existing instance.
+        """
+        return build_initial_rows(
+            scan_result=scan_result,
+            standard=standard,
+            storage_dir=storage_dir,
+            llm_completion_fn=llm_completion_fn,
+            model=model,
+            lang=lang,
+        )
+
     # ── Row population ──
 
     def populate_from_scan(

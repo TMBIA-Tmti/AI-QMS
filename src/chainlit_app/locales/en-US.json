@@ -673,5 +673,6 @@
     "ui.ref_list_report": "📋 Reference List Word/Excel Report",
     "ui.profile_mapped_count": "mapped clauses",
     "ui.profile_unique_count": "unique requirements",
-    "watermark.applied_summary": "Watermark applied to {applied} document(s), {skipped} skipped (not in control scope)."
+    "watermark.applied_summary": "Watermark applied to {applied} document(s), {skipped} skipped (not in control scope).",
+    "web.compare_local_web": "(Please compare the local document database version against the online version found above, and clearly state whether they match.)"
 }
