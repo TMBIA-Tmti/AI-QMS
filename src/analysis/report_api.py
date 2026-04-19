@@ -116,11 +116,17 @@ def _load_table(run_id: str) -> ComparisonTable:
     filepath = _PIPELINE_DIR / f"{run_id}.json"
     if not filepath.exists():
         raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
-    try:
-        return ComparisonTable.load(run_id, _PIPELINE_DIR)
-    except Exception as e:
-        logger.error(f"Failed to load pipeline state {run_id}: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+    last_exc = None
+    for attempt in range(3):
+        try:
+            return ComparisonTable.load(run_id, _PIPELINE_DIR)
+        except Exception as e:
+            last_exc = e
+            if attempt < 2:
+                import time as _time
+                _time.sleep(0.3 * (attempt + 1))
+    logger.error(f"Failed to load pipeline state {run_id} after 3 attempts: {last_exc}")
+    raise HTTPException(status_code=500, detail="Internal server error")
 
 
 def _save_table(table: ComparisonTable) -> None:

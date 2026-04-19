@@ -881,7 +881,7 @@
                                 clearInterval(window.__autoPollTimer);
                                 window.__autoPollTimer = null;
                             }
-                        } catch (_) { /* ignore transient errors */ }
+                        } catch (e) { console.warn('[report] auto-poll error:', e); }
                     }, 8000);
                 }
             } else {
