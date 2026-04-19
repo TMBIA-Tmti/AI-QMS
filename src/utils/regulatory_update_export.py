@@ -131,7 +131,7 @@ def format_regulatory_update_markdown(
             duration=f"{duration:.1f}",
         )
         + "\n",
-        _t("regulatory_update_export.regions_covered", lang, regions=", ".join(regions))
+        _t("regulatory_update_export.regions_covered", lang, regions=", ".join(_region_display(r, lang) for r in regions))
         + "\n",
         f"### {_t('regulatory_update_export.summary_table', lang)}\n",
         f"| {' | '.join(md_headers)} |",

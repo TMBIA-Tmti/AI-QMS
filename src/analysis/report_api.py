@@ -583,12 +583,20 @@ async def get_user_language():
     The crossref table uses this to set the default display language.
     """
     try:
-        from src.utils.user_settings import load_user_settings
+        from src.utils.user_settings import load_user_settings, _LANGUAGE_PATH
+        import json as _json
 
         settings = load_user_settings()
-        language = settings.get("language", "zh-TW")
+        language = settings.get("language", "")
+        if not language:
+            # Settings may have expired (90s TTL); fall back to TTL-free language file.
+            if _LANGUAGE_PATH.exists():
+                with open(_LANGUAGE_PATH, "r", encoding="utf-8") as _f:
+                    language = _json.load(_f).get("language", "en-US")
+            else:
+                language = "en-US"
     except Exception:
-        language = "zh-TW"
+        language = "en-US"
     return JSONResponse(content={"language": language})
 
 
@@ -1433,7 +1441,7 @@ async def reset_for_rerun(run_id: str, row_id: str, body: dict = None):
 async def export_report(
     run_id: str,
     fmt: str,
-    lang: str = Query(default="zh-TW"),
+    lang: str = Query(default="en-US"),
 ):
     """Export summary report (摘要匯出) as Word or Excel.
 
@@ -2132,7 +2140,7 @@ async def get_crossexam_record(record_id: str):
 async def export_crossexam_record(
     record_id: str,
     fmt: str,
-    lang: str = Query(default="zh-TW"),
+    lang: str = Query(default="en-US"),
 ):
     """Export a single cross-exam record as Word or Excel.
 
@@ -2183,7 +2191,7 @@ async def export_crossexam_record(
 async def export_deep_report(
     run_id: str,
     fmt: str,
-    lang: str = Query(default="zh-TW"),
+    lang: str = Query(default="en-US"),
 ):
     """Export a full report including ALL LLM interactions.
 
@@ -2303,7 +2311,7 @@ async def get_meta_analysis():
 @report_router.get("/crossexam/meta-analysis/export/{fmt}")
 async def export_meta_analysis(
     fmt: str,
-    lang: str = Query(default="zh-TW"),
+    lang: str = Query(default="en-US"),
 ):
     """Export meta-analysis report as Word or Excel.
 
@@ -2526,7 +2534,7 @@ async def run_daily_audit_endpoint(request: Request):
             from src.utils.user_settings import load_user_settings
 
             settings = load_user_settings()
-            lang = settings.get("language", "zh-TW")
+            lang = settings.get("language", "en-US")
             model_name = settings.get("model_name", "default")
         except Exception:
             pass
@@ -2641,7 +2649,7 @@ async def run_meta_review_endpoint(request: Request):
             from src.utils.user_settings import load_user_settings
 
             settings = load_user_settings()
-            lang = settings.get("language", "zh-TW")
+            lang = settings.get("language", "en-US")
         except Exception:
             pass
 
@@ -2665,7 +2673,7 @@ async def run_meta_review_endpoint(request: Request):
 
 
 @report_router.get("/daily-audit/history/{audit_id}/export/{fmt}")
-async def export_audit_record(audit_id: str, fmt: str, lang: str = Query(default="zh-TW")):
+async def export_audit_record(audit_id: str, fmt: str, lang: str = Query(default="en-US")):
     """Export a single daily audit record as Word or Excel."""
     if fmt not in ("word", "excel"):
         raise HTTPException(status_code=400, detail="Format must be 'word' or 'excel'")
@@ -2709,7 +2717,7 @@ async def export_audit_record(audit_id: str, fmt: str, lang: str = Query(default
 
 
 @report_router.get("/daily-audit/export/{fmt}")
-async def export_latest_audit(fmt: str, lang: str = Query(default="zh-TW")):
+async def export_latest_audit(fmt: str, lang: str = Query(default="en-US")):
     """Export the latest daily audit record as Word or Excel."""
     if fmt not in ("word", "excel"):
         raise HTTPException(status_code=400, detail="Format must be 'word' or 'excel'")
@@ -3173,7 +3181,7 @@ async def _run_reeval_with_feedback(
             from src.utils.user_settings import load_user_settings
 
             settings = load_user_settings()
-            lang = settings.get("language", "zh-TW")
+            lang = settings.get("language", "en-US")
         except Exception:
             pass
 

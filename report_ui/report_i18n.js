@@ -1974,7 +1974,7 @@
     };
 
     // ── State ──
-    let currentLang = "zh-TW";
+    let currentLang = "en-US";
 
     // ── Core API ──
 
@@ -1985,11 +1985,11 @@
      * @returns {string}
      */
     function t(key, params) {
-        const dict = TRANSLATIONS[currentLang] || TRANSLATIONS["zh-TW"];
+        const dict = TRANSLATIONS[currentLang] || TRANSLATIONS["en-US"];
         let str = dict[key];
         if (str === undefined) {
-            // Fallback to zh-TW
-            str = (TRANSLATIONS["zh-TW"] || {})[key];
+            // Fallback to en-US
+            str = (TRANSLATIONS["en-US"] || {})[key];
         }
         if (str === undefined) return key; // Last resort: return key itself
 
@@ -2042,17 +2042,24 @@
     }
 
     /**
-     * Initialize: fetch language from Chainlit and apply.
+     * Initialize: use URL ?lang= param first (injected by app.py), fall back to API.
      */
     async function init() {
+        // URL param is the most reliable source — app.py always injects it
+        const urlLang = new URLSearchParams(window.location.search).get("lang");
+        if (urlLang) {
+            setLang(urlLang);
+            return;
+        }
+        // Fallback: fetch from Chainlit user settings file
         try {
             const resp = await fetch("/api/report/user/language");
             if (resp.ok) {
                 const data = await resp.json();
-                setLang(data.language || "zh-TW");
+                setLang(data.language || "en-US");
             }
         } catch (_) {
-            // Silent: keep default zh-TW
+            // Silent: keep default en-US
         }
     }
 
