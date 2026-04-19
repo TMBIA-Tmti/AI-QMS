@@ -1149,7 +1149,7 @@
             <td class="col-verdict">${verdictBadge}</td>
             <td class="col-risk">${riskBadge}</td>
             <td class="col-flags">
-                ${flagged ? '<span class="flag-icon" title="${t('ui.raReviewRequired')}">🚩</span>' : ""}
+                ${flagged ? `<span class="flag-icon" title="${t('ui.raReviewRequired')}">🚩</span>` : ""}
                 ${crossExamBadge}
             </td>
             <td class="col-actions">
