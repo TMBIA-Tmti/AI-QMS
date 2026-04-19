@@ -4897,15 +4897,16 @@ async def handle_regulatory_list():
 
     # ── Step 1: Generate baseline Word/Excel BEFORE LLM (guaranteed report) ──
     _cache_id = f"regulatory_list_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+    _rl_lang = cl.user_session.get("language", "zh-TW")
     baseline_word_path = ""
     baseline_excel_path = ""
     try:
         baseline_word_path = export_regulatory_to_word(
             scan_result, assessment=None, verification_report=_verification_report,
-            source_command="regulatory_list"
+            source_command="regulatory_list", lang=_rl_lang
         )
         baseline_excel_path = export_regulatory_to_excel(
-            scan_result, assessment=None, source_command="regulatory_list"
+            scan_result, assessment=None, source_command="regulatory_list", lang=_rl_lang
         )
         save_analysis_cache(
             cache_id=_cache_id,
@@ -5129,11 +5130,13 @@ async def handle_regulatory_list():
                     assessment=assessment,
                     verification_report=_verification_report,
                     source_command="regulatory_list",
+                    lang=_rl_lang,
                 )
                 excel_path = export_regulatory_to_excel(
                     scan_result_for_export,
                     assessment=assessment,
                     source_command="regulatory_list",
+                    lang=_rl_lang,
                 )
                 save_analysis_cache(
                     cache_id=_cache_id,
