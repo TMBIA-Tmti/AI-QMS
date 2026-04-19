@@ -1230,6 +1230,7 @@ def run_gap_scan_document(
             rows=rows,
             llm_completion_fn=llm_completion_fn,
             model=model,
+            lang=lang,
         )
         relevant_id_set = set(relevant_ids)
         scan_rows = [r for r in rows if r.clause_id in relevant_id_set]
