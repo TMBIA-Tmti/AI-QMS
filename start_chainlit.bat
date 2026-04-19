@@ -176,14 +176,14 @@ echo.
 echo  Chainlit URL: http://localhost:%CHAINLIT_PORT%
 echo  Phoenix URL:  http://localhost:%PHOENIX_PORT% (if available)
 echo.
-echo  Auto-Reload: ON (code changes auto-restart)
+echo  Auto-Reload: OFF (disabled to prevent UI disconnect during analysis)
 echo  Press Ctrl+C to stop
 echo ========================================================
 echo.
 
 :: Run Chainlit from project directory
 cd /d "%PROJECT_DIR%"
-"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port %CHAINLIT_PORT% -w
+"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port %CHAINLIT_PORT%
 
 echo.
 echo ========================================================
