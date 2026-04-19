@@ -4639,7 +4639,7 @@ async def _ask_product_docs_upload() -> Optional[str]:
     product_store = get_product_docs_store()
     session_id = product_store.create_session()
 
-    await cl.Message(content=f"⏳ 正在處理 {len(files)} 份產品文件...").send()
+    await cl.Message(content=t("ui.processing_product_docs", count=len(files))).send()
 
     success_count = 0
     for f in files:
@@ -4678,7 +4678,7 @@ async def _ask_product_docs_upload() -> Optional[str]:
 
     if success_count > 0:
         await cl.Message(
-            content=f"✅ 已成功處理 {success_count}/{len(files)} 份產品文件，將納入本次分析。"
+            content=t("ui.product_docs_processed", success=success_count, total=len(files))
         ).send()
         return session_id
     else:
@@ -5728,9 +5728,7 @@ async def handle_regulatory_update_rescan(selected_regions: list):
         regions_needing_profile = get_regions_without_profile(selected_regions)
         if regions_needing_profile:
             await cl.Message(
-                content=f"🔍 偵測到 {len(regions_needing_profile)} 個國家尚無法規 Profile，"
-                f"開始 LLM 自動分析...\n"
-                f"國家：{', '.join(regions_needing_profile)}"
+                content=t("ui.profile_generating", count=len(regions_needing_profile), regions=", ".join(regions_needing_profile))
             ).send()
 
             # Set up LLM for profile generation
@@ -5760,7 +5758,7 @@ async def handle_regulatory_update_rescan(selected_regions: list):
 
                     if not _region_crawl_texts:
                         await cl.Message(
-                            content=f"⚠️ {_region} 無可用的爬蟲資料，跳過 Profile 生成。"
+                            content=t("ui.profile_no_crawl_data", region=_region)
                         ).send()
                         continue
 
@@ -5780,14 +5778,16 @@ async def handle_regulatory_update_rescan(selected_regions: list):
                         )
                         if _profile:
                             await cl.Message(
-                                content=f"✅ {_region} 法規 Profile 已生成："
-                                f"{_profile.regulation_id} "
-                                f"({len(_profile.iso_mapped)} 條對應，"
-                                f"{len(_profile.unique_requirements)} 項獨有要求)"
+                                content=t("ui.profile_generated", region=_region)
+                                + f" {_profile.regulation_id} "
+                                + f"({len(_profile.iso_mapped)} "
+                                + t("ui.profile_mapped_count")
+                                + f", {len(_profile.unique_requirements)} "
+                                + t("ui.profile_unique_count") + ")"
                             ).send()
                         else:
                             await cl.Message(
-                                content=f"⚠️ {_region} 法規 Profile 生成失敗。"
+                                content=t("ui.profile_gen_failed", region=_region)
                             ).send()
                     except Exception as _profile_err:
                         import logging
@@ -5796,7 +5796,7 @@ async def handle_regulatory_update_rescan(selected_regions: list):
                             f"Failed to generate profile for {_region}: {_profile_err}"
                         )
                         await cl.Message(
-                            content=f"⚠️ {_region} 法規 Profile 生成失敗：{str(_profile_err)[:100]}"
+                            content=t("ui.profile_gen_failed_err", region=_region, error=str(_profile_err)[:100])
                         ).send()
             else:
                 await cl.Message(
@@ -6297,7 +6297,7 @@ async def _execute_regulatory_delete(user_input: str):
             if result.get("success"):
                 deleted_items.append(result)
         await cl.Message(
-            content=f"🗑️ 已刪除全部 {len(deleted_items)} 份法規文件。"
+            content=t("ui.reg_deleted_all", count=len(deleted_items))
         ).send()
         return
 
@@ -6316,7 +6316,7 @@ async def _execute_regulatory_delete(user_input: str):
         if deleted_items:
             names = ", ".join(f"{d['region']}/{d['agency']}" for d in deleted_items)
             await cl.Message(
-                content=f"🗑️ 已刪除 {len(deleted_items)} 份法規文件: {names}"
+                content=t("ui.reg_deleted", count=len(deleted_items), names=names)
             ).send()
         else:
             await cl.Message(content=t("ui.doc_not_found")).send()
@@ -6331,10 +6331,10 @@ async def _execute_regulatory_delete(user_input: str):
             names = ", ".join(f"{d['region']}/{d['agency']}" for d in items[:10])
             suffix = " ...等" if len(items) > 10 else ""
             await cl.Message(
-                content=f"🗑️ 已刪除 {count} 份包含 '{cleaned}' 的法規文件: {names}{suffix}"
+                content=t("ui.reg_deleted_pattern", count=count, pattern=cleaned, names=names, suffix=suffix)
             ).send()
         else:
-            await cl.Message(content=f"⚠️ 未找到包含 '{cleaned}' 的法規文件。").send()
+            await cl.Message(content=t("ui.reg_not_found", pattern=cleaned)).send()
         return
 
     await cl.Message(content=t("ui.delete_parse_error")).send()
@@ -9214,7 +9214,7 @@ async def on_submit_daily_feedback(action):
     cl.user_session.set("pending_feedback_audit_date", audit_date)
     cl.user_session.set("awaiting_daily_feedback", True)
     await cl.Message(
-        content=f"請輸入您對 {audit_date} 每日稽核的回饋意見（輸入後按 Enter 送出）：",
+        content=t("ui.audit_feedback_prompt", date=audit_date),
         author="Eira",
     ).send()
     await action.remove()
@@ -9238,7 +9238,7 @@ async def _save_daily_feedback_if_pending(user_message: str) -> bool:
         )
         save_feedback(fb)
         await cl.Message(
-            content=f"✅ 回饋已儲存（稽核日期：{audit_date}）。感謝您的意見！",
+            content=t("ui.audit_feedback_saved", date=audit_date),
             author="Eira",
         ).send()
     except Exception as _fb_err:
@@ -9443,7 +9443,7 @@ async def on_message(message: cl.Message):
 
         region_names = ", ".join(selected)
         await cl.Message(
-            content=f"✅ 已選擇 {len(selected)} 個地區: {region_names}"
+            content=t("ui.regions_selected", count=len(selected), regions=region_names)
         ).send()
         await handle_regulatory_update_rescan(selected)
         return
@@ -9507,7 +9507,7 @@ async def on_message(message: cl.Message):
             except Exception:
                 pass
             await cl.Message(
-                content="📋 文件清單 Word/Excel 報告",
+                content=t("ui.doc_list_report"),
                 elements=elements,
             ).send()
         return
@@ -9547,7 +9547,7 @@ async def on_message(message: cl.Message):
             except Exception:
                 pass
             await cl.Message(
-                content="📋 全部文件紀錄 Word/Excel 報告",
+                content=t("ui.all_doc_records_report"),
                 elements=elements,
             ).send()
         return
@@ -9655,7 +9655,7 @@ async def on_message(message: cl.Message):
             except Exception:
                 pass
             await cl.Message(
-                content="📋 文件更動紀錄 Word/Excel 報告",
+                content=t("ui.doc_change_report"),
                 elements=elements,
             ).send()
         return
@@ -9695,7 +9695,7 @@ async def on_message(message: cl.Message):
             except Exception:
                 pass
             await cl.Message(
-                content="📋 法規更新報告 Word/Excel",
+                content=t("ui.reg_update_report"),
                 elements=elements,
             ).send()
         return
@@ -9740,7 +9740,7 @@ async def on_message(message: cl.Message):
             except Exception:
                 pass
             await cl.Message(
-                content="📋 法規清單 Word/Excel 報告",
+                content=t("ui.reg_list_report"),
                 elements=elements,
             ).send()
         return
@@ -9802,7 +9802,7 @@ async def on_message(message: cl.Message):
             except Exception:
                 pass
             await cl.Message(
-                content="📋 引用清單 Word/Excel 報告",
+                content=t("ui.ref_list_report"),
                 elements=elements,
             ).send()
         return
