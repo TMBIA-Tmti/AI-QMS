@@ -701,7 +701,8 @@ _KEYWORD_CLAUSE_RULES: list[tuple[str, list[str]]] = [
      ["8.2.3", "8.2.6", "8.3.3", "8.3.4"]),
 ]
 
-_FILTER_LLM_SYSTEM_PROMPT = """你是 ISO 13485:2016 稽核範疇分析師，負責判斷哪些條款與指定文件「直接相關」。
+_FILTER_LLM_SYSTEM_PROMPTS: dict[str, str] = {
+    "zh": """你是 ISO 13485:2016 稽核範疇分析師，負責判斷哪些條款與指定文件「直接相關」。
 
 直接相關的定義：稽核員審查此文件時，預期能在文件內容中找到該條款要求的程序、責任人或可量測標準。
 
@@ -710,9 +711,31 @@ _FILTER_LLM_SYSTEM_PROMPT = """你是 ISO 13485:2016 稽核範疇分析師，負
 - 文件只「引用」或「提及」該條款，但不負責描述其執行程序
 - 條款的主責部門與此文件無直接關係
 
-只回傳 JSON 陣列，不附加說明。每份文件預期涵蓋 3-15 個條款。"""
+只回傳 JSON 陣列，不附加說明。每份文件預期涵蓋 3-15 個條款。""",
+    "en": """You are an ISO 13485:2016 audit scope analyst responsible for determining which clauses are "directly relevant" to the specified document.
 
-_FILTER_LLM_USER_TEMPLATE = """文件編號: {doc_id}
+Definition of directly relevant: When an auditor reviews this document, they would expect to find the procedures, responsible parties, or measurable criteria required by the clause within the document content.
+
+Exclusion criteria (exclude if any apply):
+- The clause belongs to a completely different business function
+- The document only "references" or "mentions" the clause but does not describe its execution procedures
+- The clause's primary responsible department has no direct relationship to this document
+
+Return only a JSON array, no additional explanation. Each document is expected to cover 3–15 clauses.""",
+    "ja": """あなたはISO 13485:2016の監査範囲アナリストであり、指定された文書に「直接関連する」条項を判定する責任があります。
+
+直接関連の定義：監査員がこの文書を審査する際、その条項が要求する手順、責任者、または測定可能な基準が文書内容に含まれていると期待できる場合。
+
+除外基準（いずれかに該当する場合は除外）：
+- 条項が全く異なる業務機能に属する
+- 文書がその条項を「引用」または「言及」するだけで、実行手順を説明していない
+- 条項の主責任部門がこの文書と直接関係がない
+
+JSONアレイのみを返し、説明は付加しないこと。各文書は3〜15条項をカバーすることが期待されます。""",
+}
+
+_FILTER_LLM_USER_TEMPLATES: dict[str, str] = {
+    "zh": """文件編號: {doc_id}
 文件標題: {doc_title}
 
 文件前 1500 字:
@@ -725,7 +748,36 @@ _FILTER_LLM_USER_TEMPLATE = """文件編號: {doc_id}
 
 ```json
 ["條款編號1", ...]
-```"""
+```""",
+    "en": """Document ID: {doc_id}
+Document Title: {doc_title}
+
+First 1500 characters of document:
+{doc_excerpt}
+
+---
+From the following clauses, select the clause IDs directly relevant to this document:
+
+{clause_list}
+
+```json
+["clause_id_1", ...]
+```""",
+    "ja": """文書ID: {doc_id}
+文書タイトル: {doc_title}
+
+文書の先頭1500文字:
+{doc_excerpt}
+
+---
+以下の条項から、この文書に直接関連する条項IDを選択してください：
+
+{clause_list}
+
+```json
+["条項ID1", ...]
+```""",
+}
 
 
 def filter_relevant_clauses(
@@ -735,6 +787,7 @@ def filter_relevant_clauses(
     rows: list[RowState],
     llm_completion_fn: Callable,
     model: str = "default",
+    lang: str = "zh-TW",
 ) -> list[str]:
     """Pre-filter: return only clause IDs relevant to this document.
 
@@ -770,7 +823,8 @@ def filter_relevant_clauses(
     clause_lines = [f"{row.clause_id}: {row.clause_title}" for row in rows]
     clause_list = "\n".join(clause_lines)
 
-    user_prompt = _FILTER_LLM_USER_TEMPLATE.format(
+    _lk = _lang_key(lang)
+    user_prompt = _FILTER_LLM_USER_TEMPLATES[_lk].format(
         doc_id=doc_id,
         doc_title=doc_title,
         doc_excerpt=doc_content[:1500],
@@ -780,7 +834,7 @@ def filter_relevant_clauses(
     try:
         response = llm_completion_fn(
             messages=[
-                {"role": "system", "content": _FILTER_LLM_SYSTEM_PROMPT},
+                {"role": "system", "content": _FILTER_LLM_SYSTEM_PROMPTS[_lk]},
                 {"role": "user", "content": user_prompt},
             ],
             model=model,

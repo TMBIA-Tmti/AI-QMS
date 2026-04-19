@@ -1507,7 +1507,8 @@ def run_verification_document(
 # Phase 5 Step 2: Third-Party QA Audit
 # ============================================================
 
-_QA_AUDITOR_SYSTEM_PROMPT = """你是品質管理系統的「第三方交叉詰問品質稽核員」。你的任務是獨立審查分析者（Analyzer）和驗證者（Verifier）之間的對話紀錄，判斷對話品質。
+_QA_AUDITOR_SYSTEM_PROMPTS: dict[str, str] = {
+    "zh": """你是品質管理系統的「第三方交叉詰問品質稽核員」。你的任務是獨立審查分析者（Analyzer）和驗證者（Verifier）之間的對話紀錄，判斷對話品質。
 
 你不是分析者或驗證者的任何一方 — 你是獨立的第三方稽核員。
 
@@ -1555,9 +1556,109 @@ _QA_AUDITOR_SYSTEM_PROMPT = """你是品質管理系統的「第三方交叉詰�
   ],
   "summary": "整體審查摘要（2-3 句話）",
   "recommendations": ["改善建議"]
-}"""
+}""",
+    "en": """You are the "Third-Party Cross-Examination Quality Auditor" for a Quality Management System. Your task is to independently review the debate transcripts between the Analyzer and the Verifier and assess dialogue quality.
 
-_QA_AUDITOR_USER_TEMPLATE = """## 第三方品質稽核任務
+You are neither the Analyzer nor the Verifier — you are an independent third-party auditor.
+
+Review each debate record for:
+1. **Question reasonableness**: Are the Analyzer's position and evidence citations reasonable? Any fabricated or non-existent evidence?
+2. **Answer correctness**: Are the Verifier's challenges based on accurate regulatory content? Any misquoted clauses or distorted regulatory intent?
+3. **Logic consistency**: Is the reasoning throughout the debate coherent? Any self-contradictions?
+4. **Hallucination detection**: Did either party fabricate non-existent documents, evidence, or regulatory clauses?
+5. **Depth sufficiency**: Is the discussion substantive, or superficial?
+6. **Conclusion reasonableness**: Does the final agree/disagree conclusion align with the debate content?
+
+**Scoring criteria (overall_score and per-clause score — apply strictly):**
+
+| Score range | Criteria |
+|-------------|----------|
+| 90–100 | No hallucinations, precise evidence citations, fully coherent logic, substantive challenges, conclusion matches debate |
+| 70–89  | Minor flaws (slightly imprecise citations or shallow arguments), overall good quality, no hallucinations |
+| 50–69  | Notable issues (1–2 logic jumps or weak evidence), or suspected but unconfirmed hallucinations |
+| 30–49  | Serious issues (multiple contradictions, confirmed hallucinations, or conclusion inconsistent with debate) |
+| 0–29   | Complete failure (extensive fabrication, no substantive debate, or entirely wrong conclusion) |
+
+**Field definitions:**
+- `question_quality: good` = specific and substantive; `acceptable` = adequate but shallow; `poor` = superficial or incorrect
+- `answer_accuracy: accurate` = regulatory citations correct; `partially_accurate` = partially correct; `inaccurate` = citations wrong
+- `logic_consistency: consistent` = fully coherent; `minor_issues` = slight inconsistencies; `inconsistent` = clear contradictions
+
+Respond using the following JSON format:
+{
+  "overall_score": 0-100,
+  "score_rationale": "Explain which score band was chosen and why",
+  "clause_audits": [
+    {
+      "clause_id": "clause number",
+      "score": 0-100,
+      "score_rationale": "Explain scoring basis for this clause",
+      "question_quality": "good | acceptable | poor",
+      "answer_accuracy": "accurate | partially_accurate | inaccurate",
+      "hallucination_detected": false,
+      "hallucination_details": "Specific hallucination content (if any)",
+      "logic_consistency": "consistent | minor_issues | inconsistent",
+      "depth_sufficient": true,
+      "conclusion_reasonable": true,
+      "issues": ["Specific issue description"]
+    }
+  ],
+  "summary": "Overall review summary (2-3 sentences)",
+  "recommendations": ["Improvement suggestions"]
+}""",
+    "ja": """あなたは品質マネジメントシステムの「第三者相互尋問品質監査員」です。あなたの任務は、分析者（Analyzer）と検証者（Verifier）間の対話記録を独立して審査し、対話品質を判定することです。
+
+あなたは分析者でも検証者でもありません — 独立した第三者監査員です。
+
+各対話記録について以下を確認してください：
+1. **質問の合理性**: 分析者の立場と証拠引用は合理的か？捏造または存在しない証拠はないか？
+2. **回答の正確性**: 検証者の質疑は正確な規制内容に基づいているか？誤った条項引用や規制の歪曲はないか？
+3. **論理の一貫性**: 議論全体の論理は一貫しているか？自己矛盾はないか？
+4. **ハルシネーション検出**: いずれかの当事者が存在しない文書、証拠、規制条項を捏造していないか？
+5. **議論の深さ**: 議論は十分に実質的か、表面的な対応に留まっていないか？
+6. **結論の合理性**: 最終的な同意/不同意の結論は議論内容と一致しているか？
+
+**採点基準（overall_scoreおよび各条項score — 厳密に適用）：**
+
+| スコア範囲 | 基準 |
+|-----------|------|
+| 90–100 | ハルシネーションなし、証拠引用が正確、論理が完全に一貫、質疑が実質的、結論が議論と一致 |
+| 70–89  | 軽微な欠点（引用がやや不正確または議論がやや浅い）、全体的に良質、ハルシネーションなし |
+| 50–69  | 顕著な問題（1〜2箇所の論理的飛躍または証拠が薄弱）、または疑わしいが未確認のハルシネーション |
+| 30–49  | 深刻な問題（複数の矛盾、確認されたハルシネーション、または結論と議論の不一致） |
+| 0–29   | 完全な失敗（広範な捏造、実質的な議論なし、または結論が完全に誤り） |
+
+**フィールド定義：**
+- `question_quality: good` = 具体的で実質的；`acceptable` = 許容範囲だが浅い；`poor` = 表面的または誤り
+- `answer_accuracy: accurate` = 規制引用が正確；`partially_accurate` = 部分的に正確；`inaccurate` = 引用が誤り
+- `logic_consistency: consistent` = 完全に一貫；`minor_issues` = 軽微な不一致；`inconsistent` = 明らかな矛盾
+
+以下のJSON形式で回答してください：
+{
+  "overall_score": 0-100,
+  "score_rationale": "どのスコア帯を選択したか、その理由を説明",
+  "clause_audits": [
+    {
+      "clause_id": "条項番号",
+      "score": 0-100,
+      "score_rationale": "この条項の採点根拠を説明",
+      "question_quality": "good | acceptable | poor",
+      "answer_accuracy": "accurate | partially_accurate | inaccurate",
+      "hallucination_detected": false,
+      "hallucination_details": "ハルシネーションの具体的な内容（ある場合）",
+      "logic_consistency": "consistent | minor_issues | inconsistent",
+      "depth_sufficient": true,
+      "conclusion_reasonable": true,
+      "issues": ["具体的な問題の説明"]
+    }
+  ],
+  "summary": "全体的な審査サマリー（2〜3文）",
+  "recommendations": ["改善提案"]
+}""",
+}
+
+_QA_AUDITOR_USER_TEMPLATES: dict[str, str] = {
+    "zh": """## 第三方品質稽核任務
 
 請審查以下 {clause_count} 筆交叉詰問對話紀錄：
 
@@ -1568,7 +1669,84 @@ _QA_AUDITOR_USER_TEMPLATE = """## 第三方品質稽核任務
 
 {debate_transcripts}
 
-請對每一筆對話給出品質評分和具體問題。"""
+請對每一筆對話給出品質評分和具體問題。""",
+    "en": """## Third-Party Quality Audit Task
+
+Please review the following {clause_count} cross-examination debate transcripts:
+
+**Document**: {doc_id} — {doc_title}
+**Regulations involved**: {regulations}
+
+### Debate Transcripts
+
+{debate_transcripts}
+
+Provide quality scores and specific issues for each debate.""",
+    "ja": """## 第三者品質監査タスク
+
+以下の {clause_count} 件の相互尋問対話記録を審査してください：
+
+**文書**: {doc_id} — {doc_title}
+**関連規制**: {regulations}
+
+### 対話記録
+
+{debate_transcripts}
+
+各対話の品質スコアと具体的な問題点を提供してください。""",
+}
+
+
+_TRANSCRIPT_LABELS: dict[str, dict[str, str]] = {
+    "zh": {
+        "clause": "條款",
+        "audit_question": "稽核問題",
+        "verdict": "判定結果",
+        "conclusion": "最終結論",
+        "agreed": "同意",
+        "disagreed": "不同意（標記 RA 覆審）",
+        "round": "輪次",
+        "analyzer": "分析者",
+        "position": "立場",
+        "evidence": "證據",
+        "verifier": "驗證者",
+        "challenge": "質疑",
+        "assessment": "評語",
+        "truncated": "...（已截斷）",
+    },
+    "en": {
+        "clause": "Clause",
+        "audit_question": "Audit Question",
+        "verdict": "Verdict",
+        "conclusion": "Final Conclusion",
+        "agreed": "Agreed",
+        "disagreed": "Disagreed (Flagged for RA Review)",
+        "round": "Round",
+        "analyzer": "Analyzer",
+        "position": "Position",
+        "evidence": "Evidence",
+        "verifier": "Verifier",
+        "challenge": "Challenge",
+        "assessment": "Assessment",
+        "truncated": "...(truncated)",
+    },
+    "ja": {
+        "clause": "条項",
+        "audit_question": "監査質問",
+        "verdict": "判定結果",
+        "conclusion": "最終結論",
+        "agreed": "同意",
+        "disagreed": "不同意（RA再審フラグ）",
+        "round": "ラウンド",
+        "analyzer": "分析者",
+        "position": "立場",
+        "evidence": "証拠",
+        "verifier": "検証者",
+        "challenge": "質疑",
+        "assessment": "評価",
+        "truncated": "...（省略）",
+    },
+}
 
 
 def _build_debate_transcript(
@@ -1578,12 +1756,15 @@ def _build_debate_transcript(
     verdict: str,
     rounds: list[dict],
     agreed: bool,
+    lang: str = "zh-TW",
 ) -> str:
+    lk = _lang_key(lang)
+    lb = _TRANSCRIPT_LABELS[lk]
     parts = [
-        f"--- 條款 {clause_id}: {clause_title} ---",
-        f"稽核問題: {audit_question}",
-        f"判定結果: {verdict}",
-        f"最終結論: {'同意' if agreed else '不同意（標記 RA 覆審）'}",
+        f"--- {lb['clause']} {clause_id}: {clause_title} ---",
+        f"{lb['audit_question']}: {audit_question}",
+        f"{lb['verdict']}: {verdict}",
+        f"{lb['conclusion']}: {lb['agreed'] if agreed else lb['disagreed']}",
         "",
     ]
     for rd in rounds:
@@ -1605,20 +1786,20 @@ def _build_debate_transcript(
         )
         v_assessment = verifier.get("overall_assessment", "")[:600]
 
-        parts.append(f"  輪次 {round_num}:")
-        parts.append(f"    分析者: confidence={a_confidence}")
-        parts.append(f"    立場: {a_position}")
+        parts.append(f"  {lb['round']} {round_num}:")
+        parts.append(f"    {lb['analyzer']}: confidence={a_confidence}")
+        parts.append(f"    {lb['position']}: {a_position}")
         if a_evidence:
-            parts.append(f"    證據: {', '.join(str(e)[:80] for e in a_evidence[:3])}")
-        parts.append(f"    驗證者: agreement={v_agreement}")
+            parts.append(f"    {lb['evidence']}: {', '.join(str(e)[:80] for e in a_evidence[:3])}")
+        parts.append(f"    {lb['verifier']}: agreement={v_agreement}")
         if isinstance(v_challenges, list) and v_challenges:
             for ch in v_challenges[:2]:
                 if isinstance(ch, dict):
-                    parts.append(f"    質疑: {ch.get('point', str(ch))[:150]}")
+                    parts.append(f"    {lb['challenge']}: {ch.get('point', str(ch))[:150]}")
                 else:
-                    parts.append(f"    質疑: {str(ch)[:150]}")
+                    parts.append(f"    {lb['challenge']}: {str(ch)[:150]}")
         if v_assessment:
-            parts.append(f"    評語: {v_assessment}")
+            parts.append(f"    {lb['assessment']}: {v_assessment}")
         parts.append("")
 
     return "\n".join(parts)
@@ -1679,19 +1860,24 @@ def run_qa_audit_document(
             verdict=verdict_label,
             rounds=row.verification_rounds,
             agreed=row.verification_agreed or False,
+            lang=lang,
         )
         transcripts.append(transcript)
 
     combined_transcripts = "\n\n".join(transcripts)
     if len(combined_transcripts) > 12000:
-        combined_transcripts = combined_transcripts[:12000] + "\n\n...（已截斷）"
+        combined_transcripts = (
+            combined_transcripts[:12000]
+            + "\n\n"
+            + _TRANSCRIPT_LABELS[lk]["truncated"]
+        )
 
     doc_title = rows[0].doc_title if rows else doc_id
     regulations_str = (
         ", ".join(selected_regulations) if selected_regulations else "ISO 13485"
     )
 
-    user_prompt = _QA_AUDITOR_USER_TEMPLATE.format(
+    user_prompt = _QA_AUDITOR_USER_TEMPLATES[lk].format(
         clause_count=len(rows_with_debates),
         doc_id=doc_id,
         doc_title=doc_title,
@@ -1712,7 +1898,7 @@ def run_qa_audit_document(
     try:
         response, usage = _call_llm(
             llm_completion_fn,
-            _QA_AUDITOR_SYSTEM_PROMPT,
+            _QA_AUDITOR_SYSTEM_PROMPTS[lk],
             user_prompt,
             state,
             model,
