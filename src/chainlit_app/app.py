@@ -4967,8 +4967,11 @@ async def handle_regulatory_list():
                 else:
                     _board_msg[0].content = board
                     await _board_msg[0].update()
-            except Exception:
-                pass
+            except Exception as _e:
+                logging.getLogger(__name__).warning(
+                    "pipeline board update failed: %s: %s", type(_e).__name__, _e
+                )
+                _board_msg[0] = None  # reset so next call tries send() instead of update()
 
         await cl.Message(content=t("regulatory_update.assessment_analyzing")).send()
 
@@ -5929,8 +5932,11 @@ async def handle_regulatory_update_rescan(selected_regions: list):
                     else:
                         _board_msg_u[0].content = board
                         await _board_msg_u[0].update()
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logging.getLogger(__name__).warning(
+                        "pipeline board update failed: %s: %s", type(_e).__name__, _e
+                    )
+                    _board_msg_u[0] = None
 
             await cl.Message(content=t("regulatory_update.assessment_analyzing")).send()
 
