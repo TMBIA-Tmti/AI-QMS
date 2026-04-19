@@ -468,10 +468,15 @@ class ComparisonTable:
                     if dynamic_kw:
                         REGULATION_DETECTION_KEYWORDS[reg_id] = dynamic_kw
 
-            # Build searchable text (title + tags + body[:3000])
+            # Build searchable text — title + tags ONLY.
+            # Body is excluded because QMS form templates all contain a
+            # "Global Regulatory Landscape" boilerplate section that lists
+            # every major regulation (QMSR, MDR, TFDA, PMDA, HC, TGA…),
+            # which causes Strategy 5 to falsely expand every document to
+            # all 71 ISO 13485 clauses.  Cross-regulation expansion should
+            # only fire when the document is explicitly authored for that
+            # regulation (indicated by its title or tags).
             search_text = (title_normalized + " " + " ".join(doc_tags)).lower()
-            if doc_body:
-                search_text += " " + doc_body[:3000].lower()
 
             # Detect which regulations are mentioned
             matched_reg_ids: set[str] = set()

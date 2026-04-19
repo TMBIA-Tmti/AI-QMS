@@ -794,19 +794,24 @@ def run_checklist_verify_document(
     H = _DOC_HEADER_LABELS[lk]
 
     try:
-        # Build per-clause evidence sections
+        # Build per-clause evidence sections — ONLY clauses where P1 found evidence.
+        # P1 creates EvidenceItem objects for all expected evidence (found=False when
+        # missing), so checking `not evidence_items` never filters anything.  We must
+        # check found=True to avoid sending all 71 clauses × their empty evidence to
+        # the LLM (which produces a ~21k token prompt, truncated JSON, and 0 results).
         clauses_parts = []
         has_evidence = False
         for i, row in enumerate(rows, 1):
-            evidence_items = [EvidenceItem.from_dict(e) for e in row.evidence_items]
-            if not evidence_items:
+            all_items = [EvidenceItem.from_dict(e) for e in row.evidence_items]
+            found_items = [e for e in all_items if e.found]
+            if not found_items:
                 continue
             has_evidence = True
 
             # L1: keyword cross-match per clause
-            run_keyword_crossmatch(evidence_items, row.audit_question)
+            run_keyword_crossmatch(found_items, row.audit_question)
 
-            evidence_section = _build_evidence_section(evidence_items, lang=lang)
+            evidence_section = _build_evidence_section(found_items, lang=lang)
             regulation_text = _get_regulation_text(row.clause_id, row.standard)
 
             clauses_parts.append(
@@ -848,6 +853,12 @@ def run_checklist_verify_document(
 
         doc_title = rows[0].doc_title if rows else doc_id
 
+        # Scale max_tokens with clause count so large documents don't produce
+        # truncated JSON.  Each clause needs ~200 tokens for its result block;
+        # enforce a floor of 4096 and a ceiling of 16384.
+        clauses_with_evidence = len(clauses_parts)
+        dynamic_max_tokens = max(4096, min(16384, clauses_with_evidence * 250 + 1024))
+
         # SSE: emit before LLM call
         _emit_pipeline_event(
             run_id,
@@ -870,7 +881,7 @@ def run_checklist_verify_document(
                 messages=messages,
                 model=model,
                 temperature=temperature,
-                max_tokens=max_tokens,
+                max_tokens=dynamic_max_tokens,
                 stream=False,
             )
             response_text_attempt = response.get("content", "")
