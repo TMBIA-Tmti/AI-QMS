@@ -116,6 +116,7 @@ class RegulatoryConfigManager:
             lines.append(f"- [ ] {region}")
 
         lines.append("")
+        # Internal config file format — lang.startswith not needed (not user-facing)
         lines.append("## 備註")
         lines.append(notes if notes else "用戶自訂的偏好設定")
         lines.append("")

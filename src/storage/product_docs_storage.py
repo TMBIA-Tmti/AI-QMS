@@ -180,7 +180,7 @@ class ProductDocsStorage:
         return results
 
     def get_session_content_for_prompt(
-        self, session_id: str, max_chars: int = 8000
+        self, session_id: str, max_chars: int = 8000, lang: str = "zh-TW"
     ) -> str:
         """Get combined content of all docs in session, formatted for LLM prompt.
 
@@ -208,16 +208,24 @@ class ProductDocsStorage:
                 continue
             truncated = content[:per_doc_limit]
             if len(content) > per_doc_limit:
-                truncated += "\n...(內容已截斷)"
-            parts.append(f"### [來源: 📦 產品文件] {doc['filename']}\n{truncated}")
+                _trunc_note = "內容已截斷" if lang.startswith("zh") else "content truncated"
+                truncated += f"\n...({_trunc_note})"
+            _src_label = "來源: 📦 產品文件" if lang.startswith("zh") else "Source: 📦 Product Document"
+            parts.append(f"### [{_src_label}] {doc['filename']}\n{truncated}")
 
         if not parts:
             return ""
 
-        header = (
-            f"## 產品相關文件（使用者本次上傳，僅供本次分析參考）\n"
-            f"共 {len(parts)} 份產品文件\n"
-        )
+        if lang.startswith("zh"):
+            header = (
+                f"## 產品相關文件（使用者本次上傳，僅供本次分析參考）\n"
+                f"共 {len(parts)} 份產品文件\n"
+            )
+        else:
+            header = (
+                f"## Product Documents (uploaded for this analysis session only)\n"
+                f"Total: {len(parts)} product documents\n"
+            )
         return header + "\n\n".join(parts)
 
     def has_documents(self, session_id: str) -> bool:

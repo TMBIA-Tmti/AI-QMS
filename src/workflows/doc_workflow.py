@@ -56,7 +56,7 @@ workflow.add_edge("detect_type", "check_related")
 def route_logic(state: DocState):
     if state['is_related']:
         return "ocr_processing"
-    return "ocr_processing" # 簡化流程，全部都做 OCR
+    return "ocr_processing"  # simplified: always do OCR
 
 workflow.add_conditional_edges(
     "check_related",

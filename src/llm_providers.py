@@ -1697,16 +1697,18 @@ def auto_update_models(providers_to_update: list[str] | None = None) -> dict:
     return results
 
 
-def print_update_summary(results: dict) -> str:
+def print_update_summary(results: dict, lang: str = "zh-TW") -> str:
     """Format auto_update_models results into a human-readable summary."""
-    lines = ["[LLM 模型清單自動更新]"]
+    _zh = lang.startswith("zh")
+    lines = ["[LLM 模型清單自動更新]" if _zh else "[LLM Model List Auto-Update]"]
     any_change = False
 
     for pid, info in results.items():
         if info.get("error") == "fetch_skipped":
             continue
         if info.get("error"):
-            lines.append(f"  ⚠️ {pid}: 錯誤 - {info['error']}")
+            _err = "錯誤" if _zh else "Error"
+            lines.append(f"  ⚠️ {pid}: {_err} - {info['error']}")
             continue
 
         added = info.get("added", [])
@@ -1717,20 +1719,25 @@ def print_update_summary(results: dict) -> str:
             display = DEFAULT_PROVIDERS.get(pid, {}).get("display_name", pid)
             lines.append(f"  📡 {display}:")
             if added:
-                lines.append(f"    ✅ 新增 {len(added)} 個模型")
+                _added_msg = f"新增 {len(added)} 個模型" if _zh else f"Added {len(added)} models"
+                lines.append(f"    ✅ {_added_msg}")
                 for m in added[:10]:
                     lines.append(f"       + {m}")
                 if len(added) > 10:
-                    lines.append(f"       ... 及其他 {len(added) - 10} 個")
+                    _more = f"及其他 {len(added) - 10} 個" if _zh else f"and {len(added) - 10} more"
+                    lines.append(f"       ... {_more}")
             if removed:
-                lines.append(f"    ❌ 移除 {len(removed)} 個已下架模型")
+                _rem_msg = f"移除 {len(removed)} 個已下架模型" if _zh else f"Removed {len(removed)} delisted models"
+                lines.append(f"    ❌ {_rem_msg}")
                 for m in removed[:10]:
                     lines.append(f"       - {m}")
                 if len(removed) > 10:
-                    lines.append(f"       ... 及其他 {len(removed) - 10} 個")
+                    _more = f"及其他 {len(removed) - 10} 個" if _zh else f"and {len(removed) - 10} more"
+                    lines.append(f"       ... {_more}")
 
     if not any_change:
-        lines.append("  ✅ 所有模型清單已是最新")
+        _uptodate = "所有模型清單已是最新" if _zh else "All model lists are up to date"
+        lines.append(f"  ✅ {_uptodate}")
 
     return "\n".join(lines)
 

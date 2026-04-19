@@ -275,32 +275,66 @@ def format_crossref_report_markdown(
 
     lines: list[str] = []
 
+    # Determine if we should show Chinese
+    # language_mode: "zh-only", "zh-en", "local" (legacy)
+    # Also supports lang codes: "en-US", "ja-JP", "zh-TW", etc.
+    _show_zh = language_mode in ("zh-only", "zh-en", "local")
+    _show_en = language_mode != "zh-only"
+    # If language_mode looks like a lang code, adapt accordingly
+    # e.g. lang.startswith("zh") → show Chinese, lang.startswith("en") → English only
+    lang = language_mode  # alias for pattern compatibility
+    if lang.startswith("en") or lang.startswith("ja"):
+        _show_zh = False
+        _show_en = True
+    elif lang.startswith("zh"):
+        _show_zh = True
+        _show_en = True
+
     # Header
     reg_count = meta.get('total_regulations', 0)
-    lines.append(f"# {reg_count}國 × ISO 13485 交叉比對驗證報告")
-    if language_mode != "zh-only":
+    if _show_zh:
+        lines.append(f"# {reg_count}國 × ISO 13485 交叉比對驗證報告")
+    if _show_en:
         lines.append(f"# {reg_count}-Country × ISO 13485 Cross-Reference Validation Report")
     lines.append("")
-    lines.append(f"**產生時間**: {meta.get('generated_at', '')[:19]}  ")
-    lines.append(f"**基準標準**: {meta.get('iso_standard', '')}  ")
-    lines.append(f"**比對國家數**: {meta.get('total_regulations', 0)}  ")
-    lines.append(f"**總條款數**: {summary.get('total_clauses', 0)}  ")
-    lines.append(f"**生成耗時**: {meta.get('generation_time_ms', 0)}ms  ")
+    if _show_zh:
+        lines.append(f"**產生時間**: {meta.get('generated_at', '')[:19]}  ")
+        lines.append(f"**基準標準**: {meta.get('iso_standard', '')}  ")
+        lines.append(f"**比對國家數**: {meta.get('total_regulations', 0)}  ")
+        lines.append(f"**總條款數**: {summary.get('total_clauses', 0)}  ")
+        lines.append(f"**生成耗時**: {meta.get('generation_time_ms', 0)}ms  ")
+    else:
+        lines.append(f"**Generated at**: {meta.get('generated_at', '')[:19]}  ")
+        lines.append(f"**Base standard**: {meta.get('iso_standard', '')}  ")
+        lines.append(f"**Countries compared**: {meta.get('total_regulations', 0)}  ")
+        lines.append(f"**Total clauses**: {summary.get('total_clauses', 0)}  ")
+        lines.append(f"**Generation time**: {meta.get('generation_time_ms', 0)}ms  ")
     lines.append("")
 
     # Summary table
-    lines.append("## 總覽" if language_mode == "zh-only" else "## 總覽 Summary")
+    if _show_zh:
+        lines.append("## 總覽" if not _show_en else "## 總覽 Summary")
+    else:
+        lines.append("## Summary")
     lines.append("")
-    lines.append(
-        "| 國家 | 完全對應 | 部分對應 | 超出ISO | 不適用 | 未映射 | 獨有需求 | 平均信心度 |"
-    )
+    if _show_zh:
+        lines.append(
+            "| 國家 | 完全對應 | 部分對應 | 超出ISO | 不適用 | 未映射 | 獨有需求 | 平均信心度 |"
+        )
+    else:
+        lines.append(
+            "| Country | Full | Partial | Exceeds | N/A | Not Mapped | Unique Reqs | Avg Confidence |"
+        )
     lines.append(
         "|------|---------|---------|---------|--------|--------|---------|-----------|"
     )
     for reg_id, stats in country_stats.items():
-        name = stats.get("country_name_zh", reg_id)
-        if language_mode != "zh-only":
-            name += f" ({stats.get('country_name_en', '')})"
+        if _show_zh:
+            name = stats.get("country_name_zh", reg_id)
+            if _show_en:
+                name += f" ({stats.get('country_name_en', '')})"
+        else:
+            name = stats.get("country_name_en", reg_id)
         lines.append(
             f"| {name} "
             f"| {stats.get('full_count', 0)} "
@@ -314,20 +348,26 @@ def format_crossref_report_markdown(
     lines.append("")
 
     # Per-clause detail table
-    lines.append(
-        "## 逐條比對明細"
-        if language_mode == "zh-only"
-        else "## 逐條比對明細 Clause-by-Clause Detail"
-    )
+    if _show_zh:
+        lines.append(
+            "## 逐條比對明細"
+            if not _show_en
+            else "## 逐條比對明細 Clause-by-Clause Detail"
+        )
+    else:
+        lines.append("## Clause-by-Clause Detail")
     lines.append("")
 
     # Build header row dynamically based on countries
     reg_ids = list(country_stats.keys())
-    header = "| 條款 | 標題 | 影響 |"
+    if _show_zh:
+        header = "| 條款 | 標題 | 影響 |"
+    else:
+        header = "| Clause | Title | Impact |"
     separator = "|------|------|------|"
     for reg_id in reg_ids:
         stats = country_stats[reg_id]
-        col_name = stats.get("country_name_zh", reg_id)
+        col_name = stats.get("country_name_zh", reg_id) if _show_zh else stats.get("country_name_en", reg_id)
         header += f" {col_name} |"
         separator += "------|"
     lines.append(header)
@@ -354,46 +394,62 @@ def format_crossref_report_markdown(
 
     # Delta items (country-unique requirements)
     if delta_items:
-        lines.append(
-            "## 國家獨有需求 (Delta)"
-            if language_mode == "zh-only"
-            else "## 國家獨有需求 (Delta Items)"
-        )
+        if _show_zh:
+            lines.append(
+                "## 國家獨有需求 (Delta)"
+                if not _show_en
+                else "## 國家獨有需求 (Delta Items)"
+            )
+        else:
+            lines.append("## Country-Unique Requirements (Delta Items)")
         lines.append("")
 
         for reg_id, items in delta_items.items():
             stats = country_stats.get(reg_id, {})
-            country_name = stats.get("country_name_zh", reg_id)
-            if language_mode != "zh-only":
-                country_name += f" ({stats.get('country_name_en', '')})"
+            if _show_zh:
+                country_name = stats.get("country_name_zh", reg_id)
+                if _show_en:
+                    country_name += f" ({stats.get('country_name_en', '')})"
+            else:
+                country_name = stats.get("country_name_en", reg_id)
             lines.append(f"### {country_name}")
             lines.append("")
 
             for item in items:
                 impact_icon = _IMPACT_LABELS.get(item.get("audit_impact", ""), "")
-                lines.append(f"#### {impact_icon} {item['req_id']}: {item['title_zh']}")
-                if language_mode != "zh-only":
-                    lines.append(f"*{item['title_en']}*")
+                if _show_zh:
+                    lines.append(f"#### {impact_icon} {item['req_id']}: {item['title_zh']}")
+                    if _show_en:
+                        lines.append(f"*{item['title_en']}*")
+                else:
+                    lines.append(f"#### {impact_icon} {item['req_id']}: {item['title_en']}")
                 lines.append("")
-                lines.append(f"- **法規引用**: {item['regulation_ref']}")
+                _reg_ref = "法規引用" if _show_zh else "Regulation Ref"
+                lines.append(f"- **{_reg_ref}**: {item['regulation_ref']}")
+                _iso_ref = "相關ISO條款" if _show_zh else "Related ISO Clauses"
                 lines.append(
-                    f"- **相關ISO條款**: {', '.join(item.get('related_iso_clauses', []))}"
+                    f"- **{_iso_ref}**: {', '.join(item.get('related_iso_clauses', []))}"
                 )
-                lines.append(f"- **需求說明**: {item['requirement_zh']}")
-                if language_mode != "zh-only":
+                if _show_zh:
+                    lines.append(f"- **需求說明**: {item['requirement_zh']}")
+                    if _show_en:
+                        lines.append(f"- **Requirement**: {item['requirement_en']}")
+                else:
                     lines.append(f"- **Requirement**: {item['requirement_en']}")
 
                 # Local language original text
                 if language_mode == "local" and item.get("original_text"):
                     lang = item.get("original_lang", "")
-                    lines.append(f"- **法規原文** [{lang}]: {item['original_text']}")
+                    _orig_label = "法規原文" if _show_zh else "Original Text"
+                    lines.append(f"- **{_orig_label}** [{lang}]: {item['original_text']}")
                     if item.get("english_translation"):
                         lines.append(
                             f"- **English Translation**: {item['english_translation']}"
                         )
 
                 if item.get("semantic_note"):
-                    lines.append(f"- **跨國比較**: {item['semantic_note']}")
+                    _compare_label = "跨國比較" if _show_zh else "Cross-Country Comparison"
+                    lines.append(f"- **{_compare_label}**: {item['semantic_note']}")
 
                 lines.append("")
 

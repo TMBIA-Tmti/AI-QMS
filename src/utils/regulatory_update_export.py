@@ -22,6 +22,15 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
 
 from src.utils.regulatory_export import _t, _tl, _source_label as _source_label
+import re as _re
+
+
+def _region_display(region_key: str, lang: str) -> str:
+    """Extract English name for non-zh languages: '美國 (USA)' → 'USA'"""
+    if lang.startswith("zh"):
+        return region_key
+    m = _re.search(r'\(([^)]+)\)', region_key)
+    return m.group(1) if m else region_key
 
 
 # Output directory for generated files
@@ -146,7 +155,7 @@ def format_regulatory_update_markdown(
         else:
             preview = r.get("note", "")[:50]
 
-        lines.append(f"| {region} | {agency} | {status} | {preview} | {qms[:30]} |")
+        lines.append(f"| {_region_display(region, lang)} | {agency} | {status} | {preview} | {qms[:30]} |")
 
     # Failed sites section
     failed_results = [r for r in results if r.get("crawl_status") == "failed"]
@@ -156,7 +165,7 @@ def format_regulatory_update_markdown(
             reason = r.get(
                 "failure_reason", _t("regulatory_update_export.unknown_reason", lang)
             )
-            lines.append(f"- **{r['region']} — {r['agency']}**: {reason}")
+            lines.append(f"- **{_region_display(r['region'], lang)} — {r['agency']}**: {reason}")
         lines.append("")
 
     # Assessment section
@@ -312,7 +321,7 @@ def export_regulatory_update_to_word(
         qms = _get_qms_mapping(agency, region)
 
         values = [
-            region,
+            _region_display(region, lang),
             agency,
             r.get("url", "")[:80],
             status_text,
@@ -343,7 +352,7 @@ def export_regulatory_update_to_word(
 
         for r in success_results:
             doc.add_heading(
-                f"{r.get('region', '')} — {r.get('agency', '')}",
+                f"{_region_display(r.get('region', ''), lang)} — {r.get('agency', '')}",
                 level=3,
             )
             content = r.get("content_markdown", "")
@@ -512,7 +521,7 @@ def export_regulatory_update_to_excel(
         qms = _get_qms_mapping(agency, region)
 
         values = [
-            region,
+            _region_display(region, lang),
             agency,
             r.get("url", ""),
             status_text,

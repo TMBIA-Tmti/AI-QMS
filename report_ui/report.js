@@ -16,6 +16,14 @@
 
     const t = (key, params) => window.__i18n ? window.__i18n.t(key, params) : key;
 
+    // Region display: stored keys are "Chinese (English)" — show English for non-zh
+    const displayRegion = (key) => {
+        const lang = (window.__i18n && window.__i18n.lang) || "zh-TW";
+        if (lang.startsWith("zh")) return key;
+        const m = key && key.match(/\(([^)]+)\)/);
+        return m ? m[1] : (key || "");
+    };
+
     // ── State ──
     let reportData = null;       // Full report response
     let filteredRows = [];       // Currently displayed rows
@@ -2379,7 +2387,7 @@
                 html += '<div class="crawl-failed-warning">';
                 html += `<div class="crawl-failed-title">⚠️ ${t('ui.crawlFailed', {n: failedRegions.length})}</div>`;
                 for (const fr of failedRegions) {
-                    html += `<div class="crawl-failed-item">❌ ${escapeHtml(fr.region)} (${escapeHtml(fr.agency)}) — ${escapeHtml(fr.reason)}</div>`;
+                    html += `<div class="crawl-failed-item">❌ ${escapeHtml(displayRegion(fr.region))} (${escapeHtml(fr.agency)}) — ${escapeHtml(fr.reason)}</div>`;
                 }
                 html += '</div>';
             }

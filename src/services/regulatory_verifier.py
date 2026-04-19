@@ -661,27 +661,38 @@ def get_verification_summary() -> dict:
 # ============================================================
 
 
-def format_verification_markdown(report: Optional[VerificationReport] = None) -> str:
+def format_verification_markdown(report: Optional[VerificationReport] = None, lang: str = "zh-TW") -> str:
     """Format verification report as Markdown for Chainlit chat display."""
     if report is None:
         report = verify_all()
 
+    _zh = lang.startswith("zh")
+
     if not report.has_data:
-        return f"🔍 **資料驗證結果**\n\n{report.no_data_message}"
+        title = "資料驗證結果" if _zh else "Data Verification Result"
+        return f"🔍 **{title}**\n\n{report.no_data_message}"
+
+    title = "資料驗證結果" if _zh else "Data Verification Result"
+    doc_total = "文件總數" if _zh else "Total Documents"
+    summary_hdr = "驗證摘要" if _zh else "Verification Summary"
+    lbl_pass = "通過" if _zh else "Passed"
+    lbl_warn = "警告" if _zh else "Warning"
+    lbl_fail = "失敗" if _zh else "Failed"
 
     lines = [
-        f"🔍 **資料驗證結果** （{report.verified_at[:19]}）\n",
-        f"文件總數: **{report.total_documents}**\n",
-        "### 驗證摘要\n",
-        f"- 🟢 通過: {report.passed_count}",
-        f"- 🟡 警告: {report.warning_count}",
-        f"- 🔴 失敗: {report.failed_count}",
+        f"🔍 **{title}** （{report.verified_at[:19]}）\n",
+        f"{doc_total}: **{report.total_documents}**\n",
+        f"### {summary_hdr}\n",
+        f"- 🟢 {lbl_pass}: {report.passed_count}",
+        f"- 🟡 {lbl_warn}: {report.warning_count}",
+        f"- 🔴 {lbl_fail}: {report.failed_count}",
         "",
     ]
 
     # Cross checks
     if report.cross_checks:
-        lines.append("### 交叉比對結果\n")
+        cross_hdr = "交叉比對結果" if _zh else "Cross-Check Results"
+        lines.append(f"### {cross_hdr}\n")
         for cc in report.cross_checks:
             icon = "✅" if cc.passed else "❌"
             lines.append(f"- {icon} {cc.message}")
@@ -689,8 +700,12 @@ def format_verification_markdown(report: Optional[VerificationReport] = None) ->
 
     # Per-document results
     if report.documents:
-        lines.append("### 各文件驗證詳情\n")
-        lines.append("| 地區 | 機構 | 狀態 | 問題 |")
+        detail_hdr = "各文件驗證詳情" if _zh else "Per-Document Verification Details"
+        lines.append(f"### {detail_hdr}\n")
+        if _zh:
+            lines.append("| 地區 | 機構 | 狀態 | 問題 |")
+        else:
+            lines.append("| Region | Agency | Status | Issues |")
         lines.append("|------|------|------|------|")
         for dv in report.documents:
             status_icon = {"pass": "🟢", "warning": "🟡", "fail": "🔴"}.get(
@@ -698,8 +713,13 @@ def format_verification_markdown(report: Optional[VerificationReport] = None) ->
             )
             issues = [c.message for c in dv.checks if not c.passed]
             issue_text = "; ".join(issues[:2]) if issues else "—"
+            region_display = dv.region
+            if not _zh:
+                import re as _re
+                _m = _re.search(r'\(([^)]+)\)', dv.region)
+                region_display = _m.group(1) if _m else dv.region
             lines.append(
-                f"| {dv.region} | {dv.agency} | {status_icon} | {issue_text} |"
+                f"| {region_display} | {dv.agency} | {status_icon} | {issue_text} |"
             )
 
     return "\n".join(lines)

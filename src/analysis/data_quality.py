@@ -120,7 +120,12 @@ def _check_regulatory_data_available() -> bool:
         return False
 
 
-def run_data_quality_gate(state: PipelineState) -> DataQualityResult:
+def _dq_msg(zh: str, en: str, lang: str) -> str:
+    """Return Chinese or English message based on language."""
+    return zh if lang.startswith("zh") else en
+
+
+def run_data_quality_gate(state: PipelineState, lang: str = "zh-TW") -> DataQualityResult:
     """Execute Phase 0: Data Quality Gate.
 
     Checks every row's document availability and marks rows that
@@ -139,9 +144,11 @@ def run_data_quality_gate(state: PipelineState) -> DataQualityResult:
     # Check regulatory data once (shared across all rows)
     dq.regulatory_data_available = _check_regulatory_data_available()
     if not dq.regulatory_data_available:
-        dq.issues.append(
-            "尚未執行法規爬取，無法取得最新法規資料。建議先執行「法規清單更新」。"
-        )
+        dq.issues.append(_dq_msg(
+            "尚未執行法規爬取，無法取得最新法規資料。建議先執行「法規清單更新」。",
+            "Regulatory crawl not yet executed. Please run 'Regulatory List Update' first.",
+            lang,
+        ))
 
     # Check each unique document
     unique_doc_ids = {r.doc_id for r in all_rows}
@@ -150,11 +157,23 @@ def run_data_quality_gate(state: PipelineState) -> DataQualityResult:
         dq.documents_checked[doc_id] = doc_info
 
         if not doc_info["exists"]:
-            dq.issues.append(f"文件 {doc_id} 不存在於系統中。")
+            dq.issues.append(_dq_msg(
+                f"文件 {doc_id} 不存在於系統中。",
+                f"Document {doc_id} does not exist in the system.",
+                lang,
+            ))
         elif doc_info["is_obsolete"]:
-            dq.issues.append(f"文件 {doc_id} 已作廢，不應納入分析。")
+            dq.issues.append(_dq_msg(
+                f"文件 {doc_id} 已作廢，不應納入分析。",
+                f"Document {doc_id} is obsolete and should not be analyzed.",
+                lang,
+            ))
         elif not doc_info["has_content"]:
-            dq.issues.append(f"文件 {doc_id} 內容為空或過短。")
+            dq.issues.append(_dq_msg(
+                f"文件 {doc_id} 內容為空或過短。",
+                f"Document {doc_id} has empty or insufficient content.",
+                lang,
+            ))
 
     # Process each row
     for row in all_rows:
@@ -185,12 +204,20 @@ def run_data_quality_gate(state: PipelineState) -> DataQualityResult:
         # Determine row-level data quality
         if not has_doc:
             phase_result.status = PhaseStatus.FAILED.value
-            phase_result.error = (
-                f"文件 {row.doc_id} 不可用"
-                f"{'（已作廢）' if doc_info.get('is_obsolete') else ''}"
-                f"{'（不存在）' if not doc_info.get('exists') else ''}"
-                f"{'（內容為空）' if doc_info.get('exists') and not doc_info.get('has_content') else ''}"
-            )
+            if lang.startswith("zh"):
+                phase_result.error = (
+                    f"文件 {row.doc_id} 不可用"
+                    f"{'（已作廢）' if doc_info.get('is_obsolete') else ''}"
+                    f"{'（不存在）' if not doc_info.get('exists') else ''}"
+                    f"{'（內容為空）' if doc_info.get('exists') and not doc_info.get('has_content') else ''}"
+                )
+            else:
+                phase_result.error = (
+                    f"Document {row.doc_id} unavailable"
+                    f"{' (obsolete)' if doc_info.get('is_obsolete') else ''}"
+                    f"{' (not found)' if not doc_info.get('exists') else ''}"
+                    f"{' (empty)' if doc_info.get('exists') and not doc_info.get('has_content') else ''}"
+                )
             phase_result.output = {
                 "data_available": False,
                 "reason": phase_result.error,
@@ -217,13 +244,20 @@ def run_data_quality_gate(state: PipelineState) -> DataQualityResult:
     # Overall assessment
     if dq.rows_without_doc_content == dq.total_rows:
         dq.overall_pass = False
-        dq.issues.append("所有文件均不可用，無法執行分析。")
+        dq.issues.append(_dq_msg(
+            "所有文件均不可用，無法執行分析。",
+            "All documents are unavailable; analysis cannot proceed.",
+            lang,
+        ))
     elif dq.rows_without_doc_content > 0:
         # Partial — some rows will be skipped
-        dq.issues.append(
+        dq.issues.append(_dq_msg(
             f"{dq.rows_without_doc_content}/{dq.total_rows} 個分析項目"
-            f"因文件不可用將被跳過。"
-        )
+            f"因文件不可用將被跳過。",
+            f"{dq.rows_without_doc_content}/{dq.total_rows} analysis items "
+            f"will be skipped due to unavailable documents.",
+            lang,
+        ))
 
     # Store summary in pipeline state
     state.data_quality_summary = dq.to_dict()

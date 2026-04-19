@@ -238,25 +238,29 @@ def _build_reasons(
 ) -> list[str]:
     """Build human-readable reason strings for the detection result."""
     reasons: list[str] = []
+    _zh = lang.startswith("zh")
 
     if filename_hits:
         kws = ", ".join(f"「{h['keyword']}」" for h in filename_hits)
-        reasons.append(f"檔名包含 {kws}")
+        reasons.append(f"檔名包含 {kws}" if _zh else f"Filename contains {kws}")
 
     if title_hits:
         kws = ", ".join(f"「{h['keyword']}」" for h in title_hits)
-        reasons.append(f"標題包含 {kws}")
+        reasons.append(f"標題包含 {kws}" if _zh else f"Title contains {kws}")
 
     if phrase_hits:
         phrases_str = ", ".join(f"「{p}」" for p in phrase_hits[:3])
-        reasons.append(f"內容包含作廢句型 {phrases_str}")
+        reasons.append(f"內容包含作廢句型 {phrases_str}" if _zh else f"Content contains obsolete phrases {phrases_str}")
     elif content_hits:
         kws = ", ".join(f"「{h['keyword']}」" for h in content_hits[:3])
-        reasons.append(f"內容包含 {kws}")
-        reasons.append("（注意：可能僅為描述作廢流程，非文件本身已作廢）")
+        reasons.append(f"內容包含 {kws}" if _zh else f"Content contains {kws}")
+        reasons.append(
+            "（注意：可能僅為描述作廢流程，非文件本身已作廢）" if _zh
+            else "(Note: may only describe obsolete procedures, not necessarily an obsolete document)"
+        )
 
     if visual_stamp:
-        reasons.append("偵測到作廢印章（視覺偵測）")
+        reasons.append("偵測到作廢印章（視覺偵測）" if _zh else "Obsolete stamp detected (visual detection)")
 
     return reasons
 
