@@ -655,10 +655,16 @@ async def run_pipeline_analysis(
                         phase_task = asyncio.ensure_future(
                             loop.run_in_executor(None, executor)
                         )
+                        _last_progress_time = asyncio.get_event_loop().time()
+                        _last_done = 0
+                        _last_total = 0
                         while not phase_task.done():
+                            got_update = False
                             while True:
                                 try:
                                     done, total, _doc_id = _doc_q.get_nowait()
+                                    _last_done = done
+                                    _last_total = total
                                     pct = round(done / total * 100) if total > 0 else 0
                                     progress_text = (
                                         f"{_phase_icon} **{_phase_name}** "
@@ -666,8 +672,23 @@ async def run_pipeline_analysis(
                                              done=done, total=total, pct=pct)
                                     )
                                     await send_message_fn(progress_text)
+                                    _last_progress_time = asyncio.get_event_loop().time()
+                                    got_update = True
                                 except _queue.Empty:
                                     break
+                            # Heartbeat every 15s when no new doc completes (LLM fallback running)
+                            if not got_update and _last_total > 0:
+                                elapsed_since = asyncio.get_event_loop().time() - _last_progress_time
+                                if elapsed_since >= 15:
+                                    pct = round(_last_done / _last_total * 100)
+                                    heartbeat = (
+                                        f"{_phase_icon} **{_phase_name}** "
+                                        + _t(lang, "gap_scan_doc_progress",
+                                             done=_last_done, total=_last_total, pct=pct)
+                                        + f" ⏳ ({int(elapsed_since)}s)"
+                                    )
+                                    await send_message_fn(heartbeat)
+                                    _last_progress_time = asyncio.get_event_loop().time()
                             await asyncio.sleep(0.3)
                         pipeline._phase1_doc_callback = None
                         await phase_task  # propagate any exception
