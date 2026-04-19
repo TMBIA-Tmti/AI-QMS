@@ -42,7 +42,20 @@ __all__ = [
 # ============================================================
 
 
-from src.chainlit_app.lang_config import lang_key as _lang_key  # noqa: E402
+def _lang_key(lang: str) -> str:
+    """Normalize a UI language code to a prompt dict key (zh / en / ja).
+
+    Falls back to 'en' for anything other than zh/ja.
+    """
+    if not lang:
+        return "zh"
+    if lang.startswith("zh"):
+        return "zh"
+    if lang.startswith("ja"):
+        return "ja"
+    if lang.startswith("en"):
+        return "en"
+    return "en"
 
 
 _SYSTEM_PROMPTS: dict[str, str] = {
@@ -341,7 +354,7 @@ def run_remediation_row(
     llm_completion_fn: callable,
     model: str = "default",
     temperature: float = 0.3,
-    max_tokens: int = 16384,
+    max_tokens: int = 0,
     lang: str = "zh-TW",
 ) -> PhaseResult:
     """Execute Phase 4 remediation suggestions for a single row.
@@ -412,6 +425,15 @@ def run_remediation_row(
             phase_result.output = {"reason": "No evidence items from earlier phases"}
             phase_result.completed_at = time.time()
             return phase_result
+
+        # Auto-size max_tokens based on gap count: more gaps → longer suggestions needed.
+        # Floor at 8192 to guarantee complete output; ceiling at 16384 for very large gaps.
+        if max_tokens == 0:
+            gap_count = sum(
+                1 for e in evidence_items
+                if not e.found or e.is_inadequate or e.is_outdated
+            )
+            max_tokens = max(8192, min(16384, gap_count * 2000 + 4096))
 
         # Build gap analysis section
         gap_section = _build_gap_analysis_section(
@@ -740,7 +762,7 @@ def run_remediation_document(
     llm_completion_fn: callable,
     model: str = "default",
     temperature: float = 0.3,
-    max_tokens: int = 8192,
+    max_tokens: int = 0,
     run_id: str = "",
     lang: str = "zh-TW",
 ) -> PhaseResult:
@@ -825,6 +847,19 @@ def run_remediation_document(
             phase_result.output = {"reason": _reason_all_compliant}
             phase_result.completed_at = time.time()
             return phase_result
+
+        # Auto-size max_tokens: base per clause + per gap item.
+        # Floor at 8192; ceiling at 16384 to guarantee no truncation.
+        if max_tokens == 0:
+            total_gap_items = sum(
+                sum(
+                    1 for e in [EvidenceItem.from_dict(ei) for ei in row.evidence_items]
+                    if not e.found or e.is_inadequate or e.is_outdated
+                )
+                for row in rows_needing_remediation
+            )
+            n_clauses = len(rows_needing_remediation)
+            max_tokens = max(8192, min(16384, n_clauses * 1200 + total_gap_items * 400))
 
         # Import risk display for context
         from src.analysis.risk_matrix import RISK_LEVEL_DISPLAY

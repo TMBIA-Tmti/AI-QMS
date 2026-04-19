@@ -49,7 +49,21 @@ MAX_VERIFICATION_ROUNDS = 3
 # Language helper (bilingual prompt routing)
 # ============================================================
 
-from src.chainlit_app.lang_config import lang_key as _lang_key  # noqa: E402
+
+def _lang_key(lang: str) -> str:
+    """Normalize a UI language code to a prompt dict key (zh / en / ja).
+
+    Falls back to 'en' for anything other than zh/ja.
+    """
+    if not lang:
+        return "zh"
+    if lang.startswith("zh"):
+        return "zh"
+    if lang.startswith("ja"):
+        return "ja"
+    if lang.startswith("en"):
+        return "en"
+    return "en"
 
 
 def emit_verification_event(run_id: str, event: dict) -> None:
@@ -693,6 +707,12 @@ def run_verification_row(
             label_key, verdict_info.get("label_zh", row_state.verdict or _NOT_VERDICTED[lk])
         )
 
+        # Analyzer responses contain a bounded "position" (≤2000 words) → 8192 is safe.
+        # Verifier challenges can include multiple 2000-word points → keep full max_tokens
+        # but cap at 12288 to prevent runaway allocation on models that pad to max_tokens.
+        _analyzer_max = min(max_tokens, 8192)
+        _verifier_max = min(max_tokens, 12288)
+
         rounds: list[dict] = []
         total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
         agreed = False
@@ -764,7 +784,7 @@ def run_verification_row(
             state,
             model,
             temperature,
-            max_tokens,
+            _analyzer_max,
         )
         _merge_usage(total_usage, usage)
 
@@ -800,7 +820,7 @@ def run_verification_row(
             state,
             model,
             verifier_temperature,
-            max_tokens,
+            _verifier_max,
         )
         _merge_usage(total_usage, usage)
 
@@ -895,7 +915,7 @@ def run_verification_row(
                 state,
                 model,
                 temperature,
-                max_tokens,
+                _analyzer_max,
             )
             _merge_usage(total_usage, usage)
 
@@ -930,7 +950,7 @@ def run_verification_row(
                 state,
                 model,
                 verifier_temperature,
-                max_tokens,
+                _verifier_max,
             )
             _merge_usage(total_usage, usage)
 
@@ -1113,6 +1133,11 @@ def run_verification_document(
             phase_result.completed_at = time.time()
             return phase_result
 
+        # Analyzer responses are bounded (position ≤ 2000 words); verifier challenges
+        # can span multiple 2000-word points. Split limits to avoid wasted allocation.
+        _analyzer_max = min(max_tokens, 8192)
+        _verifier_max = max_tokens  # keep original (default 8192 is already conservative)
+
         total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
         total_agreed = 0
         total_flagged = 0
@@ -1232,7 +1257,7 @@ def run_verification_document(
                 state,
                 model,
                 temperature,
-                max_tokens,
+                _analyzer_max,
             )
             _merge_usage(total_usage, usage)
 
@@ -1265,7 +1290,7 @@ def run_verification_document(
                 state,
                 model,
                 verifier_temperature,
-                max_tokens,
+                _verifier_max,
             )
             _merge_usage(total_usage, usage)
 
@@ -1336,7 +1361,7 @@ def run_verification_document(
                     state,
                     model,
                     temperature,
-                    max_tokens,
+                    _analyzer_max,
                 )
                 _merge_usage(total_usage, usage)
 
@@ -1369,7 +1394,7 @@ def run_verification_document(
                     state,
                     model,
                     verifier_temperature,
-                    max_tokens,
+                    _verifier_max,
                 )
                 _merge_usage(total_usage, usage)
 

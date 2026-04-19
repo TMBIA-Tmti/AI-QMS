@@ -48,7 +48,20 @@ __all__ = [
 # ============================================================
 
 
-from src.chainlit_app.lang_config import lang_key as _lang_key  # noqa: E402
+def _lang_key(lang: str) -> str:
+    """Normalize a UI language code to a prompt dict key (zh / en / ja).
+
+    Falls back to 'en' for anything other than zh/ja.
+    """
+    if not lang:
+        return "zh"
+    if lang.startswith("zh"):
+        return "zh"
+    if lang.startswith("ja"):
+        return "ja"
+    if lang.startswith("en"):
+        return "en"
+    return "en"
 
 
 _SYSTEM_PROMPTS: dict[str, str] = {
@@ -243,25 +256,36 @@ def build_gap_scan_prompt(
         "ja": "その他の文書内容",
     }[lk]
 
-    # Prepare document content — prioritize candidate sections
+    # Prepare document content — prioritize candidate sections from Phase 0.5.
+    # Use start_pos + text_length to extract full section text (not just the 200-char
+    # text_preview stored in state), staying within max_content_chars total budget.
     if candidate_sections and len(doc_content) > max_content_chars:
-        # Include candidate sections first, then fill remaining with context
         prioritized_parts = []
         remaining_budget = max_content_chars
 
         for cs in candidate_sections:
-            preview = cs.get("text_preview", "")
-            if preview and remaining_budget > 0:
-                chunk = preview[:remaining_budget]
+            if remaining_budget <= 0:
+                break
+            start = cs.get("start_pos", -1)
+            length = cs.get("text_length", 0)
+            if start >= 0 and length > 0:
+                full_text = doc_content[start : start + length]
+            else:
+                full_text = cs.get("text_preview", "")
+            # Cap each section at 3000 chars so one long section can't crowd out others
+            per_section_cap = min(remaining_budget, 3000)
+            chunk = full_text[:per_section_cap]
+            if chunk:
                 prioritized_parts.append(
                     f"### {cs.get('heading', _unknown_section)}\n{chunk}"
                 )
                 remaining_budget -= len(chunk)
 
-        # Fill remaining budget with document head/tail
+        # Fill remaining budget with document head if there is room
         if remaining_budget > 500:
-            remaining_content = doc_content[:remaining_budget]
-            prioritized_parts.append(f"\n### {_other_content}\n{remaining_content}")
+            prioritized_parts.append(
+                f"\n### {_other_content}\n{doc_content[:remaining_budget]}"
+            )
 
         final_content = "\n\n".join(prioritized_parts)
     else:
