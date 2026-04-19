@@ -672,5 +672,6 @@
     "ui.reg_list_report": "📋 Regulatory List Word/Excel Report",
     "ui.ref_list_report": "📋 Reference List Word/Excel Report",
     "ui.profile_mapped_count": "mapped clauses",
-    "ui.profile_unique_count": "unique requirements"
+    "ui.profile_unique_count": "unique requirements",
+    "watermark.applied_summary": "Watermark applied to {applied} document(s), {skipped} skipped (not in control scope)."
 }

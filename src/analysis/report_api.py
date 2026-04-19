@@ -2155,15 +2155,9 @@ async def export_crossexam_record(
         )
 
         if fmt == "word":
-            try:
-                filepath = export_crossexam_record_word(record.to_dict(), lang=lang)
-            except TypeError:
-                filepath = export_crossexam_record_word(record.to_dict())
+            filepath = export_crossexam_record_word(record.to_dict(), lang=lang)
         else:
-            try:
-                filepath = export_crossexam_record_excel(record.to_dict(), lang=lang)
-            except TypeError:
-                filepath = export_crossexam_record_excel(record.to_dict())
+            filepath = export_crossexam_record_excel(record.to_dict(), lang=lang)
 
         content_type = (
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -2248,51 +2242,28 @@ async def export_deep_report(
         )
 
         # Try calling with lang first; fall back gracefully if the export
-        # function does not yet accept a lang keyword (backward compatibility).
         if fmt == "word":
-            try:
-                filepath = export_deep_report_word(
-                    run_id,
-                    flat_rows,
-                    summary,
-                    interactions,
-                    crossexam_record,
-                    meta_analysis,
-                    qa_audit_summary,
-                    lang=lang,
-                )
-            except TypeError:
-                filepath = export_deep_report_word(
-                    run_id,
-                    flat_rows,
-                    summary,
-                    interactions,
-                    crossexam_record,
-                    meta_analysis,
-                    qa_audit_summary,
-                )
+            filepath = export_deep_report_word(
+                run_id,
+                flat_rows,
+                summary,
+                interactions,
+                crossexam_record,
+                meta_analysis,
+                qa_audit_summary,
+                lang=lang,
+            )
         else:
-            try:
-                filepath = export_deep_report_excel(
-                    run_id,
-                    flat_rows,
-                    summary,
-                    interactions,
-                    crossexam_record,
-                    meta_analysis,
-                    qa_audit_summary,
-                    lang=lang,
-                )
-            except TypeError:
-                filepath = export_deep_report_excel(
-                    run_id,
-                    flat_rows,
-                    summary,
-                    interactions,
-                    crossexam_record,
-                    meta_analysis,
-                    qa_audit_summary,
-                )
+            filepath = export_deep_report_excel(
+                run_id,
+                flat_rows,
+                summary,
+                interactions,
+                crossexam_record,
+                meta_analysis,
+                qa_audit_summary,
+                lang=lang,
+            )
 
         content_type = (
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -2356,25 +2327,13 @@ async def export_meta_analysis(
         meta_analysis = result.llm_response
         run_id_for_export = f"meta_analysis_{result.analysis_id}"
         if fmt == "word":
-            try:
-                filepath = export_deep_report_word(
-                    run_id_for_export, [], {}, None, None, meta_analysis,
-                    lang=lang,
-                )
-            except TypeError:
-                filepath = export_deep_report_word(
-                    run_id_for_export, [], {}, None, None, meta_analysis
-                )
+            filepath = export_deep_report_word(
+                run_id_for_export, [], {}, None, None, meta_analysis, lang=lang,
+            )
         else:
-            try:
-                filepath = export_deep_report_excel(
-                    run_id_for_export, [], {}, None, None, meta_analysis,
-                    lang=lang,
-                )
-            except TypeError:
-                filepath = export_deep_report_excel(
-                    run_id_for_export, [], {}, None, None, meta_analysis
-                )
+            filepath = export_deep_report_excel(
+                run_id_for_export, [], {}, None, None, meta_analysis, lang=lang,
+            )
 
         content_type = (
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -2706,7 +2665,7 @@ async def run_meta_review_endpoint(request: Request):
 
 
 @report_router.get("/daily-audit/history/{audit_id}/export/{fmt}")
-async def export_audit_record(audit_id: str, fmt: str):
+async def export_audit_record(audit_id: str, fmt: str, lang: str = Query(default="zh-TW")):
     """Export a single daily audit record as Word or Excel."""
     if fmt not in ("word", "excel"):
         raise HTTPException(status_code=400, detail="Format must be 'word' or 'excel'")
@@ -2732,9 +2691,9 @@ async def export_audit_record(audit_id: str, fmt: str):
             )
 
         if fmt == "word":
-            filepath = export_daily_audit_word(target)
+            filepath = export_daily_audit_word(target, lang=lang)
         else:
-            filepath = export_daily_audit_excel(target)
+            filepath = export_daily_audit_excel(target, lang=lang)
 
         content_type = (
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -2750,7 +2709,7 @@ async def export_audit_record(audit_id: str, fmt: str):
 
 
 @report_router.get("/daily-audit/export/{fmt}")
-async def export_latest_audit(fmt: str):
+async def export_latest_audit(fmt: str, lang: str = Query(default="zh-TW")):
     """Export the latest daily audit record as Word or Excel."""
     if fmt not in ("word", "excel"):
         raise HTTPException(status_code=400, detail="Format must be 'word' or 'excel'")
@@ -2767,9 +2726,9 @@ async def export_latest_audit(fmt: str):
             raise HTTPException(status_code=404, detail="No audit records available")
 
         if fmt == "word":
-            filepath = export_daily_audit_word(records[0])
+            filepath = export_daily_audit_word(records[0], lang=lang)
         else:
-            filepath = export_daily_audit_excel(records[0])
+            filepath = export_daily_audit_excel(records[0], lang=lang)
 
         content_type = (
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
