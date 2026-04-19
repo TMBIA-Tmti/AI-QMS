@@ -671,7 +671,10 @@ async def run_pipeline_analysis(
                                         + _t(lang, "gap_scan_doc_progress",
                                              done=done, total=total, pct=pct)
                                     )
-                                    await asyncio.wait_for(send_message_fn(progress_text), timeout=10.0)
+                                    try:
+                                        await asyncio.wait_for(send_message_fn(progress_text), timeout=10.0)
+                                    except Exception:
+                                        pass  # UI update timed out or failed — continue, don't abort loop
                                     _last_progress_time = asyncio.get_event_loop().time()
                                     got_update = True
                                 except _queue.Empty:
@@ -687,7 +690,10 @@ async def run_pipeline_analysis(
                                              done=_last_done, total=_last_total, pct=pct)
                                         + f" ⏳ ({int(elapsed_since)}s)"
                                     )
-                                    await asyncio.wait_for(send_message_fn(heartbeat), timeout=10.0)
+                                    try:
+                                        await asyncio.wait_for(send_message_fn(heartbeat), timeout=10.0)
+                                    except Exception:
+                                        pass  # UI update timed out or failed — continue
                                     _last_progress_time = asyncio.get_event_loop().time()
                             await asyncio.sleep(0.3)
                         pipeline._phase1_doc_callback = None
