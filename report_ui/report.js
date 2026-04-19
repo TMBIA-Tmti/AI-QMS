@@ -2401,10 +2401,11 @@
         }
 
         els.btnLoadCrossref.disabled = true;
-        els.btnLoadCrossref.textContent = "✨ 產生中...";
+        els.btnLoadCrossref.textContent = ((window.__i18n && window.__i18n.lang) || "zh-TW").startsWith("zh") ? "✨ 產生中..." : "✨ Generating...";
 
         try {
-            const data = await apiFetch(`/crossref/table?regulations=${regIds.join(",")}`);
+            const _uiLang = (window.__i18n && window.__i18n.lang) || "zh-TW";
+            const data = await apiFetch(`/crossref/table?regulations=${regIds.join(",")}&lang=${encodeURIComponent(_uiLang)}`);
             crossrefData = data;
 
             renderCrossrefSummary(data);
@@ -2422,7 +2423,7 @@
             showToast(t('toast.crossrefFailed', {msg: err.message}), "error");
         } finally {
             els.btnLoadCrossref.disabled = false;
-            els.btnLoadCrossref.textContent = "📊 產生交叉比對表";
+            els.btnLoadCrossref.textContent = ((window.__i18n && window.__i18n.lang) || "zh-TW").startsWith("zh") ? "📊 產生交叉比對表" : "📊 Generate Cross-Reference Table";
         }
     }
 
@@ -2502,7 +2503,7 @@
                 bodyHtml += `<td>
                     <span class="status-cell status-${status}${uniqueClass}"
                           onclick="window.__report.toggleRationale('${rowId}')"
-                          title="點擊展開詳情"
+                          title="${((window.__i18n && window.__i18n.lang) || 'zh-TW').startsWith('zh') ? '點擊展開詳情' : 'Click to expand details'}"
                     >${statusLabels[status] || status}</span>
                 </td>`;
             }
@@ -2519,19 +2520,32 @@
                 const confClass = conf >= 0.9 ? "confidence-high" : conf >= 0.7 ? "confidence-medium" : "confidence-low";
                 const methodLabel = METHOD_LABELS[reg.method] || reg.method || "—";
 
+                const _cLang = (window.__i18n && window.__i18n.lang) || "zh-TW";
+                const _isEn = !_cLang.startsWith("zh") && !_cLang.startsWith("ja");
+                const _countryName = _isEn ? (m.country_name_en || m.country_name_zh || rid) : (m.country_name_zh || rid);
+                const _lblRef = _isEn ? "Regulation Ref:" : "法規參照:";
+                const _lblMethod = _isEn ? "Method:" : "判斷方法:";
+                const _lblConf = _isEn ? "Confidence:" : "可信度:";
+                // Show primary rationale based on language
+                const _primaryRationale = _isEn ? (reg.rationale_en || reg.rationale_zh || "—") : (reg.rationale_zh || reg.rationale_en || "—");
+                const _secondaryRationale = _isEn ? (reg.rationale_zh || "—") : (reg.rationale_en || "—");
+                const _lblPrimary = _isEn ? "Rationale:" : "原因:";
+                const _lblSecondary = _isEn ? "Rationale (Chinese):" : "原因(EN):";
+
                 bodyHtml += `<div class="rationale-card">
-                    <div class="rc-header">${flag} ${escapeHtml(m.country_name_zh || rid)}</div>
-                    <div class="rc-field"><span class="rc-label">法規參照:</span> <span class="rc-value">${escapeHtml(reg.regulation_ref || "—")}</span></div>
-                    <div class="rc-field"><span class="rc-label">判斷方法:</span> <span class="method-badge">${methodLabel}</span></div>
-                    <div class="rc-field"><span class="rc-label">可信度:</span> <span class="rc-confidence ${confClass}">${Math.round(conf * 100)}%</span></div>
-                    <div class="rc-field"><span class="rc-label">原因(EN):</span> <span class="rc-value">${escapeHtml(reg.rationale_en || "—")}</span></div>
-                    <div class="rc-field"><span class="rc-label">原因(中):</span> <span class="rc-value">${escapeHtml(reg.rationale_zh || "—")}</span></div>`;
+                    <div class="rc-header">${flag} ${escapeHtml(_countryName)}</div>
+                    <div class="rc-field"><span class="rc-label">${_lblRef}</span> <span class="rc-value">${escapeHtml(reg.regulation_ref || "—")}</span></div>
+                    <div class="rc-field"><span class="rc-label">${_lblMethod}</span> <span class="method-badge">${methodLabel}</span></div>
+                    <div class="rc-field"><span class="rc-label">${_lblConf}</span> <span class="rc-confidence ${confClass}">${Math.round(conf * 100)}%</span></div>
+                    <div class="rc-field"><span class="rc-label">${_lblPrimary}</span> <span class="rc-value">${escapeHtml(_primaryRationale)}</span></div>
+                    <div class="rc-field"><span class="rc-label">${_lblSecondary}</span> <span class="rc-value">${escapeHtml(_secondaryRationale)}</span></div>`;
 
                 // Native-language regulatory text comparison
                 if (showOriginalText && reg.original_text) {
                     const langLabel = LANG_LABELS[reg.original_lang] || reg.original_lang || "—";
+                    const _lblOrig = _isEn ? `📜 Original Regulatory Text (${langLabel}):` : `📜 法規原文 (${langLabel}):`;
                     bodyHtml += `<div class="rc-field" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
-                        <span class="rc-label">📜 法規原文 (${langLabel}):</span>
+                        <span class="rc-label">${_lblOrig}</span>
                         <div class="rc-value" style="font-style:italic;margin-top:4px">${escapeHtml(reg.original_text)}</div>
                     </div>`;
                     if (reg.english_translation) {
@@ -2541,8 +2555,9 @@
                         </div>`;
                     }
                     if (reg.semantic_note) {
+                        const _lblSemantic = _isEn ? "💡 Semantic Note / Cross-country Differences:" : "💡 語意解釋 / 跨國差異:";
                         bodyHtml += `<div class="rc-field">
-                            <span class="rc-label">💡 語意解釋 / 跨國差異:</span>
+                            <span class="rc-label">${_lblSemantic}</span>
                             <div class="rc-value" style="margin-top:4px;color:var(--primary)">${escapeHtml(reg.semantic_note)}</div>
                         </div>`;
                     }
@@ -2551,11 +2566,13 @@
                 // Delta items for this clause
                 const deltas = reg.delta_items || [];
                 if (deltas.length > 0) {
+                    const _lblDelta = _isEn ? "🚨 Unique Requirements:" : "🚨 獨有要求:";
                     bodyHtml += `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
-                        <span class="rc-label">🚨 獨有要求:</span>`;
+                        <span class="rc-label">${_lblDelta}</span>`;
                     for (const d of deltas) {
+                        const _deltaTitle = _isEn ? (d.title_en || d.title_zh) : (d.title_zh || d.title_en);
                         bodyHtml += `<div style="margin-top:4px;padding:6px;background:var(--non-compliant-bg);border-radius:4px">
-                            <strong>${escapeHtml(d.title_zh || d.title_en)}</strong>
+                            <strong>${escapeHtml(_deltaTitle)}</strong>
                             <div style="font-size:0.72rem;color:var(--text-secondary)">${escapeHtml(d.regulation_ref)}</div>`;
                         // Show native text for delta items too
                         if (showOriginalText && d.original_text) {
@@ -2647,22 +2664,26 @@
 
             if (d.exceeds_only.length === 0 && reqs.length === 0 && d.unique_only.length === 0) continue;
 
+            const _icLang = (window.__i18n && window.__i18n.lang) || "zh-TW";
+            const _icEn = !_icLang.startsWith("zh") && !_icLang.startsWith("ja");
+            const _icCountry = _icEn ? (m.country_name_en || m.country_name_zh || rid) : (m.country_name_zh || rid);
             html += `<div class="intercountry-card">
-                <h4>${flag} ${escapeHtml(m.country_name_zh || rid)} 獨有差異</h4>`;
+                <h4>${flag} ${escapeHtml(_icCountry)} ${_icEn ? "Unique Differences" : "獨有差異"}</h4>`;
 
             if (d.exceeds_only.length > 0) {
-                html += `<div style="margin-bottom:8px"><strong>⬆️ 只有該國超越 ISO 13485 的條款：</strong>
+                html += `<div style="margin-bottom:8px"><strong>⬆️ ${_icEn ? "Clauses where this country exceeds ISO 13485:" : "只有該國超越 ISO 13485 的條款："}</strong>
                     <div class="diff-clause-list">
-                        ${d.exceeds_only.map(c => `<span class="diff-clause-chip diff-chip-exceeds">${c}</span>`).join("")}            
+                        ${d.exceeds_only.map(c => `<span class="diff-clause-chip diff-chip-exceeds">${c}</span>`).join("")}
                     </div>
                 </div>`;
             }
 
             if (reqs.length > 0) {
-                html += `<div style="margin-bottom:8px"><strong>🚨 國家獨有要求 (${reqs.length} 項)：</strong>`;
+                html += `<div style="margin-bottom:8px"><strong>🚨 ${_icEn ? `Country-Unique Requirements (${reqs.length} items):` : `國家獨有要求 (${reqs.length} 項)：`}</strong>`;
                 for (const req of reqs) {
+                    const _reqTitle = _icEn ? (req.title_en || req.title_zh) : (req.title_zh || req.title_en);
                     html += `<div style="margin:4px 0;padding:6px 8px;background:var(--bg);border-radius:4px;font-size:0.78rem">
-                        <strong>${escapeHtml(req.title_zh)}</strong>
+                        <strong>${escapeHtml(_reqTitle)}</strong>
                         <span style="color:var(--text-muted);margin-left:8px">${escapeHtml(req.regulation_ref)}</span>`;
                     // Show native text for inter-country comparison
                     if (showOriginalText && req.original_text) {
@@ -2681,9 +2702,9 @@
             }
 
             if (d.unique_only.length > 0) {
-                html += `<div><strong>➖ 該國未涵蓋但其他國家有的條款：</strong>
+                html += `<div><strong>➖ ${_icEn ? "Clauses not covered by this country but present in others:" : "該國未涵蓋但其他國家有的條款："}</strong>
                     <div class="diff-clause-list">
-                        ${d.unique_only.map(c => `<span class="diff-clause-chip diff-chip-unique">${c}</span>`).join("")}            
+                        ${d.unique_only.map(c => `<span class="diff-clause-chip diff-chip-unique">${c}</span>`).join("")}
                     </div>
                 </div>`;
             }
@@ -2694,7 +2715,8 @@
         if (html) {
             els.intercountryContainer.innerHTML = html;
         } else {
-            els.intercountryContainer.innerHTML = '<div class="empty-state"><div class="empty-state-text">所選國家法規高度一致，無顯著差異</div></div>';
+            const _noD = ((window.__i18n && window.__i18n.lang) || "zh-TW").startsWith("zh") ? "所選國家法規高度一致，無顯著差異" : "Selected countries' regulations are highly aligned with no significant differences.";
+            els.intercountryContainer.innerHTML = `<div class="empty-state"><div class="empty-state-text">${_noD}</div></div>`;
         }
     }
 
@@ -2718,41 +2740,47 @@
             const m = meta[rid] || {};
             const flag = FLAG_EMOJIS[m.country] || "";
 
+            const _dlLang = (window.__i18n && window.__i18n.lang) || "zh-TW";
+            const _dlEn = !_dlLang.startsWith("zh") && !_dlLang.startsWith("ja");
+            const _dlCountry = _dlEn ? (m.country_name_en || m.country_name_zh || rid) : (m.country_name_zh || rid);
             html += `<div class="delta-country-group">
-                <h4>${flag} ${escapeHtml(m.country_name_zh || rid)} — ${reqs.length} 項獨有要求</h4>`;
+                <h4>${flag} ${escapeHtml(_dlCountry)} — ${reqs.length} ${_dlEn ? "unique requirements" : "項獨有要求"}</h4>`;
 
             for (const req of reqs) {
                 const confClass = req.confidence >= 0.9 ? "confidence-high" : req.confidence >= 0.7 ? "confidence-medium" : "confidence-low";
                 const methodLabel = METHOD_LABELS[req.method] || req.method || "—";
+                const _dlTitle = _dlEn ? `${escapeHtml(req.title_en)} / ${escapeHtml(req.title_zh)}` : `${escapeHtml(req.title_zh)} / ${escapeHtml(req.title_en)}`;
+                const _dlReq = _dlEn ? (req.requirement_en || req.requirement_zh) : (req.requirement_zh || req.requirement_en);
 
                 html += `<div class="delta-item">
                     <div class="di-ref">${escapeHtml(req.regulation_ref)}</div>
-                    <div class="di-title">${escapeHtml(req.title_zh)} / ${escapeHtml(req.title_en)}</div>
-                    <div class="di-req">${escapeHtml(req.requirement_zh)}</div>`;
+                    <div class="di-title">${_dlTitle}</div>
+                    <div class="di-req">${escapeHtml(_dlReq)}</div>`;
 
                 // Native text with translation
                 if (showOriginalText && req.original_text) {
                     const langLabel = LANG_LABELS[req.original_lang] || req.original_lang || "";
                     html += `<div style="margin:8px 0;padding:8px;background:var(--bg);border-radius:4px;border-left:3px solid var(--primary)">
-                        <div style="font-size:0.72rem;font-weight:600;color:var(--text-secondary);margin-bottom:4px">📜 法規原文 (${langLabel})</div>
+                        <div style="font-size:0.72rem;font-weight:600;color:var(--text-secondary);margin-bottom:4px">📜 ${_dlEn ? `Original Regulatory Text (${langLabel})` : `法規原文 (${langLabel})`}</div>
                         <div style="font-style:italic;font-size:0.8rem">${escapeHtml(req.original_text)}</div>`;
                     if (req.english_translation) {
                         html += `<div style="margin-top:6px;font-size:0.72rem;font-weight:600;color:var(--text-secondary)">🇬🇧 English Translation</div>
                             <div style="font-size:0.8rem">${escapeHtml(req.english_translation)}</div>`;
                     }
                     if (req.semantic_note) {
-                        html += `<div style="margin-top:6px;font-size:0.72rem;font-weight:600;color:var(--primary)">💡 語意解釋 / 跨國差異分析</div>
+                        html += `<div style="margin-top:6px;font-size:0.72rem;font-weight:600;color:var(--primary)">💡 ${_dlEn ? "Semantic Note / Cross-country Differences" : "語意解釋 / 跨國差異分析"}</div>
                             <div style="font-size:0.8rem;color:var(--primary)">${escapeHtml(req.semantic_note)}</div>`;
                     }
                     html += `</div>`;
                 }
 
-                html += `<div class="di-question">💬 稽核問題: ${escapeHtml(req.audit_question_zh)}</div>
+                const _dlQuestion = _dlEn ? (req.audit_question_en || req.audit_question_zh) : (req.audit_question_zh || req.audit_question_en);
+                html += `<div class="di-question">💬 ${_dlEn ? "Audit Question" : "稽核問題"}: ${escapeHtml(_dlQuestion)}</div>
                     <div class="di-meta">
-                        <span>📊 相關 ISO: ${(req.related_iso_clauses || []).join(", ")}</span>
-                        <span>⚠️ 影響: ${escapeHtml(req.audit_impact)}</span>
+                        <span>📊 ${_dlEn ? "Related ISO" : "相關 ISO"}: ${(req.related_iso_clauses || []).join(", ")}</span>
+                        <span>⚠️ ${_dlEn ? "Impact" : "影響"}: ${escapeHtml(req.audit_impact)}</span>
                         <span class="method-badge">${methodLabel}</span>
-                        <span class="rc-confidence ${confClass}">可信度 ${Math.round((req.confidence || 0) * 100)}%</span>
+                        <span class="rc-confidence ${confClass}">${_dlEn ? "Confidence" : "可信度"} ${Math.round((req.confidence || 0) * 100)}%</span>
                     </div>
                 </div>`;
             }

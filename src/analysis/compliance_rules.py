@@ -132,6 +132,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     # --------------------------------------------------------
     "4.1": {
         "title": "品質管理系統 — 一般要求",
+        "title_en": "Quality Management System — General Requirements",
+        "title_ja": "品質マネジメントシステム — 一般要求事項",
         "audit_impact": "critical",
         "audit_question": (
             "組織是否建立、文件化、實施及維持品質管理系統，並維持其有效性？"
@@ -159,6 +161,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "4.2.1": {
         "title": "文件化要求 — 一般",
+        "title_en": "Documentation Requirements — General",
+        "title_ja": "文書化の要求事項 — 一般",
         "audit_impact": "major",
         "audit_question": (
             "品質管理系統文件是否包含品質政策與品質目標的聲明、品質手冊、"
@@ -187,6 +191,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "4.2.2": {
         "title": "品質手冊",
+        "title_en": "Quality Manual",
+        "title_ja": "品質マニュアル",
         "audit_impact": "major",
         "audit_question": (
             "組織是否建立並維持品質手冊，包含品質管理系統的範圍（含排除的理由）、"
@@ -213,6 +219,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "4.2.3": {
         "title": "文件管制",
+        "title_en": "Document Control",
+        "title_ja": "文書管理",
         "audit_impact": "major",
         "audit_question": (
             "組織是否建立文件管制程序，涵蓋審查、核准、發行、變更、"
@@ -238,6 +246,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "4.2.4": {
         "title": "紀錄管制",
+        "title_en": "Record Control",
+        "title_ja": "記録の管理",
         "audit_impact": "major",
         "audit_question": (
             "組織是否建立紀錄管制程序，確保紀錄的識別、儲存、保護、"
@@ -262,6 +272,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "4.2.5": {
         "title": "醫療器材檔案",
+        "title_en": "Medical Device File",
+        "title_ja": "医療機器ファイル",
         "audit_impact": "critical",
         "audit_question": (
             "組織是否為每一醫療器材類型或醫療器材族建立並維持醫療器材檔案，"
@@ -290,6 +302,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     # --------------------------------------------------------
     "5.1": {
         "title": "管理階層承諾",
+        "title_en": "Management Commitment",
+        "title_ja": "経営者のコミットメント",
         "audit_impact": "minor",
         "audit_question": (
             "最高管理階層是否提供其對品質管理系統之開發與實施、"
@@ -315,6 +329,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "5.2": {
         "title": "以顧客為重",
+        "title_en": "Customer Focus",
+        "title_ja": "顧客重視",
         "audit_impact": "minor",
         "audit_question": (
             "最高管理階層是否確保顧客要求與適用法規要求已被確定並予以滿足？"
@@ -336,6 +352,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "5.3": {
         "title": "品質政策",
+        "title_en": "Quality Policy",
+        "title_ja": "品質方針",
         "audit_impact": "minor",
         "audit_question": (
             "最高管理階層是否確保品質政策適合組織的目的、包含對滿足要求及維持"
@@ -362,6 +380,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "5.4.1": {
         "title": "品質目標",
+        "title_en": "Quality Objectives",
+        "title_ja": "品質目標",
         "audit_impact": "minor",
         "audit_question": (
             "最高管理階層是否確保在組織內相關職能與層級建立品質目標？"
@@ -386,6 +406,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "5.4.2": {
         "title": "品質管理系統規劃",
+        "title_en": "Quality Management System Planning",
+        "title_ja": "品質マネジメントシステムの計画",
         "audit_impact": "minor",
         "audit_question": (
             "最高管理階層是否確保品質管理系統的規劃已執行以滿足一般要求及品質目標？"
@@ -410,6 +432,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "5.5.1": {
         "title": "責任與權限",
+        "title_en": "Responsibility and Authority",
+        "title_ja": "責任及び権限",
         "audit_impact": "major",
         "audit_question": (
             "最高管理階層是否確保組織內的責任與權限已被界定、文件化及溝通？"
@@ -434,6 +458,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "5.5.2": {
         "title": "管理代表",
+        "title_en": "Management Representative",
+        "title_ja": "管理責任者",
         "audit_impact": "major",
         "audit_question": (
             "最高管理階層是否指定管理階層中的一員作為管理代表，"
@@ -460,6 +486,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "5.5.3": {
         "title": "內部溝通",
+        "title_en": "Internal Communication",
+        "title_ja": "内部コミュニケーション",
         "audit_impact": "minor",
         "audit_question": (
             "最高管理階層是否確保組織內建立適當的溝通過程，"
@@ -484,6 +512,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "5.6.1": {
         "title": "管理審查 — 一般",
+        "title_en": "Management Review — General",
+        "title_ja": "マネジメントレビュー — 一般",
         "audit_impact": "major",
         "audit_question": (
             "最高管理階層是否依規劃的時間間隔審查品質管理系統，以確保其持續的"
@@ -511,6 +541,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "5.6.2": {
         "title": "管理審查 — 輸入",
+        "title_en": "Management Review — Input",
+        "title_ja": "マネジメントレビューへのインプット",
         "audit_impact": "major",
         "audit_question": (
             "管理審查的輸入是否包含稽核結果、顧客回饋、過程績效與產品符合性、"
@@ -539,6 +571,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "5.6.3": {
         "title": "管理審查 — 輸出",
+        "title_en": "Management Review — Output",
+        "title_ja": "マネジメントレビューからのアウトプット",
         "audit_impact": "major",
         "audit_question": (
             "管理審查的輸出是否包含品質管理系統及其過程有效性的改善、"
@@ -567,6 +601,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     # --------------------------------------------------------
     "6.1": {
         "title": "資源提供",
+        "title_en": "Provision of Resources",
+        "title_ja": "資源の提供",
         "audit_impact": "minor",
         "audit_question": (
             "組織是否決定並提供所需的資源，以實施品質管理系統並維持其有效性，"
@@ -591,6 +627,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "6.2": {
         "title": "人力資源",
+        "title_en": "Human Resources",
+        "title_ja": "人的資源",
         "audit_impact": "major",
         "audit_question": (
             "執行影響產品品質工作的人員是否基於適當的教育、訓練、技能及經驗而能勝任？"
@@ -619,6 +657,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "6.3": {
         "title": "基礎設施",
+        "title_en": "Infrastructure",
+        "title_ja": "インフラストラクチャ",
         "audit_impact": "major",
         "audit_question": (
             "組織是否決定、提供及維持達成產品符合要求所需的基礎設施？"
@@ -646,6 +686,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "6.4.1": {
         "title": "工作環境",
+        "title_en": "Work Environment",
+        "title_ja": "作業環境",
         "audit_impact": "major",
         "audit_question": (
             "組織是否決定並管理達成產品符合要求所需的工作環境？"
@@ -672,6 +714,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "6.4.2": {
         "title": "污染管制",
+        "title_en": "Contamination Control",
+        "title_ja": "汚染管理",
         "audit_impact": "critical",
         "audit_question": (
             "組織是否依適當情況規劃並文件化污染或潛在污染產品的管制安排，"
@@ -702,6 +746,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     # --------------------------------------------------------
     "7.1": {
         "title": "產品實現之規劃",
+        "title_en": "Planning of Product Realization",
+        "title_ja": "製品実現の計画",
         "audit_impact": "major",
         "audit_question": (
             "組織是否規劃並開發產品實現所需的過程？"
@@ -729,6 +775,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "7.2.1": {
         "title": "與產品有關的要求之決定",
+        "title_en": "Determination of Requirements Related to Product",
+        "title_ja": "製品に関連する要求事項の明確化",
         "audit_impact": "major",
         "audit_question": (
             "組織是否決定顧客規定的要求（含交付及交付後活動的要求）、"
@@ -756,6 +804,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "7.2.2": {
         "title": "與產品有關的要求之審查",
+        "title_en": "Review of Requirements Related to Product",
+        "title_ja": "製品に関連する要求事項のレビュー",
         "audit_impact": "major",
         "audit_question": (
             "組織是否在承諾供應產品予顧客之前審查與產品有關的要求？"
@@ -782,6 +832,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "7.2.3": {
         "title": "溝通",
+        "title_en": "Communication",
+        "title_ja": "コミュニケーション",
         "audit_impact": "minor",
         "audit_question": (
             "組織是否對以下事項規劃並文件化與顧客溝通的安排："
@@ -809,6 +861,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "7.3.1": {
         "title": "設計與開發規劃",
+        "title_en": "Design and Development Planning",
+        "title_ja": "設計・開発の計画",
         "audit_impact": "critical",
         "audit_question": (
             "組織是否規劃並管制產品的設計與開發？"
@@ -836,6 +890,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "7.3.2": {
         "title": "設計與開發輸入",
+        "title_en": "Design and Development Inputs",
+        "title_ja": "設計・開発へのインプット",
         "audit_impact": "critical",
         "audit_question": (
             "設計輸入是否包含功能與性能要求、適用的法規要求、"
@@ -863,6 +919,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "7.3.3": {
         "title": "設計與開發輸出",
+        "title_en": "Design and Development Outputs",
+        "title_ja": "設計・開発からのアウトプット",
         "audit_impact": "critical",
         "audit_question": (
             "設計輸出是否以能夠對照設計輸入進行驗證的形式提供？"
@@ -892,6 +950,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "7.3.4": {
         "title": "設計與開發審查",
+        "title_en": "Design and Development Review",
+        "title_ja": "設計・開発のレビュー",
         "audit_impact": "critical",
         "audit_question": (
             "是否在適當階段依規劃安排對設計與開發進行系統化審查？"
@@ -919,6 +979,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "7.3.5": {
         "title": "設計與開發驗證",
+        "title_en": "Design and Development Verification",
+        "title_ja": "設計・開発の検証",
         "audit_impact": "critical",
         "audit_question": (
             "是否依規劃安排執行設計與開發驗證，以確保設計輸出滿足設計輸入要求？"
@@ -944,6 +1006,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "7.3.6": {
         "title": "設計與開發確認",
+        "title_en": "Design and Development Validation",
+        "title_ja": "設計・開発のバリデーション",
         "audit_impact": "critical",
         "audit_question": (
             "是否依規劃安排執行設計與開發確認？"
@@ -971,6 +1035,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "7.3.7": {
         "title": "設計與開發轉移",
+        "title_en": "Design and Development Transfer",
+        "title_ja": "設計・開発の移管",
         "audit_impact": "critical",
         "audit_question": (
             "組織是否建立設計開發輸出轉移至製造的程序？"
@@ -995,6 +1061,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "7.3.8": {
         "title": "設計與開發變更管制",
+        "title_en": "Design and Development Changes Control",
+        "title_ja": "設計・開発の変更管理",
         "audit_impact": "critical",
         "audit_question": (
             "設計與開發變更是否被識別？變更在實施前是否經審查、驗證、確認（適當時）"
@@ -1022,6 +1090,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "7.3.9": {
         "title": "設計與開發檔案",
+        "title_en": "Design History File",
+        "title_ja": "設計履歴ファイル",
         "audit_impact": "major",
         "audit_question": (
             "組織是否為每一醫療器材類型或族維持設計與開發檔案？"
@@ -1048,6 +1118,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "7.3.10": {
         "title": "設計與開發文件",
+        "title_en": "Design and Development Documentation",
+        "title_ja": "設計・開発の文書",
         "audit_impact": "major",
         "audit_question": ("組織是否維持每一醫療器材的設計規格文件？"),
         "audit_questions": [
@@ -1068,6 +1140,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "7.4.1": {
         "title": "採購過程",
+        "title_en": "Purchasing Process",
+        "title_ja": "購買プロセス",
         "audit_impact": "major",
         "audit_question": (
             "組織是否建立採購產品符合規定要求的程序？"
@@ -1097,6 +1171,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "7.4.2": {
         "title": "採購資訊",
+        "title_en": "Purchasing Information",
+        "title_ja": "購買情報",
         "audit_impact": "major",
         "audit_question": (
             "採購文件是否描述所採購的產品，適當時包含產品規格、"
@@ -1121,6 +1197,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "7.4.3": {
         "title": "採購產品之驗證",
+        "title_en": "Verification of Purchased Products",
+        "title_ja": "購買製品の検証",
         "audit_impact": "major",
         "audit_question": (
             "組織是否建立並實施所需的檢驗或其他活動，以確保採購產品滿足規定的採購要求？"
@@ -1143,6 +1221,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "7.5.1": {
         "title": "生產與服務提供之管制",
+        "title_en": "Control of Production and Service Provision",
+        "title_ja": "製造及びサービス提供の管理",
         "audit_impact": "critical",
         "audit_question": (
             "組織是否在管制條件下規劃並執行生產與服務提供？"
@@ -1172,6 +1252,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "7.5.2": {
         "title": "產品之潔淨",
+        "title_en": "Cleanliness of Product",
+        "title_ja": "製品の清潔性",
         "audit_impact": "critical",
         "audit_question": (
             "組織是否將產品清潔或污染管制的要求文件化？"
@@ -1198,6 +1280,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "7.5.3": {
         "title": "安裝活動",
+        "title_en": "Installation Activities",
+        "title_ja": "据付活動",
         "audit_impact": "major",
         "audit_question": (
             "如適用，組織是否將醫療器材安裝與安裝驗證的驗收準則文件化？"
@@ -1224,6 +1308,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "7.5.4": {
         "title": "服務活動",
+        "title_en": "Servicing Activities",
+        "title_ja": "サービス活動",
         "audit_impact": "major",
         "audit_question": (
             "如果服務是規定的要求，組織是否將服務活動的執行與驗證程序、"
@@ -1248,6 +1334,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "7.5.5": {
         "title": "無菌醫療器材之特殊要求",
+        "title_en": "Particular Requirements for Sterile Medical Devices",
+        "title_ja": "滅菌医療機器の特別要求事項",
         "audit_impact": "critical",
         "audit_question": (
             "組織是否記錄每一滅菌批次所使用的滅菌過程參數？"
@@ -1273,6 +1361,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "7.5.6": {
         "title": "生產與服務提供過程之確認",
+        "title_en": "Validation of Processes for Production and Service Provision",
+        "title_ja": "製造及びサービス提供プロセスのバリデーション",
         "audit_impact": "critical",
         "audit_question": (
             "組織是否確認生產和服務提供過程中，其輸出無法由後續的監督或量測加以驗證的過程？"
@@ -1302,6 +1392,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "7.5.7": {
         "title": "滅菌與無菌屏障系統過程之確認",
+        "title_en": "Validation of Processes for Sterilization and Sterile Barrier Systems",
+        "title_ja": "滅菌及び滅菌バリアシステムのプロセスのバリデーション",
         "audit_impact": "critical",
         "audit_question": (
             "組織是否確認滅菌過程與無菌屏障系統的過程？"
@@ -1327,6 +1419,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "7.5.8": {
         "title": "識別",
+        "title_en": "Identification",
+        "title_ja": "識別",
         "audit_impact": "major",
         "audit_question": (
             "組織是否建立識別產品的文件化程序，並在整個產品實現過程中以適當方法識別產品？"
@@ -1351,6 +1445,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "7.5.9": {
         "title": "追溯性 — 一般",
+        "title_en": "Traceability — General",
+        "title_ja": "トレーサビリティ — 一般",
         "audit_impact": "critical",
         "audit_question": (
             "組織是否建立追溯性的文件化程序？程序是否界定追溯的範圍及所需紀錄？"
@@ -1373,6 +1469,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "7.5.9.1": {
         "title": "追溯性 — 植入式醫療器材",
+        "title_en": "Traceability — Implantable Medical Devices",
+        "title_ja": "トレーサビリティ — 植込み型医療機器",
         "audit_impact": "critical",
         "audit_question": (
             "對於植入式醫療器材，追溯性紀錄是否包含所有可能導致醫療器材不滿足其"
@@ -1399,6 +1497,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "7.5.9.2": {
         "title": "追溯性 — UDI",
+        "title_en": "Traceability — UDI",
+        "title_ja": "トレーサビリティ — UDI",
         "audit_impact": "critical",
         "audit_question": ("組織是否建立符合適用法規要求的唯一裝置識別 (UDI) 系統？"),
         "audit_questions": [
@@ -1419,6 +1519,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "7.5.10": {
         "title": "顧客財產",
+        "title_en": "Customer Property",
+        "title_ja": "顧客の所有物",
         "audit_impact": "minor",
         "audit_question": (
             "組織是否識別、驗證、保護與保管顧客所提供的財產？"
@@ -1443,6 +1545,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "7.5.11": {
         "title": "產品防護",
+        "title_en": "Product Preservation",
+        "title_ja": "製品の保持",
         "audit_impact": "major",
         "audit_question": (
             "組織是否建立在內部處理及交付至預定目的地期間，"
@@ -1472,6 +1576,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "7.6": {
         "title": "監督與量測設備之管制",
+        "title_en": "Control of Monitoring and Measuring Equipment",
+        "title_ja": "監視機器及び測定機器の管理",
         "audit_impact": "major",
         "audit_question": (
             "組織是否決定需執行的監督與量測及所需的設備，以提供產品符合已定要求的證據？"
@@ -1502,6 +1608,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     # --------------------------------------------------------
     "8.1": {
         "title": "量測、分析與改善 — 一般",
+        "title_en": "Measurement, Analysis and Improvement — General",
+        "title_ja": "測定、分析及び改善 — 一般",
         "audit_impact": "minor",
         "audit_question": (
             "組織是否規劃並實施所需的監督、量測、分析及改善過程，"
@@ -1526,6 +1634,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "8.2.1": {
         "title": "回饋",
+        "title_en": "Feedback",
+        "title_ja": "フィードバック",
         "audit_impact": "critical",
         "audit_question": (
             "組織是否建立收集與監督回饋資訊的文件化程序，作為品質管理系統績效的量測之一？"
@@ -1553,6 +1663,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "8.2.2": {
         "title": "客訴處理",
+        "title_en": "Complaint Handling",
+        "title_ja": "苦情処理",
         "audit_impact": "critical",
         "audit_question": (
             "組織是否建立客訴處理的文件化程序，符合適用的法規要求？"
@@ -1582,6 +1694,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "8.2.3": {
         "title": "法規主管機關報告",
+        "title_en": "Reporting to Regulatory Authorities",
+        "title_ja": "規制当局への報告",
         "audit_impact": "critical",
         "audit_question": (
             "如果適用法規要求通報符合規定通報準則的客訴或諮詢通知，"
@@ -1609,6 +1723,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "8.2.4": {
         "title": "內部稽核",
+        "title_en": "Internal Audit",
+        "title_ja": "内部監査",
         "audit_impact": "major",
         "audit_question": (
             "組織是否依規劃的時間間隔執行內部稽核，以確定品質管理系統是否符合"
@@ -1637,6 +1753,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "8.2.4.1": {
         "title": "內部稽核 — 稽核準則",
+        "title_en": "Internal Audit — Audit Criteria",
+        "title_ja": "内部監査 — 監査基準",
         "audit_impact": "major",
         "audit_question": (
             "是否界定稽核準則、範圍、頻率及方法？"
@@ -1663,6 +1781,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "8.2.4.2": {
         "title": "內部稽核 — 矯正措施",
+        "title_en": "Internal Audit — Corrective Actions",
+        "title_ja": "内部監査 — 是正処置",
         "audit_impact": "major",
         "audit_question": (
             "受稽核區域的管理階層是否確保適時採取矯正措施以消除已發現的不符合及其原因？"
@@ -1687,6 +1807,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "8.2.5": {
         "title": "過程之監督與量測",
+        "title_en": "Monitoring and Measurement of Processes",
+        "title_ja": "プロセスの監視及び測定",
         "audit_impact": "major",
         "audit_question": (
             "組織是否應用適當的方法監督及適用時量測品質管理系統過程？"
@@ -1713,6 +1835,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "8.2.6": {
         "title": "產品之監督與量測",
+        "title_en": "Monitoring and Measurement of Products",
+        "title_ja": "製品の監視及び測定",
         "audit_impact": "critical",
         "audit_question": (
             "組織是否在產品實現的適當階段，依規劃安排監督與量測產品特性，"
@@ -1742,6 +1866,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "8.3": {
         "title": "不合格品管制 — 一般",
+        "title_en": "Control of Nonconforming Products — General",
+        "title_ja": "不適合製品の管理 — 一般",
         "audit_impact": "critical",
         "audit_question": (
             "組織是否確保不符合產品要求的產品被識別並予以管制，以防止其非預期使用或交付？"
@@ -1766,6 +1892,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "8.3.1": {
         "title": "不合格品管制 — 交付前",
+        "title_en": "Control of Nonconforming Products — Before Delivery",
+        "title_ja": "不適合製品の管理 — 引渡し前",
         "audit_impact": "critical",
         "audit_question": (
             "組織是否以一種或多種方式處理不合格品：採取措施消除已發現的不符合、"
@@ -1792,6 +1920,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "8.3.2": {
         "title": "不合格品管制 — 交付後",
+        "title_en": "Control of Nonconforming Products — After Delivery",
+        "title_ja": "不適合製品の管理 — 引渡し後",
         "audit_impact": "critical",
         "audit_question": (
             "當交付或開始使用後才偵測到不合格品時，組織是否採取與不符合的影響"
@@ -1818,6 +1948,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "8.3.3": {
         "title": "不合格品管制 — 讓步",
+        "title_en": "Control of Nonconforming Products — Concession",
+        "title_ja": "不適合製品の管理 — 特別採用",
         "audit_impact": "critical",
         "audit_question": (
             "讓步使用/放行/接收是否只在滿足法規要求、"
@@ -1842,6 +1974,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "8.3.4": {
         "title": "不合格品管制 — 返工",
+        "title_en": "Control of Nonconforming Products — Rework",
+        "title_ja": "不適合製品の管理 — 手直し",
         "audit_impact": "critical",
         "audit_question": (
             "組織是否依文件化程序進行返工？"
@@ -1869,6 +2003,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "8.4": {
         "title": "數據分析",
+        "title_en": "Data Analysis",
+        "title_ja": "データの分析",
         "audit_impact": "major",
         "audit_question": (
             "組織是否決定、蒐集及分析適當的數據，以展示品質管理系統的適切性及有效性？"
@@ -1896,6 +2032,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "8.5.1": {
         "title": "改善 — 一般",
+        "title_en": "Improvement — General",
+        "title_ja": "改善 — 一般",
         "audit_impact": "minor",
         "audit_question": (
             "組織是否識別並實施任何變更，以確保並維持品質管理系統的持續適切性及有效性？"
@@ -1922,6 +2060,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "8.5.2": {
         "title": "矯正措施",
+        "title_en": "Corrective Action",
+        "title_ja": "是正処置",
         "audit_impact": "critical",
         "audit_question": (
             "組織是否採取措施消除不符合的原因以防止再發生？"
@@ -1954,6 +2094,8 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
     },
     "8.5.3": {
         "title": "預防措施",
+        "title_en": "Preventive Action",
+        "title_ja": "予防処置",
         "audit_impact": "critical",
         "audit_question": (
             "組織是否決定消除潛在不符合原因的措施以防止其發生？"

@@ -3235,12 +3235,12 @@ async def _display_daily_audit_result(result):
             export_daily_audit_excel,
         )
 
-        word_path = str(export_daily_audit_word(result))
+        word_path = str(export_daily_audit_word(result, lang=lang))
         if Path(word_path).exists():
             wname = re.sub(r"^\d{14}_", "", Path(word_path).name)
             elements.append(cl.File(name=wname, path=word_path, display="inline"))
 
-        excel_path = str(export_daily_audit_excel(result))
+        excel_path = str(export_daily_audit_excel(result, lang=lang))
         if Path(excel_path).exists():
             ename = re.sub(r"^\d{14}_", "", Path(excel_path).name)
             elements.append(cl.File(name=ename, path=excel_path, display="inline"))
@@ -3251,13 +3251,13 @@ async def _display_daily_audit_result(result):
 
     # Offer feedback action
     await cl.Message(
-        content="對本次每日稽核結果有意見嗎？",
+        content=t("daily_audit.feedback_prompt"),
         author="Eira",
         actions=[
             cl.Action(
                 name="submit_daily_feedback",
-                label="📝 提交回饋",
-                description="對本次每日稽核結果提交意見",
+                label=t("daily_audit.feedback_label"),
+                description=t("daily_audit.feedback_description"),
                 payload={
                     "audit_date": result.audit_date,
                     "audit_id": result.audit_date,
@@ -3387,12 +3387,12 @@ async def _display_meta_review_result(meta):
             export_meta_review_excel,
         )
 
-        word_path = str(export_meta_review_word(meta))
+        word_path = str(export_meta_review_word(meta, lang=lang))
         if Path(word_path).exists():
             wname = re.sub(r"^\d{14}_", "", Path(word_path).name)
             elements.append(cl.File(name=wname, path=word_path, display="inline"))
 
-        excel_path = str(export_meta_review_excel(meta))
+        excel_path = str(export_meta_review_excel(meta, lang=lang))
         if Path(excel_path).exists():
             ename = re.sub(r"^\d{14}_", "", Path(excel_path).name)
             elements.append(cl.File(name=ename, path=excel_path, display="inline"))
@@ -3590,21 +3590,43 @@ async def on_chat_start():
                 )
 
                 if word_path and Path(word_path).exists():
-                    cmd_label = (
-                        "法規清單" if cmd == "regulatory_list" else "法規清單更新"
-                    )
-                    status_label = (
-                        "✅ 完成"
-                        if status == "completed"
-                        else "⚠️ 基線報告"
-                        if status == "baseline_ready"
-                        else "⚠️ 中斷"
-                    )
-                    notice = (
-                        f"📥 **先前的報告已產生** ({cmd_label})\n"
-                        f"狀態：{status_label} | 時間：{created}\n"
-                        f"請下載以下檔案："
-                    )
+                    _clang = cl.user_session.get("language", "zh-TW")
+                    if _clang.startswith("zh"):
+                        cmd_label = "法規清單" if cmd == "regulatory_list" else "法規清單更新"
+                        status_label = (
+                            "✅ 完成" if status == "completed"
+                            else "⚠️ 基線報告" if status == "baseline_ready"
+                            else "⚠️ 中斷"
+                        )
+                        notice = (
+                            f"📥 **先前的報告已產生** ({cmd_label})\n"
+                            f"狀態：{status_label} | 時間：{created}\n"
+                            f"請下載以下檔案："
+                        )
+                    elif _clang.startswith("ja"):
+                        cmd_label = "規制一覧" if cmd == "regulatory_list" else "規制一覧更新"
+                        status_label = (
+                            "✅ 完了" if status == "completed"
+                            else "⚠️ ベースライン" if status == "baseline_ready"
+                            else "⚠️ 中断"
+                        )
+                        notice = (
+                            f"📥 **前回のレポートが生成済み** ({cmd_label})\n"
+                            f"状態：{status_label} | 時刻：{created}\n"
+                            f"以下のファイルをダウンロードしてください："
+                        )
+                    else:
+                        cmd_label = "Regulatory List" if cmd == "regulatory_list" else "Regulatory Update"
+                        status_label = (
+                            "✅ Completed" if status == "completed"
+                            else "⚠️ Baseline Report" if status == "baseline_ready"
+                            else "⚠️ Interrupted"
+                        )
+                        notice = (
+                            f"📥 **Previously generated report** ({cmd_label})\n"
+                            f"Status: {status_label} | Time: {created}\n"
+                            f"Download the files below:"
+                        )
                     # Show cached file as cl.File for direct download
                     wname = re.sub(r"^\d{14}_", "", Path(word_path).name)
                     elements = [cl.File(name=wname, path=word_path, display="inline")]
@@ -4559,12 +4581,12 @@ async def _ask_product_docs_upload() -> Optional[str]:
                 cl.Action(
                     name="upload_product_docs",
                     payload={"value": "upload"},
-                    label="📎 上傳產品文件",
+                    label=t("ui.upload_product_label"),
                 ),
                 cl.Action(
                     name="skip_product_docs",
                     payload={"value": "skip"},
-                    label="⏭️ 跳過，直接分析",
+                    label=t("ui.skip_analyze_label"),
                 ),
             ],
             timeout=120,
@@ -4574,7 +4596,7 @@ async def _ask_product_docs_upload() -> Optional[str]:
         return None
 
     if not res or res.get("name") != "upload_product_docs":
-        await cl.Message(content="⏭️ 跳過產品文件上傳，直接開始分析。").send()
+        await cl.Message(content=t("ui.skip_upload")).send()
         return None
 
     # User chose to upload — show file upload dialog
@@ -4592,11 +4614,11 @@ async def _ask_product_docs_upload() -> Optional[str]:
             timeout=300,
         ).send()
     except Exception:
-        await cl.Message(content="⏭️ 上傳逾時或取消，直接開始分析。").send()
+        await cl.Message(content=t("ui.upload_timeout")).send()
         return None
 
     if not files:
-        await cl.Message(content="⏭️ 未上傳任何檔案，直接開始分析。").send()
+        await cl.Message(content=t("ui.no_files_uploaded")).send()
         return None
 
     # Process uploaded files through OCR and save to temp storage
@@ -4647,7 +4669,7 @@ async def _ask_product_docs_upload() -> Optional[str]:
         return session_id
     else:
         product_store.cleanup_session(session_id)
-        await cl.Message(content="⚠️ 產品文件處理失敗，將不含產品文件進行分析。").send()
+        await cl.Message(content=t("ui.product_doc_failed")).send()
         return None
 
 
@@ -4671,8 +4693,7 @@ async def handle_regulatory_list():
         # Inform user: no crawl data, but analysis will still proceed
         try:
             await cl.Message(
-                content="ℹ️ 尚未執行「法規清單更新」，將僅以本地文件進行合規性分析。\n"
-                "如需整合線上法規資訊，可另外執行「法規清單更新」。"
+                content=t("ui.no_reg_update")
             ).send()
         except Exception:
             pass
@@ -5124,10 +5145,14 @@ async def handle_regulatory_list():
     # Suggestion: update quality documents based on this analysis, then re-run
     if assessment and not assessment.startswith("⚠️"):
         try:
-            suggestion = (
-                "\n\n---\n"
-                "💡 **建議：** 請先依據本次分析結果更新品質文件，再重新執行「法規清單」以驗證修改是否完善。"
-            )
+            lang = cl.user_session.get("language", "zh-TW")
+            if lang.startswith("zh"):
+                _sug = "💡 **建議：** 請先依據本次分析結果更新品質文件，再重新執行「法規清單」以驗證修改是否完善。"
+            elif lang.startswith("ja"):
+                _sug = "💡 **提案：** 分析結果に基づいて品質文書を更新し、「規制一覧」を再実行して修正を確認してください。"
+            else:
+                _sug = "💡 **Suggestion:** Please update QMS documents based on analysis results, then run 'Regulatory List' again to verify."
+            suggestion = "\n\n---\n" + _sug
             await cl.Message(content=suggestion).send()
         except Exception:
             pass  # WebSocket disconnected
@@ -5203,20 +5228,32 @@ async def handle_regulatory_update():
     by_doc = scan_result.get("by_document", [])
 
     if aggregate:
-        local_lines = ["📚 **目前本地文件引用的法規清單**\n"]
+        lang = cl.user_session.get("language", "zh-TW")
+        if lang.startswith("zh"):
+            local_lines = ["📚 **目前本地文件引用的法規清單**\n"]
+        elif lang.startswith("ja"):
+            local_lines = ["📚 **現在ローカル文書が参照する規制一覧**\n"]
+        else:
+            local_lines = ["📚 **Regulatory Standards Referenced by Local Documents**\n"]
         for ref in aggregate:
             std = ref.get("standard", "")
             doc_ids = ref.get("referenced_by", [])
-            local_lines.append(
-                f"- **{std}** — 引用文件數: {len(doc_ids)}"
-            )  # Bug 10: show count only
-        local_lines.append(
-            f"\n> 共 {len(aggregate)} 項法規標準，來自 {len(by_doc)} 份文件。"
-        )
+            if lang.startswith("zh"):
+                local_lines.append(f"- **{std}** — 引用文件數: {len(doc_ids)}")
+            elif lang.startswith("ja"):
+                local_lines.append(f"- **{std}** — 参照文書数: {len(doc_ids)}")
+            else:
+                local_lines.append(f"- **{std}** — Referenced by: {len(doc_ids)} document(s)")
+        if lang.startswith("zh"):
+            local_lines.append(f"\n> 共 {len(aggregate)} 項法規標準，來自 {len(by_doc)} 份文件。")
+        elif lang.startswith("ja"):
+            local_lines.append(f"\n> 合計 {len(aggregate)} 件の規制基準、{len(by_doc)} 件の文書より。")
+        else:
+            local_lines.append(f"\n> {len(aggregate)} regulatory standards from {len(by_doc)} documents.")
         local_lines.append("\n---\n")
         await cl.Message(content="\n".join(local_lines)).send()
     else:
-        await cl.Message(content="ℹ️ 目前本地文件中尚未引用任何法規標準。\n\n---").send()
+        await cl.Message(content=t("ui.no_regulations_found")).send()
 
     # Also show existing regulatory markdown DB stats
     reg_md_store = get_regulatory_markdown_store()
@@ -5224,9 +5261,20 @@ async def handle_regulatory_update():
     reg_active = reg_stats.get("total_active", 0)
     if reg_active > 0:
         by_region = reg_stats.get("by_region", {})
-        db_lines = [f"\n📂 **法規 Markdown DB** — 共 {reg_active} 份已儲存文件\n"]
+        lang = cl.user_session.get("language", "zh-TW")
+        if lang.startswith("zh"):
+            db_lines = [f"\n📂 **法規 Markdown DB** — 共 {reg_active} 份已儲存文件\n"]
+        elif lang.startswith("ja"):
+            db_lines = [f"\n📂 **規制 Markdown DB** — {reg_active} 件保存済み\n"]
+        else:
+            db_lines = [f"\n📂 **Regulatory Markdown DB** — {reg_active} saved documents\n"]
         for rg, cnt in sorted(by_region.items()):
-            db_lines.append(f"- {rg}: {cnt} 份")
+            if lang.startswith("zh"):
+                db_lines.append(f"- {rg}: {cnt} 份")
+            elif lang.startswith("ja"):
+                db_lines.append(f"- {rg}: {cnt} 件")
+            else:
+                db_lines.append(f"- {rg}: {cnt}")
         db_lines.append("\n---")
         await cl.Message(content="\n".join(db_lines)).send()
 
@@ -5234,14 +5282,18 @@ async def handle_regulatory_update():
     result_store = get_regulatory_store()
     last_crawl = result_store.load_last_results()
     if last_crawl and last_crawl.get("results"):
-        last_ts = last_crawl.get("crawl_timestamp", "未知")
+        lang = cl.user_session.get("language", "zh-TW")
+        last_ts = last_crawl.get("crawl_timestamp", "Unknown" if not lang.startswith("zh") else "未知")
         last_summary = last_crawl.get("summary", {})
         prev_success = last_summary.get("success_count", 0)
         prev_total = last_summary.get("total_sites", 0)
-        await cl.Message(
-            content=f"📅 上次爬取時間: {last_ts}\n"
-            f"上次結果: {prev_success}/{prev_total} 個網站成功"
-        ).send()
+        if lang.startswith("zh"):
+            _crawl_msg = f"📅 上次爬取時間: {last_ts}\n上次結果: {prev_success}/{prev_total} 個網站成功"
+        elif lang.startswith("ja"):
+            _crawl_msg = f"📅 前回クロール: {last_ts}\n前回結果: {prev_success}/{prev_total} サイト成功"
+        else:
+            _crawl_msg = f"📅 Last crawl time: {last_ts}\nLast result: {prev_success}/{prev_total} sites succeeded"
+        await cl.Message(content=_crawl_msg).send()
 
     config_mgr = get_regulatory_config()
     store = get_regulatory_store()
@@ -5333,9 +5385,14 @@ async def handle_regulatory_update():
     save_result = reg_md_store.save_from_crawl_results(crawl_results)
     saved_count = save_result.get("saved_count", 0)
     if saved_count > 0:
-        await cl.Message(
-            content=f"💾 已儲存 {saved_count} 份法規文件至法規 Markdown DB"
-        ).send()
+        lang = cl.user_session.get("language", "zh-TW")
+        if lang.startswith("zh"):
+            _save_msg = f"💾 已儲存 {saved_count} 份法規文件至法規 Markdown DB"
+        elif lang.startswith("ja"):
+            _save_msg = f"💾 {saved_count} 件の規制文書を規制 Markdown DB に保存しました"
+        else:
+            _save_msg = f"💾 Saved {saved_count} regulatory documents to Markdown DB"
+        await cl.Message(content=_save_msg).send()
     skipped_details = save_result.get("skipped_details", [])
     if skipped_details:
         skip_lines = [
@@ -5343,7 +5400,7 @@ async def handle_regulatory_update():
             for d in skipped_details
         ]
         await cl.Message(
-            content="⚠️ 以下網站未能儲存（爬取失敗或內容為空）：\n" + "\n".join(skip_lines)
+            content=t("ui.crawl_save_failed") + "\n".join(skip_lines)
         ).send()
     # Build per-country status summary
     summary = crawl_results.get("summary", {})
@@ -5361,11 +5418,25 @@ async def handle_regulatory_update():
             region_status[region]["failed"].append(r)
 
     # Build display: which countries succeeded / failed
-    lines = [
-        f"📋 **法規清單更新結果** (成功 {summary.get('success_count', 0)}/{summary.get('total_sites', 0)} 個網站，"
-        f"耗時 {summary.get('crawl_duration_seconds', 0):.1f} 秒)\n",
-        "### ✅ 可爬取的國家/地區\n",
-    ]
+    lang = cl.user_session.get("language", "zh-TW")
+    _sc = summary.get('success_count', 0)
+    _ts = summary.get('total_sites', 0)
+    _dur = summary.get('crawl_duration_seconds', 0)
+    if lang.startswith("zh"):
+        lines = [
+            f"📋 **法規清單更新結果** (成功 {_sc}/{_ts} 個網站，耗時 {_dur:.1f} 秒)\n",
+            "### ✅ 可爬取的國家/地區\n",
+        ]
+    elif lang.startswith("ja"):
+        lines = [
+            f"📋 **規制一覧更新結果** (成功 {_sc}/{_ts} サイト、所要時間 {_dur:.1f} 秒)\n",
+            "### ✅ クロール可能な国/地域\n",
+        ]
+    else:
+        lines = [
+            f"📋 **Regulatory Update Results** ({_sc}/{_ts} sites succeeded, took {_dur:.1f} sec)\n",
+            "### ✅ Crawlable Countries/Regions\n",
+        ]
 
     success_regions = []
     failed_regions = []
@@ -5378,42 +5449,72 @@ async def handle_regulatory_update():
         if success_sites:
             success_regions.append(region)
             agencies = ", ".join(s["agency"] for s in success_sites)
-            lines.append(
-                f"- ✅ **{region}** — {len(success_sites)}/{total_sites} 個網站成功 ({agencies})"
-            )
+            if lang.startswith("zh"):
+                lines.append(f"- ✅ **{region}** — {len(success_sites)}/{total_sites} 個網站成功 ({agencies})")
+            elif lang.startswith("ja"):
+                lines.append(f"- ✅ **{region}** — {len(success_sites)}/{total_sites} サイト成功 ({agencies})")
+            else:
+                lines.append(f"- ✅ **{region}** — {len(success_sites)}/{total_sites} sites succeeded ({agencies})")
             # If some sites failed in this region, note them
             for fs in failed_sites:
-                reason = fs.get("failure_reason", "未知原因")
+                if lang.startswith("zh"):
+                    reason = fs.get("failure_reason", "未知原因")
+                else:
+                    reason = fs.get("failure_reason", "Unknown reason")
                 lines.append(f"  - ⚠️ {fs['agency']}: {reason[:80]}")
         else:
             failed_regions.append(region)
 
     if failed_regions:
-        lines.append("\n### ❌ 無法爬取的國家/地區\n")
+        if lang.startswith("zh"):
+            lines.append("\n### ❌ 無法爬取的國家/地區\n")
+        elif lang.startswith("ja"):
+            lines.append("\n### ❌ クロールできない国/地域\n")
+        else:
+            lines.append("\n### ❌ Countries/Regions That Could Not Be Crawled\n")
         for region in failed_regions:
             failed_sites = region_status[region]["failed"]
             for fs in failed_sites:
-                reason = fs.get("failure_reason", "未知原因")
+                if lang.startswith("zh"):
+                    reason = fs.get("failure_reason", "未知原因")
+                else:
+                    reason = fs.get("failure_reason", "Unknown reason")
                 lines.append(f"- ❌ **{region}** — {fs['agency']}: {reason[:100]}")
 
     # Ask user which countries to keep
     lines.append("\n---\n")
-    lines.append("### 📝 請選擇要追蹤的法規地區\n")
-    lines.append("您可以使用以下任一方式選擇：")
-    lines.append("- 輸入編號：`1,2,5` 或 `1 2 5`")
-    lines.append("- 輸入地區名稱：`美國、日本、台灣` 或 `USA, Japan`")
-    lines.append("- 只保留特定地區：`只保留美國` 或 `只要歐盟和日本`")
-    lines.append("- 排除特定地區：`除了中國以外都要`")
-    lines.append("- 全部保留：`全部` 或 `all`")
-    lines.append("- 刪除特定法規：`刪除 FDA` 或 `刪除 ISO 13485`")
-    lines.append("- 或直接點擊下方按鈕\n")
+    if lang.startswith("zh"):
+        lines.append("### 📝 請選擇要追蹤的法規地區\n")
+        lines.append("您可以使用以下任一方式選擇：")
+        lines.append("- 輸入編號：`1,2,5` 或 `1 2 5`")
+        lines.append("- 輸入地區名稱：`美國、日本、台灣` 或 `USA, Japan`")
+        lines.append("- 只保留特定地區：`只保留美國` 或 `只要歐盟和日本`")
+        lines.append("- 排除特定地區：`除了中國以外都要`")
+        lines.append("- 全部保留：`全部` 或 `all`")
+        lines.append("- 刪除特定法規：`刪除 FDA` 或 `刪除 ISO 13485`")
+        lines.append("- 或直接點擊下方按鈕\n")
+    elif lang.startswith("ja"):
+        lines.append("### 📝 追跡する規制地域を選択\n")
+        lines.append("以下のいずれかの方法で選択できます：")
+        lines.append("- 番号を入力：`1,2,5` または `1 2 5`")
+        lines.append("- 地域名を入力：`USA, Japan`")
+        lines.append("- すべて保持：`all`")
+        lines.append("- またはボタンをクリック\n")
+    else:
+        lines.append("### 📝 Select regulatory regions to track\n")
+        lines.append("You can select using any of the following methods:")
+        lines.append("- Enter numbers: `1,2,5` or `1 2 5`")
+        lines.append("- Enter region names: `USA, Japan, Taiwan`")
+        lines.append("- Keep all: `all`")
+        lines.append("- Or click the buttons below\n")
 
     available_regions = get_available_regions()
     for i, region in enumerate(available_regions, 1):
         if region in success_regions:
             lines.append(f"{i}. ✅ {region}")
         elif region in failed_regions:
-            lines.append(f"{i}. ❌ {region} (爬取失敗)")
+            _fail_lbl = "(爬取失敗)" if lang.startswith("zh") else "(クロール失敗)" if lang.startswith("ja") else "(crawl failed)"
+            lines.append(f"{i}. ❌ {region} {_fail_lbl}")
         else:
             lines.append(f"{i}. ⬜ {region}")
 
@@ -5428,17 +5529,17 @@ async def handle_regulatory_update():
         cl.Action(
             name="confirm_regulatory_regions_default",
             payload={"use_default": True},
-            label="✅ 使用預設（保留所有可爬取地區）",
+            label=t("ui.use_default_label"),
         ),
         cl.Action(
             name="skip_regulatory_regions",
             payload={"skip": True},
-            label="⏭️ 跳過，直接匯出目前結果",
+            label=t("ui.skip_export_label"),
         ),
         cl.Action(
             name="manage_regulatory_docs",
             payload={"manage": True},
-            label="🗑️ 管理已儲存法規文件",
+            label=t("ui.manage_reg_label"),
         ),
     ]
 
@@ -5529,7 +5630,7 @@ async def handle_regulatory_update_rescan(selected_regions: list):
             for d in _rescan_skipped
         ]
         await cl.Message(
-            content="⚠️ 以下網站未能儲存（爬取失敗或內容為空）：\n" + "\n".join(_skip_lines)
+            content=t("ui.crawl_save_failed") + "\n".join(_skip_lines)
         ).send()
 
     _crawl_summary = crawl_results.get("summary", {})
@@ -5639,7 +5740,7 @@ async def handle_regulatory_update_rescan(selected_regions: list):
                         ).send()
             else:
                 await cl.Message(
-                    content="⚠️ 未設定 LLM，無法自動生成法規 Profile。"
+                    content=t("ui.no_llm_for_profile")
                 ).send()
 
         # Resolve selected_regions → profile IDs for pipeline
@@ -5922,10 +6023,14 @@ async def handle_regulatory_update_rescan(selected_regions: list):
     # Suggestion: update quality documents based on this analysis, then re-run
     if assessment and not assessment.startswith("⚠️"):
         try:
-            suggestion = (
-                "\n\n---\n"
-                "💡 **建議：** 請先依據本次分析結果更新品質文件，再重新執行「法規清單更新」以驗證修改是否完善。"
-            )
+            lang = cl.user_session.get("language", "zh-TW")
+            if lang.startswith("zh"):
+                _sug2 = "💡 **建議：** 請先依據本次分析結果更新品質文件，再重新執行「法規清單更新」以驗證修改是否完善。"
+            elif lang.startswith("ja"):
+                _sug2 = "💡 **提案：** 分析結果に基づいて品質文書を更新し、「規制一覧更新」を再実行して修正を確認してください。"
+            else:
+                _sug2 = "💡 **Suggestion:** Please update QMS documents based on analysis results, then run 'Regulatory Update' again to verify."
+            suggestion = "\n\n---\n" + _sug2
             await cl.Message(content=suggestion).send()
         except Exception:
             pass  # WebSocket disconnected
@@ -5942,7 +6047,7 @@ async def _show_regulatory_update_export_buttons():
     """Show export buttons for current regulatory update results (skip rescan)."""
     crawl_results = cl.user_session.get("last_regulatory_update")
     if not crawl_results:
-        await cl.Message(content="⚠️ 沒有可匯出的法規更新結果。").send()
+        await cl.Message(content=t("ui.no_export_results")).send()
         return
 
     assessment = cl.user_session.get("last_regulatory_update_assessment", "")
@@ -5980,11 +6085,23 @@ async def handle_regulatory_update_export(format_type: str):
         store = get_regulatory_store()
         crawl_results = store.load_last_results()
         if not crawl_results:
-            return None, "⚠️ 沒有可匯出的法規更新結果。請先執行「法規清單更新」。"
+            lang = cl.user_session.get("language", "zh-TW")
+            if lang.startswith("zh"):
+                return None, "⚠️ 沒有可匯出的法規更新結果。請先執行「法規清單更新」。"
+            elif lang.startswith("ja"):
+                return None, "⚠️ エクスポートできる規制更新結果がありません。「規制一覧更新」を先に実行してください。"
+            else:
+                return None, "⚠️ No regulatory update results to export. Please run 'Regulatory Update' first."
 
     results = crawl_results.get("results", [])
     if not results:
-        return None, "⚠️ 法規更新結果為空。"
+        lang = cl.user_session.get("language", "zh-TW")
+        if lang.startswith("zh"):
+            return None, "⚠️ 法規更新結果為空。"
+        elif lang.startswith("ja"):
+            return None, "⚠️ 規制更新結果が空です。"
+        else:
+            return None, "⚠️ Regulatory update results are empty."
 
     total = len(results)
     if format_type == "word":
@@ -6016,10 +6133,16 @@ async def handle_regulatory_doc_management():
     docs = reg_md_store.list_documents(status="active")
 
     if not docs:
-        await cl.Message(content="ℹ️ 法規 Markdown DB 中尚無已儲存的法規文件。").send()
+        await cl.Message(content=t("ui.no_reg_db_files")).send()
         return
 
-    lines = [f"📂 **已儲存的法規文件** (共 {len(docs)} 份)\n"]
+    lang = cl.user_session.get("language", "zh-TW")
+    if lang.startswith("zh"):
+        lines = [f"📂 **已儲存的法規文件** (共 {len(docs)} 份)\n"]
+    elif lang.startswith("ja"):
+        lines = [f"📂 **保存済み規制文書** ({len(docs)} 件)\n"]
+    else:
+        lines = [f"📂 **Saved Regulatory Documents** ({len(docs)} total)\n"]
     for i, doc in enumerate(docs, 1):
         region = doc.get("region", "")
         agency = doc.get("agency", "")
@@ -6028,12 +6151,27 @@ async def handle_regulatory_doc_management():
         lines.append(f"{i}. **{region}** — {agency} | {title} ({ts})")
 
     lines.append("\n---")
-    lines.append("\n### 🗑️ 刪除法規文件\n")
-    lines.append("您可以使用以下方式刪除：")
-    lines.append("- 輸入編號：`刪除 1,3,5` 或 `刪除 1 3 5`")
-    lines.append("- 輸入關鍵字：`刪除 FDA` 或 `刪除 台灣`")
-    lines.append("- 刪除全部：`刪除全部`")
-    lines.append("- 或輸入 `取消` 返回\n")
+    if lang.startswith("zh"):
+        lines.append("\n### 🗑️ 刪除法規文件\n")
+        lines.append("您可以使用以下方式刪除：")
+        lines.append("- 輸入編號：`刪除 1,3,5` 或 `刪除 1 3 5`")
+        lines.append("- 輸入關鍵字：`刪除 FDA` 或 `刪除 台灣`")
+        lines.append("- 刪除全部：`刪除全部`")
+        lines.append("- 或輸入 `取消` 返回\n")
+    elif lang.startswith("ja"):
+        lines.append("\n### 🗑️ 規制文書の削除\n")
+        lines.append("以下の方法で削除できます：")
+        lines.append("- 番号を入力：`削除 1,3,5`")
+        lines.append("- キーワードを入力：`削除 FDA`")
+        lines.append("- すべて削除：`すべて削除`")
+        lines.append("- `キャンセル` で戻る\n")
+    else:
+        lines.append("\n### 🗑️ Delete Regulatory Documents\n")
+        lines.append("You can delete using the following methods:")
+        lines.append("- Enter numbers: `delete 1,3,5` or `delete 1 3 5`")
+        lines.append("- Enter keywords: `delete FDA` or `delete Taiwan`")
+        lines.append("- Delete all: `delete all`")
+        lines.append("- Or enter `cancel` to go back\n")
 
     cl.user_session.set("awaiting_regulatory_delete", True)
     cl.user_session.set("regulatory_doc_list", docs)
@@ -6042,7 +6180,7 @@ async def handle_regulatory_doc_management():
         cl.Action(
             name="cancel_regulatory_delete",
             payload={"cancel": True},
-            label="↩️ 取消，返回",
+            label=t("ui.cancel_return_label"),
         ),
     ]
 
@@ -6057,7 +6195,7 @@ async def _execute_regulatory_delete(user_input: str):
 
     # Detect cancel
     if input_lower in ("取消", "cancel", "返回", "back"):
-        await cl.Message(content="✅ 已取消刪除操作。").send()
+        await cl.Message(content=t("ui.cancel_delete")).send()
         return
 
     # Remove delete prefix keywords
@@ -6099,7 +6237,7 @@ async def _execute_regulatory_delete(user_input: str):
                 content=f"🗑️ 已刪除 {len(deleted_items)} 份法規文件: {names}"
             ).send()
         else:
-            await cl.Message(content="⚠️ 未找到對應的文件編號。").send()
+            await cl.Message(content=t("ui.doc_not_found")).send()
         return
 
     # Try keyword deletion
@@ -6117,7 +6255,7 @@ async def _execute_regulatory_delete(user_input: str):
             await cl.Message(content=f"⚠️ 未找到包含 '{cleaned}' 的法規文件。").send()
         return
 
-    await cl.Message(content="⚠️ 無法解析刪除指令。請輸入編號或關鍵字。").send()
+    await cl.Message(content=t("ui.delete_parse_error")).send()
 
 
 async def handle_reference_export(format_type: str):
@@ -6608,7 +6746,7 @@ async def on_cancel_regulatory_delete(action):
     """Cancel regulatory document deletion."""
     await action.remove()
     cl.user_session.set("awaiting_regulatory_delete", False)
-    await cl.Message(content="✅ 已取消刪除操作。").send()
+    await cl.Message(content=t("ui.cancel_delete")).send()
 
 
 @cl.action_callback("download_original_file")
@@ -6630,7 +6768,7 @@ async def on_download_original_file(action):
     # Ask for downloader's name before proceeding
     cl.user_session.set("pending_download_doc_id", doc_id)
     cl.user_session.set("awaiting_download_name", True)
-    await cl.Message(content="請問您的姓名？（將記錄於稽核紀錄）").send()
+    await cl.Message(content=t("ui.ask_name")).send()
     await action.remove()
 
 
@@ -9024,7 +9162,7 @@ async def _save_daily_feedback_if_pending(user_message: str) -> bool:
     except Exception as _fb_err:
         logging.getLogger(__name__).warning("Save daily feedback failed: %s", _fb_err)
         await cl.Message(
-            content="⚠️ 回饋儲存失敗，請稍後再試。",
+            content=t("ui.feedback_save_failed"),
             author="Eira",
         ).send()
     finally:
@@ -9125,7 +9263,7 @@ async def on_message(message: cl.Message):
         downloader_name = text.strip()
         if not downloader_name:
             cl.user_session.set("awaiting_download_name", True)
-            await cl.Message(content="⚠️ 姓名不可空白，請再輸入一次您的姓名：").send()
+            await cl.Message(content=t("ui.name_empty")).send()
             return
 
         # Action-button triggered download
@@ -9218,7 +9356,7 @@ async def on_message(message: cl.Message):
             # If parsing failed, default to all success regions
             selected = success_regions if success_regions else available_regions
             await cl.Message(
-                content="ℹ️ 無法解析輸入，將使用預設選擇（所有可爬取地區）。"
+                content=t("ui.parse_input_fallback")
             ).send()
 
         region_names = ", ".join(selected)
@@ -9647,7 +9785,7 @@ async def on_message(message: cl.Message):
             # File found — ask for downloader's name before proceeding
             cl.user_session.set("pending_download_text", text)
             cl.user_session.set("awaiting_download_name", True)
-            await cl.Message(content="請問您的姓名？（將記錄於稽核紀錄）").send()
+            await cl.Message(content=t("ui.ask_name")).send()
             return
 
         # Online view document by doc_id (線上觀看)

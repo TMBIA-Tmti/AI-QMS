@@ -366,10 +366,23 @@ async def list_regulations():
     )
 
 
+def _pick_clause_title(clause_info: dict, lang: str) -> str:
+    """Return the clause title in the appropriate language."""
+    if lang.startswith("ja"):
+        return clause_info.get("title_ja") or clause_info.get("title", "")
+    elif lang.startswith("zh"):
+        return clause_info.get("title", "")
+    else:  # en and all other languages -> English
+        return clause_info.get("title_en") or clause_info.get("title", "")
+
+
 @report_router.get("/crossref/table")
 async def get_crossref_table(
     regulations: str = Query(
         ..., description="Comma-separated regulation IDs, e.g. QMSR,EU_MDR,TFDA"
+    ),
+    lang: str = Query(
+        default="zh-TW", description="UI language code, e.g. en-US, ja-JP, zh-TW"
     ),
 ):
     """Get the full cross-reference comparison table.
@@ -397,7 +410,7 @@ async def get_crossref_table(
     for clause_id, clause_info in checklist.items():
         row = {
             "clause_id": clause_id,
-            "clause_title": clause_info.get("title", ""),
+            "clause_title": _pick_clause_title(clause_info, lang),
             "audit_impact": clause_info.get("audit_impact", ""),
             "regulations": {},
         }
