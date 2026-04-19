@@ -268,6 +268,7 @@ class AnalysisPipeline:
             self._standard,
             llm_completion_fn=self._llm_fn,
             model=self._model,
+            lang=self._lang,
         )
         self._state.status = PhaseStatus.PENDING.value
         self._save_state()

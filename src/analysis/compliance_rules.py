@@ -81,36 +81,71 @@ from datetime import date as _date
 
 
 def get_audit_question(
-    clause: dict, seed: int | None = None, doc_id: str = ""
+    clause: dict,
+    seed: int | None = None,
+    doc_id: str = "",
+    lang: str = "zh-TW",
 ) -> str:
     """Return an audit question from the clause using date-based rotation.
 
-    If the clause has an ``audit_questions`` list with multiple entries,
-    rotates through them deterministically using *seed* (default: today's
-    date as YYYYMMDD int).
+    Language-aware selection:
+      - ``lang`` starts with ``"zh"`` (or is empty/unknown) → Chinese pool
+        (``audit_questions`` / ``audit_question``)
+      - ``lang`` starts with ``"ja"`` → Japanese pool
+        (``audit_questions_ja`` / ``audit_question_ja``) with graceful
+        fallback to the English pool if no Japanese version is available.
+      - Any other language (``"en"``, ``"de"``, ...) → English pool
+        (``audit_questions_en`` / ``audit_question_en``) with graceful
+        fallback to the Chinese pool if no English version is available
+        (e.g., crawled regulation delta questions).
 
+    If the selected-language pool has multiple entries, rotates through them
+    deterministically using *seed* (default: today's date as YYYYMMDD int).
     If *doc_id* is provided, its hash is mixed into the seed so that
-    different documents on the same day receive different questions —
-    preventing all docs from getting the identical question each day.
-
-    Falls back to ``audit_question`` for backwards compatibility when
-    ``audit_questions`` is absent or has only one entry.
+    different documents on the same day receive different questions.
 
     Args:
         clause: A single entry from ISO_13485_CHECKLIST or a delta-question dict.
         seed:   Integer seed for rotation. Defaults to today's date (YYYYMMDD).
         doc_id: Optional document ID to mix into seed for per-doc variation.
+        lang:   UI language code. Defaults to ``"zh-TW"`` for backwards
+                compatibility.
 
     Returns:
         The selected audit question string.
 
     Example:
         >>> clause = ISO_13485_CHECKLIST["4.1"]
-        >>> q = get_audit_question(clause)                        # uses today's date
-        >>> q = get_audit_question(clause, seed=0)               # always first question
-        >>> q = get_audit_question(clause, doc_id="QP-001")      # per-doc variation
+        >>> q = get_audit_question(clause)                           # Chinese, today
+        >>> q = get_audit_question(clause, lang="en")                # English, today
+        >>> q = get_audit_question(clause, lang="ja")                # Japanese, today
+        >>> q = get_audit_question(clause, seed=0, lang="en")        # always first (EN)
+        >>> q = get_audit_question(clause, doc_id="QP-001")          # per-doc variation
     """
-    questions = clause.get("audit_questions") or []
+    use_chinese = (not lang) or lang.startswith("zh")
+    use_japanese = bool(lang) and lang.startswith("ja")
+
+    if use_chinese:
+        questions = clause.get("audit_questions") or []
+        single = clause.get("audit_question", "")
+    elif use_japanese:
+        questions = clause.get("audit_questions_ja") or []
+        single = clause.get("audit_question_ja", "")
+        # Fallback to English, then Chinese if no Japanese version exists
+        if not questions and not single:
+            questions = clause.get("audit_questions_en") or []
+            single = clause.get("audit_question_en", "")
+        if not questions and not single:
+            questions = clause.get("audit_questions") or []
+            single = clause.get("audit_question", "")
+    else:
+        questions = clause.get("audit_questions_en") or []
+        single = clause.get("audit_question_en", "")
+        # Fallback to Chinese if no English version exists (e.g., delta dicts)
+        if not questions and not single:
+            questions = clause.get("audit_questions") or []
+            single = clause.get("audit_question", "")
+
     if len(questions) > 1:
         if seed is None:
             seed = int(_date.today().strftime("%Y%m%d"))
@@ -119,7 +154,7 @@ def get_audit_question(
         return questions[seed % len(questions)]
     if questions:
         return questions[0]
-    return clause.get("audit_question", "")
+    return single
 
 
 # ============================================================
@@ -158,6 +193,36 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "品質管理系統過程圖或過程清單",
             "外包過程管制紀錄（如適用）",
         ],
+        "audit_question_en": "Has the organization established, documented, implemented, and maintained a quality management system, and maintained its effectiveness? Are the processes needed for the QMS and their application throughout the organization identified? Are outsourced processes controlled?",
+        "audit_question_ja": "組織は品質マネジメントシステムを確立し、文書化し、実施し、維持し、その有効性を維持しているか？品質マネジメントシステムに必要なプロセス及び組織全体への適用を特定しているか？外部委託したプロセスに対して管理を行っているか？",
+        "audit_questions_en": [
+            "Has the organization established, documented, implemented, and maintained a quality management system, and maintained its effectiveness? Are the processes needed for the QMS and their application throughout the organization identified? Are outsourced processes controlled?",
+            "How is the scope boundary of the QMS defined? Does it cover all processes affecting product quality? What are the risk control measures for outsourced processes?",
+            "Is the process sequence and interaction diagram of the QMS updated regularly? When was the last update and who approved it?",
+            "Per ISO 13485:2016 §4.1(f), are the controls for outsourced processes documented? Please provide the most recent supplier evaluation records.",
+            "How is the effectiveness of the QMS measured? Are there quantifiable KPIs that are regularly reported to top management?",
+            "Per ISO 13485:2016 §4.1, does the QMS cover all organizational processes affecting product safety and effectiveness? Which processes have been excluded, and why?",
+            "When the quality performance of an outsourced process does not meet requirements, what specific corrective actions has the organization taken? Please provide related records.",
+        ],
+        "audit_questions_ja": [
+            "組織は品質マネジメントシステムを確立し、文書化し、実施し、維持し、その有効性を維持しているか？品質マネジメントシステムに必要なプロセス及び組織全体への適用を特定しているか？外部委託したプロセスに対して管理を行っているか？",
+            "品質マネジメントシステムの適用範囲の境界はどのように定義されているか？製品品質に影響するすべてのプロセスを網羅しているか？外部委託プロセスのリスク管理策は何か？",
+            "品質マネジメントシステムのプロセス順序と相互作用図は定期的に更新されているか？最終更新はいつで、誰が承認したか？",
+            "ISO 13485:2016 §4.1(f)に従い、外部委託プロセスの管理策は文書化されているか？直近の外部委託先評価記録を提示すること。",
+            "品質マネジメントシステムの有効性はどのように測定されているか？定量的なKPIが設定され、経営層に定期的に報告されているか？",
+            "ISO 13485:2016 §4.1に従い、品質マネジメントシステムは組織内で製品の安全性及び有効性に影響するすべてのプロセスを網羅しているか？除外されたプロセスはあるか？その理由は？",
+            "外部委託プロセスの品質パフォーマンスが要求事項に適合しない場合、組織はどのような具体的な是正処置を行ったか？関連記録を提示すること。",
+        ],
+        "expected_evidence_en": [
+            "Quality Manual",
+            "QMS process map or process list",
+            "Outsourced process control records (if applicable)",
+        ],
+        "expected_evidence_ja": [
+            "品質マニュアル",
+            "品質マネジメントシステムのプロセスマップ又はプロセス一覧",
+            "外部委託プロセス管理記録（該当する場合）",
+        ],
     },
     "4.2.1": {
         "title": "文件化要求 — 一般",
@@ -188,6 +253,38 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "品質手冊",
             "程序書清單",
         ],
+        "audit_question_en": "Does the QMS documentation include statements of a quality policy and quality objectives, a quality manual, the procedures and records required by this International Standard, and the documents determined by the organization to be necessary to ensure effective planning, operation, and control of its processes?",
+        "audit_question_ja": "品質マネジメントシステムの文書には、品質方針及び品質目標の表明、品質マニュアル、本国際規格が要求する手順及び記録、並びにプロセスの効果的な計画、運用及び管理を確実にするために組織が必要と判断した文書が含まれているか？",
+        "audit_questions_en": [
+            "Does the QMS documentation include statements of a quality policy and quality objectives, a quality manual, the procedures and records required by this International Standard, and the documents determined by the organization to be necessary to ensure effective planning, operation, and control of its processes?",
+            "Is the QMS documentation periodically reviewed and updated? Is the control responsibility for documents at each level clearly assigned to specific personnel?",
+            "What is the version control mechanism for QMS documentation? Can the revision history of any document be traced?",
+            "Per ISO 13485:2016 §4.2.1, is the procedure list complete? Are there any regulatory-required procedures that have not yet been established?",
+            "Are quality objectives presented in documented form? Do each department have their own quality objectives aligned with company-level objectives?",
+            "What are the criteria for identifying documents determined by the organization as necessary for effective process operation? Who has authority to decide which documents should be included in the QMS?",
+            "Per ISO 13485:2016 §4.2.1(d), has the organization established and maintained technical documentation related to medical devices? When was the last document completeness review?",
+        ],
+        "audit_questions_ja": [
+            "品質マネジメントシステムの文書には、品質方針及び品質目標の表明、品質マニュアル、本国際規格が要求する手順及び記録、並びにプロセスの効果的な計画、運用及び管理を確実にするために組織が必要と判断した文書が含まれているか？",
+            "品質マネジメントシステム文書は定期的にレビューされ更新されているか？各階層の文書管理責任は特定の担当者に明確に割り当てられているか？",
+            "品質マネジメントシステム文書のバージョン管理メカニズムは何か？あらゆる文書の改訂履歴を追跡できるか？",
+            "ISO 13485:2016 §4.2.1に従い、手順書一覧は完全か？法規制で要求されながらまだ確立されていない手順書はあるか？",
+            "品質目標は文書化された形で示されているか？各部門は会社レベルの目標と整合した独自の品質目標を持っているか？",
+            "プロセスの効果的な運用に必要と組織が判断する文書の識別基準は何か？どの文書を品質マネジメントシステムに含めるかを決定する権限を持つのは誰か？",
+            "ISO 13485:2016 §4.2.1(d)に従い、組織は医療機器に関する技術文書を確立し維持しているか？直近の文書完全性レビューはいつ実施されたか？",
+        ],
+        "expected_evidence_en": [
+            "Quality policy statement",
+            "Quality objectives",
+            "Quality manual",
+            "Procedure list",
+        ],
+        "expected_evidence_ja": [
+            "品質方針表明書",
+            "品質目標",
+            "品質マニュアル",
+            "手順書一覧",
+        ],
     },
     "4.2.2": {
         "title": "品質手冊",
@@ -216,6 +313,38 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "排除條款理由說明（如適用）",
             "過程交互作用描述",
         ],
+        "audit_question_en": "Has the organization established and maintained a quality manual that includes the scope of the QMS (with details of and justification for any exclusion), the documented procedures or references to them, and a description of the interaction between the processes of the QMS?",
+        "audit_question_ja": "組織は、品質マネジメントシステムの適用範囲（除外の詳細及び正当化を含む）、文書化された手順又はそれらの参照、並びに品質マネジメントシステムのプロセス間の相互作用の記述を含む品質マニュアルを確立し維持しているか？",
+        "audit_questions_en": [
+            "Has the organization established and maintained a quality manual that includes the scope of the QMS (with details of and justification for any exclusion), the documented procedures or references to them, and a description of the interaction between the processes of the QMS?",
+            "Does the quality manual reflect the organization's actual operations? What are the last review date and revision? Are the justifications for exclusion clauses fully explained?",
+            "Per ISO 13485:2016 §4.2.2, does the quality manual clearly state which clauses are excluded and the reasons? Are exclusion justifications documented and verifiable by auditors?",
+            "Is the process interaction diagram described in the quality manual consistent with actual operations? Is it updated regularly in response to organizational or business scope changes?",
+            "Is the quality manual approval process documented? Is the revision history completely preserved with change summaries and approver names for each revision?",
+            "Is the documented procedure list referenced in the quality manual consistent with the current controlled document list? Are there any referenced but unestablished procedures?",
+            "What is the release control method for the quality manual? How is it ensured that all relevant personnel have access to the latest version and obsolete versions are recovered or marked?",
+        ],
+        "audit_questions_ja": [
+            "組織は、品質マネジメントシステムの適用範囲（除外の詳細及び正当化を含む）、文書化された手順又はそれらの参照、並びに品質マネジメントシステムのプロセス間の相互作用の記述を含む品質マニュアルを確立し維持しているか？",
+            "品質マニュアルは組織の実際の運用を反映しているか？最終レビュー日及び改訂は？除外条項の正当化は十分に説明されているか？",
+            "ISO 13485:2016 §4.2.2に従い、品質マニュアルはどの条項が除外されるか及びその理由を明確に述べているか？除外の正当化は文書化され、監査員による検証が可能か？",
+            "品質マニュアルに記述されたプロセス相互作用図は実際の運用と一致しているか？組織又は事業範囲の変更に応じて定期的に更新されているか？",
+            "品質マニュアルの承認プロセスは文書化されているか？改訂履歴は各改訂の変更要約及び承認者名とともに完全に保存されているか？",
+            "品質マニュアルで参照されている文書化手順一覧は、現行の管理文書一覧と一致しているか？参照されているが未確立の手順はあるか？",
+            "品質マニュアルの発行管理方法は何か？すべての関連要員が最新版にアクセスでき、廃止版が回収又は表示されることをどのように確実にしているか？",
+        ],
+        "expected_evidence_en": [
+            "Quality Manual",
+            "QMS scope statement",
+            "Exclusion clause justification (if applicable)",
+            "Process interaction description",
+        ],
+        "expected_evidence_ja": [
+            "品質マニュアル",
+            "品質マネジメントシステムの適用範囲説明書",
+            "除外条項の正当化説明書（該当する場合）",
+            "プロセス相互作用の記述",
+        ],
     },
     "4.2.3": {
         "title": "文件管制",
@@ -243,6 +372,36 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "文件發行/變更紀錄",
             "文件清單 (Master List)",
         ],
+        "audit_question_en": "Has the organization established document control procedures covering review, approval, issue, change, version identification, control of external documents, and control of obsolete documents?",
+        "audit_question_ja": "組織は、レビュー、承認、発行、変更、版の識別、外部文書の管理、廃止文書の管理を含む文書管理手順を確立しているか？",
+        "audit_questions_en": [
+            "Has the organization established document control procedures covering review, approval, issue, change, version identification, control of external documents, and control of obsolete documents?",
+            "Does the document change control procedure effectively prevent the use of obsolete versions? Please illustrate the complete control process of a recent document change.",
+            "Per ISO 13485:2016 §4.2.4, how are obsolete documents controlled? Is there a mechanism to ensure obsolete documents are not inadvertently used?",
+            "How are external documents (e.g., regulations, customer specifications) identified, controlled, and distributed? Please provide an example of external document control.",
+            "How many levels of approval are required in the document approval process? How is approval responsibility defined for cross-departmental documents?",
+            "Per ISO 13485:2016 §4.2.3(g), when documents are issued for on-site use, how is it ensured that users obtain the latest version?",
+            "Is the electronic document management system (if any) validated? What is its access permission control mechanism?",
+        ],
+        "audit_questions_ja": [
+            "組織は、レビュー、承認、発行、変更、版の識別、外部文書の管理、廃止文書の管理を含む文書管理手順を確立しているか？",
+            "文書変更管理手順は廃止版の使用を効果的に防止しているか？直近の文書変更の完全な管理プロセスを例示すること。",
+            "ISO 13485:2016 §4.2.4に従い、廃止文書はどのように管理されているか？廃止文書が誤用されないことを確実にする仕組みはあるか？",
+            "外部文書（法規制、顧客仕様等）はどのように識別、管理、配布されているか？外部文書管理の実例を提示すること。",
+            "文書承認プロセスには何段階の決裁が必要か？部門横断文書の承認責任はどのように規定されているか？",
+            "ISO 13485:2016 §4.2.3(g)に従い、文書が現場使用のために発行される際、利用者が最新版を入手することをどのように確実にしているか？",
+            "電子文書管理システム（存在する場合）はバリデーションされているか？そのアクセス権限管理メカニズムは何か？",
+        ],
+        "expected_evidence_en": [
+            "Document Control Procedure",
+            "Document issue/change records",
+            "Master Document List",
+        ],
+        "expected_evidence_ja": [
+            "文書管理手順書",
+            "文書発行／変更記録",
+            "文書一覧（マスターリスト）",
+        ],
     },
     "4.2.4": {
         "title": "紀錄管制",
@@ -268,6 +427,34 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
         "expected_evidence": [
             "紀錄管制程序書",
             "紀錄保存期限清單",
+        ],
+        "audit_question_en": "Has the organization established record control procedures to ensure the identification, storage, protection, retrieval, retention time, and disposition of records?",
+        "audit_question_ja": "組織は、記録の識別、保管、保護、検索、保管期間及び処分を確実にする記録管理手順を確立しているか？",
+        "audit_questions_en": [
+            "Has the organization established record control procedures to ensure the identification, storage, protection, retrieval, retention time, and disposition of records?",
+            "What is the basis for record retention periods? Do they meet the minimum requirements of each applicable regulation (MDSAP/TFDA/EU MDR)? Are electronic records backed up?",
+            "How are record retention periods determined? Are the expected product lifetime plus regulatory minimum retention periods considered?",
+            "Per ISO 13485:2016 §4.2.5, are records clear, legible, and identifiable? Are there any cases of damage due to improper storage?",
+            "Do electronic records (e.g., scanned documents, electronic signatures) comply with regulatory requirements (such as 21 CFR Part 11, if applicable)?",
+            "When records need to be transferred (e.g., system replacement), how is transfer integrity verified? Is there a transfer verification procedure?",
+            "Per ISO 13485:2016 §4.2.5, have all regulatory-required record types been established and controlled? Is there a record list?",
+        ],
+        "audit_questions_ja": [
+            "組織は、記録の識別、保管、保護、検索、保管期間及び処分を確実にする記録管理手順を確立しているか？",
+            "記録保管期間の根拠は何か？各適用法規制（MDSAP／TFDA／EU MDR）の最低要求事項を満たしているか？電子記録のバックアップ機構はあるか？",
+            "記録の保管期間はどのように決定されているか？製品の予想耐用年数に法規制で定められた最低保管期間を加算したものを考慮しているか？",
+            "ISO 13485:2016 §4.2.5に従い、記録は明確かつ判読可能で識別可能か？不適切な保管による破損事例はあるか？",
+            "電子記録（スキャン文書、電子署名等）は法規制要求事項（21 CFR Part 11等、該当する場合）に適合しているか？",
+            "記録の移行（システム更新等）が必要な場合、移行の完全性はどのように検証されるか？移行バリデーション手順はあるか？",
+            "ISO 13485:2016 §4.2.5に従い、すべての法規制要求記録種別は確立され管理されているか？記録一覧は存在するか？",
+        ],
+        "expected_evidence_en": [
+            "Record Control Procedure",
+            "Record retention period list",
+        ],
+        "expected_evidence_ja": [
+            "記録管理手順書",
+            "記録保管期間一覧",
         ],
     },
     "4.2.5": {
@@ -295,6 +482,36 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "醫療器材檔案 (Device Master Record / Technical File)",
             "產品規格書",
             "適用法規要求清單",
+        ],
+        "audit_question_en": "Has the organization established and maintained a medical device file for each type or family of medical device, containing or referencing documents generated to demonstrate conformity to the requirements of this standard and compliance with applicable regulatory requirements?",
+        "audit_question_ja": "組織は、医療機器の種類又はファミリごとに、本規格の要求事項への適合及び適用される規制要求事項への適合を実証するために作成された文書を含む又は参照する医療機器ファイルを確立し維持しているか？",
+        "audit_questions_en": [
+            "Has the organization established and maintained a medical device file for each type or family of medical device, containing or referencing documents generated to demonstrate conformity to the requirements of this standard and compliance with applicable regulatory requirements?",
+            "How is the completeness of the medical device file periodically confirmed? What are the detection and remediation mechanisms if document gaps are found?",
+            "Per ISO 13485:2016 §4.2.5, does the medical device file cover each device type or family, and include or reference all necessary documents to demonstrate regulatory compliance?",
+            "Is the index table of the medical device file kept up to date? Are there records of periodic completeness reviews (e.g., annual)?",
+            "When a product design change occurs, how are the person responsible for updating the medical device file and the update deadline defined? Is there a related tracking mechanism?",
+            "Are the technical documents in the medical device file sufficient for regulatory authorities to conduct conformity assessment? What document gaps have been identified by external audit agencies?",
+            "What is the access control and version management mechanism for electronic medical device files? How is access permission of departed personnel revoked promptly?",
+        ],
+        "audit_questions_ja": [
+            "組織は、医療機器の種類又はファミリごとに、本規格の要求事項への適合及び適用される規制要求事項への適合を実証するために作成された文書を含む又は参照する医療機器ファイルを確立し維持しているか？",
+            "医療機器ファイルの完全性はどのように定期的に確認されているか？文書の欠落が発見された場合の検出及び是正機構は何か？",
+            "ISO 13485:2016 §4.2.5に従い、医療機器ファイルは各機器種別又はファミリを網羅し、規制適合性を実証するために必要なすべての文書を含む又は参照しているか？",
+            "医療機器ファイルの索引目録は最新状態に維持されているか？定期的な完全性レビュー（年次等）の記録はあるか？",
+            "製品の設計変更が発生した場合、医療機器ファイルの更新責任者及び更新期限はどのように規定されているか？関連する追跡機構はあるか？",
+            "医療機器ファイル内の技術文書は、規制当局による適合性評価の実施に十分か？外部監査機関から指摘された文書不備はあるか？",
+            "電子化医療機器ファイルのアクセス制御及びバージョン管理機構は何か？離任者のアクセス権限は速やかに取り消されているか？",
+        ],
+        "expected_evidence_en": [
+            "Medical Device File (Device Master Record / Technical File)",
+            "Product specification",
+            "Applicable regulatory requirements list",
+        ],
+        "expected_evidence_ja": [
+            "医療機器ファイル（Device Master Record／技術文書）",
+            "製品仕様書",
+            "適用法規制要求事項一覧",
         ],
     },
     # --------------------------------------------------------
@@ -326,6 +543,36 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "管理審查會議紀錄",
             "資源配置紀錄",
         ],
+        "audit_question_en": "Does top management provide evidence of its commitment to the development and implementation of the quality management system and maintenance of its effectiveness?",
+        "audit_question_ja": "トップマネジメントは、品質マネジメントシステムの開発及び実施並びにその有効性の維持に対するコミットメントの証拠を提供しているか？",
+        "audit_questions_en": [
+            "Does top management provide evidence of its commitment to the development and implementation of the quality management system and maintenance of its effectiveness?",
+            "How is top management's commitment to the QMS quantifiably demonstrated? Is the achievement rate of quality objectives regularly reported to top management?",
+            "Per ISO 13485:2016 §5.1, does top management demonstrate its commitment to the QMS through concrete actions such as establishing the quality policy, setting quality objectives, and conducting management reviews? Please provide the attendance record of the most recent management review.",
+            "Does top management ensure that the importance of meeting customer and regulatory requirements is understood at all levels of the organization? What is the communication method and frequency?",
+            "Is the quality policy personally established and publicly committed by top management? What is the review frequency of the quality policy and the conclusion of the last review?",
+            "When QMS resource requirements conflict with business objectives, how does top management make decisions? Please provide a specific case.",
+            "Does top management periodically review quality objective achievement and take action? What are the countermeasures for the most recent objective non-achievement?",
+        ],
+        "audit_questions_ja": [
+            "トップマネジメントは、品質マネジメントシステムの開発及び実施並びにその有効性の維持に対するコミットメントの証拠を提供しているか？",
+            "トップマネジメントの品質マネジメントシステムへのコミットメントはどのように定量的に示されているか？品質目標の達成率はトップマネジメントに定期報告されているか？",
+            "ISO 13485:2016 §5.1に従い、トップマネジメントは品質方針の確立、品質目標の設定、マネジメントレビューの実施等の具体的行動を通じて品質マネジメントシステムへのコミットメントを示しているか？直近のマネジメントレビューの出席記録を提示すること。",
+            "トップマネジメントは、顧客要求事項及び法規制要求事項を満たすことの重要性が組織の各階層で理解されることを確実にしているか？コミュニケーション方法及び頻度は？",
+            "品質方針はトップマネジメントにより自ら策定され、公に表明されているか？品質方針のレビュー頻度及び直近のレビュー結論は？",
+            "品質マネジメントシステムの資源ニーズが事業目標と相反する場合、トップマネジメントはどのように意思決定するか？具体事例を提示すること。",
+            "トップマネジメントは定期的に品質目標の達成状況をレビューし処置を取っているか？直近の目標未達時の対応策は何か？",
+        ],
+        "expected_evidence_en": [
+            "Quality policy statement",
+            "Management review meeting minutes",
+            "Resource allocation records",
+        ],
+        "expected_evidence_ja": [
+            "品質方針表明書",
+            "マネジメントレビュー議事録",
+            "資源配分記録",
+        ],
     },
     "5.2": {
         "title": "以顧客為重",
@@ -348,6 +595,36 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "顧客要求確認紀錄",
             "顧客滿意度調查（如適用）",
             "適用法規要求清單",
+        ],
+        "audit_question_en": "Does top management ensure that customer requirements and applicable regulatory requirements are determined and met?",
+        "audit_question_ja": "トップマネジメントは、顧客要求事項及び適用される規制要求事項が決定され満たされることを確実にしているか？",
+        "audit_questions_en": [
+            "Does top management ensure that customer requirements and applicable regulatory requirements are determined and met?",
+            "How are customer requirements systematically identified and translated into internal quality requirements? Is there a traceability mechanism to ensure each customer requirement is implemented?",
+            "Per ISO 13485:2016 §5.2, how does top management ensure that customer requirements and applicable regulatory requirements are systematically identified and continually met?",
+            "What are the measurement indicators for customer satisfaction? How are measurement results used to improve the QMS or products?",
+            "When customer requirements and regulatory requirements differ, what is the organization's priority principle? Are there related decision records?",
+            "How are customer feedback on product performance or safety incorporated into continual improvement processes? What is the most recent specific improvement case?",
+            "How are changes in regulatory requirements (e.g., new regulation release) identified in a timely manner and customer requirement updates ensured? Who is the responsible person?",
+        ],
+        "audit_questions_ja": [
+            "トップマネジメントは、顧客要求事項及び適用される規制要求事項が決定され満たされることを確実にしているか？",
+            "顧客要求事項はどのように体系的に識別され、社内品質要求事項に展開されているか？各顧客要求事項が確実に反映される追跡機構はあるか？",
+            "ISO 13485:2016 §5.2に従い、トップマネジメントはどのように顧客要求事項及び適用法規制要求事項が体系的に識別され継続的に満たされることを確実にしているか？",
+            "顧客満足度の測定指標は何か？測定結果は品質マネジメントシステム又は製品の改善にどのように活用されているか？",
+            "顧客要求事項と法規制要求事項の間に相違がある場合、組織の優先処理原則は何か？関連する意思決定記録はあるか？",
+            "製品性能又は安全性に関する顧客フィードバックは、継続的改善プロセスにどのように組み込まれているか？直近の具体的改善事例は？",
+            "法規制要求事項の変更（新規法規制の公布等）はどのように適時に識別され、顧客要求事項の更新が確実に行われるか？責任者は誰か？",
+        ],
+        "expected_evidence_en": [
+            "Customer requirements confirmation records",
+            "Customer satisfaction survey (if applicable)",
+            "Applicable regulatory requirements list",
+        ],
+        "expected_evidence_ja": [
+            "顧客要求事項確認記録",
+            "顧客満足度調査（該当する場合）",
+            "適用法規制要求事項一覧",
         ],
     },
     "5.3": {
@@ -377,6 +654,34 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "品質政策文件",
             "品質政策溝通紀錄",
         ],
+        "audit_question_en": "Does top management ensure that the quality policy is appropriate to the purpose of the organization, includes a commitment to comply with requirements and to maintain the effectiveness of the QMS, provides a framework for establishing and reviewing quality objectives, is communicated and understood within the organization, and is reviewed for continuing suitability?",
+        "audit_question_ja": "トップマネジメントは、品質方針が組織の目的に対して適切であること、要求事項への適合及び品質マネジメントシステムの有効性の維持に対するコミットメントを含むこと、品質目標の設定及びレビューのための枠組みを提供すること、組織内で伝達され理解されること、継続的な適切性のためにレビューされることを確実にしているか？",
+        "audit_questions_en": [
+            "Does top management ensure that the quality policy is appropriate to the purpose of the organization, includes a commitment to comply with requirements and to maintain the effectiveness of the QMS, provides a framework for establishing and reviewing quality objectives, is communicated and understood within the organization, and is reviewed for continuing suitability?",
+            "Is the quality policy understood by all relevant personnel? How is employees' understanding of the quality policy verified? What are the time and conclusion of the last policy review?",
+            "Per ISO 13485:2016 §5.3, does the quality policy include a commitment to comply with requirements and maintain QMS effectiveness, and provide a framework for establishing quality objectives?",
+            "How is the quality policy communicated within the organization? Does it include quality policy education for new employee training?",
+            "Is the quality policy periodically reviewed to ensure its continuing suitability? Are the review triggering conditions (e.g., business direction change) documented?",
+            "How is the quality policy connected to the organization's business strategy? Is there a mechanism to ensure that the quality policy and business objectives remain aligned?",
+            "Does the quality policy dissemination method (e.g., posting, email, training) ensure that employees at all levels can obtain and understand it?",
+        ],
+        "audit_questions_ja": [
+            "トップマネジメントは、品質方針が組織の目的に対して適切であること、要求事項への適合及び品質マネジメントシステムの有効性の維持に対するコミットメントを含むこと、品質目標の設定及びレビューのための枠組みを提供すること、組織内で伝達され理解されること、継続的な適切性のためにレビューされることを確実にしているか？",
+            "品質方針はすべての関連要員により理解されているか？従業員の品質方針理解度はどのように検証されているか？直近の方針レビューの時期及び結論は？",
+            "ISO 13485:2016 §5.3に従い、品質方針は要求事項への適合及び品質マネジメントシステムの有効性の維持に対するコミットメントを含み、品質目標設定の枠組みを提供しているか？",
+            "品質方針は組織内でどのように伝達されているか？新入社員研修に品質方針の教育が含まれているか？",
+            "品質方針は継続的な適切性を確実にするために定期的にレビューされているか？レビューのトリガー条件（事業方向の変更等）は文書化されているか？",
+            "品質方針は組織の事業戦略とどのように結び付いているか？品質方針と事業目標の整合性を保持する機構はあるか？",
+            "品質方針の伝達方法（掲示、電子メール、研修等）は、すべての階層の従業員が入手し理解できることを確実にしているか？",
+        ],
+        "expected_evidence_en": [
+            "Quality policy statement",
+            "Quality policy review records",
+        ],
+        "expected_evidence_ja": [
+            "品質方針表明書",
+            "品質方針レビュー記録",
+        ],
     },
     "5.4.1": {
         "title": "品質目標",
@@ -402,6 +707,34 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
         "expected_evidence": [
             "品質目標清單",
             "品質目標達成率追蹤紀錄",
+        ],
+        "audit_question_en": "Does top management ensure that quality objectives, including those needed to meet applicable regulatory requirements and requirements for product, are established at relevant functions and levels within the organization, and that the quality objectives are measurable and consistent with the quality policy?",
+        "audit_question_ja": "トップマネジメントは、適用される規制要求事項及び製品に対する要求事項を満たすために必要なものを含む品質目標を、組織内の関連する機能及び階層で確立し、品質目標が測定可能で品質方針と整合していることを確実にしているか？",
+        "audit_questions_en": [
+            "Does top management ensure that quality objectives, including those needed to meet applicable regulatory requirements and requirements for product, are established at relevant functions and levels within the organization, and that the quality objectives are measurable and consistent with the quality policy?",
+            "How is the quantifiability of quality objectives designed? Are measurement methods and target values defined at the time of objective establishment?",
+            "Per ISO 13485:2016 §5.4.1, are quality objectives established at each function and level, and are they measurable and consistent with the quality policy?",
+            "When quality objectives are not achieved, what is the escalation mechanism? Which management level is responsible for approving countermeasures?",
+            "Are quality objectives cascaded to individual employee performance indicators? Are employee performance evaluations linked to quality objective achievement?",
+            "Are quality objectives related to product requirements aligned with the requirements of applicable regulations (such as EU MDR, FDA QMSR)?",
+            "Is the quality objective review cycle consistent with management reviews? What is the triggering mechanism for objective adjustment when circumstances change?",
+        ],
+        "audit_questions_ja": [
+            "トップマネジメントは、適用される規制要求事項及び製品に対する要求事項を満たすために必要なものを含む品質目標を、組織内の関連する機能及び階層で確立し、品質目標が測定可能で品質方針と整合していることを確実にしているか？",
+            "品質目標の定量化可能性はどのように設計されているか？目標設定時に測定方法及び目標値が定義されているか？",
+            "ISO 13485:2016 §5.4.1に従い、品質目標は各機能及び階層で設定され、測定可能で品質方針と整合しているか？",
+            "品質目標未達時のエスカレーション機構は何か？対策承認の責任はどの管理階層にあるか？",
+            "品質目標は個人の業績指標にまで展開されているか？従業員の業績評価は品質目標の達成と連動しているか？",
+            "製品要求事項に関する品質目標は、適用法規制（EU MDR、FDA QMSR等）の要求事項と整合しているか？",
+            "品質目標のレビュー周期はマネジメントレビューと整合しているか？状況変化時の目標調整のトリガー機構は何か？",
+        ],
+        "expected_evidence_en": [
+            "Quality objectives statement",
+            "Quality objective achievement tracking records",
+        ],
+        "expected_evidence_ja": [
+            "品質目標書",
+            "品質目標達成状況追跡記録",
         ],
     },
     "5.4.2": {
@@ -429,6 +762,34 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "品質管理系統規劃文件",
             "變更管理紀錄",
         ],
+        "audit_question_en": "Does top management ensure that the planning of the QMS is carried out in order to meet the requirements of 4.1 as well as the quality objectives, and the integrity of the QMS is maintained when changes to the QMS are planned and implemented?",
+        "audit_question_ja": "トップマネジメントは、4.1の要求事項及び品質目標を満たすために品質マネジメントシステムの計画が実施され、品質マネジメントシステムへの変更が計画され実施される際に品質マネジメントシステムの完全性が維持されることを確実にしているか？",
+        "audit_questions_en": [
+            "Does top management ensure that the planning of the QMS is carried out in order to meet the requirements of 4.1 as well as the quality objectives, and the integrity of the QMS is maintained when changes to the QMS are planned and implemented?",
+            "How is QMS change planning controlled to ensure system integrity? What are the impact assessment procedures for major changes (e.g., organizational restructuring, ERP system replacement)?",
+            "Per ISO 13485:2016 §5.4.2, does the organization have a planning mechanism to ensure the continued integrity of the QMS when changes are planned and implemented?",
+            "Is the QMS planning formally documented (e.g., QMS roadmap)? Does it cover short-term, medium-term, and long-term objectives?",
+            "When the QMS change impacts multiple departments or processes, how is the coordination mechanism designed? Is there a cross-functional change management team?",
+            "Is the risk assessment for QMS change management linked to product risk management? When a QMS change may affect product safety, what is the escalation path?",
+            "Is the change validation mechanism defined? Are post-change QMS effectiveness measurement indicators and verification timelines defined in the change plan?",
+        ],
+        "audit_questions_ja": [
+            "トップマネジメントは、4.1の要求事項及び品質目標を満たすために品質マネジメントシステムの計画が実施され、品質マネジメントシステムへの変更が計画され実施される際に品質マネジメントシステムの完全性が維持されることを確実にしているか？",
+            "品質マネジメントシステムの変更計画はシステムの完全性を確実にするためどのように管理されているか？大規模変更（組織再編、ERPシステム更新等）の影響評価手順は？",
+            "ISO 13485:2016 §5.4.2に従い、変更が計画され実施される際に品質マネジメントシステムの継続的完全性を確実にする計画機構はあるか？",
+            "品質マネジメントシステムの計画は正式に文書化されているか（品質マネジメントシステムロードマップ等）？短期・中期・長期の目標を網羅しているか？",
+            "品質マネジメントシステムの変更が複数の部門又はプロセスに影響する場合、調整機構はどのように設計されているか？部門横断変更管理チームはあるか？",
+            "品質マネジメントシステム変更管理のリスク評価は製品リスクマネジメントと連携しているか？品質マネジメントシステム変更が製品安全性に影響し得る場合のエスカレーション経路は？",
+            "変更バリデーション機構は規定されているか？変更後の品質マネジメントシステム有効性の測定指標及び検証期限は変更計画で定義されているか？",
+        ],
+        "expected_evidence_en": [
+            "QMS planning documents",
+            "Change management records",
+        ],
+        "expected_evidence_ja": [
+            "品質マネジメントシステム計画書",
+            "変更管理記録",
+        ],
     },
     "5.5.1": {
         "title": "責任與權限",
@@ -454,6 +815,34 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
         "expected_evidence": [
             "組織架構圖",
             "職務說明書或權責矩陣",
+        ],
+        "audit_question_en": "Does top management ensure that responsibilities and authorities are defined, documented, and communicated within the organization?",
+        "audit_question_ja": "トップマネジメントは、責任及び権限が組織内で定義され、文書化され、伝達されることを確実にしているか？",
+        "audit_questions_en": [
+            "Does top management ensure that responsibilities and authorities are defined, documented, and communicated within the organization?",
+            "Are responsibilities and authorities at all levels clearly documented? How are duty transitions (e.g., personnel change) handled?",
+            "Per ISO 13485:2016 §5.5.1, are the responsibilities and authorities of all personnel at all levels of the organization clearly defined and documented (e.g., organizational chart, job descriptions)?",
+            "How are the responsibilities and authorities of new hires clearly communicated? Does onboarding training include explanation of QMS responsibilities?",
+            "Are the responsibility boundaries of cross-departmental tasks clearly defined? Are there procedures to resolve responsibility ambiguity?",
+            "When responsibilities and authorities change (e.g., promotion, transfer), is the update mechanism for related documents documented?",
+            "Is the responsibility-authority-accountability relationship clearly established in QMS documents? Is the accountability system consistent with the responsibility framework?",
+        ],
+        "audit_questions_ja": [
+            "トップマネジメントは、責任及び権限が組織内で定義され、文書化され、伝達されることを確実にしているか？",
+            "各階層の責任及び権限は明確に文書化されているか？職務引継ぎ（人事異動等）はどのように処理されているか？",
+            "ISO 13485:2016 §5.5.1に従い、組織の全階層のすべての要員の責任及び権限は明確に定義され文書化されているか（組織図、職務記述書等）？",
+            "新規採用者の責任及び権限はどのように明確に伝達されているか？入社研修に品質マネジメントシステム責任の説明が含まれているか？",
+            "部門横断業務の責任境界は明確に定義されているか？責任の不明確性を解決する手順はあるか？",
+            "責任及び権限の変更（昇進、異動等）が発生した場合、関連文書の更新機構は文書化されているか？",
+            "責任・権限・説明責任の関係は品質マネジメントシステム文書で明確に確立されているか？説明責任体系は責任枠組みと整合しているか？",
+        ],
+        "expected_evidence_en": [
+            "Organizational chart",
+            "Job descriptions",
+        ],
+        "expected_evidence_ja": [
+            "組織図",
+            "職務記述書",
         ],
     },
     "5.5.2": {
@@ -483,6 +872,34 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "管理代表任命書",
             "管理代表職責說明",
         ],
+        "audit_question_en": "Has top management appointed a member of the organization's management who, irrespective of other responsibilities, has responsibility and authority for ensuring that QMS processes are documented, and reporting to top management on the effectiveness of the QMS and any need for improvement, and ensuring the promotion of awareness of applicable regulatory requirements and QMS requirements throughout the organization?",
+        "audit_question_ja": "トップマネジメントは、他の責任に関わらず、品質マネジメントシステムプロセスが文書化されていること、品質マネジメントシステムの有効性及び改善の必要性についてトップマネジメントに報告すること、並びに適用される規制要求事項及び品質マネジメントシステム要求事項の認識を組織全体に促進することを確実にする責任及び権限を有する組織の管理層の一員を任命しているか？",
+        "audit_questions_en": [
+            "Has top management appointed a member of the organization's management who, irrespective of other responsibilities, has responsibility and authority for ensuring that QMS processes are documented, and reporting to top management on the effectiveness of the QMS and any need for improvement, and ensuring the promotion of awareness of applicable regulatory requirements and QMS requirements throughout the organization?",
+            "Is the appointment of the management representative formally documented? Does the scope of authorization include all QMS-related matters?",
+            "Per ISO 13485:2016 §5.5.2, does the management representative have documented authority to ensure that QMS processes are established and reported to top management?",
+            "Does the management representative have sufficient authority and resources to execute duties? When QMS issues require cross-departmental coordination, what is their authority?",
+            "What are the reporting frequency and content of the management representative to top management? Does it include QMS effectiveness indicators, non-conformity trends, and corrective action status?",
+            "How does the management representative promote awareness of regulatory requirements and QMS requirements throughout the organization? Are there specific communication plans and records?",
+            "Is there a clear alternate when the management representative is absent or his/her role changes? How is the continuity of authority transfer ensured?",
+        ],
+        "audit_questions_ja": [
+            "トップマネジメントは、他の責任に関わらず、品質マネジメントシステムプロセスが文書化されていること、品質マネジメントシステムの有効性及び改善の必要性についてトップマネジメントに報告すること、並びに適用される規制要求事項及び品質マネジメントシステム要求事項の認識を組織全体に促進することを確実にする責任及び権限を有する組織の管理層の一員を任命しているか？",
+            "管理責任者の任命は正式に文書化されているか？権限付与範囲は品質マネジメントシステムに関するすべての事項を網羅しているか？",
+            "ISO 13485:2016 §5.5.2に従い、管理責任者は品質マネジメントシステムプロセスの確立及びトップマネジメントへの報告を確実にする文書化された権限を有しているか？",
+            "管理責任者は職務遂行のため十分な権限及び資源を有しているか？品質マネジメントシステムの問題が部門横断調整を要する場合の権限は？",
+            "管理責任者のトップマネジメントへの報告頻度及び内容は？品質マネジメントシステム有効性指標、不適合傾向、是正処置状況を含むか？",
+            "管理責任者は組織全体に対し、規制要求事項及び品質マネジメントシステム要求事項の認識をどのように促進しているか？具体的なコミュニケーション計画及び記録はあるか？",
+            "管理責任者の不在時又は役割変更時の明確な代理者はいるか？権限移行の連続性はどのように確実にされているか？",
+        ],
+        "expected_evidence_en": [
+            "Management representative appointment letter",
+            "Management representative reports",
+        ],
+        "expected_evidence_ja": [
+            "管理責任者任命書",
+            "管理責任者報告書",
+        ],
     },
     "5.5.3": {
         "title": "內部溝通",
@@ -508,6 +925,34 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
         "expected_evidence": [
             "內部溝通程序或紀錄",
             "會議紀錄",
+        ],
+        "audit_question_en": "Does top management ensure that appropriate communication processes are established within the organization and that communication takes place regarding the effectiveness of the QMS?",
+        "audit_question_ja": "トップマネジメントは、組織内に適切なコミュニケーションプロセスが確立され、品質マネジメントシステムの有効性に関するコミュニケーションが行われることを確実にしているか？",
+        "audit_questions_en": [
+            "Does top management ensure that appropriate communication processes are established within the organization and that communication takes place regarding the effectiveness of the QMS?",
+            "Is the internal communication of QMS effectiveness structured? Are the communication frequency, content format, and target audiences defined?",
+            "Per ISO 13485:2016 §5.5.3, has top management established appropriate communication processes to ensure communication regarding QMS effectiveness?",
+            "What communication channels (meetings, emails, bulletin boards, intranet) are used to deliver QMS-related information to employees? How is the information reach verified?",
+            "When QMS effectiveness issues are identified, how is upward communication conducted? Is an anonymous reporting channel provided?",
+            "How is the effectiveness of internal communication evaluated? Is an employee understanding survey conducted regularly?",
+            "Is cross-departmental communication effective? When an issue affects multiple departments, is there a unified communication mechanism to ensure information consistency?",
+        ],
+        "audit_questions_ja": [
+            "トップマネジメントは、組織内に適切なコミュニケーションプロセスが確立され、品質マネジメントシステムの有効性に関するコミュニケーションが行われることを確実にしているか？",
+            "品質マネジメントシステム有効性の社内コミュニケーションは体系化されているか？コミュニケーションの頻度、内容形式、対象者は定義されているか？",
+            "ISO 13485:2016 §5.5.3に従い、トップマネジメントは品質マネジメントシステム有効性に関するコミュニケーションを確実にする適切なコミュニケーションプロセスを確立しているか？",
+            "品質マネジメントシステム関連情報を従業員に伝えるために、どのコミュニケーションチャネル（会議、電子メール、掲示板、イントラネット）が使用されているか？情報到達性はどのように検証されているか？",
+            "品質マネジメントシステム有効性の問題が識別された場合、上方向のコミュニケーションはどのように行われるか？匿名報告チャネルは提供されているか？",
+            "社内コミュニケーションの有効性はどのように評価されているか？従業員の理解度調査は定期的に実施されているか？",
+            "部門横断コミュニケーションは有効か？問題が複数部門に影響する場合、情報の一貫性を確実にする統一コミュニケーション機構はあるか？",
+        ],
+        "expected_evidence_en": [
+            "Internal communication records",
+            "QMS effectiveness report",
+        ],
+        "expected_evidence_ja": [
+            "社内コミュニケーション記録",
+            "品質マネジメントシステム有効性報告書",
         ],
     },
     "5.6.1": {
@@ -537,6 +982,36 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "管理審查程序書",
             "管理審查會議紀錄",
             "管理審查排程計畫",
+        ],
+        "audit_question_en": "Does the organization document procedures for management review, and does top management review the QMS at planned intervals to ensure its continuing suitability, adequacy, and effectiveness?",
+        "audit_question_ja": "組織はマネジメントレビューの手順を文書化し、トップマネジメントは、品質マネジメントシステムの継続的な適切性、妥当性、有効性を確実にするため、計画された間隔で品質マネジメントシステムをレビューしているか？",
+        "audit_questions_en": [
+            "Does the organization document procedures for management review, and does top management review the QMS at planned intervals to ensure its continuing suitability, adequacy, and effectiveness?",
+            "Is the management review frequency sufficient (e.g., at least annually)? When abnormal events occur (major recall, regulatory audit), is there a triggering mechanism for ad-hoc review?",
+            "Per ISO 13485:2016 §5.6.1, does the organization have a documented management review procedure, and does top management review the QMS at planned intervals?",
+            "Who are the attendees of the management review? Are all department heads and the management representative required to attend? Is the attendance record complete?",
+            "Are the inputs of the management review prepared in advance (at least 1-2 weeks before the meeting) to allow participants sufficient time to review?",
+            "Is the management review record complete? Does it include discussion content, decision items, action plans, and responsible persons?",
+            "Are the action items of the management review tracked to completion? What is the follow-up mechanism to ensure decisions are implemented?",
+        ],
+        "audit_questions_ja": [
+            "組織はマネジメントレビューの手順を文書化し、トップマネジメントは、品質マネジメントシステムの継続的な適切性、妥当性、有効性を確実にするため、計画された間隔で品質マネジメントシステムをレビューしているか？",
+            "マネジメントレビューの頻度は十分か（少なくとも年1回等）？異常事象発生時（重大回収、規制監査等）の臨時レビューのトリガー機構はあるか？",
+            "ISO 13485:2016 §5.6.1に従い、組織は文書化されたマネジメントレビュー手順を有し、トップマネジメントは計画された間隔で品質マネジメントシステムをレビューしているか？",
+            "マネジメントレビューの出席者は誰か？全部門長及び管理責任者の出席が要求されているか？出席記録は完全か？",
+            "マネジメントレビューのインプットは事前に準備されているか（会議の少なくとも1～2週間前）、参加者が十分なレビュー時間を持てるか？",
+            "マネジメントレビュー記録は完全か？議論内容、決定事項、処置計画、責任者を含むか？",
+            "マネジメントレビューの処置事項は完了まで追跡されているか？決定事項の実施を確実にするフォロー機構は何か？",
+        ],
+        "expected_evidence_en": [
+            "Management review procedure",
+            "Management review meeting minutes",
+            "Management review action item tracking records",
+        ],
+        "expected_evidence_ja": [
+            "マネジメントレビュー手順書",
+            "マネジメントレビュー議事録",
+            "マネジメントレビュー処置事項追跡記録",
         ],
     },
     "5.6.2": {
@@ -568,6 +1043,38 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "顧客回饋彙整",
             "CAPA 狀態報告",
         ],
+        "audit_question_en": "Do the inputs to management review include feedback, complaint handling, reporting to regulatory authorities, audits, monitoring and measurement of processes, monitoring and measurement of product, corrective action, preventive action, follow-up actions from previous management reviews, changes that could affect the QMS, recommendations for improvement, and applicable new or revised regulatory requirements?",
+        "audit_question_ja": "マネジメントレビューへのインプットには、フィードバック、苦情処理、規制当局への報告、監査、プロセスの監視及び測定、製品の監視及び測定、是正処置、予防処置、前回のマネジメントレビューからのフォローアップ処置、品質マネジメントシステムに影響し得る変更、改善の提案、及び適用される新規又は改訂された規制要求事項が含まれているか？",
+        "audit_questions_en": [
+            "Do the inputs to management review include feedback, complaint handling, reporting to regulatory authorities, audits, monitoring and measurement of processes, monitoring and measurement of product, corrective action, preventive action, follow-up actions from previous management reviews, changes that could affect the QMS, recommendations for improvement, and applicable new or revised regulatory requirements?",
+            "Are the inputs of the management review comprehensive? Do they cover all 12 items required by standard §5.6.2 (a-l)?",
+            "Per ISO 13485:2016 §5.6.2, do the management review inputs include feedback, complaint handling, regulatory reporting, audits, process monitoring, product monitoring, CAPA, follow-up actions, changes, improvement recommendations, and new/revised regulatory requirements?",
+            "Are the management review inputs prepared by data or subjective reports? What is the reliability assurance mechanism for input data?",
+            "How are customer complaint data quantified and trended in the management review? Is the discussion of complaint root causes systematic?",
+            "Are the results of internal audits, external audits, and regulatory audits included in the management review inputs? How are the trends and common themes of these audits analyzed?",
+            "Are the impact assessments of new or revised regulatory requirements (EU MDR amendments, FDA guidance updates, etc.) systematically presented in the management review?",
+        ],
+        "audit_questions_ja": [
+            "マネジメントレビューへのインプットには、フィードバック、苦情処理、規制当局への報告、監査、プロセスの監視及び測定、製品の監視及び測定、是正処置、予防処置、前回のマネジメントレビューからのフォローアップ処置、品質マネジメントシステムに影響し得る変更、改善の提案、及び適用される新規又は改訂された規制要求事項が含まれているか？",
+            "マネジメントレビューのインプットは包括的か？規格§5.6.2(a-l)が要求する12項目すべてを網羅しているか？",
+            "ISO 13485:2016 §5.6.2に従い、マネジメントレビューのインプットには、フィードバック、苦情処理、規制当局への報告、監査、プロセス監視、製品監視、是正予防処置、フォローアップ処置、変更、改善提案、新規／改訂規制要求事項が含まれているか？",
+            "マネジメントレビューのインプットはデータにより整備されているか、それとも主観的報告か？インプットデータの信頼性保証機構は何か？",
+            "顧客苦情データはマネジメントレビューでどのように定量化されトレンド化されているか？苦情の根本原因に関する議論は体系的か？",
+            "内部監査、外部監査、規制監査の結果はマネジメントレビューのインプットに含まれているか？これらの監査の傾向及び共通テーマはどのように分析されているか？",
+            "新規又は改訂規制要求事項（EU MDR改訂、FDAガイダンス更新等）の影響評価は、マネジメントレビューで体系的に提示されているか？",
+        ],
+        "expected_evidence_en": [
+            "Management review input checklist",
+            "Audit reports",
+            "Customer complaint analysis",
+            "Regulatory requirements update log",
+        ],
+        "expected_evidence_ja": [
+            "マネジメントレビューインプットチェックリスト",
+            "監査報告書",
+            "顧客苦情分析",
+            "規制要求事項更新ログ",
+        ],
     },
     "5.6.3": {
         "title": "管理審查 — 輸出",
@@ -594,6 +1101,36 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "管理審查輸出/決議事項",
             "改善行動計畫",
             "資源配置決議",
+        ],
+        "audit_question_en": "Do the records from management reviews include the outputs as inputs for improvement of the effectiveness of the QMS and its processes, improvement of product related to customer requirements, changes needed to respond to applicable new or revised regulatory requirements, and resource needs?",
+        "audit_question_ja": "マネジメントレビューからの記録には、品質マネジメントシステム及びそのプロセスの有効性の改善、顧客要求事項に関連する製品の改善、適用される新規又は改訂された規制要求事項に対応するために必要な変更、及び資源ニーズに対するインプットとしてのアウトプットが含まれているか？",
+        "audit_questions_en": [
+            "Do the records from management reviews include the outputs as inputs for improvement of the effectiveness of the QMS and its processes, improvement of product related to customer requirements, changes needed to respond to applicable new or revised regulatory requirements, and resource needs?",
+            "Are the outputs of management reviews specific and actionable? Are all 4 output categories (a-d) required by standard §5.6.3 addressed?",
+            "Per ISO 13485:2016 §5.6.3, do the outputs of management reviews include decisions related to improvement of QMS effectiveness, product improvement, response to new/revised regulatory requirements, and resource needs?",
+            "Are the action items of management reviews assigned with owners, deadlines, and completion criteria? How is progress tracked?",
+            "Is the approval of resource needs implemented in budget planning? What is the mechanism to ensure approved resources are actually allocated?",
+            "Are the product improvement outputs of the management review linked to the design change control or CAPA system?",
+            "Are changes required to respond to new or revised regulatory requirements translated into specific implementation plans with deadlines? What is the follow-up mechanism?",
+        ],
+        "audit_questions_ja": [
+            "マネジメントレビューからの記録には、品質マネジメントシステム及びそのプロセスの有効性の改善、顧客要求事項に関連する製品の改善、適用される新規又は改訂された規制要求事項に対応するために必要な変更、及び資源ニーズに対するインプットとしてのアウトプットが含まれているか？",
+            "マネジメントレビューのアウトプットは具体的かつ実行可能か？規格§5.6.3が要求する4つのアウトプットカテゴリ（a-d）はすべて対応されているか？",
+            "ISO 13485:2016 §5.6.3に従い、マネジメントレビューのアウトプットには、品質マネジメントシステム有効性の改善、製品改善、新規／改訂規制要求事項への対応、資源ニーズに関連する決定が含まれているか？",
+            "マネジメントレビューの処置事項には担当者、期限、完了基準が割り当てられているか？進捗はどのように追跡されているか？",
+            "資源ニーズの承認は予算計画に実装されているか？承認された資源が実際に配分されることを確実にする機構は何か？",
+            "マネジメントレビューの製品改善アウトプットは設計変更管理又は是正予防処置システムと連携しているか？",
+            "新規又は改訂規制要求事項への対応に必要な変更は、期限付きの具体的な実施計画に展開されているか？フォロー機構は何か？",
+        ],
+        "expected_evidence_en": [
+            "Management review output record",
+            "Action plan tracking",
+            "Resource allocation approval record",
+        ],
+        "expected_evidence_ja": [
+            "マネジメントレビューアウトプット記録",
+            "処置計画追跡記録",
+            "資源配分承認記録",
         ],
     },
     # --------------------------------------------------------
@@ -623,6 +1160,34 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
         "expected_evidence": [
             "資源規劃紀錄",
             "預算分配紀錄",
+        ],
+        "audit_question_en": "Does the organization determine and provide the resources needed to implement and maintain the QMS and maintain its effectiveness, and to meet applicable regulatory and customer requirements?",
+        "audit_question_ja": "組織は、品質マネジメントシステムを実施し維持し、その有効性を維持するために、並びに適用される規制要求事項及び顧客要求事項を満たすために必要な資源を決定し提供しているか？",
+        "audit_questions_en": [
+            "Does the organization determine and provide the resources needed to implement and maintain the QMS and maintain its effectiveness, and to meet applicable regulatory and customer requirements?",
+            "How are resource needs identified and applied for? Is there a formal resource planning mechanism (annual budget, medium-term plan)?",
+            "Per ISO 13485:2016 §6.1, does the organization determine and provide the resources needed to maintain the QMS and meet regulatory requirements?",
+            "When business grows or regulatory requirements increase, how are resource gaps identified? Is there a trigger mechanism for dynamic resource adjustment?",
+            "Are the resources to implement QMS effectiveness covered in the annual budget? Are human, financial, infrastructure, and technology resources all included?",
+            "When resource shortages affect QMS effectiveness, what is the escalation procedure? Who has authority to approve urgent resource allocation?",
+            "Are the outcomes of resource allocation effectively monitored? How is the rationality and effectiveness of resource allocation evaluated?",
+        ],
+        "audit_questions_ja": [
+            "組織は、品質マネジメントシステムを実施し維持し、その有効性を維持するために、並びに適用される規制要求事項及び顧客要求事項を満たすために必要な資源を決定し提供しているか？",
+            "資源ニーズはどのように識別され申請されているか？正式な資源計画機構（年次予算、中期計画）はあるか？",
+            "ISO 13485:2016 §6.1に従い、組織は品質マネジメントシステムを維持し規制要求事項を満たすために必要な資源を決定し提供しているか？",
+            "事業拡大又は規制要求の増加時、資源ギャップはどのように識別されるか？動的な資源調整のトリガー機構はあるか？",
+            "品質マネジメントシステム有効性を実施する資源は年次予算に含まれているか？人的、財務、インフラ、技術資源はすべて含まれているか？",
+            "資源不足が品質マネジメントシステム有効性に影響する場合、エスカレーション手順は何か？緊急資源配分の承認権限は誰にあるか？",
+            "資源配分の成果は有効に監視されているか？資源配分の妥当性及び有効性はどのように評価されているか？",
+        ],
+        "expected_evidence_en": [
+            "Resource planning documents",
+            "Annual budget (QMS-related portion)",
+        ],
+        "expected_evidence_ja": [
+            "資源計画書",
+            "年次予算（品質マネジメントシステム関連部分）",
         ],
     },
     "6.2": {
@@ -654,6 +1219,38 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "職能資格矩陣",
             "訓練有效性評估紀錄",
         ],
+        "audit_question_en": "Does the organization ensure that personnel performing work affecting product quality are competent on the basis of appropriate education, training, skills, and experience; document the process for establishing competence, providing needed training, and ensuring awareness of personnel; ensure that personnel are aware of the relevance and importance of their activities; and maintain appropriate records?",
+        "audit_question_ja": "組織は、製品品質に影響する業務を遂行する要員が、適切な教育、訓練、技能及び経験に基づいて力量を有することを確実にし、力量の確立、必要な訓練の提供、要員の認識の確実化のためのプロセスを文書化し、要員がその活動の関連性及び重要性を認識することを確実にし、適切な記録を維持しているか？",
+        "audit_questions_en": [
+            "Does the organization ensure that personnel performing work affecting product quality are competent on the basis of appropriate education, training, skills, and experience; document the process for establishing competence, providing needed training, and ensuring awareness of personnel; ensure that personnel are aware of the relevance and importance of their activities; and maintain appropriate records?",
+            "How is competence assessment for each position defined? Does it include education, experience, training, and skill dimensions? How is the effectiveness of training evaluated?",
+            "Per ISO 13485:2016 §6.2, is the competence requirement for each position defined and documented? How is the competence of personnel performing work affecting product quality assessed?",
+            "Is the training plan established based on competence gap analysis? How are training topics prioritized?",
+            "Are training records complete? Do they include training content, participants, trainers, dates, and assessment results?",
+            "How is the effectiveness of training evaluated? Is it limited to training attendance, or is it followed up by on-the-job performance?",
+            "How is the awareness of personnel about the relevance and importance of their activities confirmed? Is there a mechanism for quality awareness surveys?",
+        ],
+        "audit_questions_ja": [
+            "組織は、製品品質に影響する業務を遂行する要員が、適切な教育、訓練、技能及び経験に基づいて力量を有することを確実にし、力量の確立、必要な訓練の提供、要員の認識の確実化のためのプロセスを文書化し、要員がその活動の関連性及び重要性を認識することを確実にし、適切な記録を維持しているか？",
+            "各職位の力量評価はどのように規定されているか？教育、経験、訓練、技能の側面を含むか？訓練の有効性はどのように評価されるか？",
+            "ISO 13485:2016 §6.2に従い、各職位の力量要求事項は定義され文書化されているか？製品品質に影響する業務を遂行する要員の力量はどのように評価されているか？",
+            "訓練計画は力量ギャップ分析に基づいて策定されているか？訓練テーマの優先順位はどのように決定されているか？",
+            "訓練記録は完全か？訓練内容、参加者、講師、日付、評価結果を含むか？",
+            "訓練の有効性はどのように評価されているか？訓練出席のみか、それとも現場パフォーマンスによる追跡評価か？",
+            "要員の活動の関連性及び重要性に関する認識はどのように確認されているか？品質意識調査の機構はあるか？",
+        ],
+        "expected_evidence_en": [
+            "Competence requirements documents",
+            "Training plan",
+            "Training records",
+            "Competence assessment records",
+        ],
+        "expected_evidence_ja": [
+            "力量要求事項文書",
+            "訓練計画",
+            "訓練記録",
+            "力量評価記録",
+        ],
     },
     "6.3": {
         "title": "基礎設施",
@@ -683,6 +1280,36 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "設備維護保養計畫與紀錄",
             "廠房配置圖",
         ],
+        "audit_question_en": "Does the organization document the requirements for the infrastructure needed to achieve conformity to product requirements, prevent product mix-up, and ensure orderly handling of product? Infrastructure includes buildings, workspace and associated utilities; process equipment (both hardware and software); and supporting services (such as transport, communication or information systems).",
+        "audit_question_ja": "組織は、製品要求事項への適合の達成、製品の混同の防止、及び製品の秩序正しい取扱いの確実化のために必要なインフラストラクチャの要求事項を文書化しているか？インフラストラクチャには、建物、作業空間及び関連するユーティリティ、プロセス装置（ハードウェア及びソフトウェアの両方）、並びに支援サービス（輸送、通信又は情報システム等）が含まれる。",
+        "audit_questions_en": [
+            "Does the organization document the requirements for the infrastructure needed to achieve conformity to product requirements, prevent product mix-up, and ensure orderly handling of product? Infrastructure includes buildings, workspace and associated utilities; process equipment (both hardware and software); and supporting services (such as transport, communication or information systems).",
+            "Are the infrastructure maintenance procedures documented? Are the maintenance frequency, responsible personnel, and records complete?",
+            "Per ISO 13485:2016 §6.3, are the infrastructure requirements (buildings, workspace, utilities, process equipment, supporting services) documented?",
+            "Is preventive maintenance implemented according to the plan? When equipment downtime affects product quality, is the impact assessment procedure documented?",
+            "Is the infrastructure design considered from the perspectives of preventing product mix-up, contamination, and improper handling? Are relevant risk control measures documented?",
+            "How is equipment-related software (e.g., PLC, ERP, MES) validated and maintained? Is there a dedicated software change management procedure?",
+            "When infrastructure changes (e.g., workshop expansion, equipment replacement), how is the impact on product quality assessed? Is there a change validation mechanism?",
+        ],
+        "audit_questions_ja": [
+            "組織は、製品要求事項への適合の達成、製品の混同の防止、及び製品の秩序正しい取扱いの確実化のために必要なインフラストラクチャの要求事項を文書化しているか？インフラストラクチャには、建物、作業空間及び関連するユーティリティ、プロセス装置（ハードウェア及びソフトウェアの両方）、並びに支援サービス（輸送、通信又は情報システム等）が含まれる。",
+            "インフラストラクチャの保守手順は文書化されているか？保守頻度、責任要員、記録は完全か？",
+            "ISO 13485:2016 §6.3に従い、インフラストラクチャ要求事項（建物、作業空間、ユーティリティ、プロセス装置、支援サービス）は文書化されているか？",
+            "予防保全は計画通りに実施されているか？装置の停止が製品品質に影響する場合、影響評価手順は文書化されているか？",
+            "インフラストラクチャ設計は、製品の混同、汚染、不適切な取扱いの防止の観点から考慮されているか？関連するリスク管理策は文書化されているか？",
+            "装置関連ソフトウェア（PLC、ERP、MES等）はどのようにバリデーションされ保守されているか？専用のソフトウェア変更管理手順はあるか？",
+            "インフラストラクチャ変更時（工場拡張、装置更新等）、製品品質への影響はどのように評価されているか？変更バリデーション機構はあるか？",
+        ],
+        "expected_evidence_en": [
+            "Infrastructure list",
+            "Equipment maintenance plan/records",
+            "Workspace plan",
+        ],
+        "expected_evidence_ja": [
+            "インフラストラクチャ一覧",
+            "装置保守計画／記録",
+            "作業空間計画",
+        ],
     },
     "6.4.1": {
         "title": "工作環境",
@@ -710,6 +1337,34 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
         "expected_evidence": [
             "工作環境管制程序書",
             "環境監測紀錄（溫濕度、潔淨度等）",
+        ],
+        "audit_question_en": "Does the organization document the requirements for the work environment needed to achieve conformity to product requirements, and establish documented requirements for health, cleanliness, and clothing of personnel if contact between such personnel and the product or work environment could affect medical device safety or performance?",
+        "audit_question_ja": "組織は、製品要求事項への適合の達成のために必要な作業環境の要求事項を文書化し、要員と製品又は作業環境との接触が医療機器の安全性又は性能に影響し得る場合には、要員の健康、清潔さ及び服装に関する文書化された要求事項を確立しているか？",
+        "audit_questions_en": [
+            "Does the organization document the requirements for the work environment needed to achieve conformity to product requirements, and establish documented requirements for health, cleanliness, and clothing of personnel if contact between such personnel and the product or work environment could affect medical device safety or performance?",
+            "Are work environment control requirements defined (e.g., temperature, humidity, cleanliness levels)? Is routine monitoring performed?",
+            "Per ISO 13485:2016 §6.4.1, are the work environment requirements necessary to meet product requirements documented, and are health, cleanliness, and clothing requirements for personnel established (if applicable)?",
+            "Is employee health monitoring mechanism (e.g., regular health check, symptom reporting) implemented? How is the risk of work assignments for personnel with infectious diseases controlled?",
+            "Are clothing and personal protective equipment (PPE) requirements for different operational areas documented? Are the clothing changing procedures and supervision mechanisms clear?",
+            "Is the cleanliness control procedure for production environments (cleaning, disinfection, biological monitoring) risk-based? What are the procedures for handling abnormal monitoring results?",
+            "When subcontractors or visitors enter controlled work environments, what are the entry conditions? How is compliance with environmental requirements ensured?",
+        ],
+        "audit_questions_ja": [
+            "組織は、製品要求事項への適合の達成のために必要な作業環境の要求事項を文書化し、要員と製品又は作業環境との接触が医療機器の安全性又は性能に影響し得る場合には、要員の健康、清潔さ及び服装に関する文書化された要求事項を確立しているか？",
+            "作業環境管理要求事項は定義されているか（温度、湿度、清浄度等級等）？日常監視は実施されているか？",
+            "ISO 13485:2016 §6.4.1に従い、製品要求事項を満たすために必要な作業環境要求事項は文書化され、要員の健康、清潔さ、服装要求事項が確立されているか（該当する場合）？",
+            "従業員の健康監視機構（定期健康診断、症状報告等）は実施されているか？感染症に罹患した要員の業務割当てリスクはどのように管理されているか？",
+            "異なる作業エリアの服装及び個人用保護具（PPE）要求事項は文書化されているか？更衣手順及び監督機構は明確か？",
+            "製造環境の清浄度管理手順（清掃、消毒、生物学的モニタリング）はリスクに基づいているか？監視結果異常時の処理手順は？",
+            "外部委託先又は訪問者が管理された作業環境に入る場合、入室条件は何か？環境要求事項への適合はどのように確実にされているか？",
+        ],
+        "expected_evidence_en": [
+            "Work environment requirements documents",
+            "Personnel health/clothing requirements (if applicable)",
+        ],
+        "expected_evidence_ja": [
+            "作業環境要求事項文書",
+            "要員の健康／服装要求事項（該当する場合）",
         ],
     },
     "6.4.2": {
@@ -739,6 +1394,36 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "污染管制程序書",
             "潔淨室管制紀錄（如適用）",
             "微生物監測紀錄（如適用）",
+        ],
+        "audit_question_en": "Does the organization plan, document, and control arrangements for the control of contamination of product by any substance or contamination, including control measures for sterile devices?",
+        "audit_question_ja": "組織は、滅菌機器の管理策を含め、あらゆる物質又は汚染による製品の汚染管理のための取決めを計画し、文書化し、管理しているか？",
+        "audit_questions_en": [
+            "Does the organization plan, document, and control arrangements for the control of contamination of product by any substance or contamination, including control measures for sterile devices?",
+            "Is the contamination control plan comprehensive? Does it cover microbial, particulate, and chemical contamination risks?",
+            "Per ISO 13485:2016 §6.4.2, does the organization plan, document, and control arrangements for contamination control of products by substances or contamination?",
+            "For sterile products, is the cleanroom environment (ISO 14644 class) monitoring continuous? Are the procedures for handling abnormal data documented?",
+            "Is the contamination control program implemented with personnel (clothing, health), facility (HVAC), and process (cleaning, disinfection) dimensions covered?",
+            "Are the contamination risks of incoming raw materials assessed? Are there microbial or chemical contamination testing requirements for key materials?",
+            "When contamination events occur (e.g., cleanroom excursion), what is the investigation procedure? How is the corrective action effectiveness verified?",
+        ],
+        "audit_questions_ja": [
+            "組織は、滅菌機器の管理策を含め、あらゆる物質又は汚染による製品の汚染管理のための取決めを計画し、文書化し、管理しているか？",
+            "汚染管理計画は包括的か？微生物、粒子、化学汚染リスクを網羅しているか？",
+            "ISO 13485:2016 §6.4.2に従い、組織は物質又は汚染による製品の汚染管理のための取決めを計画し、文書化し、管理しているか？",
+            "滅菌製品について、クリーンルーム環境（ISO 14644等級）の監視は継続的か？データ異常時の処理手順は文書化されているか？",
+            "汚染管理プログラムは、要員（服装、健康）、施設（HVAC）、プロセス（清掃、消毒）の側面で実施されているか？",
+            "受入原材料の汚染リスクは評価されているか？重要資材の微生物又は化学汚染試験要求事項はあるか？",
+            "汚染事象発生時（クリーンルーム逸脱等）、調査手順は何か？是正処置の有効性はどのように検証されているか？",
+        ],
+        "expected_evidence_en": [
+            "Contamination control plan",
+            "Cleanroom environmental monitoring records (if applicable)",
+            "Contamination control procedures",
+        ],
+        "expected_evidence_ja": [
+            "汚染管理計画",
+            "クリーンルーム環境モニタリング記録（該当する場合）",
+            "汚染管理手順書",
         ],
     },
     # --------------------------------------------------------
@@ -772,6 +1457,36 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "風險管理計畫",
             "品質計畫（如適用）",
         ],
+        "audit_question_en": "Does the organization plan and develop the processes needed for product realization, consistent with the requirements of other processes of the QMS? In planning product realization, does the organization determine quality objectives and requirements for the product; the need to establish processes and documents and to provide resources specific to the product; required verification, validation, monitoring, measurement, inspection and test, handling, storage, distribution, and traceability activities; and records needed to provide evidence that the realization processes and resulting product meet requirements?",
+        "audit_question_ja": "組織は、品質マネジメントシステムの他のプロセスの要求事項と整合する、製品実現に必要なプロセスを計画し開発しているか？製品実現の計画において、組織は、製品に対する品質目標及び要求事項、製品に固有のプロセス及び文書を確立し、資源を提供することの必要性、要求される検証、妥当性確認、監視、測定、検査及び試験、取扱い、保管、流通、並びにトレーサビリティの活動、並びに実現プロセス及び結果として得られる製品が要求事項を満たすことの証拠を提供するために必要な記録を決定しているか？",
+        "audit_questions_en": [
+            "Does the organization plan and develop the processes needed for product realization, consistent with the requirements of other processes of the QMS? In planning product realization, does the organization determine quality objectives and requirements for the product; the need to establish processes and documents and to provide resources specific to the product; required verification, validation, monitoring, measurement, inspection and test, handling, storage, distribution, and traceability activities; and records needed to provide evidence that the realization processes and resulting product meet requirements?",
+            "Is the product realization planning documented? Is it coordinated with the design and development plan, production plan, and QC plan?",
+            "Per ISO 13485:2016 §7.1, is product realization planning consistent with QMS process requirements? Does it cover quality objectives, process and document needs, verification, validation, handling, storage, distribution, and traceability requirements?",
+            "How is the risk management plan integrated with product realization planning? Is the risk management output used as an input to product realization planning?",
+            "Is the traceability plan established at the product realization planning stage? Does it cover all critical components and process steps?",
+            "Are the quality planning documents periodically reviewed? How is it ensured that the plan is up to date and reflects changes?",
+            "How are the records needed for product realization processes identified at the planning stage? How is it ensured that records are consistent with regulatory traceability requirements?",
+        ],
+        "audit_questions_ja": [
+            "組織は、品質マネジメントシステムの他のプロセスの要求事項と整合する、製品実現に必要なプロセスを計画し開発しているか？製品実現の計画において、組織は、製品に対する品質目標及び要求事項、製品に固有のプロセス及び文書を確立し、資源を提供することの必要性、要求される検証、妥当性確認、監視、測定、検査及び試験、取扱い、保管、流通、並びにトレーサビリティの活動、並びに実現プロセス及び結果として得られる製品が要求事項を満たすことの証拠を提供するために必要な記録を決定しているか？",
+            "製品実現計画は文書化されているか？設計開発計画、生産計画、QC計画と調整されているか？",
+            "ISO 13485:2016 §7.1に従い、製品実現計画は品質マネジメントシステムプロセス要求事項と整合しているか？品質目標、プロセス及び文書のニーズ、検証、妥当性確認、取扱い、保管、流通、トレーサビリティ要求事項を網羅しているか？",
+            "リスクマネジメント計画は製品実現計画とどのように統合されているか？リスクマネジメントアウトプットは製品実現計画のインプットとして使用されているか？",
+            "トレーサビリティ計画は製品実現計画段階で確立されているか？すべての重要部品及びプロセスステップを網羅しているか？",
+            "品質計画文書は定期的にレビューされているか？計画が最新で変更を反映していることをどのように確実にしているか？",
+            "製品実現プロセスに必要な記録は、計画段階でどのように識別されているか？記録が規制当局のトレーサビリティ要求事項と整合することをどのように確実にしているか？",
+        ],
+        "expected_evidence_en": [
+            "Product realization plan",
+            "Risk management plan",
+            "Traceability plan",
+        ],
+        "expected_evidence_ja": [
+            "製品実現計画書",
+            "リスクマネジメント計画書",
+            "トレーサビリティ計画書",
+        ],
     },
     "7.2.1": {
         "title": "與產品有關的要求之決定",
@@ -801,6 +1516,36 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "顧客要求紀錄",
             "適用法規要求清單",
         ],
+        "audit_question_en": "Does the organization determine requirements specified by the customer, including the requirements for delivery and post-delivery activities; requirements not stated by the customer but necessary for specified or intended use, as known; applicable regulatory requirements related to the product; any user training needed to ensure specified performance and safe use of the medical device; and any additional requirements determined by the organization?",
+        "audit_question_ja": "組織は、引渡し及び引渡し後の活動に関する要求事項を含む顧客によって規定された要求事項、顧客によって規定されていないが知られている規定された使用又は意図された使用に必要な要求事項、製品に関連する適用規制要求事項、医療機器の規定された性能及び安全な使用を確実にするために必要な利用者訓練、並びに組織が決定したその他の要求事項を決定しているか？",
+        "audit_questions_en": [
+            "Does the organization determine requirements specified by the customer, including the requirements for delivery and post-delivery activities; requirements not stated by the customer but necessary for specified or intended use, as known; applicable regulatory requirements related to the product; any user training needed to ensure specified performance and safe use of the medical device; and any additional requirements determined by the organization?",
+            "Is the customer requirement identification process complete? Does it cover explicit requirements, implicit requirements, regulatory requirements, and user training requirements?",
+            "Per ISO 13485:2016 §7.2.1, does the organization identify all customer requirements, delivery and post-delivery activity requirements, implicit use requirements, applicable regulatory requirements, user training needs, and other organization-determined requirements?",
+            "Are the regulatory requirements for the product destination country/region identified? How are changes in regulations tracked and impact assessments performed?",
+            "How are implicit user needs (e.g., usability, biocompatibility, use environment) identified and documented? Is the human factors engineering process integrated?",
+            "How is user training needed for safe use determined? Is training material development aligned with product design and regulatory requirements?",
+            "Are the requirements for delivery (packaging, transportation, installation) and post-delivery activities (maintenance, service) included in the requirement identification?",
+        ],
+        "audit_questions_ja": [
+            "組織は、引渡し及び引渡し後の活動に関する要求事項を含む顧客によって規定された要求事項、顧客によって規定されていないが知られている規定された使用又は意図された使用に必要な要求事項、製品に関連する適用規制要求事項、医療機器の規定された性能及び安全な使用を確実にするために必要な利用者訓練、並びに組織が決定したその他の要求事項を決定しているか？",
+            "顧客要求事項の識別プロセスは完全か？明示的要求事項、暗黙的要求事項、規制要求事項、利用者訓練要求事項を網羅しているか？",
+            "ISO 13485:2016 §7.2.1に従い、組織はすべての顧客要求事項、引渡し及び引渡し後活動の要求事項、暗黙的使用要求事項、適用規制要求事項、利用者訓練ニーズ、組織が決定したその他の要求事項を識別しているか？",
+            "製品の仕向国／地域の規制要求事項は識別されているか？規制変更の追跡及び影響評価はどのように実施されているか？",
+            "暗黙的な利用者ニーズ（使いやすさ、生体適合性、使用環境等）はどのように識別され文書化されているか？ヒューマンファクタズエンジニアリングプロセスは統合されているか？",
+            "安全な使用に必要な利用者訓練はどのように決定されているか？訓練資料の開発は製品設計及び規制要求事項と整合しているか？",
+            "引渡し（包装、輸送、据付）及び引渡し後活動（保守、サービス）に関する要求事項は要求事項識別に含まれているか？",
+        ],
+        "expected_evidence_en": [
+            "Customer requirements document",
+            "Applicable regulatory requirements list",
+            "User training material (if applicable)",
+        ],
+        "expected_evidence_ja": [
+            "顧客要求事項文書",
+            "適用法規制要求事項一覧",
+            "利用者訓練資料（該当する場合）",
+        ],
     },
     "7.2.2": {
         "title": "與產品有關的要求之審查",
@@ -828,6 +1573,34 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
         "expected_evidence": [
             "合約審查紀錄",
             "訂單確認紀錄",
+        ],
+        "audit_question_en": "Does the organization review the requirements related to product prior to commitment to supply product to the customer, and ensure that product requirements are defined and documented; contract or order requirements differing from those previously expressed are resolved; applicable regulatory requirements are met; user training identified in accordance with 7.2.1 is available or planned to be available; and the organization has the ability to meet the defined requirements?",
+        "audit_question_ja": "組織は、顧客への製品供給のコミットメント前に、製品に関連する要求事項をレビューし、製品要求事項が定義され文書化されていること、以前に表明されたものと異なる契約又は注文の要求事項が解決されていること、適用規制要求事項が満たされること、7.2.1に従って識別された利用者訓練が利用可能又は利用可能になるよう計画されていること、並びに組織が定義された要求事項を満たす能力を有することを確実にしているか？",
+        "audit_questions_en": [
+            "Does the organization review the requirements related to product prior to commitment to supply product to the customer, and ensure that product requirements are defined and documented; contract or order requirements differing from those previously expressed are resolved; applicable regulatory requirements are met; user training identified in accordance with 7.2.1 is available or planned to be available; and the organization has the ability to meet the defined requirements?",
+            "Is the contract review procedure documented? Does it cover requirement definition, differential clarification, regulatory compliance, user training readiness, and capability assessment?",
+            "Per ISO 13485:2016 §7.2.2, does the organization review product-related requirements prior to commitment to supply product? Are review records maintained?",
+            "When there is a deviation between contract and original requirement, how is the difference resolution mechanism? Are all differences documented and approved?",
+            "How is the ability to meet customer requirements assessed? Do capability assessments include manufacturing capability, regulatory capability, and supply chain capability?",
+            "When the contract review identifies unachievable customer requirements, what is the feedback mechanism? How is the customer negotiation managed?",
+            "Is the contract review conducted before each order, or only for major contracts? How are small/repeat orders reviewed?",
+        ],
+        "audit_questions_ja": [
+            "組織は、顧客への製品供給のコミットメント前に、製品に関連する要求事項をレビューし、製品要求事項が定義され文書化されていること、以前に表明されたものと異なる契約又は注文の要求事項が解決されていること、適用規制要求事項が満たされること、7.2.1に従って識別された利用者訓練が利用可能又は利用可能になるよう計画されていること、並びに組織が定義された要求事項を満たす能力を有することを確実にしているか？",
+            "契約レビュー手順は文書化されているか？要求事項定義、差異明確化、規制適合、利用者訓練準備、能力評価を網羅しているか？",
+            "ISO 13485:2016 §7.2.2に従い、組織は製品供給のコミットメント前に製品関連要求事項をレビューしているか？レビュー記録は維持されているか？",
+            "契約と当初要求事項の間にずれがある場合、差異解決機構は何か？すべての差異は文書化され承認されているか？",
+            "顧客要求事項を満たす能力はどのように評価されているか？能力評価は製造能力、規制能力、サプライチェーン能力を含むか？",
+            "契約レビューで達成不可能な顧客要求事項が識別された場合、フィードバック機構は何か？顧客交渉はどのように管理されているか？",
+            "契約レビューは各注文前に実施されるか、それとも主要契約のみか？少量／繰返し注文はどのようにレビューされるか？",
+        ],
+        "expected_evidence_en": [
+            "Contract review records",
+            "Difference resolution records (if applicable)",
+        ],
+        "expected_evidence_ja": [
+            "契約レビュー記録",
+            "差異解決記録（該当する場合）",
         ],
     },
     "7.2.3": {
@@ -858,6 +1631,36 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "顧客抱怨處理紀錄",
             "諮詢通知程序（如適用）",
         ],
+        "audit_question_en": "Does the organization plan and document arrangements for communicating with customers in relation to product information; enquiries, contracts or order handling, including amendments; customer feedback, including customer complaints; and advisory notices?",
+        "audit_question_ja": "組織は、製品情報、問合せ、契約又は注文処理（変更を含む）、顧客フィードバック（顧客苦情を含む）、並びに勧告通知に関して顧客とコミュニケーションを行うための取決めを計画し文書化しているか？",
+        "audit_questions_en": [
+            "Does the organization plan and document arrangements for communicating with customers in relation to product information; enquiries, contracts or order handling, including amendments; customer feedback, including customer complaints; and advisory notices?",
+            "Is the customer communication mechanism comprehensive? Does it cover product information, enquiries, complaints, feedback, and advisory notices?",
+            "Per ISO 13485:2016 §7.2.3, does the organization plan and document arrangements for customer communication, covering product information, enquiry/contract/order handling, customer feedback, and advisory notices?",
+            "How are advisory notices issued to customers? Does it include product safety-related advisory notices, recall notices, etc.?",
+            "How are customer complaints received, documented, acknowledged, and followed up? Is the complaint handling timeline tracked?",
+            "How does the product information provided to customers (e.g., instructions for use, training materials) match the current product version? Does it meet regulatory requirements?",
+            "When product changes impact customer use (e.g., specification changes, recalls), how is the customer notification mechanism? What is the response timeline requirement?",
+        ],
+        "audit_questions_ja": [
+            "組織は、製品情報、問合せ、契約又は注文処理（変更を含む）、顧客フィードバック（顧客苦情を含む）、並びに勧告通知に関して顧客とコミュニケーションを行うための取決めを計画し文書化しているか？",
+            "顧客コミュニケーション機構は包括的か？製品情報、問合せ、苦情、フィードバック、勧告通知を網羅しているか？",
+            "ISO 13485:2016 §7.2.3に従い、組織は顧客コミュニケーションの取決めを計画し文書化しており、製品情報、問合せ／契約／注文処理、顧客フィードバック、勧告通知を網羅しているか？",
+            "勧告通知は顧客にどのように発行されるか？製品安全関連の勧告通知、リコール通知等を含むか？",
+            "顧客苦情はどのように受付、文書化、確認応答、フォローアップされているか？苦情処理期限は追跡されているか？",
+            "顧客に提供される製品情報（使用説明書、訓練資料等）は現行製品バージョンとどのように整合しているか？規制要求事項を満たしているか？",
+            "製品変更が顧客使用に影響する場合（仕様変更、リコール等）、顧客通知機構は？対応期限要求は？",
+        ],
+        "expected_evidence_en": [
+            "Customer communication procedures",
+            "Customer feedback records",
+            "Advisory notice records (if applicable)",
+        ],
+        "expected_evidence_ja": [
+            "顧客コミュニケーション手順書",
+            "顧客フィードバック記録",
+            "勧告通知記録（該当する場合）",
+        ],
     },
     "7.3.1": {
         "title": "設計與開發規劃",
@@ -887,6 +1690,36 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "設計開發階段定義",
             "設計開發團隊權責",
         ],
+        "audit_question_en": "Does the organization plan and control the design and development of product, and as design and development progresses, maintain design and development plans, and update them, as appropriate?",
+        "audit_question_ja": "組織は製品の設計・開発を計画し管理し、設計・開発の進捗に応じて、設計・開発計画を維持し、適切に更新しているか？",
+        "audit_questions_en": [
+            "Does the organization plan and control the design and development of product, and as design and development progresses, maintain design and development plans, and update them, as appropriate?",
+            "Is the design and development plan complete? Does it cover stage division, responsibility assignment, review/verification/validation points, and risk management activities?",
+            "Per ISO 13485:2016 §7.3.2, does the design plan include stages, review/verification/validation activities, responsibilities and authorities, resource requirements, and traceability?",
+            "Is the design plan updated with design progress? How is it ensured that the plan keeps up with actual progress?",
+            "Is the interface management of the design plan documented? Is cross-disciplinary (e.g., hardware, software, usability, biocompatibility) interface management defined?",
+            "How is the design plan coordinated with the project schedule management? Does it use formal project management tools?",
+            "When the design plan changes, how is the change management procedure? How are the impacts on subsequent stages assessed?",
+        ],
+        "audit_questions_ja": [
+            "組織は製品の設計・開発を計画し管理し、設計・開発の進捗に応じて、設計・開発計画を維持し、適切に更新しているか？",
+            "設計開発計画は完全か？段階区分、責任割当、レビュー／検証／妥当性確認ポイント、リスクマネジメント活動を網羅しているか？",
+            "ISO 13485:2016 §7.3.2に従い、設計計画は段階、レビュー／検証／妥当性確認活動、責任及び権限、資源要求事項、トレーサビリティを含むか？",
+            "設計計画は設計進捗とともに更新されているか？計画が実際の進捗に追随することをどのように確実にしているか？",
+            "設計計画のインタフェース管理は文書化されているか？部門横断（ハードウェア、ソフトウェア、使いやすさ、生体適合性等）のインタフェース管理は定義されているか？",
+            "設計計画とプロジェクトスケジュール管理はどのように調整されているか？正式なプロジェクト管理ツールは使用されているか？",
+            "設計計画が変更される場合、変更管理手順は？後続段階への影響はどのように評価されているか？",
+        ],
+        "expected_evidence_en": [
+            "Design and development plan",
+            "Plan revision records",
+            "Design responsibility matrix",
+        ],
+        "expected_evidence_ja": [
+            "設計開発計画書",
+            "計画改訂記録",
+            "設計責任マトリクス",
+        ],
     },
     "7.3.2": {
         "title": "設計與開發輸入",
@@ -915,6 +1748,36 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "設計輸入文件/規格書",
             "風險管理計畫",
             "法規要求清單",
+        ],
+        "audit_question_en": "Does the organization determine inputs relating to product requirements and maintain records? Do these inputs include functional, performance, usability and safety requirements; applicable regulatory requirements and standards; applicable output(s) of risk management; other information essential for design and development; and requirements for new designs or improvements?",
+        "audit_question_ja": "組織は製品要求事項に関連するインプットを決定し記録を維持しているか？これらのインプットには、機能、性能、使いやすさ及び安全性の要求事項、適用される規制要求事項及び規格、リスクマネジメントの適用可能なアウトプット、設計・開発に不可欠なその他の情報、並びに新規設計又は改善の要求事項が含まれているか？",
+        "audit_questions_en": [
+            "Does the organization determine inputs relating to product requirements and maintain records? Do these inputs include functional, performance, usability and safety requirements; applicable regulatory requirements and standards; applicable output(s) of risk management; other information essential for design and development; and requirements for new designs or improvements?",
+            "Is the design input completeness evaluation mechanism documented? Are functional, performance, usability, safety, regulatory, and risk management outputs all included?",
+            "Per ISO 13485:2016 §7.3.3, do design inputs include functional, performance, usability, safety, regulatory, risk management output, and other essential information?",
+            "How is the traceability between design inputs and clinical needs / user needs established? Is the traceability matrix maintained?",
+            "Do the design inputs include specific requirements of applicable regulations (e.g., EU MDR Annex I, FDA 21 CFR Part 820)? How is regulatory gap analysis performed?",
+            "How is the risk management output integrated into design inputs? Are the initial risk assessment results used as design input requirements?",
+            "Are the design inputs reviewed and approved? How are incomplete, ambiguous, or conflicting requirements handled?",
+        ],
+        "audit_questions_ja": [
+            "組織は製品要求事項に関連するインプットを決定し記録を維持しているか？これらのインプットには、機能、性能、使いやすさ及び安全性の要求事項、適用される規制要求事項及び規格、リスクマネジメントの適用可能なアウトプット、設計・開発に不可欠なその他の情報、並びに新規設計又は改善の要求事項が含まれているか？",
+            "設計インプットの完全性評価機構は文書化されているか？機能、性能、使いやすさ、安全性、規制、リスクマネジメントアウトプットはすべて含まれているか？",
+            "ISO 13485:2016 §7.3.3に従い、設計インプットには機能、性能、使いやすさ、安全性、規制、リスクマネジメントアウトプット、その他不可欠な情報が含まれているか？",
+            "設計インプットと臨床ニーズ／利用者ニーズとの間のトレーサビリティはどのように確立されているか？トレーサビリティマトリクスは維持されているか？",
+            "設計インプットには、適用法規制の具体的要求事項（EU MDR附属書I、FDA 21 CFR Part 820等）が含まれているか？規制ギャップ分析はどのように実施されているか？",
+            "リスクマネジメントアウトプットはどのように設計インプットに統合されているか？初期リスク評価結果は設計インプット要求事項として使用されているか？",
+            "設計インプットはレビューされ承認されているか？不完全、曖昧、又は相反する要求事項はどのように処理されているか？",
+        ],
+        "expected_evidence_en": [
+            "Design input document",
+            "Regulatory requirements/standards analysis",
+            "Risk management plan/output",
+        ],
+        "expected_evidence_ja": [
+            "設計インプット文書",
+            "規制要求事項／規格分析",
+            "リスクマネジメント計画／アウトプット",
         ],
     },
     "7.3.3": {
@@ -947,6 +1810,36 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "設計輸出審查/核准紀錄",
             "產品規格書",
         ],
+        "audit_question_en": "Are the outputs of design and development documented and provided in a form suitable for verification against the design and development inputs? Do design and development outputs meet the input requirements; provide appropriate information for purchasing, production and service provision; contain or reference product acceptance criteria; and specify the characteristics of the product that are essential for its safe and proper use?",
+        "audit_question_ja": "設計・開発のアウトプットは、設計・開発インプットに対する検証に適した形式で文書化され提供されているか？設計・開発アウトプットは、インプット要求事項を満たし、購買、生産及びサービス提供のための適切な情報を提供し、製品の合否判定基準を含む又は参照し、並びにその安全で適切な使用に不可欠な製品の特性を規定しているか？",
+        "audit_questions_en": [
+            "Are the outputs of design and development documented and provided in a form suitable for verification against the design and development inputs? Do design and development outputs meet the input requirements; provide appropriate information for purchasing, production and service provision; contain or reference product acceptance criteria; and specify the characteristics of the product that are essential for its safe and proper use?",
+            "Is the design output completeness standard clear? Does it cover design specifications, manufacturing drawings, purchase specifications, test procedures, and acceptance criteria?",
+            "Per ISO 13485:2016 §7.3.4, do design outputs meet design input requirements, and provide appropriate information for purchasing, production, and service provision?",
+            "Do design outputs contain or reference product acceptance criteria? Are the acceptance criteria measurable and quantified?",
+            "Do design outputs specify product characteristics essential for safe use? Are critical safety features clearly marked in design outputs?",
+            "Are design outputs reviewed before approval? Does the approval include multi-disciplinary experts (quality, regulatory, manufacturing, clinical)?",
+            "How is the version control of design outputs? When design outputs are updated, how is the downstream use (manufacturing, purchasing) notified?",
+        ],
+        "audit_questions_ja": [
+            "設計・開発のアウトプットは、設計・開発インプットに対する検証に適した形式で文書化され提供されているか？設計・開発アウトプットは、インプット要求事項を満たし、購買、生産及びサービス提供のための適切な情報を提供し、製品の合否判定基準を含む又は参照し、並びにその安全で適切な使用に不可欠な製品の特性を規定しているか？",
+            "設計アウトプットの完全性基準は明確か？設計仕様、製造図面、購買仕様、試験手順、合否判定基準を網羅しているか？",
+            "ISO 13485:2016 §7.3.4に従い、設計アウトプットは設計インプット要求事項を満たし、購買、生産、サービス提供のための適切な情報を提供しているか？",
+            "設計アウトプットは製品合否判定基準を含む又は参照しているか？合否判定基準は測定可能で定量化されているか？",
+            "設計アウトプットは安全使用に不可欠な製品特性を規定しているか？重要安全特性は設計アウトプットで明確にマークされているか？",
+            "設計アウトプットは承認前にレビューされているか？承認には多分野の専門家（品質、規制、製造、臨床）が含まれるか？",
+            "設計アウトプットのバージョン管理は？設計アウトプット更新時、下流の使用部門（製造、購買）にはどのように通知されるか？",
+        ],
+        "expected_evidence_en": [
+            "Design output document",
+            "Product specification",
+            "Acceptance criteria",
+        ],
+        "expected_evidence_ja": [
+            "設計アウトプット文書",
+            "製品仕様書",
+            "合否判定基準",
+        ],
     },
     "7.3.4": {
         "title": "設計與開發審查",
@@ -976,6 +1869,36 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "設計審查檢查表",
             "設計審查行動項目追蹤",
         ],
+        "audit_question_en": "Are design and development reviews conducted at suitable stages in accordance with planned arrangements to evaluate the ability of the results to meet requirements and to identify any problems and propose necessary actions? Do participants in such reviews include representatives of functions concerned with the design and development stage being reviewed, as well as other specialist personnel? Are records maintained?",
+        "audit_question_ja": "設計・開発レビューは、結果が要求事項を満たす能力を評価し、いかなる問題も特定し必要な処置を提案するため、計画された取決めに従って適切な段階で実施されているか？そのようなレビューの参加者には、レビューされている設計・開発段階に関わる機能の代表者及びその他の専門要員が含まれているか？記録は維持されているか？",
+        "audit_questions_en": [
+            "Are design and development reviews conducted at suitable stages in accordance with planned arrangements to evaluate the ability of the results to meet requirements and to identify any problems and propose necessary actions? Do participants in such reviews include representatives of functions concerned with the design and development stage being reviewed, as well as other specialist personnel? Are records maintained?",
+            "Are design review stage points clearly defined (concept, design, verification, validation, launch)? Is each review independent from daily design meetings?",
+            "Per ISO 13485:2016 §7.3.5, are design reviews conducted at appropriate stages of the design? Does it include representatives from relevant functions and specialists?",
+            "Do the design review participants include independent experts (i.e., not directly involved in the design)? What is the scope of independent expert opinions?",
+            "Are the design review records complete? Do they include review inputs, discussion items, decisions, action items, participants, and review timeline?",
+            "How are the results of design reviews fed back to subsequent stages? Is the closure of action items tracked?",
+            "What are the criteria for passing a design review? When review issues are not resolved, are there clear procedures to prohibit proceeding to the next stage?",
+        ],
+        "audit_questions_ja": [
+            "設計・開発レビューは、結果が要求事項を満たす能力を評価し、いかなる問題も特定し必要な処置を提案するため、計画された取決めに従って適切な段階で実施されているか？そのようなレビューの参加者には、レビューされている設計・開発段階に関わる機能の代表者及びその他の専門要員が含まれているか？記録は維持されているか？",
+            "設計レビュー段階ポイントは明確に定義されているか（コンセプト、設計、検証、妥当性確認、市場投入）？各レビューは日常の設計会議と独立しているか？",
+            "ISO 13485:2016 §7.3.5に従い、設計レビューは設計の適切な段階で実施されているか？関連機能の代表者及び専門要員を含むか？",
+            "設計レビュー参加者には独立した専門家（すなわち設計に直接関与していない者）が含まれているか？独立専門家意見の範囲は何か？",
+            "設計レビュー記録は完全か？レビューインプット、討議項目、決定事項、処置事項、参加者、レビュー期限を含むか？",
+            "設計レビュー結果は後続段階にどのようにフィードバックされるか？処置事項の完結は追跡されているか？",
+            "設計レビュー合格の基準は何か？レビュー問題が解決されない場合、次段階への移行を禁止する明確な手順はあるか？",
+        ],
+        "expected_evidence_en": [
+            "Design review records",
+            "Review participant list",
+            "Action item tracking",
+        ],
+        "expected_evidence_ja": [
+            "設計レビュー記録",
+            "レビュー参加者一覧",
+            "処置事項追跡記録",
+        ],
     },
     "7.3.5": {
         "title": "設計與開發驗證",
@@ -1002,6 +1925,36 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "設計驗證計畫",
             "設計驗證報告/紀錄",
             "測試數據",
+        ],
+        "audit_question_en": "Is design and development verification performed in accordance with planned and documented arrangements to ensure that the design and development outputs have met the design and development input requirements? Does the organization document verification plans that include methods, acceptance criteria, and appropriate statistical techniques with rationale for sample size, when appropriate? Are records maintained?",
+        "audit_question_ja": "設計・開発検証は、設計・開発アウトプットが設計・開発インプット要求事項を満たしていることを確実にするため、計画され文書化された取決めに従って実施されているか？組織は、方法、合否判定基準、並びに適切な場合にはサンプルサイズの根拠とともに統計的手法を含む検証計画を文書化しているか？記録は維持されているか？",
+        "audit_questions_en": [
+            "Is design and development verification performed in accordance with planned and documented arrangements to ensure that the design and development outputs have met the design and development input requirements? Does the organization document verification plans that include methods, acceptance criteria, and appropriate statistical techniques with rationale for sample size, when appropriate? Are records maintained?",
+            "Is the design verification plan complete? Does it cover methods, acceptance criteria, sample size statistical basis, and qualifications of testing personnel?",
+            "Per ISO 13485:2016 §7.3.6, does the design verification plan include methods, acceptance criteria, and sample size statistical rationale (when applicable)?",
+            "How is the sample size of the verification determined? Are statistical techniques applied to ensure adequacy of the sample?",
+            "How does design verification prove that each design output meets its design input? Is the traceability matrix updated?",
+            "When verification fails, how is the failure investigated, recorded, and resolved? How are the impacts of failure on the subsequent design assessed?",
+            "What are the qualifications and independence of the verification personnel? Do they include external laboratory testing, and if so, what are the qualifications of the external laboratory?",
+        ],
+        "audit_questions_ja": [
+            "設計・開発検証は、設計・開発アウトプットが設計・開発インプット要求事項を満たしていることを確実にするため、計画され文書化された取決めに従って実施されているか？組織は、方法、合否判定基準、並びに適切な場合にはサンプルサイズの根拠とともに統計的手法を含む検証計画を文書化しているか？記録は維持されているか？",
+            "設計検証計画は完全か？方法、合否判定基準、サンプルサイズの統計的根拠、試験要員の適格性を網羅しているか？",
+            "ISO 13485:2016 §7.3.6に従い、設計検証計画には方法、合否判定基準、サンプルサイズの統計的根拠（該当する場合）が含まれているか？",
+            "検証のサンプルサイズはどのように決定されているか？サンプルの妥当性を確実にするために統計的手法が適用されているか？",
+            "設計検証は、各設計アウトプットがその設計インプットを満たすことをどのように証明しているか？トレーサビリティマトリクスは更新されているか？",
+            "検証が失敗した場合、失敗はどのように調査、記録、解決されているか？失敗の後続設計への影響はどのように評価されているか？",
+            "検証要員の適格性及び独立性は何か？外部試験所試験を含むか、その場合の外部試験所の資格は？",
+        ],
+        "expected_evidence_en": [
+            "Design verification plan",
+            "Verification test reports",
+            "Statistical basis description",
+        ],
+        "expected_evidence_ja": [
+            "設計検証計画書",
+            "検証試験報告書",
+            "統計的根拠説明書",
         ],
     },
     "7.3.6": {
@@ -1032,6 +1985,36 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "設計確認報告",
             "臨床評估報告（如適用）",
         ],
+        "audit_question_en": "Is design and development validation performed in accordance with planned and documented arrangements to ensure that the resulting product is capable of meeting the requirements for the specified application or intended use? Does validation consider clinical evaluation or performance evaluation of the medical device, and include performance of validation activities on representative product? Are records maintained?",
+        "audit_question_ja": "設計・開発の妥当性確認は、結果として得られる製品が規定された用途又は意図された使用に対する要求事項を満たす能力を有することを確実にするため、計画され文書化された取決めに従って実施されているか？妥当性確認は医療機器の臨床評価又は性能評価を考慮し、代表的な製品に対する妥当性確認活動の実施を含んでいるか？記録は維持されているか？",
+        "audit_questions_en": [
+            "Is design and development validation performed in accordance with planned and documented arrangements to ensure that the resulting product is capable of meeting the requirements for the specified application or intended use? Does validation consider clinical evaluation or performance evaluation of the medical device, and include performance of validation activities on representative product? Are records maintained?",
+            "Does design validation include clinical evaluation / performance evaluation? How is the representative product sample for validation selected? Does it include final manufacturing condition samples?",
+            "Per ISO 13485:2016 §7.3.7, does design validation demonstrate that the final product meets the specified application/intended use? Does it use representative product and include clinical evaluation?",
+            "Is the clinical evaluation plan documented? Does it follow ISO 14155 (clinical investigation) or MEDDEV 2.7/1 rev4 (EU clinical evaluation)?",
+            "Does the user interface / usability validation follow IEC 62366-1 (usability engineering for medical devices)?",
+            "How is validation conducted before product release? What is the authorization procedure that validation must pass before release?",
+            "Are the design validation records traceable to the design inputs and design outputs? Does the validation fully cover all intended uses?",
+        ],
+        "audit_questions_ja": [
+            "設計・開発の妥当性確認は、結果として得られる製品が規定された用途又は意図された使用に対する要求事項を満たす能力を有することを確実にするため、計画され文書化された取決めに従って実施されているか？妥当性確認は医療機器の臨床評価又は性能評価を考慮し、代表的な製品に対する妥当性確認活動の実施を含んでいるか？記録は維持されているか？",
+            "設計妥当性確認には臨床評価／性能評価が含まれているか？妥当性確認のための代表製品サンプルはどのように選定されているか？最終製造条件サンプルを含むか？",
+            "ISO 13485:2016 §7.3.7に従い、設計妥当性確認は最終製品が規定された用途／意図された使用を満たすことを実証しているか？代表製品を使用し臨床評価を含んでいるか？",
+            "臨床評価計画は文書化されているか？ISO 14155（臨床試験）又はMEDDEV 2.7/1 rev4（EU臨床評価）に準拠しているか？",
+            "ユーザインタフェース／ユーザビリティ妥当性確認はIEC 62366-1（医療機器のユーザビリティエンジニアリング）に準拠しているか？",
+            "製品出荷前の妥当性確認はどのように実施されているか？出荷前に妥当性確認が合格しなければならない承認手順は何か？",
+            "設計妥当性確認記録は設計インプット及び設計アウトプットまで追跡可能か？妥当性確認はすべての意図された使用を完全に網羅しているか？",
+        ],
+        "expected_evidence_en": [
+            "Design validation plan",
+            "Clinical evaluation / performance evaluation report",
+            "Usability validation report",
+        ],
+        "expected_evidence_ja": [
+            "設計妥当性確認計画書",
+            "臨床評価／性能評価報告書",
+            "ユーザビリティ妥当性確認報告書",
+        ],
     },
     "7.3.7": {
         "title": "設計與開發轉移",
@@ -1057,6 +2040,34 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
         "expected_evidence": [
             "設計轉移程序書",
             "設計轉移驗證紀錄",
+        ],
+        "audit_question_en": "Before transferring design and development outputs to manufacturing, does the organization document procedures for transferring design and development outputs, ensuring that design and development outputs are verified as suitable for manufacturing before becoming final production specifications, and that production capability can meet product requirements? Are records maintained?",
+        "audit_question_ja": "設計・開発アウトプットを製造に移管する前に、組織は設計・開発アウトプットの移管手順を文書化し、設計・開発アウトプットが最終生産仕様となる前に製造に適していることが検証されており、生産能力が製品要求事項を満たすことができることを確実にしているか？記録は維持されているか？",
+        "audit_questions_en": [
+            "Before transferring design and development outputs to manufacturing, does the organization document procedures for transferring design and development outputs, ensuring that design and development outputs are verified as suitable for manufacturing before becoming final production specifications, and that production capability can meet product requirements? Are records maintained?",
+            "Is the design transfer procedure documented? What is the specific mechanism to ensure manufacturing capability can meet product requirements?",
+            "Per ISO 13485:2016 §7.3.8, before design output is transferred to manufacturing, is it verified as suitable for manufacturing, and is the manufacturing capability assessed?",
+            "How is the manufacturing capability assessed (e.g., process Cp/Cpk, yield)? Are the assessment criteria documented?",
+            "Does the design transfer include equipment/tools/fixtures design specifications? What is the equipment/tools preparation status check procedure?",
+            "Does the design transfer include manufacturing operators' training completion? How is the operator skill sufficiency assessed?",
+            "When design transfer-related issues occur, what is the escalation procedure? How is design-manufacturing interface alignment ensured?",
+        ],
+        "audit_questions_ja": [
+            "設計・開発アウトプットを製造に移管する前に、組織は設計・開発アウトプットの移管手順を文書化し、設計・開発アウトプットが最終生産仕様となる前に製造に適していることが検証されており、生産能力が製品要求事項を満たすことができることを確実にしているか？記録は維持されているか？",
+            "設計移管手順は文書化されているか？製造能力が製品要求事項を満たせることを確実にする具体的機構は何か？",
+            "ISO 13485:2016 §7.3.8に従い、設計アウトプットが製造に移管される前に、製造適合性が検証され、製造能力が評価されているか？",
+            "製造能力はどのように評価されているか（プロセスCp/Cpk、歩留り等）？評価基準は文書化されているか？",
+            "設計移管には装置／治具／冶具の設計仕様は含まれるか？装置／治具準備状況チェック手順は何か？",
+            "設計移管には製造作業者の訓練完了が含まれるか？作業者技能充足性はどのように評価されているか？",
+            "設計移管関連の問題発生時、エスカレーション手順は？設計―製造インタフェースの整合性はどのように確実にされているか？",
+        ],
+        "expected_evidence_en": [
+            "Design transfer procedure",
+            "Manufacturing capability assessment records",
+        ],
+        "expected_evidence_ja": [
+            "設計移管手順書",
+            "製造能力評価記録",
         ],
     },
     "7.3.8": {
@@ -1087,6 +2098,36 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "設計變更申請/核准紀錄",
             "變更影響評估紀錄",
         ],
+        "audit_question_en": "Does the organization document procedures to control design and development changes? Does the organization determine the significance of the change to function, performance, usability, safety, and applicable regulatory requirements for the medical device and its intended use? Are design and development changes identified? Before implementation, are the changes reviewed, verified, validated as appropriate, and approved? Does the review of design and development changes include evaluation of the effect of the changes on constituent parts and product in process or already delivered, inputs or outputs of risk management, and product realization processes? Are records maintained?",
+        "audit_question_ja": "組織は設計・開発変更を管理する手順を文書化しているか？組織は、医療機器及びその意図された使用に対する機能、性能、使いやすさ、安全性、並びに適用規制要求事項への変更の重要性を決定しているか？設計・開発変更は識別されているか？実施前に、変更は適切にレビュー、検証、妥当性確認され承認されているか？設計・開発変更のレビューは、変更の構成部品及び仕掛中又は既に引渡された製品、リスクマネジメントのインプット又はアウトプット、並びに製品実現プロセスへの影響の評価を含んでいるか？記録は維持されているか？",
+        "audit_questions_en": [
+            "Does the organization document procedures to control design and development changes? Does the organization determine the significance of the change to function, performance, usability, safety, and applicable regulatory requirements for the medical device and its intended use? Are design and development changes identified? Before implementation, are the changes reviewed, verified, validated as appropriate, and approved? Does the review of design and development changes include evaluation of the effect of the changes on constituent parts and product in process or already delivered, inputs or outputs of risk management, and product realization processes? Are records maintained?",
+            "Is the design change control procedure documented? Does the change significance assessment include function, performance, usability, safety, and regulatory requirements?",
+            "Per ISO 13485:2016 §7.3.9, does the organization assess the significance of design changes and review, verify, validate, and approve changes before implementation?",
+            "Does the design change review include assessment of impacts on components in manufacturing or already delivered products? How are retrospective actions implemented?",
+            "Does the design change review include assessment of impacts on risk management input/output? Is the risk management file updated as required?",
+            "Is the design change notification process to regulatory authorities (e.g., FDA 510(k), EU MDR Annex X) documented? What is the decision procedure for regulatory notification needs?",
+            "Is the revision control of design change records traceable? How is the version management of the changed design outputs?",
+        ],
+        "audit_questions_ja": [
+            "組織は設計・開発変更を管理する手順を文書化しているか？組織は、医療機器及びその意図された使用に対する機能、性能、使いやすさ、安全性、並びに適用規制要求事項への変更の重要性を決定しているか？設計・開発変更は識別されているか？実施前に、変更は適切にレビュー、検証、妥当性確認され承認されているか？設計・開発変更のレビューは、変更の構成部品及び仕掛中又は既に引渡された製品、リスクマネジメントのインプット又はアウトプット、並びに製品実現プロセスへの影響の評価を含んでいるか？記録は維持されているか？",
+            "設計変更管理手順は文書化されているか？変更重要性評価には機能、性能、使いやすさ、安全性、規制要求事項が含まれているか？",
+            "ISO 13485:2016 §7.3.9に従い、組織は設計変更の重要性を評価し、実施前に変更をレビュー、検証、妥当性確認、承認しているか？",
+            "設計変更レビューには仕掛中部品又は既に引渡された製品への影響評価が含まれているか？遡及的処置はどのように実施されているか？",
+            "設計変更レビューにはリスクマネジメントインプット／アウトプットへの影響評価が含まれているか？リスクマネジメントファイルは必要に応じて更新されているか？",
+            "規制当局への設計変更通知プロセス（FDA 510(k)、EU MDR附属書X等）は文書化されているか？規制通知必要性の決定手順は何か？",
+            "設計変更記録の版管理は追跡可能か？変更された設計アウトプットのバージョン管理はどのように行われているか？",
+        ],
+        "expected_evidence_en": [
+            "Design change control procedure",
+            "Design change request/approval records",
+            "Change impact assessment records",
+        ],
+        "expected_evidence_ja": [
+            "設計変更管理手順書",
+            "設計変更申請／承認記録",
+            "変更影響評価記録",
+        ],
     },
     "7.3.9": {
         "title": "設計與開發檔案",
@@ -1115,6 +2156,34 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "設計開發歷史檔案 (DHF)",
             "設計開發索引或目錄",
         ],
+        "audit_question_en": "Does the organization maintain a design and development file for each medical device type or medical device family? Does the file include or reference records generated to demonstrate conformity to the requirements for design and development and records for design and development changes?",
+        "audit_question_ja": "組織は医療機器の種類又は医療機器ファミリごとに設計・開発ファイルを維持しているか？ファイルは、設計・開発の要求事項への適合を実証するために作成された記録及び設計・開発変更の記録を含む又は参照しているか？",
+        "audit_questions_en": [
+            "Does the organization maintain a design and development file for each medical device type or medical device family? Does the file include or reference records generated to demonstrate conformity to the requirements for design and development and records for design and development changes?",
+            "Is the design and development file maintained per device type/family? Is its completeness periodically reviewed?",
+            "Per ISO 13485:2016 §7.3.10, does the design file include or reference records to demonstrate conformity to design and development requirements, including change records?",
+            "Is the design file structure standardized (e.g., index table)? Is the relative position of each document clear?",
+            "Is the design file access control implemented? Who has permission to view/edit? How is access for departed personnel revoked?",
+            "How is the electronic design file management? Is there a complete backup and version history?",
+            "How does the design file provide evidence of regulatory compliance? Can it be easily rearranged into a submission package for regulatory authorities?",
+        ],
+        "audit_questions_ja": [
+            "組織は医療機器の種類又は医療機器ファミリごとに設計・開発ファイルを維持しているか？ファイルは、設計・開発の要求事項への適合を実証するために作成された記録及び設計・開発変更の記録を含む又は参照しているか？",
+            "設計開発ファイルは機器種別／ファミリごとに維持されているか？その完全性は定期的にレビューされているか？",
+            "ISO 13485:2016 §7.3.10に従い、設計ファイルには、変更記録を含む設計開発要求事項への適合を実証する記録が含まれる又は参照されているか？",
+            "設計ファイルの構成は標準化されているか（索引表等）？各文書の相対位置は明確か？",
+            "設計ファイルのアクセス制御は実施されているか？閲覧／編集の権限を持つのは誰か？離任者のアクセスはどのように取り消されているか？",
+            "電子化された設計ファイルの管理はどのように行われているか？完全なバックアップ及び版履歴はあるか？",
+            "設計ファイルは規制適合の証拠をどのように提供しているか？規制当局への提出パッケージに容易に再編できるか？",
+        ],
+        "expected_evidence_en": [
+            "Design and development file index",
+            "Design file completeness check records",
+        ],
+        "expected_evidence_ja": [
+            "設計開発ファイル索引",
+            "設計ファイル完全性確認記録",
+        ],
     },
     "7.3.10": {
         "title": "設計與開發文件",
@@ -1136,6 +2205,34 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
         "expected_evidence": [
             "設計規格文件",
             "設備主檔案 (DMR)",
+        ],
+        "audit_question_en": "Does the organization maintain design specification documents (Device Master Record / DMR) for each medical device, containing all design outputs, manufacturing specifications, BOMs, drawings, and quality assurance requirements necessary for production?",
+        "audit_question_ja": "組織は医療機器ごとに設計仕様文書（Device Master Record／DMR）を維持し、生産に必要なすべての設計アウトプット、製造仕様、BOM、図面、品質保証要求事項を含めているか？",
+        "audit_questions_en": [
+            "Does the organization maintain design specification documents (Device Master Record / DMR) for each medical device, containing all design outputs, manufacturing specifications, BOMs, drawings, and quality assurance requirements necessary for production?",
+            "How are updates of the design specification documents (DMR) triggered to synchronize related production documents? What is the frequency of DMR completeness review?",
+            "Per ISO 13485:2016 §7.3.10, does each medical device maintain a complete Device Master Record containing all necessary production and quality assurance information?",
+            "Does the approval process of design specification documents (BOM, drawings) effectively prevent unauthorized changes? Which departments need to countersign before document release?",
+            "How does version control of design specifications ensure that production lines always use the latest version? What is the recovery procedure for obsolete versions?",
+            "Is the link between design specification documents and manufacturing process documents (SOP, work instructions) clear? How is their consistency tracked?",
+            "How is the review cycle of design specification documents set? What is the purpose and trigger conditions (customer complaints, non-conformity trends, etc.) for periodic review?",
+        ],
+        "audit_questions_ja": [
+            "組織は医療機器ごとに設計仕様文書（Device Master Record／DMR）を維持し、生産に必要なすべての設計アウトプット、製造仕様、BOM、図面、品質保証要求事項を含めているか？",
+            "設計仕様文書（DMR）の更新は関連生産文書の同期更新をどのようにトリガーしているか？DMRの完全性レビュー頻度は？",
+            "ISO 13485:2016 §7.3.10に従い、各医療機器は生産及び品質保証に必要なすべての情報を含む完全なDevice Master Recordを維持しているか？",
+            "設計仕様文書（BOM、図面等）の承認プロセスは非認可変更を有効に防止しているか？文書発行前に会議決裁が必要な部門はどれか？",
+            "設計仕様書の版管理は、生産現場が常に最新版を使用することをどのように確実にしているか？廃止版の回収手順は？",
+            "設計仕様文書と製造プロセス文書（SOP、作業指示書）との連結は明確か？一貫性はどのように追跡されているか？",
+            "設計仕様文書のレビュー周期はどのように設定されているか？定期レビューの目的及びトリガー条件（顧客苦情、不適合傾向等）は？",
+        ],
+        "expected_evidence_en": [
+            "Design specification document",
+            "Device Master Record (DMR)",
+        ],
+        "expected_evidence_ja": [
+            "設計仕様文書",
+            "Device Master Record（DMR）",
         ],
     },
     "7.4.1": {
@@ -1168,6 +2265,36 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "合格供應商清單 (ASL)",
             "供應商評估/稽核紀錄",
         ],
+        "audit_question_en": "Does the organization document procedures to ensure that purchased product conforms to specified purchasing information? Does the organization establish criteria for the evaluation and selection of suppliers, which shall be proportionate to the risk associated with the medical device and based on the supplier's ability to meet purchasing requirements; the performance of the supplier; the effect of the purchased product on the quality of the medical device; and the risk associated with the medical device? Does the organization plan the monitoring and re-evaluation of suppliers?",
+        "audit_question_ja": "組織は、購入製品が規定された購買情報に適合することを確実にする手順を文書化しているか？組織は、供給者の評価及び選定の基準を確立しているか。これは医療機器に関連するリスクに比例するものであり、購買要求事項を満たす供給者の能力、供給者の実績、購入製品が医療機器の品質に与える影響、及び医療機器に関連するリスクに基づくべきものである。組織は供給者の監視及び再評価を計画しているか？",
+        "audit_questions_en": [
+            "Does the organization document procedures to ensure that purchased product conforms to specified purchasing information? Does the organization establish criteria for the evaluation and selection of suppliers, which shall be proportionate to the risk associated with the medical device and based on the supplier's ability to meet purchasing requirements; the performance of the supplier; the effect of the purchased product on the quality of the medical device; and the risk associated with the medical device? Does the organization plan the monitoring and re-evaluation of suppliers?",
+            "Is the supplier evaluation criteria risk-based? Does it cover the 4 dimensions of capability, performance, product impact, and device risk?",
+            "Per ISO 13485:2016 §7.4.1, are supplier evaluation/selection criteria proportionate to medical device risk, and does it cover supplier capability, performance, product impact, and device risk?",
+            "Is the supplier monitoring and re-evaluation cycle defined? Is the re-evaluation frequency for critical suppliers higher than that for ordinary suppliers?",
+            "When a supplier fails to meet requirements, what are the disqualification and alternative supplier procedures? How is the impact on ongoing manufacturing operations controlled?",
+            "Is the supplier quality agreement (Quality Agreement) established? Does it cover quality requirements, change notification, and audit rights?",
+            "Are supplier audit records complete? Does the audit frequency match the risk classification? Are audit findings tracked to closure?",
+        ],
+        "audit_questions_ja": [
+            "組織は、購入製品が規定された購買情報に適合することを確実にする手順を文書化しているか？組織は、供給者の評価及び選定の基準を確立しているか。これは医療機器に関連するリスクに比例するものであり、購買要求事項を満たす供給者の能力、供給者の実績、購入製品が医療機器の品質に与える影響、及び医療機器に関連するリスクに基づくべきものである。組織は供給者の監視及び再評価を計画しているか？",
+            "供給者評価基準はリスクに基づいているか？能力、実績、製品影響、機器リスクの4つの側面を網羅しているか？",
+            "ISO 13485:2016 §7.4.1に従い、供給者評価／選定基準は医療機器リスクに比例し、供給者能力、実績、製品影響、機器リスクを網羅しているか？",
+            "供給者監視及び再評価周期は定義されているか？重要供給者の再評価頻度は一般供給者より高いか？",
+            "供給者が要求事項を満たせない場合、資格取消及び代替供給者の手順は？進行中の製造業務への影響はどのように管理されているか？",
+            "供給者品質協定書（Quality Agreement）は締結されているか？品質要求事項、変更通知、監査権を網羅しているか？",
+            "供給者監査記録は完全か？監査頻度はリスク分類と整合しているか？監査所見は完結まで追跡されているか？",
+        ],
+        "expected_evidence_en": [
+            "Supplier management procedure",
+            "Qualified supplier list",
+            "Supplier evaluation records",
+        ],
+        "expected_evidence_ja": [
+            "供給者管理手順書",
+            "認定供給者一覧",
+            "供給者評価記録",
+        ],
     },
     "7.4.2": {
         "title": "採購資訊",
@@ -1194,6 +2321,34 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "採購規格書/訂單",
             "品質協議 (Quality Agreement)",
         ],
+        "audit_question_en": "Does purchasing information describe or reference the product to be purchased, including product specifications; requirements for product acceptance, procedures, processes, and equipment; requirements for qualification of supplier personnel; and quality management system requirements? Does the organization ensure the adequacy of specified purchasing requirements prior to their communication to the supplier?",
+        "audit_question_ja": "購買情報は、購入される製品を、製品仕様、製品の受入要求事項、手順、プロセス、装置、供給者要員の適格性の要求事項、及び品質マネジメントシステムの要求事項を含めて記述又は参照しているか？組織は、供給者への伝達前に規定された購買要求事項の適切性を確実にしているか？",
+        "audit_questions_en": [
+            "Does purchasing information describe or reference the product to be purchased, including product specifications; requirements for product acceptance, procedures, processes, and equipment; requirements for qualification of supplier personnel; and quality management system requirements? Does the organization ensure the adequacy of specified purchasing requirements prior to their communication to the supplier?",
+            "Are purchasing requirements explicitly documented? Does the purchase order specify product specifications, acceptance criteria, and regulatory/QMS requirements?",
+            "Per ISO 13485:2016 §7.4.2, are purchasing requirements complete, including product specifications, acceptance requirements, procedure/process/equipment requirements, personnel qualifications, and QMS requirements?",
+            "How are purchasing requirements approved and verified for adequacy before being communicated to suppliers?",
+            "Are the traceability requirements in purchasing information (e.g., material batch traceability) documented? How is it verified?",
+            "How are the purchasing requirements communicated for product/process changes? What is the supplier change notification procedure?",
+            "Are the purchasing requirements for supplier personnel (e.g., special process operator qualifications) documented? Does the supplier need to submit qualification evidence?",
+        ],
+        "audit_questions_ja": [
+            "購買情報は、購入される製品を、製品仕様、製品の受入要求事項、手順、プロセス、装置、供給者要員の適格性の要求事項、及び品質マネジメントシステムの要求事項を含めて記述又は参照しているか？組織は、供給者への伝達前に規定された購買要求事項の適切性を確実にしているか？",
+            "購買要求事項は明示的に文書化されているか？注文書には製品仕様、合否判定基準、規制／品質マネジメントシステム要求事項が規定されているか？",
+            "ISO 13485:2016 §7.4.2に従い、購買要求事項は完全で、製品仕様、受入要求事項、手順／プロセス／装置要求事項、要員適格性、品質マネジメントシステム要求事項を含むか？",
+            "購買要求事項は供給者への伝達前にどのように承認され、適切性が検証されているか？",
+            "購買情報におけるトレーサビリティ要求事項（資材ロットトレーサビリティ等）は文書化されているか？どのように検証されているか？",
+            "製品／プロセス変更時の購買要求事項はどのように伝達されているか？供給者の変更通知手順は？",
+            "供給者要員（特殊プロセス作業者資格等）の購買要求事項は文書化されているか？供給者は資格証拠の提出を要求されているか？",
+        ],
+        "expected_evidence_en": [
+            "Purchase order/contract",
+            "Purchase requirements specification",
+        ],
+        "expected_evidence_ja": [
+            "注文書／契約書",
+            "購買要求事項仕様書",
+        ],
     },
     "7.4.3": {
         "title": "採購產品之驗證",
@@ -1217,6 +2372,34 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
         "expected_evidence": [
             "進料檢驗程序書",
             "進料檢驗紀錄",
+        ],
+        "audit_question_en": "Does the organization establish and implement the inspection or other activities necessary for ensuring that purchased product meets specified purchasing requirements? The extent of verification activities shall be based on the supplier evaluation results and proportionate to the risks associated with the purchased product. When the organization becomes aware of any changes to the purchased product, does the organization determine whether these changes affect the product realization process or the medical device? Are records maintained?",
+        "audit_question_ja": "組織は、購入製品が規定された購買要求事項を満たすことを確実にするために必要な検査又はその他の活動を確立し実施しているか？検証活動の程度は、供給者の評価結果に基づき、購入製品に関連するリスクに比例するものとする。組織が購入製品への何らかの変更を知った場合、組織はこれらの変更が製品実現プロセス又は医療機器に影響するかどうかを決定しているか？記録は維持されているか？",
+        "audit_questions_en": [
+            "Does the organization establish and implement the inspection or other activities necessary for ensuring that purchased product meets specified purchasing requirements? The extent of verification activities shall be based on the supplier evaluation results and proportionate to the risks associated with the purchased product. When the organization becomes aware of any changes to the purchased product, does the organization determine whether these changes affect the product realization process or the medical device? Are records maintained?",
+            "Is the extent of incoming inspection based on supplier evaluation results and product risk? How are the items and sampling plan for inspection determined?",
+            "Per ISO 13485:2016 §7.4.3, is the incoming inspection extent proportionate to supplier evaluation results and purchase product risk?",
+            "When the supplier notifies a change to the purchased product, how is the change impact assessed? Are records of such assessments maintained?",
+            "Are the incoming inspection records complete? Do they include inspection items, methods, results, acceptance/rejection decisions, and inspector names?",
+            "When the incoming inspection rejects material, how is the handling procedure? How is the process to return, request rework, or conditionally accept?",
+            "Is there a reduced-inspection or skip-lot procedure for certified suppliers? Are the conditions for skip-lot strictly controlled?",
+        ],
+        "audit_questions_ja": [
+            "組織は、購入製品が規定された購買要求事項を満たすことを確実にするために必要な検査又はその他の活動を確立し実施しているか？検証活動の程度は、供給者の評価結果に基づき、購入製品に関連するリスクに比例するものとする。組織が購入製品への何らかの変更を知った場合、組織はこれらの変更が製品実現プロセス又は医療機器に影響するかどうかを決定しているか？記録は維持されているか？",
+            "受入検査の程度は供給者評価結果及び製品リスクに基づいているか？検査項目及びサンプリング計画はどのように決定されているか？",
+            "ISO 13485:2016 §7.4.3に従い、受入検査の程度は供給者評価結果及び購入製品リスクに比例しているか？",
+            "供給者が購入製品の変更を通知した場合、変更影響はどのように評価されているか？そのような評価の記録は維持されているか？",
+            "受入検査記録は完全か？検査項目、方法、結果、合否判定、検査員名を含むか？",
+            "受入検査で不合格となった資材の場合、処理手順は？返品、手直し依頼、又は条件付き受入のプロセスは？",
+            "認定供給者に対する検査軽減又はロット抜取省略手順はあるか？ロット抜取省略の条件は厳密に管理されているか？",
+        ],
+        "expected_evidence_en": [
+            "Incoming inspection records",
+            "Supplier change notification records (if applicable)",
+        ],
+        "expected_evidence_ja": [
+            "受入検査記録",
+            "供給者変更通知記録（該当する場合）",
         ],
     },
     "7.5.1": {
@@ -1249,6 +2432,36 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "作業指導書 (SOP/WI)",
             "批次紀錄 (Batch Record)",
         ],
+        "audit_question_en": "Does the organization plan and carry out production and service provision under controlled conditions? As appropriate, such conditions include documented procedures and methods for the control of production; qualification of infrastructure; implementation of monitoring and measurement; the availability and use of monitoring and measuring equipment; implementation of defined operations for labelling and packaging; and implementation of product release, delivery, and post-delivery activities?",
+        "audit_question_ja": "組織は管理された条件の下で生産及びサービス提供を計画し実施しているか？適切な場合には、そのような条件には、生産管理のための文書化された手順及び方法、インフラストラクチャの適格性確認、監視及び測定の実施、監視及び測定装置の利用可能性及び使用、ラベル及び包装に関する定義された操作の実施、並びに製品の出荷、引渡し、及び引渡し後の活動の実施が含まれる。",
+        "audit_questions_en": [
+            "Does the organization plan and carry out production and service provision under controlled conditions? As appropriate, such conditions include documented procedures and methods for the control of production; qualification of infrastructure; implementation of monitoring and measurement; the availability and use of monitoring and measuring equipment; implementation of defined operations for labelling and packaging; and implementation of product release, delivery, and post-delivery activities?",
+            "Are production operating procedures (SOPs) complete? Are operating procedures at all critical process stages documented?",
+            "Per ISO 13485:2016 §7.5.1, is production conducted under controlled conditions? Are the 6 essential elements (procedures, infrastructure, monitoring, equipment, labelling/packaging, release) implemented?",
+            "Is the in-process monitoring plan documented? Are monitoring points/frequency based on product risk?",
+            "Are production records preserved according to the medical device file requirements? Can they be traced back to specific batches/units?",
+            "What is the calibration status monitoring of production equipment (e.g., test instruments)? What is the handling when out-of-calibration is detected?",
+            "How are labelling/packaging operations controlled? How is the labelling correctness confirmed to prevent product mix-up?",
+        ],
+        "audit_questions_ja": [
+            "組織は管理された条件の下で生産及びサービス提供を計画し実施しているか？適切な場合には、そのような条件には、生産管理のための文書化された手順及び方法、インフラストラクチャの適格性確認、監視及び測定の実施、監視及び測定装置の利用可能性及び使用、ラベル及び包装に関する定義された操作の実施、並びに製品の出荷、引渡し、及び引渡し後の活動の実施が含まれる。",
+            "生産標準作業手順書（SOP）は完全か？すべての重要プロセス段階の作業手順は文書化されているか？",
+            "ISO 13485:2016 §7.5.1に従い、生産は管理された条件下で実施されているか？6つの必須要素（手順、インフラストラクチャ、監視、装置、ラベル／包装、出荷）は実施されているか？",
+            "工程内監視計画は文書化されているか？監視ポイント／頻度は製品リスクに基づいているか？",
+            "生産記録は医療機器ファイル要求事項に従って保存されているか？特定のロット／ユニットまで追跡可能か？",
+            "製造装置（試験機器等）の校正状態監視はどのように行われているか？校正外検出時の処理は？",
+            "ラベル／包装操作はどのように管理されているか？ラベリングの正確性はどのように確認され、製品混同を防いでいるか？",
+        ],
+        "expected_evidence_en": [
+            "Production operating procedures (SOPs)",
+            "In-process monitoring records",
+            "Production batch record",
+        ],
+        "expected_evidence_ja": [
+            "生産標準作業手順書（SOP）",
+            "工程内監視記録",
+            "生産バッチ記録",
+        ],
     },
     "7.5.2": {
         "title": "產品之潔淨",
@@ -1276,6 +2489,34 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
         "expected_evidence": [
             "產品清潔程序書",
             "清潔驗證紀錄（如適用）",
+        ],
+        "audit_question_en": "Does the organization establish documented requirements for cleanliness of product or contamination control of product where product is cleaned by the organization prior to sterilization or its use; is supplied non-sterile to be subjected to a cleaning process prior to sterilization or its use; is supplied to be used non-sterile and its cleanliness is of significance in use; is to have process agents removed from it during manufacture?",
+        "audit_question_ja": "組織は、製品が滅菌又は使用前に組織によって洗浄される場合、非滅菌で供給され滅菌又は使用前に洗浄プロセスを受ける場合、非滅菌で供給され使用時に清浄度が重要である場合、又は製造中にプロセス剤が製品から除去される場合、製品の清浄度又は製品の汚染管理に関する文書化された要求事項を確立しているか？",
+        "audit_questions_en": [
+            "Does the organization establish documented requirements for cleanliness of product or contamination control of product where product is cleaned by the organization prior to sterilization or its use; is supplied non-sterile to be subjected to a cleaning process prior to sterilization or its use; is supplied to be used non-sterile and its cleanliness is of significance in use; is to have process agents removed from it during manufacture?",
+            "Are cleanliness / contamination control requirements documented? Are cleanliness testing methods and acceptance criteria defined?",
+            "Per ISO 13485:2016 §7.5.2, are cleanliness requirements established? Do they cover the 4 scenarios (cleaned before sterilization/use, cleaned prior to use, cleanliness significant in use, process agent removal)?",
+            "Are cleaning validation records complete? Is the cleaning validation periodically reviewed and updated for changes in products or processes?",
+            "Is the monitoring of residue removal (e.g., process agents) validated? What is the acceptance criteria for residue levels?",
+            "If cleaning operations are outsourced, how is the supplier's cleaning capability assessed? Is the outsourced cleaning validation kept on file?",
+            "How is the cleanliness testing result of each batch recorded? When cleanliness fails, how is the handling procedure?",
+        ],
+        "audit_questions_ja": [
+            "組織は、製品が滅菌又は使用前に組織によって洗浄される場合、非滅菌で供給され滅菌又は使用前に洗浄プロセスを受ける場合、非滅菌で供給され使用時に清浄度が重要である場合、又は製造中にプロセス剤が製品から除去される場合、製品の清浄度又は製品の汚染管理に関する文書化された要求事項を確立しているか？",
+            "清浄度／汚染管理要求事項は文書化されているか？清浄度試験方法及び合否判定基準は定義されているか？",
+            "ISO 13485:2016 §7.5.2に従い、清浄度要求事項は確立されているか？4つのシナリオ（滅菌／使用前洗浄、使用前洗浄、使用時清浄度が重要、プロセス剤除去）を網羅しているか？",
+            "洗浄バリデーション記録は完全か？洗浄バリデーションは製品又はプロセスの変更に対して定期的にレビュー・更新されているか？",
+            "残留物除去（プロセス剤等）の監視はバリデーションされているか？残留物水準の合否判定基準は？",
+            "洗浄操作が外部委託されている場合、供給者の洗浄能力はどのように評価されているか？外部委託洗浄バリデーションはファイルに保管されているか？",
+            "各ロットの清浄度試験結果はどのように記録されているか？清浄度が不合格の場合、処理手順は？",
+        ],
+        "expected_evidence_en": [
+            "Cleanliness requirements documents",
+            "Cleaning validation records (if applicable)",
+        ],
+        "expected_evidence_ja": [
+            "清浄度要求事項文書",
+            "洗浄バリデーション記録（該当する場合）",
         ],
     },
     "7.5.3": {
@@ -1305,6 +2546,34 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "安裝程序書（如適用）",
             "安裝驗證紀錄（如適用）",
         ],
+        "audit_question_en": "Does the organization document requirements for installation of the medical device and acceptance criteria for verification of installation, as appropriate? If the agreed customer requirements allow installation of the medical device to be performed other than by the organization or its authorized supplier, does the organization provide documented requirements for installation and verification? Are records of installation performed by the organization or its authorized supplier including acceptance criteria maintained?",
+        "audit_question_ja": "組織は、適切な場合、医療機器の据付の要求事項及び据付検証の合否判定基準を文書化しているか？合意された顧客要求事項が、医療機器の据付を組織又はその認定供給者以外の者が行うことを認めている場合、組織は据付及び検証のための文書化された要求事項を提供しているか？組織又はその認定供給者によって実施された据付の記録（合否判定基準を含む）は維持されているか？",
+        "audit_questions_en": [
+            "Does the organization document requirements for installation of the medical device and acceptance criteria for verification of installation, as appropriate? If the agreed customer requirements allow installation of the medical device to be performed other than by the organization or its authorized supplier, does the organization provide documented requirements for installation and verification? Are records of installation performed by the organization or its authorized supplier including acceptance criteria maintained?",
+            "Are installation requirements and verification acceptance criteria documented? Are the completeness of records for installation performed by the organization or authorized supplier ensured?",
+            "Per ISO 13485:2016 §7.5.3, are installation requirements and verification acceptance criteria documented (if applicable)?",
+            "Are the installation SOPs/checklists available for customer-performed installation? Are they in a format understandable by the customer?",
+            "How is the qualification of installation personnel confirmed? Does the organization or its authorized supplier have training/certification mechanisms for installation personnel?",
+            "How are the installation verification records submitted back to the organization? Are the records traceable to specific installation locations and units?",
+            "How is the adequacy of installation verification demonstrated in cases where customers install the device themselves? Are there customer-installation verification records?",
+        ],
+        "audit_questions_ja": [
+            "組織は、適切な場合、医療機器の据付の要求事項及び据付検証の合否判定基準を文書化しているか？合意された顧客要求事項が、医療機器の据付を組織又はその認定供給者以外の者が行うことを認めている場合、組織は据付及び検証のための文書化された要求事項を提供しているか？組織又はその認定供給者によって実施された据付の記録（合否判定基準を含む）は維持されているか？",
+            "据付要求事項及び検証合否判定基準は文書化されているか？組織又は認定供給者が実施した据付記録の完全性は確実にされているか？",
+            "ISO 13485:2016 §7.5.3に従い、据付要求事項及び検証合否判定基準は文書化されているか（該当する場合）？",
+            "顧客が実施する据付のための据付SOP／チェックリストは提供されているか？顧客が理解可能な形式か？",
+            "据付要員の適格性はどのように確認されているか？組織又は認定供給者は据付要員の訓練／認定機構を有しているか？",
+            "据付検証記録はどのように組織に返送されているか？記録は特定の据付場所及びユニットまで追跡可能か？",
+            "顧客が自ら機器を据え付ける場合、据付検証の適切性はどのように実証されているか？顧客据付検証記録はあるか？",
+        ],
+        "expected_evidence_en": [
+            "Installation requirements documents",
+            "Installation records/verification records (if applicable)",
+        ],
+        "expected_evidence_ja": [
+            "据付要求事項文書",
+            "据付記録／検証記録（該当する場合）",
+        ],
     },
     "7.5.4": {
         "title": "服務活動",
@@ -1330,6 +2599,34 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
         "expected_evidence": [
             "服務程序書（如適用）",
             "服務紀錄/報告（如適用）",
+        ],
+        "audit_question_en": "Does the organization document requirements for servicing of the medical device and its acceptance criteria for verification of servicing, as appropriate? Does the organization analyse records of servicing activities carried out by the organization or its authorized supplier to determine if the information is to be handled as a complaint, and as input to the improvement process? Are records of servicing activities carried out by the organization or its authorized supplier maintained?",
+        "audit_question_ja": "組織は、適切な場合、医療機器のサービスの要求事項及びサービス検証のための合否判定基準を文書化しているか？組織は、組織又はその認定供給者により実施されたサービス活動の記録を分析し、情報を苦情として扱うべきか、また改善プロセスへのインプットとして扱うべきかを決定しているか？組織又はその認定供給者により実施されたサービス活動の記録は維持されているか？",
+        "audit_questions_en": [
+            "Does the organization document requirements for servicing of the medical device and its acceptance criteria for verification of servicing, as appropriate? Does the organization analyse records of servicing activities carried out by the organization or its authorized supplier to determine if the information is to be handled as a complaint, and as input to the improvement process? Are records of servicing activities carried out by the organization or its authorized supplier maintained?",
+            "Are servicing procedures and verification criteria documented? Are servicing records analyzed to determine whether they should be handled as complaints?",
+            "Per ISO 13485:2016 §7.5.4, does the organization document the servicing requirements and servicing verification acceptance criteria (if applicable)?",
+            "What is the criteria for determining that servicing records should be handled as complaints? Is the determination procedure documented?",
+            "How is the qualification of servicing personnel confirmed? Does the servicing training include medical device safety, regulatory requirements, and documentation?",
+            "How are servicing records submitted back to the organization? What is the retention period of the records?",
+            "How are the outputs of servicing record analysis fed back into the product improvement process? Can they drive design improvements or CAPA?",
+        ],
+        "audit_questions_ja": [
+            "組織は、適切な場合、医療機器のサービスの要求事項及びサービス検証のための合否判定基準を文書化しているか？組織は、組織又はその認定供給者により実施されたサービス活動の記録を分析し、情報を苦情として扱うべきか、また改善プロセスへのインプットとして扱うべきかを決定しているか？組織又はその認定供給者により実施されたサービス活動の記録は維持されているか？",
+            "サービス手順及び検証基準は文書化されているか？サービス記録は苦情として扱うべきかを決定するために分析されているか？",
+            "ISO 13485:2016 §7.5.4に従い、組織はサービス要求事項及びサービス検証合否判定基準を文書化しているか（該当する場合）？",
+            "サービス記録を苦情として扱うべきかを決定する基準は何か？決定手順は文書化されているか？",
+            "サービス要員の適格性はどのように確認されているか？サービス訓練には医療機器の安全性、規制要求事項、文書化が含まれているか？",
+            "サービス記録はどのように組織に返送されているか？記録の保管期間は？",
+            "サービス記録分析のアウトプットはどのように製品改善プロセスにフィードバックされているか？設計改善又はCAPAを推進できるか？",
+        ],
+        "expected_evidence_en": [
+            "Servicing requirements documents",
+            "Servicing records (if applicable)",
+        ],
+        "expected_evidence_ja": [
+            "サービス要求事項文書",
+            "サービス記録（該当する場合）",
         ],
     },
     "7.5.5": {
@@ -1357,6 +2654,36 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "滅菌程序書",
             "滅菌批次紀錄",
             "滅菌驗證報告",
+        ],
+        "audit_question_en": "If the medical device is sterile, does the organization document requirements for control of particulate matter? Does the organization maintain records of the sterilization process parameters used for each sterilization batch?",
+        "audit_question_ja": "医療機器が滅菌される場合、組織は粒子状物質の管理に関する要求事項を文書化しているか？組織は、各滅菌バッチに対して使用された滅菌プロセスパラメータの記録を維持しているか？",
+        "audit_questions_en": [
+            "If the medical device is sterile, does the organization document requirements for control of particulate matter? Does the organization maintain records of the sterilization process parameters used for each sterilization batch?",
+            "Are sterilization process parameters recorded for each batch? Is the sterilization process validation periodically requalified (e.g., annually)?",
+            "Per ISO 13485:2016 §7.5.5, are sterilization process parameters recorded for each sterilization batch and linked to the product batch?",
+            "Is the sterilization process validation performed per ISO 11135 (EO), ISO 11137 (irradiation), or ISO 17665 (moist heat) applicable standard?",
+            "Are the sterilization parameters (e.g., temperature, pressure, time, humidity, gas concentration) measured with calibrated instruments? What is the handling for out-of-range data?",
+            "How is the sterility assurance level (SAL) demonstrated for each batch? Is the bioburden of incoming product monitored?",
+            "Is the traceability between sterilization batch and finished product batch complete? Can each sterile product unit be traced back to the sterilization cycle record?",
+        ],
+        "audit_questions_ja": [
+            "医療機器が滅菌される場合、組織は粒子状物質の管理に関する要求事項を文書化しているか？組織は、各滅菌バッチに対して使用された滅菌プロセスパラメータの記録を維持しているか？",
+            "滅菌プロセスパラメータは各バッチについて記録されているか？滅菌プロセスバリデーションは定期的に再適格性評価されているか（年次等）？",
+            "ISO 13485:2016 §7.5.5に従い、滅菌プロセスパラメータは各滅菌バッチについて記録され、製品バッチと紐付けられているか？",
+            "滅菌プロセスバリデーションはISO 11135（EO）、ISO 11137（放射線）、又はISO 17665（湿熱）の該当規格に準じて実施されているか？",
+            "滅菌パラメータ（温度、圧力、時間、湿度、ガス濃度等）は校正済計器で測定されているか？範囲外データの処理は？",
+            "各バッチの無菌性保証水準（SAL）はどのように実証されているか？入荷製品のバイオバーデンは監視されているか？",
+            "滅菌バッチと完成品バッチのトレーサビリティは完全か？各滅菌製品ユニットを滅菌サイクル記録まで追跡できるか？",
+        ],
+        "expected_evidence_en": [
+            "Sterilization process validation records",
+            "Sterilization batch records",
+            "Sterilization parameter records",
+        ],
+        "expected_evidence_ja": [
+            "滅菌プロセスバリデーション記録",
+            "滅菌バッチ記録",
+            "滅菌パラメータ記録",
         ],
     },
     "7.5.6": {
@@ -1389,6 +2716,36 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "過程確認報告（IQ/OQ/PQ）",
             "特殊過程清單",
         ],
+        "audit_question_en": "Does the organization validate any processes for production and service provision where the resulting output cannot be or is not verified by subsequent monitoring or measurement and, as a consequence, deficiencies become apparent only after the product is in use or the service has been delivered? Does validation demonstrate the ability of these processes to achieve planned results consistently?",
+        "audit_question_ja": "組織は、結果として得られるアウトプットが後続の監視又は測定によって検証できない又はされず、結果として欠陥が製品の使用後又はサービスの提供後にしか明らかにならない生産及びサービス提供のプロセスについて妥当性を確認しているか？妥当性確認は、これらのプロセスが計画された結果を一貫して達成する能力を実証しているか？",
+        "audit_questions_en": [
+            "Does the organization validate any processes for production and service provision where the resulting output cannot be or is not verified by subsequent monitoring or measurement and, as a consequence, deficiencies become apparent only after the product is in use or the service has been delivered? Does validation demonstrate the ability of these processes to achieve planned results consistently?",
+            "Are special processes identified (e.g., sterilization, welding, molding, bonding)? Are validation plans and periodic requalification schedules established for each?",
+            "Per ISO 13485:2016 §7.5.6, are processes whose output cannot be verified by subsequent monitoring/measurement identified and validated?",
+            "Does the process validation cover IQ (Installation Qualification), OQ (Operational Qualification), and PQ (Performance Qualification)?",
+            "Is a periodic requalification cycle defined for special processes? When process changes occur, how is the revalidation procedure?",
+            "What are the criteria for the success of process validation? Is statistical sampling used to confirm process consistency?",
+            "When process validation fails, how is the handling procedure? How is the impact on related product batches assessed?",
+        ],
+        "audit_questions_ja": [
+            "組織は、結果として得られるアウトプットが後続の監視又は測定によって検証できない又はされず、結果として欠陥が製品の使用後又はサービスの提供後にしか明らかにならない生産及びサービス提供のプロセスについて妥当性を確認しているか？妥当性確認は、これらのプロセスが計画された結果を一貫して達成する能力を実証しているか？",
+            "特殊プロセスは識別されているか（滅菌、溶接、成形、接着等）？各々についてバリデーション計画及び定期的再適格性評価スケジュールが確立されているか？",
+            "ISO 13485:2016 §7.5.6に従い、後続の監視／測定で検証できないプロセスは識別されバリデーションされているか？",
+            "プロセスバリデーションはIQ（据付適格性）、OQ（運転適格性）、PQ（性能適格性）を網羅しているか？",
+            "特殊プロセスに対する定期的再適格性評価周期は定義されているか？プロセス変更発生時の再バリデーション手順は？",
+            "プロセスバリデーション成功の基準は何か？プロセスの一貫性を確認するために統計的サンプリングは使用されているか？",
+            "プロセスバリデーションが失敗した場合、処理手順は？関連製品バッチへの影響はどのように評価されているか？",
+        ],
+        "expected_evidence_en": [
+            "Process validation plan",
+            "IQ/OQ/PQ reports",
+            "Process requalification records",
+        ],
+        "expected_evidence_ja": [
+            "プロセスバリデーション計画書",
+            "IQ／OQ／PQ報告書",
+            "プロセス再適格性評価記録",
+        ],
     },
     "7.5.7": {
         "title": "滅菌與無菌屏障系統過程之確認",
@@ -1416,6 +2773,36 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "無菌屏障系統確認報告",
             "再確認紀錄",
         ],
+        "audit_question_en": "Does the organization document procedures for validation of the application of computer software used in production and service provision? Such software applications shall be validated prior to initial use and, as appropriate, after changes to such software or its application. The specific approach and activities associated with software validation and revalidation shall be proportionate to the risk associated with the use of the software. Are records maintained?",
+        "audit_question_ja": "組織は、生産及びサービス提供に使用されるコンピュータソフトウェアの適用の妥当性確認の手順を文書化しているか？そのようなソフトウェアアプリケーションは、初回使用前、及び適切な場合にはそのようなソフトウェア又はその適用の変更後に妥当性確認されるものとする。ソフトウェアの妥当性確認及び再妥当性確認に関連する具体的アプローチ及び活動は、ソフトウェアの使用に関連するリスクに比例するものとする。記録は維持されているか？",
+        "audit_questions_en": [
+            "Does the organization document procedures for validation of the application of computer software used in production and service provision? Such software applications shall be validated prior to initial use and, as appropriate, after changes to such software or its application. The specific approach and activities associated with software validation and revalidation shall be proportionate to the risk associated with the use of the software. Are records maintained?",
+            "Are all applicable computer software (ERP, MES, test software) validated? Is the validation method risk-based?",
+            "Per ISO 13485:2016 §7.5.7, are computer software applications used in production and service provision validated before initial use, and after software or application changes?",
+            "Is the risk of software applications assessed? Is the depth of software validation proportionate to the software risk?",
+            "How is software validation performed (black-box testing, script testing, code review)? Are test records complete?",
+            "When software changes occur (e.g., version updates, configuration changes), how is the revalidation procedure triggered?",
+            "Is software access control implemented? How are the validation of data integrity (e.g., audit trail) implemented?",
+        ],
+        "audit_questions_ja": [
+            "組織は、生産及びサービス提供に使用されるコンピュータソフトウェアの適用の妥当性確認の手順を文書化しているか？そのようなソフトウェアアプリケーションは、初回使用前、及び適切な場合にはそのようなソフトウェア又はその適用の変更後に妥当性確認されるものとする。ソフトウェアの妥当性確認及び再妥当性確認に関連する具体的アプローチ及び活動は、ソフトウェアの使用に関連するリスクに比例するものとする。記録は維持されているか？",
+            "すべての該当コンピュータソフトウェア（ERP、MES、試験ソフトウェア）はバリデーションされているか？バリデーション方法はリスクに基づいているか？",
+            "ISO 13485:2016 §7.5.7に従い、生産及びサービス提供に使用されるコンピュータソフトウェアアプリケーションは、初回使用前及びソフトウェア／アプリケーション変更後にバリデーションされているか？",
+            "ソフトウェアアプリケーションのリスクは評価されているか？ソフトウェアバリデーションの深さはソフトウェアリスクに比例しているか？",
+            "ソフトウェアバリデーションはどのように実施されているか（ブラックボックステスト、スクリプトテスト、コードレビュー等）？試験記録は完全か？",
+            "ソフトウェア変更発生時（バージョン更新、構成変更等）、再バリデーション手順はどのようにトリガーされるか？",
+            "ソフトウェアアクセス制御は実施されているか？データ完全性（監査証跡等）のバリデーションはどのように実施されているか？",
+        ],
+        "expected_evidence_en": [
+            "Software validation plan",
+            "Software validation report",
+            "Software change records",
+        ],
+        "expected_evidence_ja": [
+            "ソフトウェアバリデーション計画書",
+            "ソフトウェアバリデーション報告書",
+            "ソフトウェア変更記録",
+        ],
     },
     "7.5.8": {
         "title": "識別",
@@ -1442,6 +2829,34 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "產品識別程序書",
             "標示管制紀錄",
         ],
+        "audit_question_en": "Does the organization document procedures for identification of product and identify product status with respect to monitoring and measurement requirements throughout product realization? Product identification shall be maintained throughout product realization, storage, installation and servicing of the medical device to prevent mix-up of product.",
+        "audit_question_ja": "組織は、製品の識別の手順を文書化し、製品実現全体を通して監視及び測定の要求事項に関して製品の状態を識別しているか？製品識別は、製品の混同を防止するため、医療機器の製品実現、保管、据付及びサービスの全体を通して維持されるものとする。",
+        "audit_questions_en": [
+            "Does the organization document procedures for identification of product and identify product status with respect to monitoring and measurement requirements throughout product realization? Product identification shall be maintained throughout product realization, storage, installation and servicing of the medical device to prevent mix-up of product.",
+            "Are product identification procedures (including batch/serial number) documented? Is product status (pending inspection, accepted, rejected, released) clearly identified?",
+            "Per ISO 13485:2016 §7.5.8, does the organization document procedures for product identification and maintain identification throughout product realization, storage, installation, and servicing?",
+            "What is the identification method (barcode, QR code, label) of each product? Is it consistent across stages?",
+            "How is the identification maintained during production, storage, installation, and servicing to prevent product mix-up?",
+            "How is rework of an identified product controlled? When identification is damaged or lost, how is reassignment procedure?",
+            "When product is marked for status change (e.g., approval to release), who is authorized to change the status, and how is it recorded?",
+        ],
+        "audit_questions_ja": [
+            "組織は、製品の識別の手順を文書化し、製品実現全体を通して監視及び測定の要求事項に関して製品の状態を識別しているか？製品識別は、製品の混同を防止するため、医療機器の製品実現、保管、据付及びサービスの全体を通して維持されるものとする。",
+            "製品識別手順（ロット／シリアル番号を含む）は文書化されているか？製品状態（検査待ち、合格、不合格、出荷可）は明確に識別されているか？",
+            "ISO 13485:2016 §7.5.8に従い、組織は製品識別の手順を文書化し、製品実現、保管、据付、サービスの全体を通して識別を維持しているか？",
+            "各製品の識別方法（バーコード、QRコード、ラベル等）は何か？各段階で一貫しているか？",
+            "生産、保管、据付、サービス中に識別はどのように維持され、製品混同を防止しているか？",
+            "識別された製品の手直しはどのように管理されているか？識別が損傷又は紛失した場合、再割当の手順は？",
+            "製品状態変更（出荷承認等）のマーキング時、状態変更の権限を持つのは誰で、どのように記録されているか？",
+        ],
+        "expected_evidence_en": [
+            "Product identification procedure",
+            "Product status identification records",
+        ],
+        "expected_evidence_ja": [
+            "製品識別手順書",
+            "製品状態識別記録",
+        ],
     },
     "7.5.9": {
         "title": "追溯性 — 一般",
@@ -1465,6 +2880,34 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
         "expected_evidence": [
             "追溯性程序書",
             "追溯性紀錄範例",
+        ],
+        "audit_question_en": "Does the organization document procedures for traceability? Such procedures shall define the extent of traceability in accordance with applicable regulatory requirements and the records to be maintained.",
+        "audit_question_ja": "組織はトレーサビリティの手順を文書化しているか？そのような手順は、適用される規制要求事項及び維持されるべき記録に従って、トレーサビリティの範囲を定義するものとする。",
+        "audit_questions_en": [
+            "Does the organization document procedures for traceability? Such procedures shall define the extent of traceability in accordance with applicable regulatory requirements and the records to be maintained.",
+            "Is the traceability procedure complete? Does it cover the full chain from raw materials, in-process, finished goods, distribution, and post-market?",
+            "Per ISO 13485:2016 §7.5.9, does the organization have a traceability procedure that defines the scope of traceability based on applicable regulatory requirements?",
+            "Does the traceability system allow full bidirectional (upstream and downstream) traceability? Can specific product batches quickly identify the source of raw materials and the distribution destination?",
+            "How long are the traceability records retained? Do they comply with the regulatory requirements of the destination country (e.g., EU MDR requires 10-15 years)?",
+            "Is the traceability system periodically tested? When does a traceability test (mock recall) last conducted and what were the results?",
+            "Is UDI (Unique Device Identification) implemented? Does UDI-DI/PI labeling meet the requirements of the destination country (US FDA, EU MDR)?",
+        ],
+        "audit_questions_ja": [
+            "組織はトレーサビリティの手順を文書化しているか？そのような手順は、適用される規制要求事項及び維持されるべき記録に従って、トレーサビリティの範囲を定義するものとする。",
+            "トレーサビリティ手順は完全か？原材料、仕掛品、完成品、流通、市販後の全連鎖を網羅しているか？",
+            "ISO 13485:2016 §7.5.9に従い、組織は適用法規制要求事項に基づいてトレーサビリティの範囲を定義したトレーサビリティ手順を有しているか？",
+            "トレーサビリティシステムは完全な双方向（上流及び下流）のトレーサビリティを可能にしているか？特定製品バッチから原材料の入手先及び流通先を迅速に特定できるか？",
+            "トレーサビリティ記録の保管期間はどれくらいか？仕向国の規制要求事項（EU MDRは10～15年等）に適合しているか？",
+            "トレーサビリティシステムは定期的にテストされているか？最後のトレーサビリティテスト（模擬リコール）はいつ実施され、結果はどうであったか？",
+            "UDI（機器固有識別）は実施されているか？UDI-DI/PIの表示は仕向国（米国FDA、EU MDR等）の要求事項を満たしているか？",
+        ],
+        "expected_evidence_en": [
+            "Traceability procedure",
+            "Traceability test records",
+        ],
+        "expected_evidence_ja": [
+            "トレーサビリティ手順書",
+            "トレーサビリティ試験記録",
         ],
     },
     "7.5.9.1": {
@@ -1494,6 +2937,34 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "植入物追溯性紀錄",
             "供應商追溯性要求文件（如適用）",
         ],
+        "audit_question_en": "Does the organization document the procedures for traceability? In defining traceability records, does the organization include records of the extent of traceability required by applicable regulatory requirements and records to enable identification of the components, materials, and conditions of the work environment used for manufacturing, if these could cause the medical device not to satisfy its specified safety and performance requirements?",
+        "audit_question_ja": "組織はトレーサビリティの手順を文書化しているか？トレーサビリティ記録を定義する際、組織は、適用される規制要求事項によって要求されるトレーサビリティの範囲の記録、及び、これらが医療機器の規定された安全性及び性能要求事項を満たさない原因となり得る場合には、製造に使用された構成部品、材料、及び作業環境の状態を識別できる記録を含めているか？",
+        "audit_questions_en": [
+            "Does the organization document the procedures for traceability? In defining traceability records, does the organization include records of the extent of traceability required by applicable regulatory requirements and records to enable identification of the components, materials, and conditions of the work environment used for manufacturing, if these could cause the medical device not to satisfy its specified safety and performance requirements?",
+            "Does traceability identify all critical components and raw materials? Does it include manufacturing environment conditions (temperature, humidity, cleanliness)?",
+            "Per ISO 13485:2016 §7.5.9.1, do traceability records include components, materials, and work environment conditions that may affect safety and performance?",
+            "Is the traceability of high-risk components (e.g., surgical implants) more stringent than that of general components? How is the identification level defined?",
+            "For components/materials supplied by a single supplier, is the traceability sufficient? Can specific batches be quickly identified for recall?",
+            "What is the strategy for preserving traceability records for the expected product service life? Are electronic records backed up?",
+            "Have there been instances where traceability failed? What were the root causes, and how has the procedure been improved?",
+        ],
+        "audit_questions_ja": [
+            "組織はトレーサビリティの手順を文書化しているか？トレーサビリティ記録を定義する際、組織は、適用される規制要求事項によって要求されるトレーサビリティの範囲の記録、及び、これらが医療機器の規定された安全性及び性能要求事項を満たさない原因となり得る場合には、製造に使用された構成部品、材料、及び作業環境の状態を識別できる記録を含めているか？",
+            "トレーサビリティはすべての重要部品及び原材料を識別しているか？製造環境条件（温度、湿度、清浄度）を含むか？",
+            "ISO 13485:2016 §7.5.9.1に従い、トレーサビリティ記録には、安全性及び性能に影響する可能性のある部品、材料、作業環境条件が含まれているか？",
+            "高リスク部品（手術用インプラント等）のトレーサビリティは一般部品より厳格か？識別水準はどのように定義されているか？",
+            "単一供給者から供給される部品／材料について、トレーサビリティは十分か？特定バッチをリコールのため迅速に識別できるか？",
+            "製品の想定サービス期間にわたるトレーサビリティ記録の保管戦略は何か？電子記録はバックアップされているか？",
+            "トレーサビリティが失敗した事例はあるか？根本原因は何で、手順はどのように改善されたか？",
+        ],
+        "expected_evidence_en": [
+            "Traceability procedure",
+            "Batch-component linkage records",
+        ],
+        "expected_evidence_ja": [
+            "トレーサビリティ手順書",
+            "バッチ―部品連結記録",
+        ],
     },
     "7.5.9.2": {
         "title": "追溯性 — UDI",
@@ -1515,6 +2986,32 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
         ],
         "expected_evidence": [
             "UDI 指派程序與紀錄（如適用）",
+        ],
+        "audit_question_en": "For implantable medical devices, does the organization document the components, materials and conditions for the work environment used, if these could cause the medical device not to satisfy its specified safety and performance requirements? Does the organization require that its suppliers of distribution services or distributors maintain records of distribution of medical devices to allow traceability and that such records are available for inspection?",
+        "audit_question_ja": "植込み可能医療機器について、組織は、使用された構成部品、材料及び作業環境の状態が医療機器の規定された安全性及び性能要求事項を満たさない原因となり得る場合、これらを文書化しているか？組織は、流通サービスの供給者又は流通業者に対し、トレーサビリティを可能にするために医療機器の流通の記録を維持し、そのような記録が検査のために利用可能であることを要求しているか？",
+        "audit_questions_en": [
+            "For implantable medical devices, does the organization document the components, materials and conditions for the work environment used, if these could cause the medical device not to satisfy its specified safety and performance requirements? Does the organization require that its suppliers of distribution services or distributors maintain records of distribution of medical devices to allow traceability and that such records are available for inspection?",
+            "For implantable medical devices, is the traceability extended to patient-level (distribution records)? Are distributor records complete and inspectable?",
+            "Per ISO 13485:2016 §7.5.9.2, for implantable medical devices, does the organization require distribution suppliers or distributors to maintain distribution records for traceability?",
+            "Are distribution records of implantable devices traceable to specific patients or recipients (e.g., hospitals, surgeons)?",
+            "Are all components, materials, and work environment conditions that may cause medical device non-conformity documented for implantable devices?",
+            "Do distribution records meet the regulatory requirements of the destination country (e.g., EUDAMED for EU MDR)?",
+            "When the implantable device needs recall or correction, are the distribution records able to support rapid identification of all affected units?",
+        ],
+        "audit_questions_ja": [
+            "植込み可能医療機器について、組織は、使用された構成部品、材料及び作業環境の状態が医療機器の規定された安全性及び性能要求事項を満たさない原因となり得る場合、これらを文書化しているか？組織は、流通サービスの供給者又は流通業者に対し、トレーサビリティを可能にするために医療機器の流通の記録を維持し、そのような記録が検査のために利用可能であることを要求しているか？",
+            "植込み可能医療機器について、トレーサビリティは患者レベル（流通記録）まで拡張されているか？流通業者記録は完全で検査可能か？",
+            "ISO 13485:2016 §7.5.9.2に従い、植込み可能医療機器について、組織は流通供給者又は流通業者にトレーサビリティのために流通記録の維持を要求しているか？",
+            "植込み可能機器の流通記録は特定の患者又は受領者（病院、外科医等）まで追跡可能か？",
+            "植込み可能機器について、医療機器の不適合の原因となり得るすべての部品、材料、作業環境条件は文書化されているか？",
+            "流通記録は仕向国の規制要求事項（EU MDRのEUDAMED等）に適合しているか？",
+            "植込み可能機器のリコール又は改修が必要な場合、流通記録は影響を受けるすべてのユニットの迅速な特定を支援できるか？",
+        ],
+        "expected_evidence_en": [
+            "Implantable device distribution records (if applicable)",
+        ],
+        "expected_evidence_ja": [
+            "植込み可能機器流通記録（該当する場合）",
         ],
     },
     "7.5.10": {
@@ -1541,6 +3038,34 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
         "expected_evidence": [
             "顧客財產管制程序書（如適用）",
             "顧客財產紀錄（如適用）",
+        ],
+        "audit_question_en": "Does the organization identify, verify, protect, and safeguard customer property provided for use or incorporation into the product while it is under the organization's control or being used by the organization? If any customer property is lost, damaged or otherwise found to be unsuitable for use, does the organization report this to the customer and maintain records?",
+        "audit_question_ja": "組織は、組織の管理下にある間又は組織によって使用されている間、使用のため又は製品への組込みのために提供された顧客の所有物を識別し、検証し、保護し、安全に保管しているか？顧客の所有物が紛失、損傷、又はその他の理由で使用に不適当と判明した場合、組織はこれを顧客に報告し記録を維持しているか？",
+        "audit_questions_en": [
+            "Does the organization identify, verify, protect, and safeguard customer property provided for use or incorporation into the product while it is under the organization's control or being used by the organization? If any customer property is lost, damaged or otherwise found to be unsuitable for use, does the organization report this to the customer and maintain records?",
+            "Is customer-owned property (e.g., OEM components, patient implantable components) clearly identified and managed?",
+            "Per ISO 13485:2016 §7.5.10, is customer property identified, verified, protected, and safeguarded? Is the procedure for reporting loss/damage to the customer documented?",
+            "What is the criteria for customer property acceptance verification? How is it ensured that the customer property meets the requirements before use?",
+            "Is customer property stored separately from the organization's own property? Is the storage location clearly labeled?",
+            "When customer property is lost, damaged, or found unsuitable, how is the customer reporting procedure conducted? What is the reporting timeline requirement?",
+            "Do customer property records include receipt, use, storage, return, and disposal history? Are the records auditable?",
+        ],
+        "audit_questions_ja": [
+            "組織は、組織の管理下にある間又は組織によって使用されている間、使用のため又は製品への組込みのために提供された顧客の所有物を識別し、検証し、保護し、安全に保管しているか？顧客の所有物が紛失、損傷、又はその他の理由で使用に不適当と判明した場合、組織はこれを顧客に報告し記録を維持しているか？",
+            "顧客所有物（OEM部品、患者植込み部品等）は明確に識別され管理されているか？",
+            "ISO 13485:2016 §7.5.10に従い、顧客所有物は識別、検証、保護、安全保管されているか？顧客への損失／損傷報告手順は文書化されているか？",
+            "顧客所有物の受入検証基準は何か？使用前に顧客所有物が要求事項を満たすことをどのように確実にしているか？",
+            "顧客所有物は組織の所有物と分離して保管されているか？保管場所は明確にラベリングされているか？",
+            "顧客所有物の紛失、損傷、又は不適合が判明した場合、顧客への報告手順はどのように実施されているか？報告期限要求は？",
+            "顧客所有物記録は受入、使用、保管、返却、処分の履歴を含むか？記録は監査可能か？",
+        ],
+        "expected_evidence_en": [
+            "Customer property management records (if applicable)",
+            "Customer property incident reports (if applicable)",
+        ],
+        "expected_evidence_ja": [
+            "顧客所有物管理記録（該当する場合）",
+            "顧客所有物事象報告書（該当する場合）",
         ],
     },
     "7.5.11": {
@@ -1573,6 +3098,36 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "儲存環境監測紀錄",
             "有效期限管制紀錄（如適用）",
         ],
+        "audit_question_en": "Does the organization preserve the conformity of product to requirements during processing, storage, handling, and distribution? Preservation shall include identification, handling, packaging, storage, and protection. Preservation shall apply to the constituent parts of a medical device.",
+        "audit_question_ja": "組織は、処理、保管、取扱い、及び流通の間、製品の要求事項への適合性を保持しているか？保存には、識別、取扱い、包装、保管、及び保護が含まれるものとする。保存は医療機器の構成部品にも適用されるものとする。",
+        "audit_questions_en": [
+            "Does the organization preserve the conformity of product to requirements during processing, storage, handling, and distribution? Preservation shall include identification, handling, packaging, storage, and protection. Preservation shall apply to the constituent parts of a medical device.",
+            "Is product preservation procedure documented? Does it include identification, handling, packaging, storage, and protection?",
+            "Per ISO 13485:2016 §7.5.11, is the preservation of product conformity maintained during processing, storage, handling, and distribution (covering identification, handling, packaging, storage, protection)?",
+            "How is the preservation implemented for sensitive products (e.g., temperature-sensitive, moisture-sensitive, electrostatic-sensitive)? Is the monitoring of environmental conditions effective?",
+            "Is the product packaging validated to ensure that the product is not damaged during transportation? Does the packaging validation follow ISTA or other applicable standards?",
+            "Is the first-in-first-out (FIFO) management of warehouse inventory implemented to prevent expired products from reaching customers?",
+            "Is the preservation requirement communicated to the distribution/transportation service provider? How is the compliance verified?",
+        ],
+        "audit_questions_ja": [
+            "組織は、処理、保管、取扱い、及び流通の間、製品の要求事項への適合性を保持しているか？保存には、識別、取扱い、包装、保管、及び保護が含まれるものとする。保存は医療機器の構成部品にも適用されるものとする。",
+            "製品保存手順は文書化されているか？識別、取扱い、包装、保管、保護を含むか？",
+            "ISO 13485:2016 §7.5.11に従い、製品の適合性は処理、保管、取扱い、流通の間で維持されているか（識別、取扱い、包装、保管、保護を網羅）？",
+            "温度感受性、湿度感受性、静電気感受性等の敏感な製品に対する保存はどのように実施されているか？環境条件の監視は有効か？",
+            "製品包装は輸送中の製品損傷を防ぐためにバリデーションされているか？包装バリデーションはISTA又はその他該当規格に準拠しているか？",
+            "倉庫在庫の先入先出（FIFO）管理は実施され、期限切れ製品が顧客に到達しないようにしているか？",
+            "保存要求事項は流通／輸送サービス提供者に伝達されているか？適合性はどのように検証されているか？",
+        ],
+        "expected_evidence_en": [
+            "Product preservation procedure",
+            "Storage environment monitoring records",
+            "Packaging validation records",
+        ],
+        "expected_evidence_ja": [
+            "製品保存手順書",
+            "保管環境モニタリング記録",
+            "包装バリデーション記録",
+        ],
     },
     "7.6": {
         "title": "監督與量測設備之管制",
@@ -1601,6 +3156,36 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "量測設備管制程序書",
             "校正計畫與紀錄",
             "量測設備清單",
+        ],
+        "audit_question_en": "Does the organization determine the monitoring and measurement to be undertaken and the monitoring and measuring equipment needed to provide evidence of conformity of product to determined requirements? Does the organization document procedures to ensure that monitoring and measurement can be carried out and are carried out in a manner that is consistent with the monitoring and measurement requirements? Is measuring equipment calibrated or verified at specified intervals? Are records of calibration and verification maintained?",
+        "audit_question_ja": "組織は、決定された要求事項への製品の適合性の証拠を提供するために実施すべき監視及び測定、並びに必要とされる監視及び測定装置を決定しているか？組織は、監視及び測定が実施可能であり、監視及び測定の要求事項と整合する方法で実施されることを確実にする手順を文書化しているか？測定装置は規定された間隔で校正又は検証されているか？校正及び検証の記録は維持されているか？",
+        "audit_questions_en": [
+            "Does the organization determine the monitoring and measurement to be undertaken and the monitoring and measuring equipment needed to provide evidence of conformity of product to determined requirements? Does the organization document procedures to ensure that monitoring and measurement can be carried out and are carried out in a manner that is consistent with the monitoring and measurement requirements? Is measuring equipment calibrated or verified at specified intervals? Are records of calibration and verification maintained?",
+            "Is measuring and monitoring equipment management procedure complete? Is calibration cycle reasonably set based on equipment characteristics and usage frequency?",
+            "Per ISO 13485:2016 §7.6, is measuring equipment calibrated or verified at specified intervals? Is it traceable to national or international measurement standards?",
+            "How is the handling of out-of-calibration equipment? When out-of-calibration is detected, is the verification of the impact on previously tested products complete?",
+            "Is the calibration performed in-house or outsourced? If outsourced, is the calibration service provider qualified (e.g., ISO/IEC 17025 accredited)?",
+            "How is the identification of calibration status (e.g., calibration label) effectively prevent the use of uncalibrated/expired equipment?",
+            "Do calibration records include calibration results, standards used, calibration personnel, calibration date, and next calibration date?",
+        ],
+        "audit_questions_ja": [
+            "組織は、決定された要求事項への製品の適合性の証拠を提供するために実施すべき監視及び測定、並びに必要とされる監視及び測定装置を決定しているか？組織は、監視及び測定が実施可能であり、監視及び測定の要求事項と整合する方法で実施されることを確実にする手順を文書化しているか？測定装置は規定された間隔で校正又は検証されているか？校正及び検証の記録は維持されているか？",
+            "測定監視装置管理手順は完全か？校正周期は装置特性及び使用頻度に基づいて合理的に設定されているか？",
+            "ISO 13485:2016 §7.6に従い、測定装置は規定された間隔で校正又は検証されているか？国家又は国際測定標準まで追跡可能か？",
+            "校正外装置の処理はどのように行われているか？校正外検出時、以前に試験された製品への影響検証は完全か？",
+            "校正は社内実施か外部委託か？外部委託の場合、校正サービス提供者は認定を受けているか（ISO/IEC 17025認定等）？",
+            "校正状態の識別（校正ラベル等）は未校正／期限切れ装置の使用をどのように有効に防止しているか？",
+            "校正記録は校正結果、使用標準、校正要員、校正日、次回校正日を含むか？",
+        ],
+        "expected_evidence_en": [
+            "Measuring equipment list",
+            "Calibration records",
+            "Calibration certificate",
+        ],
+        "expected_evidence_ja": [
+            "測定装置一覧",
+            "校正記録",
+            "校正証明書",
         ],
     },
     # --------------------------------------------------------
@@ -1631,6 +3216,34 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "監督量測分析改善規劃文件",
             "統計技術應用紀錄（如適用）",
         ],
+        "audit_question_en": "Does the organization plan and implement the monitoring, measurement, analysis and improvement processes needed to demonstrate conformity of product, to ensure conformity of the QMS, and to maintain the effectiveness of the QMS? This shall include determination of appropriate methods, including statistical techniques, and the extent of their use.",
+        "audit_question_ja": "組織は、製品の適合性を実証し、品質マネジメントシステムの適合性を確実にし、品質マネジメントシステムの有効性を維持するために必要な監視、測定、分析及び改善のプロセスを計画し実施しているか？これには、統計的手法を含む適切な方法及びその使用範囲の決定を含むものとする。",
+        "audit_questions_en": [
+            "Does the organization plan and implement the monitoring, measurement, analysis and improvement processes needed to demonstrate conformity of product, to ensure conformity of the QMS, and to maintain the effectiveness of the QMS? This shall include determination of appropriate methods, including statistical techniques, and the extent of their use.",
+            "Is the monitoring/measurement/analysis/improvement planning complete? Does it cover product conformity, QMS conformity, and QMS effectiveness maintenance?",
+            "Per ISO 13485:2016 §8.1, are monitoring, measurement, analysis, and improvement planning covering product conformity, QMS conformity, and QMS effectiveness?",
+            "Is statistical technique application documented? What statistical techniques are used (SPC, sampling, hypothesis testing)?",
+            "How is the output of data analysis used for decision-making? Are the outputs periodically reviewed in management reviews?",
+            "Is statistical technique application training provided to relevant personnel? Is the competence for statistical analysis effectively managed?",
+            "How are the monitoring indicators and KPIs of the QMS effectiveness defined? Are the KPIs quantifiable and trend-trackable?",
+        ],
+        "audit_questions_ja": [
+            "組織は、製品の適合性を実証し、品質マネジメントシステムの適合性を確実にし、品質マネジメントシステムの有効性を維持するために必要な監視、測定、分析及び改善のプロセスを計画し実施しているか？これには、統計的手法を含む適切な方法及びその使用範囲の決定を含むものとする。",
+            "監視／測定／分析／改善計画は完全か？製品適合性、品質マネジメントシステム適合性、品質マネジメントシステム有効性維持を網羅しているか？",
+            "ISO 13485:2016 §8.1に従い、監視、測定、分析、改善の計画は製品適合性、品質マネジメントシステム適合性、品質マネジメントシステム有効性を網羅しているか？",
+            "統計的手法の適用は文書化されているか？どの統計的手法（SPC、サンプリング、仮説検定等）が使用されているか？",
+            "データ分析のアウトプットは意思決定にどのように使用されているか？アウトプットはマネジメントレビューで定期的にレビューされているか？",
+            "統計的手法適用の訓練は関連要員に提供されているか？統計分析の力量は有効に管理されているか？",
+            "品質マネジメントシステム有効性の監視指標及びKPIはどのように定義されているか？KPIは定量化可能でトレンド追跡可能か？",
+        ],
+        "expected_evidence_en": [
+            "Monitoring/measurement/analysis planning document",
+            "Statistical technique application documents",
+        ],
+        "expected_evidence_ja": [
+            "監視／測定／分析計画書",
+            "統計的手法適用文書",
+        ],
     },
     "8.2.1": {
         "title": "回饋",
@@ -1659,6 +3272,36 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "顧客回饋管制程序書",
             "顧客回饋/抱怨紀錄",
             "趨勢分析報告",
+        ],
+        "audit_question_en": "As one of the measurements of the effectiveness of the QMS, does the organization gather and monitor information relating to whether the organization has met customer requirements? Does the organization document procedures for these feedback processes and include provisions for gathering data from production and post-production activities?",
+        "audit_question_ja": "品質マネジメントシステムの有効性の測定の一つとして、組織は、組織が顧客要求事項を満たしたかどうかに関連する情報を収集し監視しているか？組織は、これらのフィードバックプロセスの手順を文書化し、生産及び生産後活動からのデータ収集の規定を含めているか？",
+        "audit_questions_en": [
+            "As one of the measurements of the effectiveness of the QMS, does the organization gather and monitor information relating to whether the organization has met customer requirements? Does the organization document procedures for these feedback processes and include provisions for gathering data from production and post-production activities?",
+            "Is the customer feedback collection mechanism comprehensive? Does it cover customer satisfaction survey, complaint, service record, distributor feedback?",
+            "Per ISO 13485:2016 §8.2.1, does the organization gather feedback from production and post-production activities, including complaint handling, service records, distributor feedback?",
+            "What is the objectivity of customer satisfaction survey? Is the sample selection representative and the response rate adequate?",
+            "How are the feedback data used for product improvement and QMS improvement? Is there a process to link feedback to CAPA?",
+            "How is feedback information classified and prioritized (e.g., safety-related, quality-related, service-related)? Is the handling procedure documented?",
+            "How are the trends of customer feedback (e.g., complaint rate, satisfaction score) reported to management? What are the communication channels?",
+        ],
+        "audit_questions_ja": [
+            "品質マネジメントシステムの有効性の測定の一つとして、組織は、組織が顧客要求事項を満たしたかどうかに関連する情報を収集し監視しているか？組織は、これらのフィードバックプロセスの手順を文書化し、生産及び生産後活動からのデータ収集の規定を含めているか？",
+            "顧客フィードバック収集機構は包括的か？顧客満足度調査、苦情、サービス記録、流通業者フィードバックを網羅しているか？",
+            "ISO 13485:2016 §8.2.1に従い、組織は生産及び生産後活動からフィードバックを収集しており、苦情処理、サービス記録、流通業者フィードバックを含むか？",
+            "顧客満足度調査の客観性は？サンプル選定は代表的で、回答率は十分か？",
+            "フィードバックデータは製品改善及び品質マネジメントシステム改善にどのように使用されているか？フィードバックをCAPAに結び付けるプロセスはあるか？",
+            "フィードバック情報は分類され優先順位付けされているか（安全関連、品質関連、サービス関連等）？処理手順は文書化されているか？",
+            "顧客フィードバックの傾向（苦情率、満足度スコア等）はどのように経営層に報告されているか？コミュニケーションチャネルは？",
+        ],
+        "expected_evidence_en": [
+            "Feedback procedure",
+            "Customer satisfaction data",
+            "Post-market monitoring records",
+        ],
+        "expected_evidence_ja": [
+            "フィードバック手順書",
+            "顧客満足度データ",
+            "市販後監視記録",
         ],
     },
     "8.2.2": {
@@ -1691,6 +3334,36 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "客訴紀錄/調查報告",
             "法規通報紀錄（如適用）",
         ],
+        "audit_question_en": "Does the organization document procedures for the timely handling of complaints in accordance with applicable regulatory requirements? Do these procedures include receiving and recording information; evaluating information to determine if the feedback constitutes a complaint; investigating complaints; determining the need to report the information to appropriate regulatory authorities; handling complaint-related product; and determining the need to initiate corrections or corrective actions?",
+        "audit_question_ja": "組織は、適用される規制要求事項に従って苦情を適時に処理する手順を文書化しているか？これらの手順には、情報の受領及び記録、フィードバックが苦情を構成するかどうかを決定するための情報の評価、苦情の調査、情報を適切な規制当局に報告する必要性の決定、苦情関連製品の処理、並びに是正又は是正処置を開始する必要性の決定が含まれるか？",
+        "audit_questions_en": [
+            "Does the organization document procedures for the timely handling of complaints in accordance with applicable regulatory requirements? Do these procedures include receiving and recording information; evaluating information to determine if the feedback constitutes a complaint; investigating complaints; determining the need to report the information to appropriate regulatory authorities; handling complaint-related product; and determining the need to initiate corrections or corrective actions?",
+            "Is the complaint handling procedure complete? Does it cover receiving, recording, evaluating, investigating, reporting, handling, and corrective action?",
+            "Per ISO 13485:2016 §8.2.2, does the organization have documented procedures for timely complaint handling that include the 6 elements (receiving/recording, evaluation, investigation, regulatory reporting, complaint-related product handling, correction/CAPA determination)?",
+            "Is the complaint handling timeline defined? Does it meet the regulatory timeline requirements (e.g., FDA MDR, EU MDR Vigilance)?",
+            "How are complaints evaluated as reportable events or adverse events? What is the decision criteria for regulatory reporting?",
+            "When a complaint is handled and resolved, are the records complete? Is the root cause analysis included?",
+            "Is the handling of complaint-related products (e.g., return, quarantine, investigation) effective? How is the product traceability ensured?",
+        ],
+        "audit_questions_ja": [
+            "組織は、適用される規制要求事項に従って苦情を適時に処理する手順を文書化しているか？これらの手順には、情報の受領及び記録、フィードバックが苦情を構成するかどうかを決定するための情報の評価、苦情の調査、情報を適切な規制当局に報告する必要性の決定、苦情関連製品の処理、並びに是正又は是正処置を開始する必要性の決定が含まれるか？",
+            "苦情処理手順は完全か？受領、記録、評価、調査、報告、処理、是正処置を網羅しているか？",
+            "ISO 13485:2016 §8.2.2に従い、組織は適時の苦情処理のための文書化手順を有しており、6つの要素（受領／記録、評価、調査、規制報告、苦情関連製品処理、是正／CAPA決定）を含むか？",
+            "苦情処理期限は定義されているか？法規制期限要求事項（FDA MDR、EU MDR Vigilance等）を満たしているか？",
+            "苦情はどのように報告すべき事象又は有害事象として評価されるか？規制報告の決定基準は何か？",
+            "苦情が処理され解決された際、記録は完全か？根本原因分析は含まれているか？",
+            "苦情関連製品の処理（返品、隔離、調査等）は有効か？製品トレーサビリティはどのように確実にされているか？",
+        ],
+        "expected_evidence_en": [
+            "Complaint handling procedure",
+            "Complaint records",
+            "Complaint investigation reports",
+        ],
+        "expected_evidence_ja": [
+            "苦情処理手順書",
+            "苦情記録",
+            "苦情調査報告書",
+        ],
     },
     "8.2.3": {
         "title": "法規主管機關報告",
@@ -1719,6 +3392,36 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "法規通報程序書",
             "不良事件通報紀錄（如適用）",
             "諮詢通知紀錄（如適用）",
+        ],
+        "audit_question_en": "Does the organization document procedures for providing notification to the appropriate regulatory authorities in accordance with applicable regulatory requirements? Are records of reporting to regulatory authorities maintained?",
+        "audit_question_ja": "組織は、適用される規制要求事項に従って適切な規制当局に通知するための手順を文書化しているか？規制当局への報告の記録は維持されているか？",
+        "audit_questions_en": [
+            "Does the organization document procedures for providing notification to the appropriate regulatory authorities in accordance with applicable regulatory requirements? Are records of reporting to regulatory authorities maintained?",
+            "Is the regulatory reporting procedure complete? Does it cover the reporting requirements of destination countries/regions (FDA MDR, EU MDR Vigilance, TFDA, etc.)?",
+            "Per ISO 13485:2016 §8.2.3, does the organization have documented procedures for reporting to regulatory authorities, and are reporting records maintained?",
+            "What is the criteria for determining regulatory reporting need? Are the criteria documented and accessible to relevant personnel?",
+            "How is the regulatory reporting timeline managed? When the reporting deadline approaches (e.g., FDA 30-day rule), what is the escalation procedure?",
+            "Are regulatory reporting records complete? Do they include report content, date, responsible person, regulatory authority response, and follow-up actions?",
+            "When regulatory requirements change (e.g., EU MDR implementation), how is the internal reporting procedure updated? Who is responsible for tracking regulatory updates?",
+        ],
+        "audit_questions_ja": [
+            "組織は、適用される規制要求事項に従って適切な規制当局に通知するための手順を文書化しているか？規制当局への報告の記録は維持されているか？",
+            "規制報告手順は完全か？仕向国／地域の報告要求事項（FDA MDR、EU MDR Vigilance、TFDA等）を網羅しているか？",
+            "ISO 13485:2016 §8.2.3に従い、組織は規制当局への報告のための文書化手順を有し、報告記録は維持されているか？",
+            "規制報告必要性の決定基準は何か？基準は文書化され関連要員が入手可能か？",
+            "規制報告期限はどのように管理されているか？報告期限が迫った場合（FDA 30日ルール等）のエスカレーション手順は？",
+            "規制報告記録は完全か？報告内容、日付、責任者、規制当局の回答、フォロー処置を含むか？",
+            "規制要求事項が変更された場合（EU MDR施行等）、社内報告手順はどのように更新されているか？規制更新の追跡責任者は誰か？",
+        ],
+        "expected_evidence_en": [
+            "Regulatory reporting procedure",
+            "Reporting records",
+            "Regulatory requirements mapping table",
+        ],
+        "expected_evidence_ja": [
+            "規制報告手順書",
+            "報告記録",
+            "規制要求事項マッピング表",
         ],
     },
     "8.2.4": {
@@ -1750,6 +3453,38 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "稽核報告",
             "稽核發現追蹤紀錄",
         ],
+        "audit_question_en": "Does the organization conduct internal audits at planned intervals to determine whether the QMS conforms to planned and documented arrangements, requirements of this International Standard, QMS requirements established by the organization, and applicable regulatory requirements, and is effectively implemented and maintained? Does the organization document a procedure to describe the responsibilities and requirements for planning and conducting audits, and recording and reporting audit results?",
+        "audit_question_ja": "組織は、品質マネジメントシステムが計画され文書化された取決め、本国際規格の要求事項、組織によって確立された品質マネジメントシステム要求事項、及び適用される規制要求事項に適合しているかどうか、並びに有効に実施され維持されているかどうかを決定するために、計画された間隔で内部監査を実施しているか？組織は、監査の計画及び実施、並びに監査結果の記録及び報告に関する責任及び要求事項を記述した手順を文書化しているか？",
+        "audit_questions_en": [
+            "Does the organization conduct internal audits at planned intervals to determine whether the QMS conforms to planned and documented arrangements, requirements of this International Standard, QMS requirements established by the organization, and applicable regulatory requirements, and is effectively implemented and maintained? Does the organization document a procedure to describe the responsibilities and requirements for planning and conducting audits, and recording and reporting audit results?",
+            "Is the internal audit plan risk-based? Are the audit frequency, scope, and auditors arranged to ensure full QMS coverage?",
+            "Per ISO 13485:2016 §8.2.4, are internal audits conducted at planned intervals to determine QMS conformity and effectiveness? Is the audit procedure documented?",
+            "Are internal auditors independent of the area being audited? Are their qualifications (training, experience) sufficient?",
+            "Are internal audit findings handled via CAPA process? Are the corrective actions verified for effectiveness?",
+            "How is the periodic full coverage of the QMS by internal audits ensured? What is the audit cycle for each process?",
+            "Are internal audit results reported to management review? Are the root cause analyses of recurring findings conducted?",
+        ],
+        "audit_questions_ja": [
+            "組織は、品質マネジメントシステムが計画され文書化された取決め、本国際規格の要求事項、組織によって確立された品質マネジメントシステム要求事項、及び適用される規制要求事項に適合しているかどうか、並びに有効に実施され維持されているかどうかを決定するために、計画された間隔で内部監査を実施しているか？組織は、監査の計画及び実施、並びに監査結果の記録及び報告に関する責任及び要求事項を記述した手順を文書化しているか？",
+            "内部監査計画はリスクに基づいているか？監査頻度、範囲、監査員は品質マネジメントシステム全体のカバレッジを確実にするよう計画されているか？",
+            "ISO 13485:2016 §8.2.4に従い、内部監査は計画された間隔で実施され、品質マネジメントシステムの適合性及び有効性を決定しているか？監査手順は文書化されているか？",
+            "内部監査員は監査対象領域から独立しているか？その適格性（訓練、経験）は十分か？",
+            "内部監査所見はCAPAプロセスを通じて処理されているか？是正処置の有効性は検証されているか？",
+            "内部監査による品質マネジメントシステムの定期的な完全カバレッジはどのように確実にされているか？各プロセスの監査周期は？",
+            "内部監査結果はマネジメントレビューに報告されているか？再発する所見の根本原因分析は実施されているか？",
+        ],
+        "expected_evidence_en": [
+            "Internal audit procedure",
+            "Annual audit plan",
+            "Internal audit reports",
+            "Auditor qualification records",
+        ],
+        "expected_evidence_ja": [
+            "内部監査手順書",
+            "年次監査計画",
+            "内部監査報告書",
+            "監査員適格性記録",
+        ],
     },
     "8.2.4.1": {
         "title": "內部稽核 — 稽核準則",
@@ -1778,6 +3513,34 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "稽核員資格要求",
             "稽核員獨立性紀錄",
         ],
+        "audit_question_en": "Does the organization plan the audit programme, including frequency and methods, taking into consideration the status and importance of the processes and areas to be audited, as well as the results of previous audits? Are the audit criteria, scope, interval and methods defined and recorded?",
+        "audit_question_ja": "組織は、監査されるべきプロセス及び領域の状態及び重要性、並びに前回の監査の結果を考慮して、頻度及び方法を含む監査プログラムを計画しているか？監査の基準、範囲、間隔及び方法は定義され記録されているか？",
+        "audit_questions_en": [
+            "Does the organization plan the audit programme, including frequency and methods, taking into consideration the status and importance of the processes and areas to be audited, as well as the results of previous audits? Are the audit criteria, scope, interval and methods defined and recorded?",
+            "Is the audit program plan risk-based? Does the audit frequency of high-risk processes exceed that of low-risk processes?",
+            "Per ISO 13485:2016 §8.2.4.1, does the audit program plan include frequency and methods, considering process status, importance, and previous audit results?",
+            "Are audit criteria (standards, procedures, regulations) defined for each audit? Are they known to the auditee and auditor in advance?",
+            "How is the audit scope (e.g., sites, processes, time period) defined for each audit? Are the audit scope documented?",
+            "When previous audit results show concerns (e.g., repeated findings), does the audit frequency or depth adjust accordingly?",
+            "Is the audit method combination (document review, interview, observation, sampling) appropriate for each audit type?",
+        ],
+        "audit_questions_ja": [
+            "組織は、監査されるべきプロセス及び領域の状態及び重要性、並びに前回の監査の結果を考慮して、頻度及び方法を含む監査プログラムを計画しているか？監査の基準、範囲、間隔及び方法は定義され記録されているか？",
+            "監査プログラム計画はリスクに基づいているか？高リスクプロセスの監査頻度は低リスクプロセスを超えているか？",
+            "ISO 13485:2016 §8.2.4.1に従い、監査プログラム計画は頻度及び方法を含み、プロセス状態、重要性、前回監査結果を考慮しているか？",
+            "各監査の監査基準（規格、手順、法規制）は定義されているか？被監査者及び監査員に事前に周知されているか？",
+            "各監査の監査範囲（拠点、プロセス、期間等）はどのように定義されているか？監査範囲は文書化されているか？",
+            "前回の監査結果に懸念がある場合（繰り返される所見等）、監査頻度又は深さは相応に調整されているか？",
+            "各監査の種類に対する監査方法の組合せ（文書レビュー、インタビュー、観察、サンプリング）は適切か？",
+        ],
+        "expected_evidence_en": [
+            "Audit program",
+            "Audit criteria/scope documents",
+        ],
+        "expected_evidence_ja": [
+            "監査プログラム",
+            "監査基準／範囲文書",
+        ],
     },
     "8.2.4.2": {
         "title": "內部稽核 — 矯正措施",
@@ -1803,6 +3566,34 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
         "expected_evidence": [
             "稽核矯正措施紀錄",
             "矯正措施有效性驗證紀錄",
+        ],
+        "audit_question_en": "Does the organization document a procedure to describe the responsibilities and requirements for planning and conducting audits, and recording and reporting audit results? Does management responsible for the area being audited ensure that any necessary corrections and corrective actions are taken without undue delay to eliminate detected nonconformities and their causes? Do follow-up activities include the verification of the actions taken and the reporting of verification results? Are records maintained?",
+        "audit_question_ja": "組織は、監査の計画及び実施、並びに監査結果の記録及び報告に関する責任及び要求事項を記述した手順を文書化しているか？監査された領域を担当する管理者は、検出された不適合及びその原因を除去するために必要な是正及び是正処置が過度な遅延なく取られることを確実にしているか？フォローアップ活動には取られた処置の検証及び検証結果の報告が含まれているか？記録は維持されているか？",
+        "audit_questions_en": [
+            "Does the organization document a procedure to describe the responsibilities and requirements for planning and conducting audits, and recording and reporting audit results? Does management responsible for the area being audited ensure that any necessary corrections and corrective actions are taken without undue delay to eliminate detected nonconformities and their causes? Do follow-up activities include the verification of the actions taken and the reporting of verification results? Are records maintained?",
+            "Are the audit reports, audit findings, and follow-up actions complete? Is the management of the audited area required to implement corrective actions without delay?",
+            "Per ISO 13485:2016 §8.2.4.2, is the audit follow-up mechanism documented? Does it require verification of action effectiveness and reporting of verification results?",
+            "Are audit non-conformities classified (major, minor, observation)? Is the handling priority of each class defined?",
+            "How is the timeline for implementing corrective actions on audit non-conformities tracked? When not completed on time, what is the escalation procedure?",
+            "How is the effectiveness verification of the corrective action performed? Does the verification include both document review and on-site confirmation?",
+            "Are audit records retained according to the procedure? Are audit records complete and traceable?",
+        ],
+        "audit_questions_ja": [
+            "組織は、監査の計画及び実施、並びに監査結果の記録及び報告に関する責任及び要求事項を記述した手順を文書化しているか？監査された領域を担当する管理者は、検出された不適合及びその原因を除去するために必要な是正及び是正処置が過度な遅延なく取られることを確実にしているか？フォローアップ活動には取られた処置の検証及び検証結果の報告が含まれているか？記録は維持されているか？",
+            "監査報告書、監査所見、フォローアップ処置は完全か？被監査領域の管理者は遅延なく是正処置を実施することが要求されているか？",
+            "ISO 13485:2016 §8.2.4.2に従い、監査フォローアップ機構は文書化されているか？処置の有効性検証及び検証結果の報告が要求されているか？",
+            "監査不適合は分類されているか（重大、軽微、観察事項）？各分類の処理優先順位は定義されているか？",
+            "監査不適合に対する是正処置の実施期限はどのように追跡されているか？期限内に完了しない場合のエスカレーション手順は？",
+            "是正処置の有効性検証はどのように実施されているか？検証には文書レビュー及び現場確認の両方が含まれているか？",
+            "監査記録は手順に従って保管されているか？監査記録は完全で追跡可能か？",
+        ],
+        "expected_evidence_en": [
+            "Audit procedure",
+            "Audit findings tracking records",
+        ],
+        "expected_evidence_ja": [
+            "監査手順書",
+            "監査所見追跡記録",
         ],
     },
     "8.2.5": {
@@ -1831,6 +3622,34 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
         "expected_evidence": [
             "過程監督紀錄",
             "過程績效指標",
+        ],
+        "audit_question_en": "Does the organization apply suitable methods for the monitoring and, where applicable, measurement of the QMS processes? Do these methods demonstrate the ability of the processes to achieve planned results? When planned results are not achieved, are correction and corrective action taken, as appropriate?",
+        "audit_question_ja": "組織は、品質マネジメントシステムプロセスの監視及び、該当する場合には、測定のための適切な方法を適用しているか？これらの方法は、プロセスが計画された結果を達成する能力を実証しているか？計画された結果が達成されない場合、適切に是正及び是正処置が取られているか？",
+        "audit_questions_en": [
+            "Does the organization apply suitable methods for the monitoring and, where applicable, measurement of the QMS processes? Do these methods demonstrate the ability of the processes to achieve planned results? When planned results are not achieved, are correction and corrective action taken, as appropriate?",
+            "Are the process monitoring indicators well defined for each QMS process? Is the monitoring data collected continuously?",
+            "Per ISO 13485:2016 §8.2.5, are suitable methods applied for monitoring and measurement of QMS processes? Are corrections and corrective actions taken when planned results are not achieved?",
+            "How are process monitoring indicators (KPIs) set to be meaningful and quantifiable? Is the quantification method validated?",
+            "Is the statistical process control (SPC) applied to critical processes? How is the sensitivity of detection of process variation?",
+            "When process monitoring indicates abnormality, how is the corrective action initiated? Is the timeline for correction defined?",
+            "Are the results of process monitoring reviewed in management reviews? Is the root cause analysis of continuously unachieved indicators conducted?",
+        ],
+        "audit_questions_ja": [
+            "組織は、品質マネジメントシステムプロセスの監視及び、該当する場合には、測定のための適切な方法を適用しているか？これらの方法は、プロセスが計画された結果を達成する能力を実証しているか？計画された結果が達成されない場合、適切に是正及び是正処置が取られているか？",
+            "プロセス監視指標は各品質マネジメントシステムプロセスについて適切に定義されているか？監視データは継続的に収集されているか？",
+            "ISO 13485:2016 §8.2.5に従い、品質マネジメントシステムプロセスの監視及び測定のための適切な方法が適用されているか？計画された結果が達成されない場合、是正及び是正処置が取られているか？",
+            "プロセス監視指標（KPI）は意味があり定量化可能か？定量化方法はバリデーションされているか？",
+            "統計的プロセス管理（SPC）は重要プロセスに適用されているか？プロセス変動の検出感度は？",
+            "プロセス監視で異常が示された場合、是正処置はどのように開始されるか？是正期限は定義されているか？",
+            "プロセス監視の結果はマネジメントレビューでレビューされているか？継続的に未達となる指標の根本原因分析は実施されているか？",
+        ],
+        "expected_evidence_en": [
+            "Process monitoring indicators",
+            "Process monitoring records",
+        ],
+        "expected_evidence_ja": [
+            "プロセス監視指標",
+            "プロセス監視記録",
         ],
     },
     "8.2.6": {
@@ -1863,6 +3682,36 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "檢驗/測試紀錄",
             "放行核准紀錄",
         ],
+        "audit_question_en": "Does the organization monitor and measure the characteristics of the product to verify that product requirements have been met? Is this carried out at appropriate stages of the product realization process in accordance with the planned and documented arrangements? Is evidence of conformity with the acceptance criteria maintained? Do the records indicate the person(s) authorizing the release of product? Is the release of product and delivery of service not to proceed until the planned and documented arrangements have been satisfactorily completed?",
+        "audit_question_ja": "組織は、製品要求事項が満たされたことを検証するために、製品の特性を監視し測定しているか？これは、計画され文書化された取決めに従って、製品実現プロセスの適切な段階で実施されているか？合否判定基準への適合の証拠は維持されているか？記録は製品出荷を許可する者を示しているか？計画され文書化された取決めが満足に完了するまで、製品の出荷及びサービスの提供は進められないことになっているか？",
+        "audit_questions_en": [
+            "Does the organization monitor and measure the characteristics of the product to verify that product requirements have been met? Is this carried out at appropriate stages of the product realization process in accordance with the planned and documented arrangements? Is evidence of conformity with the acceptance criteria maintained? Do the records indicate the person(s) authorizing the release of product? Is the release of product and delivery of service not to proceed until the planned and documented arrangements have been satisfactorily completed?",
+            "Are the product monitoring and measurement stages defined (incoming inspection, in-process inspection, final inspection)? Are the records of each stage complete?",
+            "Per ISO 13485:2016 §8.2.6, is the product monitoring and measurement conducted at appropriate stages, with evidence of conformity to acceptance criteria maintained, and the releasing person identified in the records?",
+            "Are the sampling plan and acceptance criteria for product inspection risk-based? Is the statistical basis adequate?",
+            "Is the product release authority authority clearly defined? Can the released person be identified in the records?",
+            "For non-conformities detected in product monitoring, is the handling procedure documented (acceptance under concession, rework, scrap)?",
+            "Is pre-release satisfactorily completion of all planned arrangements verified before product release? What is the verification procedure?",
+        ],
+        "audit_questions_ja": [
+            "組織は、製品要求事項が満たされたことを検証するために、製品の特性を監視し測定しているか？これは、計画され文書化された取決めに従って、製品実現プロセスの適切な段階で実施されているか？合否判定基準への適合の証拠は維持されているか？記録は製品出荷を許可する者を示しているか？計画され文書化された取決めが満足に完了するまで、製品の出荷及びサービスの提供は進められないことになっているか？",
+            "製品監視及び測定の段階は定義されているか（受入検査、工程内検査、最終検査）？各段階の記録は完全か？",
+            "ISO 13485:2016 §8.2.6に従い、製品監視及び測定は適切な段階で実施され、合否判定基準への適合の証拠が維持され、出荷許可者が記録で識別されているか？",
+            "製品検査のサンプリング計画及び合否判定基準はリスクに基づいているか？統計的根拠は十分か？",
+            "製品出荷権限は明確に定義されているか？出荷者は記録で識別可能か？",
+            "製品監視で検出された不適合に対する処理手順は文書化されているか（特別採用、手直し、廃棄等）？",
+            "製品出荷前、すべての計画された取決めの満足な完了は検証されているか？検証手順は？",
+        ],
+        "expected_evidence_en": [
+            "Inspection and test records",
+            "Release authorization records",
+            "Product acceptance criteria",
+        ],
+        "expected_evidence_ja": [
+            "検査・試験記録",
+            "出荷許可記録",
+            "製品合否判定基準",
+        ],
     },
     "8.3": {
         "title": "不合格品管制 — 一般",
@@ -1888,6 +3737,34 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
         "expected_evidence": [
             "不合格品管制程序書",
             "不合格品處理紀錄",
+        ],
+        "audit_question_en": "Does the organization ensure that product which does not conform to product requirements is identified and controlled to prevent its unintended use or delivery? Does the organization document a procedure to define the controls and related responsibilities and authorities for the identification, documentation, segregation, evaluation, and disposition of nonconforming product?",
+        "audit_question_ja": "組織は、製品要求事項に適合しない製品が、その意図しない使用又は引渡しを防止するために識別され管理されることを確実にしているか？組織は、不適合製品の識別、文書化、分離、評価、及び処理のための管理並びに関連する責任及び権限を定義する手順を文書化しているか？",
+        "audit_questions_en": [
+            "Does the organization ensure that product which does not conform to product requirements is identified and controlled to prevent its unintended use or delivery? Does the organization document a procedure to define the controls and related responsibilities and authorities for the identification, documentation, segregation, evaluation, and disposition of nonconforming product?",
+            "Is the non-conforming product control procedure complete? Does it cover identification, documentation, segregation, evaluation, and disposition?",
+            "Per ISO 13485:2016 §8.3, does the organization have a documented procedure for identification, documentation, segregation, evaluation, and disposition of non-conforming products?",
+            "Is the identification (e.g., red tag, quarantine area) of non-conforming products clearly defined? Can it effectively prevent unintended use?",
+            "How are the authorities for non-conforming product disposition (acceptance under concession, rework, scrap) distributed among different roles?",
+            "How are non-conforming products handled during manufacturing, pre-shipment, and post-shipment stages? Are the procedures different for each stage?",
+            "When non-conforming products are disposed, are the records complete? Does the record include all rationales, decisions, and authorizing personnel?",
+        ],
+        "audit_questions_ja": [
+            "組織は、製品要求事項に適合しない製品が、その意図しない使用又は引渡しを防止するために識別され管理されることを確実にしているか？組織は、不適合製品の識別、文書化、分離、評価、及び処理のための管理並びに関連する責任及び権限を定義する手順を文書化しているか？",
+            "不適合製品管理手順は完全か？識別、文書化、分離、評価、処理を網羅しているか？",
+            "ISO 13485:2016 §8.3に従い、組織は不適合製品の識別、文書化、分離、評価、処理のための文書化手順を有しているか？",
+            "不適合製品の識別（赤タグ、隔離区域等）は明確に定義されているか？意図しない使用を有効に防止できるか？",
+            "不適合製品の処理（特別採用、手直し、廃棄等）に対する権限は異なる役割間でどのように配分されているか？",
+            "製造中、出荷前、出荷後の各段階における不適合製品はどのように処理されているか？各段階で手順は異なるか？",
+            "不適合製品が処理された場合、記録は完全か？記録にはすべての根拠、決定、承認者が含まれているか？",
+        ],
+        "expected_evidence_en": [
+            "Non-conforming product control procedure",
+            "Non-conforming product records",
+        ],
+        "expected_evidence_ja": [
+            "不適合製品管理手順書",
+            "不適合製品記録",
         ],
     },
     "8.3.1": {
@@ -1917,6 +3794,34 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "不合格品處理/讓步紀錄",
             "不合格品識別標示",
         ],
+        "audit_question_en": "Does the organization establish actions to deal with nonconforming product by one or more of the following ways: taking action to eliminate the detected nonconformity; taking action to preclude its original intended use or application; authorizing its use, release, or acceptance under concession? Does the organization ensure that nonconforming product is accepted by concession only if the justification is provided, approval is obtained, and applicable regulatory requirements are met?",
+        "audit_question_ja": "組織は、次の1つ又はそれ以上の方法で不適合製品に対処するための処置を確立しているか。検出された不適合を除去するための処置を取ること、その当初の意図された使用又は適用を排除するための処置を取ること、特別採用の下での使用、出荷、又は受入を許可すること。組織は、正当化が提供され、承認が得られ、適用される規制要求事項が満たされた場合にのみ、不適合製品が特別採用によって受け入れられることを確実にしているか？",
+        "audit_questions_en": [
+            "Does the organization establish actions to deal with nonconforming product by one or more of the following ways: taking action to eliminate the detected nonconformity; taking action to preclude its original intended use or application; authorizing its use, release, or acceptance under concession? Does the organization ensure that nonconforming product is accepted by concession only if the justification is provided, approval is obtained, and applicable regulatory requirements are met?",
+            "Are the actions for non-conforming products documented (eliminate, preclude use, accept under concession)? Are approval levels clearly defined?",
+            "Per ISO 13485:2016 §8.3.1, are non-conforming product actions documented, covering elimination, use/application prohibition, and concession acceptance (only with justification and approval)?",
+            "When non-conforming product is accepted under concession, are the justification, approval, and regulatory compliance documented?",
+            "Does the concession acceptance procedure consider the potential risk to patients/users? Is the risk assessment documented?",
+            "What are the criteria for declaring a product to be precluded from its original intended use? Is the alternative use documented?",
+            "When non-conforming product is eliminated (e.g., scrapped), how is the disposal documented? Is there a traceable scrap record?",
+        ],
+        "audit_questions_ja": [
+            "組織は、次の1つ又はそれ以上の方法で不適合製品に対処するための処置を確立しているか。検出された不適合を除去するための処置を取ること、その当初の意図された使用又は適用を排除するための処置を取ること、特別採用の下での使用、出荷、又は受入を許可すること。組織は、正当化が提供され、承認が得られ、適用される規制要求事項が満たされた場合にのみ、不適合製品が特別採用によって受け入れられることを確実にしているか？",
+            "不適合製品に対する処置は文書化されているか（除去、使用排除、特別採用受入）？承認レベルは明確に定義されているか？",
+            "ISO 13485:2016 §8.3.1に従い、不適合製品の処置は文書化されているか、除去、使用／適用禁止、特別採用受入（正当化及び承認の場合のみ）を網羅しているか？",
+            "不適合製品が特別採用で受け入れられる場合、正当化、承認、規制適合性は文書化されているか？",
+            "特別採用受入手順は患者／利用者への潜在的リスクを考慮しているか？リスク評価は文書化されているか？",
+            "製品が当初の意図された使用から排除されると宣言される基準は何か？代替使用は文書化されているか？",
+            "不適合製品が除去される場合（廃棄等）、処分はどのように文書化されているか？追跡可能な廃棄記録はあるか？",
+        ],
+        "expected_evidence_en": [
+            "Non-conforming product action procedure",
+            "Concession approval records",
+        ],
+        "expected_evidence_ja": [
+            "不適合製品処置手順書",
+            "特別採用承認記録",
+        ],
     },
     "8.3.2": {
         "title": "不合格品管制 — 交付後",
@@ -1945,6 +3850,34 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "交付後不合格品處理紀錄",
             "產品召回/矯正程序（如適用）",
         ],
+        "audit_question_en": "Does the organization ensure that nonconforming product detected before delivery is either corrected or excluded from its intended use? Does the organization retain records including the nature of the nonconformities, the actions taken, and concessions obtained?",
+        "audit_question_ja": "組織は、引渡し前に検出された不適合製品が、是正されるか又はその意図された使用から除外されることを確実にしているか？組織は、不適合の性質、取られた処置、及び得られた特別採用を含む記録を保持しているか？",
+        "audit_questions_en": [
+            "Does the organization ensure that nonconforming product detected before delivery is either corrected or excluded from its intended use? Does the organization retain records including the nature of the nonconformities, the actions taken, and concessions obtained?",
+            "How is the non-conforming product detected before delivery handled? Is correction or exclusion from intended use systematically implemented?",
+            "Per ISO 13485:2016 §8.3.2, are non-conforming products detected before delivery either corrected or excluded from intended use? Are records (nature of non-conformity, actions, concessions) retained?",
+            "When non-conforming product is corrected by rework, is the rework validated? Is the reworked product subject to the same acceptance criteria?",
+            "How is the effectiveness of correction/exclusion verified before re-release? Is the re-inspection documented?",
+            "Do the records include the nature of the non-conformities, actions taken, and concessions obtained? Are they complete and traceable?",
+            "Is the impact of the non-conformity on other related batches or units assessed? How are the findings extended?",
+        ],
+        "audit_questions_ja": [
+            "組織は、引渡し前に検出された不適合製品が、是正されるか又はその意図された使用から除外されることを確実にしているか？組織は、不適合の性質、取られた処置、及び得られた特別採用を含む記録を保持しているか？",
+            "引渡し前に検出された不適合製品はどのように処理されているか？是正又は意図された使用からの除外は体系的に実施されているか？",
+            "ISO 13485:2016 §8.3.2に従い、引渡し前に検出された不適合製品は是正される又は意図された使用から除外されるか？記録（不適合の性質、処置、特別採用）は保管されているか？",
+            "不適合製品が手直しで是正される場合、手直しはバリデーションされているか？手直し製品は同じ合否判定基準の対象か？",
+            "再出荷前、是正／除外の有効性はどのように検証されているか？再検査は文書化されているか？",
+            "記録には不適合の性質、取られた処置、得られた特別採用が含まれているか？完全で追跡可能か？",
+            "不適合が他の関連バッチ又はユニットに与える影響は評価されているか？知見はどのように展開されているか？",
+        ],
+        "expected_evidence_en": [
+            "Pre-delivery non-conformity records",
+            "Correction/exclusion records",
+        ],
+        "expected_evidence_ja": [
+            "引渡し前不適合記録",
+            "是正／除外記録",
+        ],
     },
     "8.3.3": {
         "title": "不合格品管制 — 讓步",
@@ -1970,6 +3903,34 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
         "expected_evidence": [
             "讓步核准紀錄",
             "讓步理由說明文件",
+        ],
+        "audit_question_en": "When nonconforming product is detected after delivery or use has started, does the organization take action appropriate to the effects, or potential effects, of the nonconformity? Does the organization retain records of the actions taken? Does the organization document procedures for issuing advisory notices in accordance with applicable regulatory requirements?",
+        "audit_question_ja": "引渡し後又は使用開始後に不適合製品が検出された場合、組織は不適合の影響又は潜在的影響に適切な処置を取っているか？組織は取られた処置の記録を保持しているか？組織は、適用される規制要求事項に従って勧告通知を発行する手順を文書化しているか？",
+        "audit_questions_en": [
+            "When nonconforming product is detected after delivery or use has started, does the organization take action appropriate to the effects, or potential effects, of the nonconformity? Does the organization retain records of the actions taken? Does the organization document procedures for issuing advisory notices in accordance with applicable regulatory requirements?",
+            "When non-conforming products are detected post-delivery, are appropriate actions taken (recall, advisory notice, field safety corrective action)? Are records retained?",
+            "Per ISO 13485:2016 §8.3.3, when non-conforming product is detected after delivery, are actions appropriate to effects taken? Is the advisory notice procedure documented?",
+            "Is the advisory notice procedure consistent with applicable regulatory requirements (e.g., FDA recall, EU MDR FSCA)?",
+            "When products need to be recalled, is the recall effectiveness tracked? What is the recall effectiveness threshold?",
+            "How is the timeline for responding to post-delivery non-conformities? Does it meet regulatory timeline requirements?",
+            "How is the post-delivery non-conformity information shared with distributors and users? Is the communication traceable?",
+        ],
+        "audit_questions_ja": [
+            "引渡し後又は使用開始後に不適合製品が検出された場合、組織は不適合の影響又は潜在的影響に適切な処置を取っているか？組織は取られた処置の記録を保持しているか？組織は、適用される規制要求事項に従って勧告通知を発行する手順を文書化しているか？",
+            "引渡し後に不適合製品が検出された場合、適切な処置（リコール、勧告通知、現地安全是正処置等）が取られているか？記録は保管されているか？",
+            "ISO 13485:2016 §8.3.3に従い、引渡し後に不適合製品が検出された場合、影響に応じた処置が取られているか？勧告通知手順は文書化されているか？",
+            "勧告通知手順は適用法規制要求事項（FDA Recall、EU MDR FSCA等）と整合しているか？",
+            "製品のリコールが必要な場合、リコールの有効性は追跡されているか？リコール有効性の閾値は何か？",
+            "引渡し後不適合への対応期限は？規制期限要求を満たしているか？",
+            "引渡し後不適合情報は流通業者及び利用者とどのように共有されているか？コミュニケーションは追跡可能か？",
+        ],
+        "expected_evidence_en": [
+            "Post-delivery non-conformity handling procedure",
+            "Advisory notice records (if applicable)",
+        ],
+        "expected_evidence_ja": [
+            "引渡し後不適合処理手順書",
+            "勧告通知記録（該当する場合）",
         ],
     },
     "8.3.4": {
@@ -2000,6 +3961,36 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "返工紀錄",
             "返工後檢驗紀錄",
         ],
+        "audit_question_en": "Does the organization document procedures for rework? In determining rework activities, does the organization consider the potential adverse effect of rework on the product? Is rework carried out in accordance with work instructions that have undergone the same review and approval as the original work instructions? After the completion of rework, does product undergo reverification or revalidation to ensure that it meets the applicable acceptance criteria and regulatory requirements? Are records of rework maintained?",
+        "audit_question_ja": "組織は手直しの手順を文書化しているか？手直し活動を決定する際、組織は手直しの製品への潜在的な有害影響を考慮しているか？手直しは、当初の作業指示書と同じレビュー及び承認を受けた作業指示書に従って実施されているか？手直しの完了後、製品は適用される合否判定基準及び規制要求事項を満たすことを確実にするため、再検証又は再妥当性確認を受けているか？手直しの記録は維持されているか？",
+        "audit_questions_en": [
+            "Does the organization document procedures for rework? In determining rework activities, does the organization consider the potential adverse effect of rework on the product? Is rework carried out in accordance with work instructions that have undergone the same review and approval as the original work instructions? After the completion of rework, does product undergo reverification or revalidation to ensure that it meets the applicable acceptance criteria and regulatory requirements? Are records of rework maintained?",
+            "Is the rework procedure documented? Are the potential adverse effects on the product considered and mitigated?",
+            "Per ISO 13485:2016 §8.3.4, is the rework procedure documented, with rework instructions approved at the same level as original instructions, and re-verification/re-validation performed?",
+            "Are rework instructions reviewed and approved at the same level as the original work instructions? Is the history preserved?",
+            "Is the re-verification/re-validation after rework comprehensive? Does it cover all acceptance criteria affected by rework?",
+            "Are rework records complete? Do they include rework reason, method, operator, inspection results, and verification/validation results?",
+            "How is the impact assessment of the rework performed? Is the potential adverse effect to the product considered and documented?",
+        ],
+        "audit_questions_ja": [
+            "組織は手直しの手順を文書化しているか？手直し活動を決定する際、組織は手直しの製品への潜在的な有害影響を考慮しているか？手直しは、当初の作業指示書と同じレビュー及び承認を受けた作業指示書に従って実施されているか？手直しの完了後、製品は適用される合否判定基準及び規制要求事項を満たすことを確実にするため、再検証又は再妥当性確認を受けているか？手直しの記録は維持されているか？",
+            "手直し手順は文書化されているか？製品への潜在的有害影響は考慮され緩和されているか？",
+            "ISO 13485:2016 §8.3.4に従い、手直し手順は文書化され、手直し指示書は当初の指示書と同じレベルで承認され、再検証／再妥当性確認が実施されているか？",
+            "手直し指示書は当初の作業指示書と同じレベルでレビューされ承認されているか？履歴は保管されているか？",
+            "手直し後の再検証／再妥当性確認は包括的か？手直しの影響を受けるすべての合否判定基準を網羅しているか？",
+            "手直し記録は完全か？手直し理由、方法、作業者、検査結果、検証／妥当性確認結果を含むか？",
+            "手直しの影響評価はどのように実施されているか？製品への潜在的有害影響は考慮され文書化されているか？",
+        ],
+        "expected_evidence_en": [
+            "Rework procedure",
+            "Rework records",
+            "Re-verification/re-validation records",
+        ],
+        "expected_evidence_ja": [
+            "手直し手順書",
+            "手直し記録",
+            "再検証／再妥当性確認記録",
+        ],
     },
     "8.4": {
         "title": "數據分析",
@@ -2029,6 +4020,36 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "品質指標/趨勢報告",
             "統計分析紀錄",
         ],
+        "audit_question_en": "Does the organization document procedures to determine, collect, and analyse appropriate data to demonstrate the suitability, adequacy, and effectiveness of the QMS? Does the organization determine appropriate methods, including statistical techniques and the extent of their use? Does the analysis of data include data generated as a result of monitoring and measurement and from other relevant sources including feedback, conformity to product requirements, characteristics and trends of processes and products, suppliers, audits, and service reports, where appropriate?",
+        "audit_question_ja": "組織は、品質マネジメントシステムの適合性、妥当性、及び有効性を実証するために適切なデータを決定し、収集し、分析する手順を文書化しているか？組織は、統計的手法及びその使用の程度を含む適切な方法を決定しているか？データの分析には、監視及び測定並びにその他の関連する情報源から生成されたデータ（適切な場合には、フィードバック、製品要求事項への適合性、プロセス及び製品の特性及び傾向、供給者、監査、並びにサービス報告を含む）が含まれているか？",
+        "audit_questions_en": [
+            "Does the organization document procedures to determine, collect, and analyse appropriate data to demonstrate the suitability, adequacy, and effectiveness of the QMS? Does the organization determine appropriate methods, including statistical techniques and the extent of their use? Does the analysis of data include data generated as a result of monitoring and measurement and from other relevant sources including feedback, conformity to product requirements, characteristics and trends of processes and products, suppliers, audits, and service reports, where appropriate?",
+            "Is the data analysis procedure documented? Does it cover all data sources (feedback, product conformity, process/product trends, suppliers, audits, service reports)?",
+            "Per ISO 13485:2016 §8.4, does the data analysis procedure cover QMS effectiveness demonstration, using statistical techniques to analyze data from all relevant sources?",
+            "What statistical techniques are applied to data analysis? Is the technique selection appropriate for the data characteristics?",
+            "How are the data analysis outputs used in management reviews, CAPA decisions, and QMS improvements?",
+            "Are the data analysis conclusions actionable? Is the root cause analysis of trend abnormalities performed?",
+            "Is the data quality (completeness, accuracy, timeliness) assessed before analysis? How is data quality assurance mechanism designed?",
+        ],
+        "audit_questions_ja": [
+            "組織は、品質マネジメントシステムの適合性、妥当性、及び有効性を実証するために適切なデータを決定し、収集し、分析する手順を文書化しているか？組織は、統計的手法及びその使用の程度を含む適切な方法を決定しているか？データの分析には、監視及び測定並びにその他の関連する情報源から生成されたデータ（適切な場合には、フィードバック、製品要求事項への適合性、プロセス及び製品の特性及び傾向、供給者、監査、並びにサービス報告を含む）が含まれているか？",
+            "データ分析手順は文書化されているか？すべてのデータ源（フィードバック、製品適合性、プロセス／製品傾向、供給者、監査、サービス報告）を網羅しているか？",
+            "ISO 13485:2016 §8.4に従い、データ分析手順は品質マネジメントシステム有効性の実証を網羅し、統計的手法を用いてすべての関連データ源からのデータを分析しているか？",
+            "どの統計的手法がデータ分析に適用されているか？手法の選定はデータ特性に対して適切か？",
+            "データ分析のアウトプットはマネジメントレビュー、CAPA決定、品質マネジメントシステム改善にどのように使用されているか？",
+            "データ分析の結論は実行可能か？傾向異常の根本原因分析は実施されているか？",
+            "データ品質（完全性、正確性、適時性）は分析前に評価されているか？データ品質保証機構はどのように設計されているか？",
+        ],
+        "expected_evidence_en": [
+            "Data analysis procedure",
+            "Data analysis report",
+            "Statistical analysis records",
+        ],
+        "expected_evidence_ja": [
+            "データ分析手順書",
+            "データ分析報告書",
+            "統計分析記録",
+        ],
     },
     "8.5.1": {
         "title": "改善 — 一般",
@@ -2056,6 +4077,34 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
         "expected_evidence": [
             "持續改善紀錄",
             "改善提案/行動計畫",
+        ],
+        "audit_question_en": "Does the organization identify and implement any changes necessary to ensure and maintain the continued suitability, adequacy, and effectiveness of the QMS as well as medical device safety and performance through the use of the quality policy, quality objectives, audit results, post-market surveillance, analysis of data, corrective actions, preventive actions, and management review?",
+        "audit_question_ja": "組織は、品質方針、品質目標、監査結果、市販後調査、データ分析、是正処置、予防処置、及びマネジメントレビューの使用を通して、品質マネジメントシステムの継続的な適合性、妥当性、及び有効性、並びに医療機器の安全性及び性能を確実にし維持するために必要なあらゆる変更を識別し実施しているか？",
+        "audit_questions_en": [
+            "Does the organization identify and implement any changes necessary to ensure and maintain the continued suitability, adequacy, and effectiveness of the QMS as well as medical device safety and performance through the use of the quality policy, quality objectives, audit results, post-market surveillance, analysis of data, corrective actions, preventive actions, and management review?",
+            "Is the continual improvement mechanism systematic? Does it integrate QMS inputs from quality policy, objectives, audits, PMS, data analysis, CAPA, and management reviews?",
+            "Per ISO 13485:2016 §8.5.1, does the organization identify and implement changes to maintain continued QMS suitability, adequacy, effectiveness, and device safety/performance?",
+            "How are improvement opportunities identified? Is the identification based on data analysis and trend reviews?",
+            "Are improvement projects/activities documented and tracked? How is the effectiveness of improvement verified?",
+            "How are improvements prioritized? Are the criteria based on impact and feasibility?",
+            "Is the continual improvement culture established in the organization? Are employees encouraged to propose improvement suggestions?",
+        ],
+        "audit_questions_ja": [
+            "組織は、品質方針、品質目標、監査結果、市販後調査、データ分析、是正処置、予防処置、及びマネジメントレビューの使用を通して、品質マネジメントシステムの継続的な適合性、妥当性、及び有効性、並びに医療機器の安全性及び性能を確実にし維持するために必要なあらゆる変更を識別し実施しているか？",
+            "継続的改善機構は体系的か？品質方針、目標、監査、市販後調査、データ分析、CAPA、マネジメントレビューからの品質マネジメントシステムインプットを統合しているか？",
+            "ISO 13485:2016 §8.5.1に従い、組織は品質マネジメントシステムの継続的な適合性、妥当性、有効性、並びに機器の安全性／性能を維持するために変更を識別し実施しているか？",
+            "改善機会はどのように識別されているか？識別はデータ分析及び傾向レビューに基づいているか？",
+            "改善プロジェクト／活動は文書化され追跡されているか？改善の有効性はどのように検証されているか？",
+            "改善はどのように優先順位付けされているか？基準は影響度及び実現可能性に基づいているか？",
+            "継続的改善の文化は組織内で確立されているか？従業員は改善提案の提出を奨励されているか？",
+        ],
+        "expected_evidence_en": [
+            "Continual improvement records",
+            "Improvement project tracking",
+        ],
+        "expected_evidence_ja": [
+            "継続的改善記録",
+            "改善プロジェクト追跡記録",
         ],
     },
     "8.5.2": {
@@ -2091,6 +4140,38 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "根本原因分析紀錄",
             "有效性驗證紀錄",
         ],
+        "audit_question_en": "Does the organization take action to eliminate the cause of nonconformities in order to prevent recurrence? Are corrective actions appropriate to the effects of the nonconformities encountered? Does the organization document a procedure to define requirements for reviewing nonconformities (including complaints); determining the causes of nonconformities; evaluating the need for action to ensure that nonconformities do not recur; planning and documenting action needed and implementing such action, including, as appropriate, updating documentation; verifying that the corrective action does not adversely affect the ability to meet applicable regulatory requirements or the safety and performance of the medical device; and reviewing the effectiveness of corrective action taken?",
+        "audit_question_ja": "組織は、再発防止のために不適合の原因を除去する処置を取っているか？是正処置は、遭遇した不適合の影響に適切か？組織は、不適合のレビュー（苦情を含む）、不適合の原因の決定、不適合が再発しないことを確実にするための処置の必要性の評価、必要な処置の計画と文書化及びそのような処置の実施（適切な場合には文書の更新を含む）、是正処置が適用される規制要求事項又は医療機器の安全性及び性能を満たす能力に悪影響を及ぼさないことの検証、並びに取られた是正処置の有効性のレビューのための要求事項を定義する手順を文書化しているか？",
+        "audit_questions_en": [
+            "Does the organization take action to eliminate the cause of nonconformities in order to prevent recurrence? Are corrective actions appropriate to the effects of the nonconformities encountered? Does the organization document a procedure to define requirements for reviewing nonconformities (including complaints); determining the causes of nonconformities; evaluating the need for action to ensure that nonconformities do not recur; planning and documenting action needed and implementing such action, including, as appropriate, updating documentation; verifying that the corrective action does not adversely affect the ability to meet applicable regulatory requirements or the safety and performance of the medical device; and reviewing the effectiveness of corrective action taken?",
+            "Is the corrective action procedure complete? Does it cover the 6 elements (review, cause determination, need evaluation, planning/implementation, verification, effectiveness review)?",
+            "Per ISO 13485:2016 §8.5.2, does the CAPA procedure cover non-conformity review, root cause determination, action need evaluation, action planning and documentation, effect verification on regulatory/safety/performance, and effectiveness review?",
+            "What root cause analysis methods are used (5-Why, Ishikawa, Fault Tree)? Is the analysis process documented?",
+            "How is the effectiveness of corrective actions verified? Is the verification time frame defined based on risk?",
+            "Does the corrective action evaluation include assessment of adverse effects on regulatory requirements and device safety/performance?",
+            "Are CAPAs prioritized based on risk and impact? How is the tracking of CAPA progress and timeline?",
+        ],
+        "audit_questions_ja": [
+            "組織は、再発防止のために不適合の原因を除去する処置を取っているか？是正処置は、遭遇した不適合の影響に適切か？組織は、不適合のレビュー（苦情を含む）、不適合の原因の決定、不適合が再発しないことを確実にするための処置の必要性の評価、必要な処置の計画と文書化及びそのような処置の実施（適切な場合には文書の更新を含む）、是正処置が適用される規制要求事項又は医療機器の安全性及び性能を満たす能力に悪影響を及ぼさないことの検証、並びに取られた是正処置の有効性のレビューのための要求事項を定義する手順を文書化しているか？",
+            "是正処置手順は完全か？6つの要素（レビュー、原因決定、必要性評価、計画／実施、検証、有効性レビュー）を網羅しているか？",
+            "ISO 13485:2016 §8.5.2に従い、CAPA手順は不適合レビュー、根本原因決定、処置必要性評価、処置計画及び文書化、規制／安全性／性能への影響検証、有効性レビューを網羅しているか？",
+            "どの根本原因分析手法が使用されているか（5-Why、特性要因図、FTA等）？分析プロセスは文書化されているか？",
+            "是正処置の有効性はどのように検証されているか？検証期間はリスクに基づいて定義されているか？",
+            "是正処置評価には規制要求事項及び機器安全性／性能への悪影響評価が含まれているか？",
+            "CAPAはリスク及び影響度に基づいて優先順位付けされているか？CAPA進捗及び期限の追跡は？",
+        ],
+        "expected_evidence_en": [
+            "Corrective action procedure",
+            "CAPA records",
+            "Root cause analysis",
+            "Effectiveness verification records",
+        ],
+        "expected_evidence_ja": [
+            "是正処置手順書",
+            "CAPA記録",
+            "根本原因分析",
+            "有効性検証記録",
+        ],
     },
     "8.5.3": {
         "title": "預防措施",
@@ -2123,6 +4204,36 @@ ISO_13485_CHECKLIST: dict[str, dict] = {
             "預防措施程序書",
             "預防措施紀錄",
             "風險評估紀錄",
+        ],
+        "audit_question_en": "Does the organization determine action to eliminate the causes of potential nonconformities to prevent their occurrence? Are preventive actions appropriate to the effects of the potential problems? Does the organization document a procedure to describe requirements for determining potential nonconformities and their causes; evaluating the need for action to prevent occurrence of nonconformities; planning and documenting action needed and implementing such action, including, as appropriate, updating documentation; verifying that the action does not adversely affect the ability to meet applicable regulatory requirements or the safety and performance of the medical device; and reviewing the effectiveness of preventive action taken?",
+        "audit_question_ja": "組織は、発生を防止するために潜在的不適合の原因を除去する処置を決定しているか？予防処置は、潜在的な問題の影響に適切か？組織は、潜在的不適合及びその原因の決定、不適合の発生を防止するための処置の必要性の評価、必要な処置の計画と文書化及びそのような処置の実施（適切な場合には文書の更新を含む）、処置が適用される規制要求事項又は医療機器の安全性及び性能を満たす能力に悪影響を及ぼさないことの検証、並びに取られた予防処置の有効性のレビューのための要求事項を記述する手順を文書化しているか？",
+        "audit_questions_en": [
+            "Does the organization determine action to eliminate the causes of potential nonconformities to prevent their occurrence? Are preventive actions appropriate to the effects of the potential problems? Does the organization document a procedure to describe requirements for determining potential nonconformities and their causes; evaluating the need for action to prevent occurrence of nonconformities; planning and documenting action needed and implementing such action, including, as appropriate, updating documentation; verifying that the action does not adversely affect the ability to meet applicable regulatory requirements or the safety and performance of the medical device; and reviewing the effectiveness of preventive action taken?",
+            "What are the sources of preventive actions (trend analysis, design review, risk assessment)? How is the effect of preventive actions ensured not to be negated by subsequent process changes?",
+            "Per ISO 13485:2016 §8.5.3, does the organization determine actions to eliminate causes of potential non-conformities to prevent occurrence, commensurate with the effects of the potential problems?",
+            "Is the identification of preventive actions systematic (e.g., from trend analysis, risk assessment, design review, employee feedback)? How are these sources integrated?",
+            "Is the root cause analysis method for preventive actions documented? Is the identification of potential causes linked to actual risk level?",
+            "How is the effectiveness of preventive actions verified after a period of time? Is the verification time frame and method predefined in the action plan?",
+            "Is the preventive action system integrated with the risk management process? Are identified potential failure modes fed back to FMEA or risk analysis documents?",
+        ],
+        "audit_questions_ja": [
+            "組織は、発生を防止するために潜在的不適合の原因を除去する処置を決定しているか？予防処置は、潜在的な問題の影響に適切か？組織は、潜在的不適合及びその原因の決定、不適合の発生を防止するための処置の必要性の評価、必要な処置の計画と文書化及びそのような処置の実施（適切な場合には文書の更新を含む）、処置が適用される規制要求事項又は医療機器の安全性及び性能を満たす能力に悪影響を及ぼさないことの検証、並びに取られた予防処置の有効性のレビューのための要求事項を記述する手順を文書化しているか？",
+            "予防処置のトリガー源は何か（傾向分析、設計レビュー、リスク評価等）？予防処置の効果が後続のプロセス変更で打ち消されないことをどのように確実にしているか？",
+            "ISO 13485:2016 §8.5.3に従い、組織は潜在的不適合の原因を除去する処置を決定し、発生を防止しているか、また処置は潜在的問題の影響に比例しているか？",
+            "予防処置の識別は体系化されているか（傾向分析、リスク評価、設計レビュー、従業員フィードバック等）？各源の管理方法はどのように統合されているか？",
+            "予防処置の根本原因分析手法は文書化されているか？潜在的原因の識別は実際のリスク水準と連動しているか？",
+            "予防処置の有効性は一定期間後どのように検証されるか？検証期間及び方法は処置計画で事前定義されているか？",
+            "予防処置システムはリスクマネジメントプロセスと統合されているか？識別された潜在的故障モードはFMEA又はリスク分析文書にフィードバックされているか？",
+        ],
+        "expected_evidence_en": [
+            "Preventive action procedure",
+            "Preventive action records",
+            "Risk assessment records",
+        ],
+        "expected_evidence_ja": [
+            "予防処置手順書",
+            "予防処置記録",
+            "リスク評価記録",
         ],
     },
 }

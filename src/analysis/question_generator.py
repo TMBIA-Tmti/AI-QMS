@@ -543,8 +543,14 @@ def get_audit_question_hybrid(
     """
     clause_info = ISO_13485_CHECKLIST.get(clause_id, {})
     audit_impact = clause_info.get("audit_impact", "major")
-    static_expected_evidence = clause_info.get("expected_evidence", [])
     lk = _lang_key(lang)
+    # Language-aware expected evidence selection.
+    # lk is one of "zh", "en", "ja" (see _lang_key).
+    static_expected_evidence = (
+        clause_info.get("expected_evidence_ja") if lk == "ja"
+        else clause_info.get("expected_evidence_en") if lk == "en"
+        else clause_info.get("expected_evidence")
+    ) or clause_info.get("expected_evidence", [])
 
     # ── Side B: critical clauses with LLM available ──────────────────────────
     if audit_impact == "critical" and llm_completion_fn is not None:
@@ -591,7 +597,7 @@ def get_audit_question_hybrid(
         )
 
     # ── Side A: static pool with date + doc_id hash ──────────────────────────
-    question_a = get_audit_question(clause_info, seed=seed, doc_id=doc_id)
+    question_a = get_audit_question(clause_info, seed=seed, doc_id=doc_id, lang=lang)
     return {
         "question": question_a,
         "question_en": "",

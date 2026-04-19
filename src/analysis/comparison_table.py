@@ -68,6 +68,7 @@ class ComparisonTable:
         standard: str = "ISO_13485",
         llm_completion_fn=None,
         model: str = "default",
+        lang: str = "en",
     ) -> int:
         """Build initial rows from scan_regulatory_references() output + checklist.
 
@@ -163,8 +164,12 @@ class ComparisonTable:
                     doc_title=doc_title,
                     clause_title=clause_info.get("title", ""),
                     audit_impact=clause_info.get("audit_impact", "minor"),
-                    audit_question=get_audit_question(clause_info),
-                    expected_evidence=clause_info.get("expected_evidence", []),
+                    audit_question=get_audit_question(clause_info, lang=lang),
+                    expected_evidence=(
+                        clause_info.get("expected_evidence_ja") if lang.startswith("ja")
+                        else clause_info.get("expected_evidence_en") if not lang.startswith("zh")
+                        else clause_info.get("expected_evidence")
+                    ) or clause_info.get("expected_evidence", []),
                 )
                 self._state.add_row(row)
                 row_count += 1
@@ -197,8 +202,12 @@ class ComparisonTable:
                         doc_title=doc_title,
                         clause_title=clause_info.get("title", ""),
                         audit_impact=clause_info.get("audit_impact", "minor"),
-                        audit_question=get_audit_question(clause_info),
-                        expected_evidence=clause_info.get("expected_evidence", []),
+                        audit_question=get_audit_question(clause_info, lang=lang),
+                        expected_evidence=(
+                            clause_info.get("expected_evidence_ja") if lang.startswith("ja")
+                            else clause_info.get("expected_evidence_en") if not lang.startswith("zh")
+                            else clause_info.get("expected_evidence")
+                        ) or clause_info.get("expected_evidence", []),
                     )
                     self._state.add_row(row)
                     row_count += 1
@@ -1096,6 +1105,7 @@ def build_initial_rows(
     storage_dir: Path = _DEFAULT_DIR,
     llm_completion_fn=None,
     model: str = "default",
+    lang: str = "en",
 ) -> ComparisonTable:
     """Convenience: create a new PipelineState + ComparisonTable and populate rows.
 
@@ -1105,11 +1115,13 @@ def build_initial_rows(
         storage_dir: Where to save pipeline state
         llm_completion_fn: LLM function for fallback doc classification
         model: LLM model name
+        lang: Language code for audit questions and expected evidence
+            ("en", "ja", or "zh"). Defaults to English.
 
     Returns:
         ComparisonTable ready for pipeline execution
     """
     state = PipelineState(standard=standard)
     table = ComparisonTable(state, storage_dir)
-    table.populate_from_scan(scan_result, standard, llm_completion_fn, model)
+    table.populate_from_scan(scan_result, standard, llm_completion_fn, model, lang=lang)
     return table
