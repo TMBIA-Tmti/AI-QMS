@@ -146,7 +146,18 @@ def format_regulatory_update_markdown(
 
         if r.get("crawl_status") == "success":
             content = r.get("content_markdown", "")
-            preview = _strip_markdown(content)[:50] if content else ""
+            if content:
+                # Strip markdown and skip the first line if it's a region header
+                stripped = _strip_markdown(content)
+                lines = stripped.splitlines()
+                # Skip lines that look like "RegionName — AgencyName" headers
+                import re as _re2
+                _header_pat = _re2.compile(r'^[\w\s\u4e00-\u9fff\uff08\uff09（）()]+\s*[—–-]\s*\w', _re2.UNICODE)
+                while lines and _header_pat.match(lines[0].strip()):
+                    lines.pop(0)
+                preview = " ".join(lines)[:50] if lines else ""
+            else:
+                preview = ""
         elif r.get("crawl_status") == "failed":
             reason = r.get(
                 "failure_reason", _t("regulatory_update_export.unknown_reason", lang)

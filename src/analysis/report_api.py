@@ -211,7 +211,9 @@ async def serve_report_static(filename: str):
         ".ico": "image/x-icon",
     }
     return FileResponse(
-        filepath, media_type=content_types.get(ext, "application/octet-stream")
+        filepath,
+        media_type=content_types.get(ext, "application/octet-stream"),
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
     )
 
 

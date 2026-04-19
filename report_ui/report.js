@@ -18,7 +18,7 @@
 
     // Region display: stored keys are "Chinese (English)" — show English for non-zh
     const displayRegion = (key) => {
-        const lang = (window.__i18n && window.__i18n.lang) || "zh-TW";
+        const lang = (window.__i18n && window.__i18n.lang) || "en-US";
         if (lang.startsWith("zh")) return key;
         const m = key && key.match(/\(([^)]+)\)/);
         return m ? m[1] : (key || "");
@@ -933,7 +933,7 @@
     // ============================================================
 
     function populateFilters(filters) {
-        const _lang = window.__i18n ? window.__i18n.lang : "zh-TW";
+        const _lang = window.__i18n ? window.__i18n.lang : "en-US";
         const _isEn = _lang && !_lang.startsWith("zh") && !_lang.startsWith("ja");
         const _isJa = _lang && _lang.startsWith("ja");
         // Documents
@@ -1181,7 +1181,7 @@
             let html = "";
 
             // Basic info
-            const _dLang = window.__i18n ? window.__i18n.lang : "zh-TW";
+            const _dLang = window.__i18n ? window.__i18n.lang : "en-US";
             const _dIsEn = _dLang && !_dLang.startsWith("zh") && !_dLang.startsWith("ja");
             const _dIsJa = _dLang && _dLang.startsWith("ja");
             const _i18nT = window.__i18n ? (k) => window.__i18n.t(k) : (k) => k;
@@ -2421,7 +2421,7 @@
         els.btnLoadCrossref.textContent = '✨ ' + t('ui.generating');
 
         try {
-            const _uiLang = (window.__i18n && window.__i18n.lang) || "zh-TW";
+            const _uiLang = (window.__i18n && window.__i18n.lang) || "en-US";
             const data = await apiFetch(`/crossref/table?regulations=${regIds.join(",")}&lang=${encodeURIComponent(_uiLang)}`);
             crossrefData = data;
 
@@ -2537,7 +2537,7 @@
                 const confClass = conf >= 0.9 ? "confidence-high" : conf >= 0.7 ? "confidence-medium" : "confidence-low";
                 const methodLabel = METHOD_LABELS[reg.method] || reg.method || "—";
 
-                const _cLang = (window.__i18n && window.__i18n.lang) || "zh-TW";
+                const _cLang = (window.__i18n && window.__i18n.lang) || "en-US";
                 const _isEn = !_cLang.startsWith("zh") && !_cLang.startsWith("ja");
                 const _countryName = _isEn ? (m.country_name_en || m.country_name_zh || rid) : (m.country_name_zh || rid);
                 const _lblRef = t('crossref.lblRef');
@@ -2613,7 +2613,7 @@
         }
 
         els.crossrefTableBody.innerHTML = bodyHtml;
-        const _crLang = window.__i18n ? window.__i18n.lang : "zh-TW";
+        const _crLang = window.__i18n ? window.__i18n.lang : "en-US";
         if (_crLang.startsWith("zh")) {
             els.crossrefTableCount.textContent = t('crossref.tableCount', {rows: rows.length, cols: regIds.length});
         } else if (_crLang.startsWith("ja")) {
@@ -2688,7 +2688,7 @@
 
             if (d.exceeds_only.length === 0 && reqs.length === 0 && d.unique_only.length === 0) continue;
 
-            const _icLang = (window.__i18n && window.__i18n.lang) || "zh-TW";
+            const _icLang = (window.__i18n && window.__i18n.lang) || "en-US";
             const _icEn = !_icLang.startsWith("zh") && !_icLang.startsWith("ja");
             const _icCountry = _icEn ? (m.country_name_en || m.country_name_zh || rid) : (m.country_name_zh || rid);
             html += `<div class="intercountry-card">
@@ -2764,7 +2764,7 @@
             const m = meta[rid] || {};
             const flag = FLAG_EMOJIS[m.country] || "";
 
-            const _dlLang = (window.__i18n && window.__i18n.lang) || "zh-TW";
+            const _dlLang = (window.__i18n && window.__i18n.lang) || "en-US";
             const _dlEn = !_dlLang.startsWith("zh") && !_dlLang.startsWith("ja");
             const _dlCountry = _dlEn ? (m.country_name_en || m.country_name_zh || rid) : (m.country_name_zh || rid);
             html += `<div class="delta-country-group">
