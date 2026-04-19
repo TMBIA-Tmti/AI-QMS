@@ -138,7 +138,7 @@ echo  Starting Chainlit App (Port %CHAINLIT_PORT%)
 echo ========================================================
 echo.
 echo [INFO] Chainlit URL: http://localhost:%CHAINLIT_PORT%
-echo [INFO] Auto-Reload: ON (code changes auto-restart)
+echo [INFO] Auto-Reload: OFF (disabled to prevent UI disconnect during analysis)
 echo [INFO] Press Ctrl+C to stop
 echo.
 
@@ -151,7 +151,7 @@ if errorlevel 1 (
 )
 
 cd /d "%PROJECT_DIR%"
-"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port %CHAINLIT_PORT% -w
+"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port %CHAINLIT_PORT%
 goto check_error
 
 :start_all
@@ -188,7 +188,7 @@ echo  Press Ctrl+C to stop Chainlit
 echo.
 
 cd /d "%PROJECT_DIR%"
-"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port %CHAINLIT_PORT% -w
+"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port %CHAINLIT_PORT%
 goto check_error
 
 :start_phoenix
@@ -232,7 +232,7 @@ echo.
 start "" "http://localhost:%PHOENIX_PORT%"
 
 cd /d "%PROJECT_DIR%"
-"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port %CHAINLIT_PORT% -w
+"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port %CHAINLIT_PORT%
 goto check_error
 
 
