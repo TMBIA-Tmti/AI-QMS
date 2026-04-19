@@ -1699,7 +1699,8 @@ def auto_update_models(providers_to_update: list[str] | None = None) -> dict:
 
 def print_update_summary(results: dict, lang: str = "zh-TW") -> str:
     """Format auto_update_models results into a human-readable summary."""
-    _zh = lang.startswith("zh")
+    from src.chainlit_app.lang_config import lang_key as _lang_key
+    _zh = _lang_key(lang) == "zh"
     lines = ["[LLM 模型清單自動更新]" if _zh else "[LLM Model List Auto-Update]"]
     any_change = False
 

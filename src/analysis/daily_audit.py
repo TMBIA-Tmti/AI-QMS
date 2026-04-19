@@ -73,18 +73,7 @@ DEVIATION_DIM_GAP_THRESHOLD = 20
 # i18n helper
 # ============================================================
 
-
-def _get_prompt_lang(lang: str) -> str:
-    """Normalize lang code to 'zh', 'en', or 'ja' for prompt selection."""
-    if not lang:
-        return "zh"
-    if lang.lower().startswith("zh"):
-        return "zh"
-    if lang.lower().startswith("ja"):
-        return "ja"
-    if lang.lower().startswith("en"):
-        return "en"
-    return "en"
+from src.chainlit_app.lang_config import lang_key as _get_prompt_lang  # noqa: E402
 
 
 # ============================================================

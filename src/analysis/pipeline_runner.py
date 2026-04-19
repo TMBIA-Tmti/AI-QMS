@@ -94,6 +94,7 @@ _PIPELINE_I18N: dict[str, dict[str, str]] = {
         "no_items_error": "無可分析的項目（未找到引用法規標準的品質文件）",
         "critical_gaps_pause": "🔴 發現嚴重差距，管線已暫停",
         "evidence_conflict_pause": "⚠️ 交叉驗證有分歧，管線已暫停",
+        "gap_scan_doc_progress": "執行中... — {done}/{total} 份文件 [{pct}%]",
     },
     "en-US": {
         "pipeline_failed": "Pipeline analysis failed",
@@ -131,6 +132,7 @@ _PIPELINE_I18N: dict[str, dict[str, str]] = {
         "no_items_error": "No items to analyze (no QMS documents referencing the regulatory standard were found)",
         "critical_gaps_pause": "🔴 Critical gaps detected — pipeline paused",
         "evidence_conflict_pause": "⚠️ Cross-verification disagreement — pipeline paused",
+        "gap_scan_doc_progress": "running... — {done}/{total} docs [{pct}%]",
     },
     "ja-JP": {
         "pipeline_failed": "分析パイプラインの実行に失敗しました",
@@ -168,24 +170,23 @@ _PIPELINE_I18N: dict[str, dict[str, str]] = {
         "no_items_error": "分析可能な項目がありません（規制基準を参照している QMS 文書が見つかりません）",
         "critical_gaps_pause": "🔴 重大なギャップを検出 — パイプラインを一時停止",
         "evidence_conflict_pause": "⚠️ 交差検証で意見の相違 — パイプラインを一時停止",
+        "gap_scan_doc_progress": "実行中... — {done}/{total} 件のドキュメント [{pct}%]",
     },
 }
+
+
+from src.chainlit_app.lang_config import lang_key as _lang_key_short  # noqa: E402
+
+_PIPELINE_LANG_MAP = {"zh": "zh-TW", "en": "en-US", "ja": "ja-JP"}
 
 
 def _pipeline_lang_key(lang: str) -> str:
     """Normalize language code to a pipeline i18n dict key.
 
-    Falls back to 'en-US' for any language other than zh/en/ja.
+    Delegates short-form normalization to lang_config.lang_key, then maps
+    to the full locale codes used in _PIPELINE_I18N.
     """
-    if not lang:
-        return "zh-TW"
-    if lang.startswith("zh"):
-        return "zh-TW"
-    if lang.startswith("ja"):
-        return "ja-JP"
-    if lang.startswith("en"):
-        return "en-US"
-    return "en-US"
+    return _PIPELINE_LANG_MAP.get(_lang_key_short(lang), "en-US")
 
 
 def _t(lang: str, key: str, **fmt) -> str:
@@ -498,9 +499,9 @@ async def run_pipeline_analysis(
                     f"{dq.get('rows_with_doc_content', 0)}/{dq.get('total_rows', 0)} "
                     f"{_t(lang, 'rows_available_suffix')}"
                 )
-                await _send_progress(send_message_fn, phase, "done", detail, pct, lang=lang)
+                await _send_progress(send_message_fn, phase, "done", detail, lang=lang)
             elif phase == Phase.REFERENCE_MAPPING:
-                await _send_progress(send_message_fn, phase, "done", progress_pct=pct, lang=lang)
+                await _send_progress(send_message_fn, phase, "done", lang=lang)
             elif phase == Phase.GAP_SCAN:
                 found = sum(
                     1
@@ -513,11 +514,10 @@ async def run_pipeline_analysis(
                     phase,
                     "done",
                     f"{found} {_t(lang, 'evidence_done_suffix')}",
-                    pct,
                     lang=lang,
                 )
             elif phase == Phase.CHECKLIST_VERIFY:
-                await _send_progress(send_message_fn, phase, "done", progress_pct=pct, lang=lang)
+                await _send_progress(send_message_fn, phase, "done", lang=lang)
             elif phase == Phase.RISK_ASSESSMENT:
                 # Count verdicts
                 verdicts: dict[str, int] = {}
@@ -528,9 +528,9 @@ async def run_pipeline_analysis(
                 partial = verdicts.get(Verdict.PARTIAL_COMPLIANCE, 0)
                 full = verdicts.get(Verdict.FULL_COMPLIANCE, 0)
                 detail = f"✅ {full} | ⚠️ {partial} | ❌ {non_compliant}"
-                await _send_progress(send_message_fn, phase, "done", detail, pct, lang=lang)
+                await _send_progress(send_message_fn, phase, "done", detail, lang=lang)
             elif phase == Phase.REMEDIATION:
-                await _send_progress(send_message_fn, phase, "done", progress_pct=pct, lang=lang)
+                await _send_progress(send_message_fn, phase, "done", lang=lang)
             elif phase == Phase.VERIFICATION:
                 flagged = sum(1 for r in rows if r.flagged_for_ra)
                 detail = (
@@ -538,7 +538,7 @@ async def run_pipeline_analysis(
                     if flagged
                     else _t(lang, "ra_review_all_pass")
                 )
-                await _send_progress(send_message_fn, phase, "done", detail, pct, lang=lang)
+                await _send_progress(send_message_fn, phase, "done", detail, lang=lang)
             elif phase == Phase.SOURCE_CHECK:
                 sc = state.source_check_summary or {}
                 detail = _t(
@@ -547,6 +547,8 @@ async def run_pipeline_analysis(
                     accessible=sc.get("accessible", 0),
                     broken=sc.get("broken", 0),
                 )
+                # pct is now meaningful here — pipeline.py marks all rows
+                # COMPLETED at end of Phase 6, so this should read 100%.
                 await _send_progress(send_message_fn, phase, "done", detail, pct, lang=lang)
 
         # Sync callback wrapper for the pipeline (pipeline is sync, callbacks are async)
@@ -638,7 +640,39 @@ async def run_pipeline_analysis(
             executor = phase_executors.get(phase)
             if executor:
                 try:
-                    await loop.run_in_executor(None, executor)
+                    if phase == Phase.GAP_SCAN and send_message_fn is not None:
+                        # Phase 1: run with per-document progress monitoring
+                        import queue as _queue
+                        _doc_q: _queue.Queue = _queue.Queue()
+
+                        def _on_doc_done(done: int, total: int, doc_id: str) -> None:
+                            _doc_q.put((done, total, doc_id))
+
+                        pipeline._phase1_doc_callback = _on_doc_done
+                        _phase_name = _phase_display_name(Phase.GAP_SCAN, lang)
+                        _phase_icon = _PHASE_ICONS.get(Phase.GAP_SCAN, "🔎")
+
+                        phase_task = asyncio.ensure_future(
+                            loop.run_in_executor(None, executor)
+                        )
+                        while not phase_task.done():
+                            while True:
+                                try:
+                                    done, total, _doc_id = _doc_q.get_nowait()
+                                    pct = round(done / total * 100) if total > 0 else 0
+                                    progress_text = (
+                                        f"{_phase_icon} **{_phase_name}** "
+                                        + _t(lang, "gap_scan_doc_progress",
+                                             done=done, total=total, pct=pct)
+                                    )
+                                    await send_message_fn(progress_text)
+                                except _queue.Empty:
+                                    break
+                            await asyncio.sleep(0.3)
+                        pipeline._phase1_doc_callback = None
+                        await phase_task  # propagate any exception
+                    else:
+                        await loop.run_in_executor(None, executor)
                 except Exception as e:
                     logger.error(f"Phase {phase.value} failed: {e}")
                     await _send_progress(send_message_fn, phase, "fail", str(e)[:100], lang=lang)

@@ -25,6 +25,7 @@ from src.analysis.state import (
     PhaseStatus,
 )
 from src.analysis.compliance_rules import get_checklist, list_clauses, get_audit_question
+from src.chainlit_app.lang_config import lang_key as _lang_key
 from src.analysis.risk_matrix import (
     VERDICT_DISPLAY,
     RISK_LEVEL_DISPLAY,
@@ -190,8 +191,8 @@ class ComparisonTable:
                     audit_impact=clause_info.get("audit_impact", "minor"),
                     audit_question=get_audit_question(clause_info, lang=lang),
                     expected_evidence=(
-                        clause_info.get("expected_evidence_ja") if lang.startswith("ja")
-                        else clause_info.get("expected_evidence_en") if not lang.startswith("zh")
+                        clause_info.get("expected_evidence_ja") if _lang_key(lang) == "ja"
+                        else clause_info.get("expected_evidence_en") if _lang_key(lang) != "zh"
                         else clause_info.get("expected_evidence")
                     ) or clause_info.get("expected_evidence", []),
                 )

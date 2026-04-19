@@ -211,6 +211,9 @@ class AnalysisPipeline:
         self._on_phase_complete = on_phase_complete
         self._on_pause = on_pause
         self._on_row_complete = on_row_complete
+        # Per-document progress callback for Phase 1 (set by pipeline_runner)
+        # Signature: (docs_done: int, total_docs: int, doc_id: str) -> None
+        self._phase1_doc_callback: Optional[Callable] = None
 
         # State
         self._state = PipelineState(
@@ -556,7 +559,9 @@ class AnalysisPipeline:
 
         import concurrent.futures
 
-        max_workers = min(4, len(doc_groups))
+        max_workers = min(8, len(doc_groups))
+        total_docs = len(doc_groups)
+        docs_completed = 0
 
         def _scan_single_doc(doc_id: str, rows: list) -> tuple:
             result = run_gap_scan_document(
@@ -580,6 +585,12 @@ class AnalysisPipeline:
                 try:
                     _, rows, result = future.result()
                     with self._state_lock:
+                        docs_completed += 1
+                        if self._phase1_doc_callback:
+                            try:
+                                self._phase1_doc_callback(docs_completed, total_docs, doc_id)
+                            except Exception:
+                                pass
                         for row in rows:
                             row.set_phase_result(Phase.GAP_SCAN, result)
                             if result.status in (
@@ -981,6 +992,15 @@ class AnalysisPipeline:
         self._state.current_phase = Phase.SOURCE_CHECK.value
 
         result = run_source_check(self._state, lang=self._lang)
+
+        # Phase 6 is global (not per-row), so advance all rows that are
+        # still at SOURCE_CHECK — this marks them COMPLETED and makes
+        # progress_percent reach 100%.
+        with self._state_lock:
+            for row in self._state.get_all_rows():
+                if row.current_phase == Phase.SOURCE_CHECK.value:
+                    row.advance_to_next_phase()
+                    self._state.update_row(row)
 
         self._notify_phase_complete(Phase.SOURCE_CHECK)
         self._save_state()

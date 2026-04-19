@@ -57,6 +57,21 @@ LANG_CODE_MAP = {
 }
 
 
+def lang_key(lang: str) -> str:
+    """Normalize a UI language code to a prompt-dict key (zh / en / ja).
+
+    Falls back to 'en' for any language other than zh / ja.
+    This is the single source of truth — import from here instead of defining locally.
+    """
+    if not lang:
+        return "en"
+    if lang.startswith("zh"):
+        return "zh"
+    if lang.startswith("ja"):
+        return "ja"
+    return "en"
+
+
 def display_region(region_key: str, lang: str) -> str:
     """Strip Chinese prefix from bilingual region keys for non-Chinese languages.
 

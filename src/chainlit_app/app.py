@@ -2973,10 +2973,11 @@ async def _auto_trigger_crossexam():
 
             async def _on_country_progress(completed: int, total: int, country_zh: str):
                 pct = round((completed / total) * 100) if total > 0 else 0
+                _lang = cl.user_session.get("language", DEFAULT_LANG)
                 progress_msg.content = t(
                     "crossexam.freshness_crawling",
                     percent=pct,
-                    country=country_zh,
+                    country=_display_region(country_zh, _lang),
                 )
                 await progress_msg.update()
 
@@ -4946,10 +4947,26 @@ async def handle_regulatory_list():
         if provider_id != "ollama":
             manager.disable_fallback = True
 
-        # Progress message callback for Chainlit
+        # Progress board — single updating message showing all phase statuses
+        _phase_status: dict[str, str] = {}
+        _phase_order: list[str] = []
+        _board_msg: list = [None]  # mutable container for nonlocal-like access
+
         async def _send_pipeline_msg(text: str) -> None:
+            import re
+            m = re.search(r'\*\*([^*]+)\*\*', text)
+            key = m.group(1) if m else text[:60]
+            if key not in _phase_status:
+                _phase_order.append(key)
+            _phase_status[key] = text
+            board = "\n\n".join(_phase_status[k] for k in _phase_order)
             try:
-                await cl.Message(content=text).send()
+                if _board_msg[0] is None:
+                    _board_msg[0] = cl.Message(content=board, author="Eira")
+                    await _board_msg[0].send()
+                else:
+                    _board_msg[0].content = board
+                    await _board_msg[0].update()
             except Exception:
                 pass
 
@@ -5892,10 +5909,26 @@ async def handle_regulatory_update_rescan(selected_regions: list):
             if provider_id != "ollama":
                 manager.disable_fallback = True
 
-            # Progress message callback for Chainlit
+            # Progress board — single updating message showing all phase statuses
+            _phase_status_u: dict[str, str] = {}
+            _phase_order_u: list[str] = []
+            _board_msg_u: list = [None]
+
             async def _send_pipeline_msg_update(text: str) -> None:
+                import re
+                m = re.search(r'\*\*([^*]+)\*\*', text)
+                key = m.group(1) if m else text[:60]
+                if key not in _phase_status_u:
+                    _phase_order_u.append(key)
+                _phase_status_u[key] = text
+                board = "\n\n".join(_phase_status_u[k] for k in _phase_order_u)
                 try:
-                    await cl.Message(content=text).send()
+                    if _board_msg_u[0] is None:
+                        _board_msg_u[0] = cl.Message(content=board, author="Eira")
+                        await _board_msg_u[0].send()
+                    else:
+                        _board_msg_u[0].content = board
+                        await _board_msg_u[0].update()
                 except Exception:
                     pass
 

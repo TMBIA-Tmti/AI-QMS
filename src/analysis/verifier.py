@@ -49,21 +49,7 @@ MAX_VERIFICATION_ROUNDS = 3
 # Language helper (bilingual prompt routing)
 # ============================================================
 
-
-def _lang_key(lang: str) -> str:
-    """Normalize a UI language code to a prompt dict key (zh / en / ja).
-
-    Falls back to 'en' for anything other than zh/ja.
-    """
-    if not lang:
-        return "zh"
-    if lang.startswith("zh"):
-        return "zh"
-    if lang.startswith("ja"):
-        return "ja"
-    if lang.startswith("en"):
-        return "en"
-    return "en"
+from src.chainlit_app.lang_config import lang_key as _lang_key  # noqa: E402
 
 
 def emit_verification_event(run_id: str, event: dict) -> None:

@@ -155,17 +155,7 @@ def _collect_urls_from_pipeline(state: PipelineState) -> list[dict]:
 # ============================================================
 
 
-def _lang_key(lang: str) -> str:
-    """Normalize a UI language code to a key (zh / en / ja)."""
-    if not lang:
-        return "zh"
-    if lang.startswith("zh"):
-        return "zh"
-    if lang.startswith("ja"):
-        return "ja"
-    if lang.startswith("en"):
-        return "en"
-    return "en"
+from src.chainlit_app.lang_config import lang_key as _lang_key  # noqa: E402
 
 
 def run_source_check(

@@ -45,12 +45,16 @@ META_DIR = Path("./data/crossexam_history")
 # i18n helper
 # ============================================================
 
+from src.chainlit_app.lang_config import lang_key as _lang_key_central  # noqa: E402
+
 
 def _get_prompt_lang(lang: str) -> str:
-    """Normalize lang code to 'zh' or 'en' for prompt selection."""
-    if lang and lang.lower().startswith(("zh", "ja")):
-        return "zh"
-    return "en"
+    """Normalize lang code to 'zh' or 'en' for prompt selection.
+
+    This file's prompt dicts only have zh/en keys, so ja falls back to en.
+    """
+    lk = _lang_key_central(lang)
+    return "zh" if lk == "zh" else "en"
 
 
 # ============================================================
