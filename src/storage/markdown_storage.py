@@ -138,37 +138,14 @@ class MarkdownStorageManager:
         self._atomic_write_json(self.registry_file, self.registry)
 
     def _atomic_write_json(self, file_path: Path, data: dict) -> None:
-        """
-        Atomic write for JSON files.
-        Writes to a temp file first, then replaces the target file.
-        This prevents corruption if the process is interrupted.
-        """
-        temp_path = file_path.with_suffix(".tmp")
-        try:
-            with open(temp_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-            # Atomic replace (works on Windows and Unix)
-            os.replace(temp_path, file_path)
-        except Exception as e:
-            # Clean up temp file if it exists
-            if temp_path.exists():
-                temp_path.unlink()
-            raise e
+        """Atomic write for JSON files — delegates to safe_io for Windows resilience."""
+        from src.utils.safe_io import atomic_write_json
+        atomic_write_json(file_path, data)
 
     def _atomic_write_text(self, file_path: Path, content: str) -> None:
-        """
-        Atomic write for text files (Markdown).
-        Writes to a temp file first, then replaces the target file.
-        """
-        temp_path = file_path.with_suffix(".md.tmp")
-        try:
-            with open(temp_path, "w", encoding="utf-8") as f:
-                f.write(content)
-            os.replace(temp_path, file_path)
-        except Exception as e:
-            if temp_path.exists():
-                temp_path.unlink()
-            raise e
+        """Atomic write for text files — delegates to safe_io for Windows resilience."""
+        from src.utils.safe_io import atomic_write_text
+        atomic_write_text(file_path, content)
 
     def _calculate_hash(self, content: str) -> str:
         """Calculate SHA-256 hash of content"""
