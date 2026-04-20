@@ -192,6 +192,7 @@
   "format.minutes": "{mins} 分 {secs} 秒",
 
   "toast.load_error": "読み込み失敗: {error}",
+  "toast.downloadFailed": "ダウンロード失敗: {msg}",
 
   "crossref.select_countries": "🌍 規制国を選択",
   "crossref.loading_regulations": "✨ 規制一覧を読み込み中...",

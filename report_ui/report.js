@@ -772,6 +772,32 @@
         }
     }
 
+    async function downloadFileFetch(url) {
+        try {
+            const resp = await fetch(url);
+            const ct = resp.headers.get('Content-Type') || '';
+            if (!resp.ok || ct.includes('application/json')) {
+                const errData = await resp.json().catch(() => ({}));
+                throw new Error(errData.detail || errData.message || `HTTP ${resp.status}`);
+            }
+            const blob = await resp.blob();
+            const disposition = resp.headers.get('Content-Disposition') || '';
+            const match = disposition.match(/filename\*?=(?:UTF-8'')?["']?([^"';\r\n]+)/i);
+            const filename = match ? decodeURIComponent(match[1]) : 'download';
+            const blobUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(blobUrl);
+        } catch (err) {
+            console.error('Download failed:', url, err);
+            showToast(t('toast.downloadFailed', { msg: err.message }), 'error');
+        }
+    }
+
     async function apiPost(path, body) {
         return apiFetch(path, {
             method: "POST",
@@ -1714,14 +1740,7 @@
     function exportReport(format) {
         const url = `${API_BASE}/${RUN_ID}/export/${format}`;
         showToast(t('toast.exporting', {fmt: format.toUpperCase()}), "info");
-
-        // Use a hidden link to trigger download
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        downloadFileFetch(url);
     }
 
 
@@ -3616,12 +3635,7 @@
     function exportDeepReport(format) {
         const url = `${API_BASE}/${RUN_ID}/export/deep_${format}`;
         showToast(t('toast.exportingDeep', {fmt: format.toUpperCase()}), "info");
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        downloadFileFetch(url);
     }
 
 
@@ -3703,12 +3717,7 @@
     function exportHistoryRecord(recordId, format) {
         const url = `${API_BASE}/crossexam/history/${recordId}/export/${format}`;
         showToast(t('toast.exportingCrossexam', {fmt: format.toUpperCase()}), "info");
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        downloadFileFetch(url);
     }
 
 
@@ -3764,12 +3773,7 @@
     function exportMetaAnalysis(format) {
         const url = `${API_BASE}/crossexam/meta-analysis/export/${format}`;
         showToast(t('toast.exportingQuality', {fmt: format.toUpperCase()}), "info");
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        downloadFileFetch(url);
     }
 
     // ============================================================
@@ -3954,34 +3958,19 @@
     function exportDailyAudit(format) {
         const url = `${API_BASE}/daily-audit/export/${format}`;
         showToast(t('toast.exportingAudit', {fmt: format.toUpperCase()}), 'info');
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = '';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        downloadFileFetch(url);
     }
 
     function exportMetaReviewReport(format) {
         const url = `${API_BASE}/daily-audit/meta-review/export/${format}`;
         showToast(t('toast.exportingMetaReview', {fmt: format.toUpperCase()}), 'info');
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = '';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        downloadFileFetch(url);
     }
 
     function exportAuditRecord(auditId, format) {
         const url = `${API_BASE}/daily-audit/history/${auditId}/export/${format}`;
         showToast(t('toast.exportingAuditRecord', {fmt: format.toUpperCase()}), 'info');
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = '';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        downloadFileFetch(url);
     }
 
 
@@ -4124,12 +4113,7 @@
 
     function triggerDownload(url, label) {
         showToast(t('toast.downloading', {label: label}), 'info');
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = '';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        downloadFileFetch(url);
     }
 
     // ---- Feedback command handler ----

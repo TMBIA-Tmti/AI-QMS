@@ -181,23 +181,46 @@ echo  Press Ctrl+C to stop
 echo ========================================================
 echo.
 
-:: Run Chainlit from project directory
+:: ============================================================
+:: Watchdog Loop — auto-restart Chainlit on unexpected exit
+:: Press Ctrl+C twice (or close window) to fully stop.
+:: ============================================================
 cd /d "%PROJECT_DIR%"
+set "CHAINLIT_RESTARTS=0"
+
+:watchdog_loop
+if %CHAINLIT_RESTARTS% GTR 0 (
+    echo.
+    echo ========================================================
+    echo  [WATCHDOG] Chainlit stopped unexpectedly.
+    echo  [WATCHDOG] Restart attempt: %CHAINLIT_RESTARTS%
+    echo  [WATCHDOG] Waiting 5 seconds before restart...
+    echo  [WATCHDOG] Press Ctrl+C to exit permanently.
+    echo ========================================================
+    echo.
+    timeout /t 5 /nobreak >nul
+
+    :: Clean up any orphaned processes on the port before restart
+    for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":%CHAINLIT_PORT% .*LISTENING"') do (
+        tasklist /FI "PID eq %%a" /FO CSV /NH 2>nul | findstr /I "python" >nul
+        if not errorlevel 1 taskkill /PID %%a /F >nul 2>&1
+    )
+    timeout /t 2 /nobreak >nul
+)
+
+set /a CHAINLIT_RESTARTS+=1
+echo [WATCHDOG] Starting Chainlit (run %CHAINLIT_RESTARTS%)...
 "%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port %CHAINLIT_PORT%
+
+:: errorlevel 0 = clean exit (Ctrl+C / manual stop) → do NOT restart
+:: errorlevel 1 = crash → restart
+if errorlevel 1 (
+    goto :watchdog_loop
+)
 
 echo.
 echo ========================================================
-if errorlevel 1 (
-    echo [ERROR] Chainlit terminated with error.
-    echo Check the messages above for details.
-    echo.
-    echo Common issues:
-    echo   1. Port %CHAINLIT_PORT% already in use
-    echo   2. Missing dependencies (run: pip install -r requirements.txt)
-    echo   3. Chainlit version issue (need 2.9.4+)
-) else (
-    echo [INFO] Chainlit has stopped.
-)
+echo [INFO] Chainlit stopped cleanly.
 echo ========================================================
 echo.
 echo Press any key to exit...

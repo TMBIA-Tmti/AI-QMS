@@ -192,6 +192,7 @@
   "format.minutes": "{mins} 分 {secs} 秒",
 
   "toast.load_error": "載入失敗: {error}",
+  "toast.downloadFailed": "下載失敗: {msg}",
 
   "crossref.select_countries": "🌍 選擇法規國家",
   "crossref.loading_regulations": "✨ 載入法規清單中...",

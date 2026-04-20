@@ -151,7 +151,22 @@ if errorlevel 1 (
 )
 
 cd /d "%PROJECT_DIR%"
+set "CHAINLIT_RESTARTS=0"
+
+:main_watchdog_loop
+if %CHAINLIT_RESTARTS% GTR 0 (
+    echo.
+    echo [WATCHDOG] Chainlit crashed ^(run %CHAINLIT_RESTARTS%^). Restarting in 5s...
+    timeout /t 5 /nobreak >nul
+    for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":%CHAINLIT_PORT% .*LISTENING"') do (
+        tasklist /FI "PID eq %%a" /FO CSV /NH 2>nul | findstr /I "python" >nul
+        if not errorlevel 1 taskkill /PID %%a /F >nul 2>&1
+    )
+    timeout /t 2 /nobreak >nul
+)
+set /a CHAINLIT_RESTARTS+=1
 "%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port %CHAINLIT_PORT%
+if errorlevel 1 goto main_watchdog_loop
 goto check_error
 
 :start_all

@@ -192,6 +192,7 @@
   "format.minutes": "{mins} min {secs} sec",
 
   "toast.load_error": "Load failed: {error}",
+  "toast.downloadFailed": "Download failed: {msg}",
 
   "crossref.select_countries": "🌍 Select Regulatory Countries",
   "crossref.loading_regulations": "✨ Loading regulatory list...",
