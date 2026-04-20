@@ -754,22 +754,41 @@
     // API Helpers
     // ============================================================
 
-    async function apiFetch(path, options = {}) {
+    // apiFetch with retry: network errors (server temporarily unavailable) are
+    // retried up to maxRetries times with exponential backoff.
+    // HTTP 4xx errors are NOT retried (bad request / not found).
+    async function apiFetch(path, options = {}, maxRetries = 3, retryDelay = 2000) {
         const url = `${API_BASE}${path}`;
-        try {
-            const resp = await fetch(url, {
-                headers: { "Content-Type": "application/json", ...options.headers },
-                ...options,
-            });
-            if (!resp.ok) {
-                const errData = await resp.json().catch(() => ({}));
-                throw new Error(errData.detail || `HTTP ${resp.status}`);
+        let lastErr;
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+                const resp = await fetch(url, {
+                    headers: { "Content-Type": "application/json", ...options.headers },
+                    ...options,
+                });
+                if (!resp.ok) {
+                    const errData = await resp.json().catch(() => ({}));
+                    const err = new Error(errData.detail || `HTTP ${resp.status}`);
+                    // 4xx = client error, don't retry
+                    if (resp.status >= 400 && resp.status < 500) throw err;
+                    // 5xx = server error, retry
+                    lastErr = err;
+                } else {
+                    return await resp.json();
+                }
+            } catch (err) {
+                lastErr = err;
+                // Don't retry on 4xx (already thrown above)
+                if (err.message && err.message.startsWith('HTTP 4')) throw err;
             }
-            return await resp.json();
-        } catch (err) {
-            console.error(`API error: ${url}`, err);
-            throw err;
+            if (attempt < maxRetries) {
+                const wait = retryDelay * Math.pow(1.5, attempt);
+                console.warn(`[report] API retry ${attempt + 1}/${maxRetries} in ${Math.round(wait)}ms: ${url}`);
+                await new Promise(r => setTimeout(r, wait));
+            }
         }
+        console.error(`API error after ${maxRetries} retries: ${url}`, lastErr);
+        throw lastErr;
     }
 
     async function downloadFileFetch(url) {
