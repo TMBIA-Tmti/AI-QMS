@@ -983,6 +983,26 @@ def run_checklist_verify_document(
             },
         )
 
+        # Interaction log: persist full LLM call for deep report export
+        if run_id:
+            try:
+                from src.database.interaction_log import get_interaction_log
+                get_interaction_log(run_id).log_interaction(
+                    phase="checklist_verify",
+                    phase_label="Phase 2 - Checklist Verification",
+                    doc_id=doc_id,
+                    doc_title=doc_title,
+                    system_prompt=_DOC_VERIFY_SYSTEM_PROMPTS[lk],
+                    user_prompt=user_prompt,
+                    llm_response=response_text,
+                    model=response.get("model", model) if response else model,
+                    usage=usage,
+                    duration_seconds=round(time.time() - phase_result.started_at, 2),
+                    extra={"clause_ids": [r.clause_id for r in rows]},
+                )
+            except Exception:
+                pass
+
         # SSE: conversation-style event
         _v_details = []
         for row in rows:

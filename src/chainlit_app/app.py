@@ -3659,39 +3659,52 @@ async def on_chat_start():
             )
             _lang = cl.user_session.get("language", DEFAULT_LANG)
             _shown = 0
-            for _rf in _run_files[:3]:  # Check latest 3 runs
+            from datetime import datetime as _dt
+            for _rf in _run_files[:5]:  # Check latest 5 runs
                 try:
                     _run_data = json.loads(_rf.read_text(encoding="utf-8"))
                     _run_status = _run_data.get("status", "")
                     _run_id = _run_data.get("run_id", _rf.stem)
-                    if (
-                        _run_status == "completed"
-                        and _run_data.get("total_rows", 0) > 0
-                    ):
-                        _report_url = f"/api/report/page/{_run_id}?lang={_lang}"
-                        _created = _run_data.get("started_at", "")
-                        if isinstance(_created, (int, float)):
-                            from datetime import datetime as _dt
+                    _total = _run_data.get("total_rows", 0)
 
-                            _created = _dt.fromtimestamp(_created).strftime(
-                                "%Y-%m-%d %H:%M"
-                            )
-                        elif _created:
-                            _created = str(_created)[:16]
-                        else:
-                            continue  # Skip runs with no started_at
-                        _total = _run_data.get("total_rows", 0)
-                        _completed = _run_data.get("completed_rows", 0)
-                        await cl.Message(
-                            content=(
-                                f"\U0001f4ca **{t('report.previous_report')}**\n"
-                                f"{t('report.status')}: \u2705 {t('report.completed')} "
-                                f"({_completed}/{_total})\n"
-                                f"{t('report.time')}: {_created}\n"
-                                f"[\ud83d\udd17 {t('report.view_report')}]({_report_url})"
-                            ),
-                        ).send()
-                        _shown += 1
+                    # Show completed runs OR interrupted runs that have data rows
+                    if _total == 0:
+                        continue
+
+                    _report_url = f"/api/report/page/{_run_id}?lang={_lang}"
+
+                    # Resolve timestamp: try started_at field first, fall back to file mtime
+                    _created = _run_data.get("started_at", "")
+                    if isinstance(_created, (int, float)):
+                        _created = _dt.fromtimestamp(_created).strftime("%Y-%m-%d %H:%M")
+                    elif _created:
+                        _created = str(_created)[:16]
+                    else:
+                        # Use file modification time as fallback (always available)
+                        _created = _dt.fromtimestamp(_rf.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
+
+                    _completed = _run_data.get("completed_rows", 0)
+
+                    if _run_status == "completed":
+                        _status_icon = "✅"
+                        _status_label = t("report.completed")
+                    else:
+                        # Interrupted mid-run — still has data worth viewing
+                        _status_icon = "⚠️"
+                        _status_label = t("report.interrupted")
+
+                    await cl.Message(
+                        content=(
+                            f"\U0001f4ca **{t('report.previous_report')}**\n"
+                            f"{t('report.status')}: {_status_icon} {_status_label} "
+                            f"({_completed}/{_total})\n"
+                            f"{t('report.time')}: {_created}\n"
+                            f"[\ud83d\udd17 {t('report.view_report')}]({_report_url})"
+                        ),
+                    ).send()
+                    _shown += 1
+                    if _shown >= 3:
+                        break
                 except (json.JSONDecodeError, OSError, KeyError):
                     continue
     except Exception:
@@ -5182,6 +5195,48 @@ async def handle_regulatory_list():
                         elements.append(
                             cl.File(name=ename, path=excel_path, display="inline")
                         )
+
+                    # Also generate detailed per-clause Word/Excel from pipeline flat_rows
+                    if pipeline_result and pipeline_result.success and pipeline_result.run_id:
+                        try:
+                            from src.analysis.report_api import _load_table_sync, _build_interactions_from_state
+                            from src.utils.crossexam_export import (
+                                export_deep_report_word,
+                                export_deep_report_excel,
+                            )
+                            _detail_table = _load_table_sync(pipeline_result.run_id)
+                            _flat_rows = _detail_table.to_flat_rows(lang=_rl_lang)
+                            _summary = _detail_table.summary()
+                            _interactions = None
+                            try:
+                                from src.database.interaction_log import load_interaction_log
+                                _ilog = load_interaction_log(pipeline_result.run_id)
+                                if _ilog:
+                                    _interactions = _ilog.get_interactions()
+                            except Exception:
+                                pass
+                            if not _interactions:
+                                _interactions = _build_interactions_from_state(_detail_table._state.get_all_rows())
+                            _dw = export_deep_report_word(
+                                pipeline_result.run_id, _flat_rows, _summary, _interactions, lang=_rl_lang
+                            )
+                            _dx = export_deep_report_excel(
+                                pipeline_result.run_id, _flat_rows, _summary, _interactions, lang=_rl_lang
+                            )
+                            if _dw and Path(str(_dw)).exists():
+                                elements.append(
+                                    cl.File(name=Path(str(_dw)).name, path=str(_dw), display="inline")
+                                )
+                            if _dx and Path(str(_dx)).exists():
+                                elements.append(
+                                    cl.File(name=Path(str(_dx)).name, path=str(_dx), display="inline")
+                                )
+                        except Exception as _detail_err:
+                            import logging
+                            logging.getLogger(__name__).warning(
+                                "Detailed pipeline export failed: %s", _detail_err
+                            )
+
                     await cl.Message(
                         content=base_response,
                         elements=elements,
@@ -6128,6 +6183,48 @@ async def handle_regulatory_update_rescan(selected_regions: list):
                     elements.append(
                         cl.File(name=ename, path=excel_path, display="inline")
                     )
+
+                # Also generate detailed per-clause Word/Excel from pipeline flat_rows
+                if pipeline_result and pipeline_result.success and pipeline_result.run_id:
+                    try:
+                        from src.analysis.report_api import _load_table_sync, _build_interactions_from_state
+                        from src.utils.crossexam_export import (
+                            export_deep_report_word,
+                            export_deep_report_excel,
+                        )
+                        _detail_table = _load_table_sync(pipeline_result.run_id)
+                        _flat_rows = _detail_table.to_flat_rows(lang=_fmt_lang)
+                        _summary = _detail_table.summary()
+                        _interactions = None
+                        try:
+                            from src.database.interaction_log import load_interaction_log
+                            _ilog = load_interaction_log(pipeline_result.run_id)
+                            if _ilog:
+                                _interactions = _ilog.get_interactions()
+                        except Exception:
+                            pass
+                        if not _interactions:
+                            _interactions = _build_interactions_from_state(_detail_table._state.get_all_rows())
+                        _dw = export_deep_report_word(
+                            pipeline_result.run_id, _flat_rows, _summary, _interactions, lang=_fmt_lang
+                        )
+                        _dx = export_deep_report_excel(
+                            pipeline_result.run_id, _flat_rows, _summary, _interactions, lang=_fmt_lang
+                        )
+                        if _dw and Path(str(_dw)).exists():
+                            elements.append(
+                                cl.File(name=Path(str(_dw)).name, path=str(_dw), display="inline")
+                            )
+                        if _dx and Path(str(_dx)).exists():
+                            elements.append(
+                                cl.File(name=Path(str(_dx)).name, path=str(_dx), display="inline")
+                            )
+                    except Exception as _detail_err:
+                        import logging
+                        logging.getLogger(__name__).warning(
+                            "Detailed pipeline export failed: %s", _detail_err
+                        )
+
                 await cl.Message(
                     content=response,
                     elements=elements,
@@ -9525,6 +9622,50 @@ async def on_message(message: cl.Message):
     if _match_cmd(text, "cmd.status") or _match_cmd_exact(text, "cmd.status"):
         response = await handle_status()
         await cl.Message(content=response).send()
+        return
+
+    # Report — show links to recent analysis reports at any time
+    _report_triggers = ["report", "/report", "報告", "/報告", "開報告", "open report", "show report",
+                        "レポート", "/レポート", "レポートを開く", "show reports"]
+    if any(text.lower().strip() == tr.lower() or text.strip() == tr for tr in _report_triggers):
+        _lang = cl.user_session.get("language", DEFAULT_LANG)
+        _pipeline_dir = Path("data/analysis_pipeline")
+        _found = 0
+        _lines = []
+        if _pipeline_dir.exists():
+            from datetime import datetime as _dt2
+            _run_files = sorted(
+                _pipeline_dir.glob("*.json"),
+                key=lambda f: f.stat().st_mtime,
+                reverse=True,
+            )
+            for _rf in _run_files[:10]:
+                try:
+                    _rd = json.loads(_rf.read_text(encoding="utf-8"))
+                    if _rd.get("total_rows", 0) == 0:
+                        continue
+                    _rid = _rd.get("run_id", _rf.stem)
+                    _url = f"/api/report/page/{_rid}?lang={_lang}"
+                    _ts = _rd.get("started_at", "")
+                    if isinstance(_ts, (int, float)):
+                        _ts = _dt2.fromtimestamp(_ts).strftime("%Y-%m-%d %H:%M")
+                    elif _ts:
+                        _ts = str(_ts)[:16]
+                    else:
+                        _ts = _dt2.fromtimestamp(_rf.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
+                    _status_icon = "✅" if _rd.get("status") == "completed" else "⚠️"
+                    _done = _rd.get("completed_rows", 0)
+                    _total = _rd.get("total_rows", 0)
+                    _lines.append(f"{_status_icon} {_ts} ({_done}/{_total}) — [📊 {t('report.view_report')}]({_url})")
+                    _found += 1
+                    if _found >= 5:
+                        break
+                except Exception:
+                    continue
+        if _lines:
+            await cl.Message(content="📊 **" + t("report.previous_report") + "**\n\n" + "\n".join(_lines)).send()
+        else:
+            await cl.Message(content="⚠️ " + t("report.no_reports")).send()
         return
 
     # ============================================================

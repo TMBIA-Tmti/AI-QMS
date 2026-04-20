@@ -33,7 +33,7 @@ __all__ = [
     "export_deep_report_excel",
 ]
 
-EXPORT_DIR = Path("data/exports")
+EXPORT_DIR = (Path(__file__).resolve().parent.parent.parent / "data" / "exports")
 
 
 # ============================================================
@@ -133,6 +133,32 @@ _EXPORT_HEADERS: dict[str, dict[str, str]] = {
         "deep_doc_label": "文件",
         "deep_analyzer_label": "🔍 分析者",
         "deep_verifier_label": "⚖️ 驗證者",
+        "deep_s6": "第六章 合規性分析結果表",
+        "deep_s6_headers": ["條款", "文件", "稽核影響", "判定", "風險", "差距", "RA 標記"],
+        "deep_s7": "第七章 交叉詰問品質分析",
+        "deep_s7_findings": "發現事項",
+        "deep_s7_recs": "建議",
+        "deep_s7_prompt": "Prompt 調整記錄",
+        "deep_s7_no_summary": "（無分析摘要）",
+        "deep_s8": "附錄 LLM 使用統計",
+        "deep_s8_calls": "次呼叫",
+        "deep_no_issues": "無",
+        "deep_qa_skipped": "（已跳過：{summary}）",
+        "deep_no_qa_record": "（無第三方品質稽核記錄）",
+        "xl_sheet_summary": "摘要",
+        "xl_sheet_compliance": "合規分析",
+        "xl_sheet_llm": "LLM 互動記錄",
+        "xl_sheet_crossexam": "交叉詰問",
+        "xl_sheet_meta": "品質分析",
+        "xl_run_id": "分析 ID",
+        "xl_export_time": "匯出時間",
+        "xl_total_rows": "總分析項目",
+        "xl_flagged_ra": "需 RA 審查",
+        "xl_verdict_prefix": "判定 - ",
+        "xl_risk_prefix": "風險 - ",
+        "xl_comp_headers": ["條款 ID","條款名稱","文件 ID","文件標題","稽核影響","稽核問題","判定","風險等級","差距嚴重度","證據 (找到/總計)","RA 標記","RA 覆寫","RA 備註","改善建議 (LLM P4)","法規引用 (LLM P4)","分析者立場 (LLM P5)","驗證者評語 (LLM P5)"],
+        "xl_llm_headers": ["Phase","文件 ID","條款 ID","角色","Round","LLM 回應 (摘要)","Token 用量","模型","時間"],
+        "xl_xe_headers": ["條款 ID","條款名稱","文件 ID","判定","同意","RA 標記","輪次數","R1 分析者立場","R1 分析者信心","R1 驗證者評估","R1 Agreement","QA 分數","問題品質","回答準確","幻覺偵測"],
     },
     "en": {
         "title_crossexam": "AI-QMS Cross-Examination Record",
@@ -223,6 +249,32 @@ _EXPORT_HEADERS: dict[str, dict[str, str]] = {
         "deep_doc_label": "Document",
         "deep_analyzer_label": "🔍 Analyzer",
         "deep_verifier_label": "⚖️ Verifier",
+        "deep_s6": "Chapter 6: Compliance Analysis Results",
+        "deep_s6_headers": ["Clause", "Document", "Audit Impact", "Verdict", "Risk", "Gap", "RA Flag"],
+        "deep_s7": "Chapter 7: Cross-Examination Quality Analysis",
+        "deep_s7_findings": "Findings",
+        "deep_s7_recs": "Recommendations",
+        "deep_s7_prompt": "Prompt Tuning Log",
+        "deep_s7_no_summary": "(No analysis summary)",
+        "deep_s8": "Appendix: LLM Usage Statistics",
+        "deep_s8_calls": "calls",
+        "deep_no_issues": "None",
+        "deep_qa_skipped": "(Skipped: {summary})",
+        "deep_no_qa_record": "(No third-party QA audit records)",
+        "xl_sheet_summary": "Summary",
+        "xl_sheet_compliance": "Compliance",
+        "xl_sheet_llm": "LLM Interactions",
+        "xl_sheet_crossexam": "Cross-Exam",
+        "xl_sheet_meta": "Quality Analysis",
+        "xl_run_id": "Run ID",
+        "xl_export_time": "Export Time",
+        "xl_total_rows": "Total Items",
+        "xl_flagged_ra": "Flagged for RA",
+        "xl_verdict_prefix": "Verdict - ",
+        "xl_risk_prefix": "Risk - ",
+        "xl_comp_headers": ["Clause ID","Clause Title","Doc ID","Doc Title","Audit Impact","Audit Question","Verdict","Risk Level","Gap Severity","Evidence (Found/Total)","RA Flag","RA Override","RA Notes","Improvement Suggestion (P4)","Regulation Cite (P4)","Analyzer Position (P5)","Verifier Assessment (P5)"],
+        "xl_llm_headers": ["Phase","Doc ID","Clause ID","Role","Round","LLM Response (excerpt)","Token Usage","Model","Timestamp"],
+        "xl_xe_headers": ["Clause ID","Clause Title","Doc ID","Verdict","Agreed","RA Flag","Rounds","R1 Analyzer Position","R1 Analyzer Confidence","R1 Verifier Assessment","R1 Agreement","QA Score","Question Quality","Answer Accuracy","Hallucination"],
     },
     "ja": {
         "title_crossexam": "AI-QMS 相互尋問記録",
@@ -313,6 +365,32 @@ _EXPORT_HEADERS: dict[str, dict[str, str]] = {
         "deep_doc_label": "文書",
         "deep_analyzer_label": "🔍 分析者",
         "deep_verifier_label": "⚖️ 検証者",
+        "deep_s6": "第6章 コンプライアンス分析結果表",
+        "deep_s6_headers": ["条項", "文書", "監査影響", "判定", "リスク", "ギャップ", "RAフラグ"],
+        "deep_s7": "第7章 相互尋問品質分析",
+        "deep_s7_findings": "発見事項",
+        "deep_s7_recs": "推奨事項",
+        "deep_s7_prompt": "プロンプト調整記録",
+        "deep_s7_no_summary": "（分析サマリーなし）",
+        "deep_s8": "付録 LLM使用統計",
+        "deep_s8_calls": "回の呼び出し",
+        "deep_no_issues": "なし",
+        "deep_qa_skipped": "（スキップ：{summary}）",
+        "deep_no_qa_record": "（第三者QA監査記録なし）",
+        "xl_sheet_summary": "サマリー",
+        "xl_sheet_compliance": "コンプライアンス",
+        "xl_sheet_llm": "LLMインタラクション",
+        "xl_sheet_crossexam": "相互尋問",
+        "xl_sheet_meta": "品質分析",
+        "xl_run_id": "実行ID",
+        "xl_export_time": "エクスポート時刻",
+        "xl_total_rows": "総分析項目",
+        "xl_flagged_ra": "RA要確認",
+        "xl_verdict_prefix": "判定 - ",
+        "xl_risk_prefix": "リスク - ",
+        "xl_comp_headers": ["条項ID","条項名","文書ID","文書タイトル","監査影響","監査質問","判定","リスクレベル","ギャップ重大度","証拠（確認/合計）","RAフラグ","RAオーバーライド","RAメモ","改善提案 (P4)","規制引用 (P4)","分析者立場 (P5)","検証者評価 (P5)"],
+        "xl_llm_headers": ["Phase","文書ID","条項ID","役割","Round","LLM回答（抜粋）","トークン使用量","モデル","タイムスタンプ"],
+        "xl_xe_headers": ["条項ID","条項名","文書ID","判定","同意","RAフラグ","ラウンド数","R1分析者立場","R1分析者信頼度","R1検証者評価","R1 Agreement","QAスコア","質問品質","回答精度","ハルシネーション"],
     },
 }
 
@@ -322,65 +400,166 @@ _EXPORT_HEADERS: dict[str, dict[str, str]] = {
 # ============================================================
 
 
-def _add_ai_roles_legend(doc) -> None:
+def _add_ai_roles_legend(doc, lang: str = "zh-TW") -> None:
     """Insert the AI roles and scoring legend into any Word document."""
-    doc.add_heading("AI 角色說明 / AI Role Definitions & Scoring", level=2)
-    doc.add_paragraph(
-        "本系統採用三角色辯論架構進行 QMS 合規性審查。\n"
-        "This system uses a three-role debate architecture for QMS compliance review."
-    )
+    _lk = _lang_key(lang)
 
-    p = doc.add_paragraph()
-    p.add_run("🔍 分析者 / 辯護方（Analyzer / Defender）").bold = True
-    doc.add_paragraph(
-        "  角色定位：針對每個法規條款，分析 QMS 文件是否提供充分書面證據，採取明確立場（符合/不符合）並加以辯護。\n"
-        "  Role: Analyzes QMS documents against each regulatory clause, takes a clear position\n"
-        "        (compliant / non-compliant) and defends it with evidence.\n"
-        "  輸出欄位：\n"
-        "    • position（立場）：compliant / non-compliant / partially_compliant\n"
-        "    • confidence（信心度）：high / medium / low\n"
-        "    • key_evidence（關鍵證據）：文件中支持立場的引用段落\n"
-        "    • regulatory_references（法規引用）：引用的條款編號與條文\n"
-        "  評分方式：QA Auditor 評估其法規引用準確性，計入 Dim A（0–100）\n"
-        "    90–100 引用精確，完全符合 | 70–89 輕微遺漏 | 50–69 部分符合 | 30–49 表面符合 | 0–29 完全不符"
-    )
+    if _lk == "en":
+        doc.add_heading("AI Role Definitions & Scoring", level=2)
+        doc.add_paragraph(
+            "This system uses a three-role debate architecture for QMS compliance review."
+        )
+        p = doc.add_paragraph()
+        p.add_run("🔍 Analyzer / Defender").bold = True
+        doc.add_paragraph(
+            "  Role: Analyzes QMS documents against each regulatory clause, takes a clear position\n"
+            "        (compliant / non-compliant) and defends it with evidence.\n"
+            "  Output fields:\n"
+            "    • position: compliant / non-compliant / partially_compliant\n"
+            "    • confidence: high / medium / low\n"
+            "    • key_evidence: quoted passages supporting the position\n"
+            "    • regulatory_references: cited clause numbers and text\n"
+            "  Scoring: QA Auditor evaluates citation accuracy → Dim A (0–100)\n"
+            "    90–100 Precise | 70–89 Minor gaps | 50–69 Partial | 30–49 Superficial | 0–29 Inadequate"
+        )
+        p = doc.add_paragraph()
+        p.add_run("⚖️ Verifier / Reviewer").bold = True
+        doc.add_paragraph(
+            "  Role: Challenges the Analyzer's argument as devil's advocate, identifies uncited\n"
+            "        regulatory requirements, contradictions, or evidence gaps.\n"
+            "  Output fields:\n"
+            "    • agreement_level: agree / partial / disagree\n"
+            "    • challenges: specific weaknesses or gaps in the Analyzer's argument\n"
+            "    • overall_assessment: summary evaluation of the debate quality\n"
+            "    • remaining_concerns: unresolved issues after debate\n"
+            "  Scoring: QA Auditor evaluates challenge quality and depth → Dim B (0–100)\n"
+            "    90–100 Deep & balanced | 70–89 Minor gaps | 50–69 Notable gaps | 30–49 Superficial | 0–29 Inadequate"
+        )
+        p = doc.add_paragraph()
+        p.add_run("🔎 QA Auditor").bold = True
+        doc.add_paragraph(
+            "  Role: Independent third-party auditor — does not debate, only evaluates debate quality.\n"
+            "  Output fields:\n"
+            "    • overall_score: 0–100 composite debate quality score\n"
+            "    • score_rationale: explanation of the score band and specific reasons\n"
+            "    • question_quality: good / acceptable / poor\n"
+            "    • answer_accuracy: accurate / partially_accurate / inaccurate\n"
+            "    • logic_consistency: consistent / minor_issues / inconsistent\n"
+            "    • hallucination_detected: true / false — whether AI cited non-existent regulations\n"
+            "    • issues: list of specific quality problems found in the debate\n"
+            "  Review steps:\n"
+            "    1. Assess whether audit questions target the core requirement (question_quality)\n"
+            "    2. Verify that cited regulations exist and are accurately quoted (answer_accuracy)\n"
+            "    3. Evaluate whether Verifier challenges are grounded and constructive (Dim B)\n"
+            "    4. Check that both reasoning chains are complete and internally consistent (logic_consistency)\n"
+            "    5. Detect fabricated clauses or erroneous citations (hallucination_detected)"
+        )
 
-    p = doc.add_paragraph()
-    p.add_run("⚖️ 驗證者 / 質疑方（Verifier / Reviewer）").bold = True
-    doc.add_paragraph(
-        "  角色定位：以魔鬼代言人角色質疑 Analyzer 的論點，指出未引用的法規要求、矛盾或證據漏洞，\n"
-        "            迫使 Analyzer 進行更深入論證，最終給出同意程度結論。\n"
-        "  Role: Challenges the Analyzer's argument as devil's advocate, identifies uncited\n"
-        "        regulatory requirements, contradictions, or evidence gaps.\n"
-        "  輸出欄位：\n"
-        "    • agreement_level（同意程度）：agree / partial / disagree\n"
-        "    • challenges（質疑點）：具體指出 Analyzer 論點的弱點或漏洞\n"
-        "    • overall_assessment（整體評語）：對整場辯論品質的文字總結\n"
-        "    • remaining_concerns（未解疑慮）：最終仍存在的爭議點\n"
-        "  評分方式：QA Auditor 評估其詰問品質與深度，計入 Dim B（0–100）\n"
-        "    90–100 深度均衡可操作 | 70–89 輕微缺失 | 50–69 明顯缺失 | 30–49 流於形式 | 0–29 嚴重不足"
-    )
+    elif _lk == "ja":
+        doc.add_heading("AIロール定義とスコアリング", level=2)
+        doc.add_paragraph(
+            "本システムはQMSコンプライアンス審査のために三役割討論アーキテクチャを採用しています。"
+        )
+        p = doc.add_paragraph()
+        p.add_run("🔍 分析者 / 弁護方（Analyzer / Defender）").bold = True
+        doc.add_paragraph(
+            "  役割：各規制条項に対してQMS文書を分析し、明確な立場（適合／非適合）を取り、証拠で弁護します。\n"
+            "  出力フィールド：\n"
+            "    • position（立場）：compliant / non-compliant / partially_compliant\n"
+            "    • confidence（確信度）：high / medium / low\n"
+            "    • key_evidence（主要証拠）：立場を支持する文書引用箇所\n"
+            "    • regulatory_references（規制引用）：引用した条項番号と条文\n"
+            "  採点方法：QA Auditor が規制引用の正確性を評価 → Dim A（0–100）\n"
+            "    90–100 引用精確 | 70–89 軽微な漏れ | 50–69 部分的 | 30–49 表面的 | 0–29 不十分"
+        )
+        p = doc.add_paragraph()
+        p.add_run("⚖️ 検証者 / 質問方（Verifier / Reviewer）").bold = True
+        doc.add_paragraph(
+            "  役割：悪魔の代弁者として Analyzer の論拠に異議を唱え、未引用の規制要件・矛盾・証拠の欠落を指摘します。\n"
+            "  出力フィールド：\n"
+            "    • agreement_level（同意度）：agree / partial / disagree\n"
+            "    • challenges（質問点）：Analyzer の論拠の弱点や欠落を具体的に指摘\n"
+            "    • overall_assessment（総合評価）：討論品質の文章サマリー\n"
+            "    • remaining_concerns（未解決懸念）：討論後も残る争点\n"
+            "  採点方法：QA Auditor が質問の質と深さを評価 → Dim B（0–100）\n"
+            "    90–100 深く均衡的 | 70–89 軽微な欠落 | 50–69 顕著な欠落 | 30–49 形式的 | 0–29 不十分"
+        )
+        p = doc.add_paragraph()
+        p.add_run("🔎 品質監査員（QA Auditor）").bold = True
+        doc.add_paragraph(
+            "  役割：独立した第三者監査員として討論には参加せず、討論品質のみを客観的に評価します。\n"
+            "  出力フィールド：\n"
+            "    • overall_score（総合スコア）：0–100、討論品質の総合評点\n"
+            "    • score_rationale（採点根拠）：スコア帯と具体的理由の説明\n"
+            "    • question_quality（質問品質）：good / acceptable / poor\n"
+            "    • answer_accuracy（回答精度）：accurate / partially_accurate / inaccurate\n"
+            "    • logic_consistency（論理一貫性）：consistent / minor_issues / inconsistent\n"
+            "    • hallucination_detected（幻覚検出）：true / false — AIが存在しない規制を引用したか\n"
+            "    • issues（問題リスト）：討論中に発見された品質上の問題を具体的に列挙\n"
+            "  審査手順：\n"
+            "    1. 監査質問が当該条項の核心要件を対象としているか評価（question_quality）\n"
+            "    2. Analyzer が引用した規制条文が存在し正確かを確認（answer_accuracy）\n"
+            "    3. Verifier の質問が根拠のある建設的なものかを評価（Dim B）\n"
+            "    4. 双方の推論チェーンが完整で内部矛盾がないか確認（logic_consistency）\n"
+            "    5. 架空条項や誤引用などの幻覚現象を検出（hallucination_detected）"
+        )
 
-    p = doc.add_paragraph()
-    p.add_run("🔎 品質稽核員 / 審查者（QA Auditor）").bold = True
-    doc.add_paragraph(
-        "  角色定位：模擬獨立第三方稽核員，不參與辯論，對整場 Analyzer↔Verifier 辯論進行客觀品質評核。\n"
-        "  Role: Independent third-party auditor — does not debate, only evaluates debate quality.\n"
-        "  輸出欄位：\n"
-        "    • overall_score（整體分數）：0–100，綜合辯論品質評分\n"
-        "    • score_rationale（評分依據）：說明落在哪個分數區間及具體原因\n"
-        "    • question_quality（問題品質）：good / acceptable / poor — 評估稽核問題是否聚焦可查\n"
-        "    • answer_accuracy（回答準確性）：accurate / partially_accurate / inaccurate\n"
-        "    • logic_consistency（邏輯一致性）：consistent / minor_issues / inconsistent\n"
-        "    • hallucination_detected（幻覺偵測）：true / false — AI 是否引用了不存在的法規內容\n"
-        "    • issues（問題清單）：具體列出辯論中發現的品質問題\n"
-        "  審核流程：\n"
-        "    1. 評估稽核問題是否針對該條款的核心要求（question_quality）\n"
-        "    2. 核查 Analyzer 引用的法規條文是否存在且準確（answer_accuracy）\n"
-        "    3. 評估 Verifier 的質疑是否有根據且具建設性（Dim B）\n"
-        "    4. 檢查雙方推理鏈是否完整、無內部矛盾（logic_consistency）\n"
-        "    5. 偵測是否存在虛構條款、錯誤引用等幻覺現象（hallucination_detected）"
-    )
+    else:
+        doc.add_heading("AI 角色說明 / AI Role Definitions & Scoring", level=2)
+        doc.add_paragraph(
+            "本系統採用三角色辩論架構進行 QMS 合規性審查。\n"
+            "This system uses a three-role debate architecture for QMS compliance review."
+        )
+        p = doc.add_paragraph()
+        p.add_run("🔍 分析者 / 辩護方（Analyzer / Defender）").bold = True
+        doc.add_paragraph(
+            "  角色定位：針對每個法規条款，分析 QMS 文件是否提供充分書面證據，採取明確立場（符合/不符合）並加以辩護。\n"
+            "  Role: Analyzes QMS documents against each regulatory clause, takes a clear position\n"
+            "        (compliant / non-compliant) and defends it with evidence.\n"
+            "  輸出欄位：\n"
+            "    • position（立場）：compliant / non-compliant / partially_compliant\n"
+            "    • confidence（信心度）：high / medium / low\n"
+            "    • key_evidence（關鍵證據）：文件中支持立場的引用段落\n"
+            "    • regulatory_references（法規引用）：引用的条款編號與条文\n"
+            "  評分方式：QA Auditor 評估其法規引用準確性，計入 Dim A（0–100）\n"
+            "    90–100 引用精確，完全符合 | 70–89 輕微遗漏 | 50–69 部分符合 | 30–49 表面符合 | 0–29 完全不符"
+        )
+        p = doc.add_paragraph()
+        p.add_run("⚖️ 驗證者 / 質疑方（Verifier / Reviewer）").bold = True
+        doc.add_paragraph(
+            "  角色定位：以魔鬼代言人角色質疑 Analyzer 的論點，指出未引用的法規要求、矛盾或證據漏洞，\n"
+            "            迫使 Analyzer 進行更深入論證，最終給出同意程度結論。\n"
+            "  Role: Challenges the Analyzer's argument as devil's advocate, identifies uncited\n"
+            "        regulatory requirements, contradictions, or evidence gaps.\n"
+            "  輸出欄位：\n"
+            "    • agreement_level（同意程度）：agree / partial / disagree\n"
+            "    • challenges（質疑點）：具體指出 Analyzer 論點的弱點或漏洞\n"
+            "    • overall_assessment（整體評語）：對整場辩論品質的文字總結\n"
+            "    • remaining_concerns（未解疑慮）：最終仍存在的爭議點\n"
+            "  評分方式：QA Auditor 評估其詰問品質與深度，計入 Dim B（0–100）\n"
+            "    90–100 深度均衡可操作 | 70–89 輕微缺失 | 50–69 明顯缺失 | 30–49 流於形式 | 0–29 嚴重不足"
+        )
+        p = doc.add_paragraph()
+        p.add_run("🔎 品質稽核員 / 審查者（QA Auditor）").bold = True
+        doc.add_paragraph(
+            "  角色定位：模擬獨立第三方稽核員，不參與辩論，對整場 Analyzer↔Verifier 辩論進行客觀品質評核。\n"
+            "  Role: Independent third-party auditor — does not debate, only evaluates debate quality.\n"
+            "  輸出欄位：\n"
+            "    • overall_score（整體分數）：0–100，綜合辩論品質評分\n"
+            "    • score_rationale（評分依據）：說明落在哪個分數區間及具體原因\n"
+            "    • question_quality（問題品質）：good / acceptable / poor — 評估稽核問題是否聰焦可查\n"
+            "    • answer_accuracy（回答準確性）：accurate / partially_accurate / inaccurate\n"
+            "    • logic_consistency（邏輯一致性）：consistent / minor_issues / inconsistent\n"
+            "    • hallucination_detected（幻覺偉測）：true / false — AI 是否引用了不存在的法規內容\n"
+            "    • issues（問題清單）：具體列出辩論中發現的品質問題\n"
+            "  審核流程：\n"
+            "    1. 評估稽核問題是否針對該条款的核心要求（question_quality）\n"
+            "    2. 核查 Analyzer 引用的法規条文是否存在且準確（answer_accuracy）\n"
+            "    3. 評估 Verifier 的質疑是否有根據且具建設性（Dim B）\n"
+            "    4. 檢查雙方推理鏈是否完整、無內部矛盾（logic_consistency）\n"
+            "    5. 偵測是否存在虛構条款、錯誤引用等幻覺現象（hallucination_detected）"
+        )
+
 
 
 # ============================================================
@@ -426,7 +605,7 @@ def export_crossexam_record_word(record_dict: dict, lang: str = "zh-TW") -> Path
     run.font.color.rgb = RGBColor(128, 128, 128)
 
     # ── AI roles legend ──
-    _add_ai_roles_legend(doc)
+    _add_ai_roles_legend(doc, lang)
 
     doc.add_heading(h["how_it_works_heading"], level=2)
     doc.add_paragraph(h["how_it_works_body"])
@@ -751,7 +930,7 @@ def export_deep_report_word(
     run.font.color.rgb = RGBColor(128, 128, 128)
 
     # ── AI Roles Legend ──
-    _add_ai_roles_legend(doc)
+    _add_ai_roles_legend(doc, lang)
 
     # ── Section 1: Executive Summary ──
     doc.add_heading(dh["deep_s1"], level=2)
@@ -760,12 +939,16 @@ def export_deep_report_word(
     total = summary.get("total_rows", len(flat_rows))
     flagged = summary.get("flagged_for_ra", 0)
 
+    from src.analysis.risk_matrix import VERDICT_DISPLAY, RISK_LEVEL_DISPLAY
+    _label_key = "label_en" if _lk == "en" else "label_ja" if _lk == "ja" else "label_zh"
     summary_text = dh["deep_s1_intro"].format(total=total)
     for v, count in verdict_dist.items():
-        summary_text += f"  • {v}: {count}\n"
+        _vlabel = VERDICT_DISPLAY.get(v, {}).get(_label_key, v)
+        summary_text += f"  • {_vlabel}: {count}\n"
     summary_text += dh["deep_s1_risk"]
     for r, count in risk_dist.items():
-        summary_text += f"  • {r}: {count}\n"
+        _rlabel = RISK_LEVEL_DISPLAY.get(r, {}).get(_label_key, r)
+        summary_text += f"  • {_rlabel}: {count}\n"
     if flagged:
         summary_text += dh["deep_s1_ra"].format(flagged=flagged)
 
@@ -989,16 +1172,16 @@ def export_deep_report_word(
                     dh["hallucination_yes"] if ca.get("hallucination_detected") else dh["hallucination_no"]
                 )
                 issues = ca.get("issues", [])
-                qa_tbl.rows[qi].cells[5].text = "; ".join(issues) if issues else "無"
+                qa_tbl.rows[qi].cells[5].text = "; ".join(issues) if issues else dh["deep_no_issues"]
     elif _qa_sum and _qa_sum.get("skipped"):
-        doc.add_paragraph(f"（已跳過：{_qa_sum.get('summary', '')}）")
+        doc.add_paragraph(dh["deep_qa_skipped"].format(summary=_qa_sum.get("summary", "")))
     else:
-        doc.add_paragraph("（無第三方品質稽核記錄）")
+        doc.add_paragraph(dh["deep_no_qa_record"])
 
     # ── Section 6: Compliance Table ──
-    doc.add_heading("第六章 合規性分析結果表", level=2)
+    doc.add_heading(dh["deep_s6"], level=2)
     if flat_rows:
-        headers = ["條款", "文件", "稽核影響", "判定", "風險", "差距", "RA 標記"]
+        headers = dh["deep_s6_headers"]
         tbl = doc.add_table(rows=1 + len(flat_rows), cols=len(headers))
         tbl.style = "Table Grid"
         for i, h in enumerate(headers):
@@ -1020,12 +1203,12 @@ def export_deep_report_word(
 
     # ── Section 7: Meta-Analysis (if available) ──
     if meta_analysis:
-        doc.add_heading("第七章 交叉詰問品質分析", level=2)
-        doc.add_paragraph(meta_analysis.get("summary", "（無分析摘要）"))
+        doc.add_heading(dh["deep_s7"], level=2)
+        doc.add_paragraph(meta_analysis.get("summary", dh["deep_s7_no_summary"]))
 
         findings = meta_analysis.get("findings", [])
         if findings:
-            doc.add_heading("發現事項", level=3)
+            doc.add_heading(dh["deep_s7_findings"], level=3)
             for f in findings:
                 doc.add_paragraph(
                     f"• [{f.get('severity', '')}] {f.get('description', '')}",
@@ -1033,18 +1216,18 @@ def export_deep_report_word(
 
         recommendations = meta_analysis.get("recommendations", [])
         if recommendations:
-            doc.add_heading("建議", level=3)
+            doc.add_heading(dh["deep_s7_recs"], level=3)
             for rec in recommendations:
                 doc.add_paragraph(f"• {rec}")
 
         tuning = meta_analysis.get("prompt_tuning", {})
         if tuning:
-            doc.add_heading("Prompt 調整記錄", level=3)
+            doc.add_heading(dh["deep_s7_prompt"], level=3)
             for key, val in tuning.items():
                 doc.add_paragraph(f"• {key}: {val}")
 
     # ── Section 8: LLM Usage Statistics ──
-    doc.add_heading("附錄 LLM 使用統計", level=2)
+    doc.add_heading(dh["deep_s8"], level=2)
     if interactions:
         phase_counts: dict[str, dict] = {}
         for i in interactions:
@@ -1056,7 +1239,7 @@ def export_deep_report_word(
 
         for phase, stats in phase_counts.items():
             doc.add_paragraph(
-                f"• {phase}: {stats['count']} 次呼叫, {stats['tokens']:,} tokens"
+                f"• {phase}: {stats['count']} {dh['deep_s8_calls']}, {stats['tokens']:,} tokens"
             )
 
     safe_save_binary(filepath, doc.save)
@@ -1083,8 +1266,11 @@ def export_deep_report_excel(
     """
     from openpyxl import Workbook
     from openpyxl.styles import Font, Alignment, PatternFill
+    from src.analysis.risk_matrix import VERDICT_DISPLAY, RISK_LEVEL_DISPLAY
 
     _lk = _lang_key(lang)
+    dh = _EXPORT_HEADERS[_lk]
+    _label_key = "label_en" if _lk == "en" else "label_ja" if _lk == "ja" else "label_zh"
 
     EXPORT_DIR.mkdir(parents=True, exist_ok=True)
     filepath = EXPORT_DIR / f"deep_report_{run_id}.xlsx"
@@ -1097,19 +1283,21 @@ def export_deep_report_excel(
 
     # ── Sheet 1: Summary ──
     ws_sum = wb.active
-    ws_sum.title = "摘要"
+    ws_sum.title = dh["xl_sheet_summary"]
     summary_data = [
-        ("分析 ID", run_id),
-        ("匯出時間", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
-        ("總分析項目", summary.get("total_rows", len(flat_rows))),
-        ("需 RA 審查", summary.get("flagged_for_ra", 0)),
+        (dh["xl_run_id"], run_id),
+        (dh["xl_export_time"], datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+        (dh["xl_total_rows"], summary.get("total_rows", len(flat_rows))),
+        (dh["xl_flagged_ra"], summary.get("flagged_for_ra", 0)),
     ]
     verdict_dist = summary.get("verdict_distribution", {})
     for v, count in verdict_dist.items():
-        summary_data.append((f"判定 - {v}", count))
+        _vlabel = VERDICT_DISPLAY.get(v, {}).get(_label_key, v)
+        summary_data.append((f"{dh['xl_verdict_prefix']}{_vlabel}", count))
     risk_dist = summary.get("risk_distribution", {})
     for r, count in risk_dist.items():
-        summary_data.append((f"風險 - {r}", count))
+        _rlabel = RISK_LEVEL_DISPLAY.get(r, {}).get(_label_key, r)
+        summary_data.append((f"{dh['xl_risk_prefix']}{_rlabel}", count))
 
     for ri, (label, value) in enumerate(summary_data, 1):
         c1 = ws_sum.cell(row=ri, column=1, value=label)
@@ -1120,26 +1308,8 @@ def export_deep_report_excel(
     ws_sum.column_dimensions["B"].width = 40
 
     # ── Sheet 2: Compliance Table ──
-    ws_comp = wb.create_sheet("合規分析")
-    comp_headers = [
-        "條款 ID",
-        "條款名稱",
-        "文件 ID",
-        "文件標題",
-        "稽核影響",
-        "稽核問題",
-        "判定",
-        "風險等級",
-        "差距嚴重度",
-        "證據 (找到/總計)",
-        "RA 標記",
-        "RA 覆寫",
-        "RA 備註",
-        "改善建議 (LLM P4)",
-        "法規引用 (LLM P4)",
-        "分析者立場 (LLM P5)",
-        "驗證者評語 (LLM P5)",
-    ]
+    ws_comp = wb.create_sheet(dh["xl_sheet_compliance"])
+    comp_headers = dh["xl_comp_headers"]
     for ci, h in enumerate(comp_headers, 1):
         c = ws_comp.cell(row=1, column=ci, value=h)
         c.fill = header_fill
@@ -1182,18 +1352,8 @@ def export_deep_report_excel(
 
     # ── Sheet 3: LLM Interactions ──
     if interactions:
-        ws_llm = wb.create_sheet("LLM 互動記錄")
-        llm_headers = [
-            "Phase",
-            "文件 ID",
-            "條款 ID",
-            "角色",
-            "Round",
-            "LLM 回應 (摘要)",
-            "Token 用量",
-            "模型",
-            "時間",
-        ]
+        ws_llm = wb.create_sheet(dh["xl_sheet_llm"])
+        llm_headers = dh["xl_llm_headers"]
         for ci, h in enumerate(llm_headers, 1):
             c = ws_llm.cell(row=1, column=ci, value=h)
             c.fill = header_fill
@@ -1220,24 +1380,8 @@ def export_deep_report_excel(
 
     # ── Sheet 4: Cross-Exam Details ──
     if crossexam_record:
-        ws_xe = wb.create_sheet("交叉詰問")
-        xe_headers = [
-            "條款 ID",
-            "條款名稱",
-            "文件 ID",
-            "判定",
-            "同意",
-            "RA 標記",
-            "輪次數",
-            "R1 分析者立場",
-            "R1 分析者信心",
-            "R1 驗證者評估",
-            "R1 Agreement",
-            "QA 分數",
-            "問題品質",
-            "回答準確",
-            "幻覺偵測",
-        ]
+        ws_xe = wb.create_sheet(dh["xl_sheet_crossexam"])
+        xe_headers = dh["xl_xe_headers"]
         for ci, h in enumerate(xe_headers, 1):
             c = ws_xe.cell(row=1, column=ci, value=h)
             c.fill = header_fill
@@ -1296,8 +1440,9 @@ def export_deep_report_excel(
     if not _qa_sum_xl and crossexam_record:
         _qa_sum_xl = crossexam_record.get("qa_audit_summary")
     if _qa_sum_xl and not _qa_sum_xl.get("skipped"):
-        ws_qa = wb.create_sheet("第三方稽核")
-        qa_xl_headers = ["條款 ID", "分數", "問題品質", "回答準確", "幻覺偵測", "問題"]
+        _qa_sheet_name = {"zh": "第三方稽核", "en": "Third-Party QA", "ja": "第三者QA"}[_lk]
+        ws_qa = wb.create_sheet(_qa_sheet_name)
+        qa_xl_headers = dh["deep_qa_tbl_headers"]
         for ci, h in enumerate(qa_xl_headers, 1):
             c = ws_qa.cell(row=1, column=ci, value=h)
             c.fill = header_fill
@@ -1317,17 +1462,18 @@ def export_deep_report_excel(
 
     # ── Sheet 5: Meta-Analysis ──
     if meta_analysis:
-        ws_ma = wb.create_sheet("品質分析")
-        ws_ma.cell(row=1, column=1, value="交叉詰問品質分析結果").font = Font(
+        _meta_title = {"zh": "交叉詰問品質分析結果", "en": "Cross-Examination Quality Analysis", "ja": "相互尋問品質分析結果"}[_lk]
+        ws_ma = wb.create_sheet(dh["xl_sheet_meta"])
+        ws_ma.cell(row=1, column=1, value=_meta_title).font = Font(
             bold=True, size=14
         )
-        ws_ma.cell(row=3, column=1, value="摘要").font = Font(bold=True)
+        ws_ma.cell(row=3, column=1, value=dh["summary"]).font = Font(bold=True)
         ws_ma.cell(row=4, column=1, value=meta_analysis.get("summary", ""))
 
         findings = meta_analysis.get("findings", [])
         if findings:
             row_offset = 6
-            ws_ma.cell(row=row_offset, column=1, value="發現事項").font = Font(
+            ws_ma.cell(row=row_offset, column=1, value=dh["deep_s7_findings"]).font = Font(
                 bold=True
             )
             for fi, f in enumerate(findings, row_offset + 1):

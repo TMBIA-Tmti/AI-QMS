@@ -79,7 +79,7 @@ def _action_label_lang(action: str, lang: str = "zh-TW") -> str:
     return labels.get(action, action)
 
 # Output directory for generated files
-EXPORT_DIR = Path("data/exports")
+EXPORT_DIR = (Path(__file__).resolve().parent.parent.parent / "data" / "exports")
 EXPORT_DIR.mkdir(parents=True, exist_ok=True)
 
 

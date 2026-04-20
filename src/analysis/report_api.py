@@ -150,6 +150,176 @@ def _save_table(table: ComparisonTable) -> None:
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
+def _build_interactions_from_state(rows) -> list[dict]:
+    """Synthesize interaction log entries from raw RowState objects.
+
+    Used as fallback for runs that predate the log_interaction() instrumentation.
+    Reconstructs P1/P2/P4/P5 content from evidence_items, verification_rounds,
+    remediation_suggestion, and phase_results stored in each RowState.
+    """
+    import dataclasses
+    from collections import defaultdict
+
+    # Convert RowState objects to dicts if needed
+    raw: list[dict] = []
+    for r in rows:
+        if dataclasses.is_dataclass(r) and not isinstance(r, type):
+            raw.append(dataclasses.asdict(r))
+        elif isinstance(r, dict):
+            raw.append(r)
+
+    interactions: list[dict] = []
+
+    # Group rows by (doc_id, doc_title)
+    doc_groups: dict[tuple, list[dict]] = defaultdict(list)
+    for r in raw:
+        key = (r.get("doc_id", ""), r.get("doc_title", ""))
+        doc_groups[key].append(r)
+
+    # ── P1: gap_scan — one entry per doc_id ──
+    for (doc_id, doc_title), group in doc_groups.items():
+        all_evidence: list[dict] = []
+        usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+        model = ""
+        for r in group:
+            all_evidence.extend(r.get("evidence_items") or [])
+            pr1 = (r.get("phase_results") or {}).get("phase_1") or {}
+            if pr1.get("llm_usage"):
+                for k in usage:
+                    usage[k] += pr1["llm_usage"].get(k, 0)
+            if not model and pr1.get("llm_model"):
+                model = pr1["llm_model"]
+
+        found = sum(1 for e in all_evidence if e.get("found"))
+        not_found = len(all_evidence) - found
+        inadequate = sum(1 for e in all_evidence if e.get("is_inadequate"))
+
+        lines: list[str] = []
+        for e in all_evidence:
+            status = "✓" if e.get("found") else "✗"
+            if e.get("is_inadequate"):
+                status = "△"
+            lines.append(f"{status} {e.get('evidence_name', '')}")
+            if e.get("source_section"):
+                lines.append(f"   Section: {e['source_section']}")
+            if e.get("source_quote"):
+                lines.append(f"   Quote: {e['source_quote'][:300]}")
+            if e.get("llm_reasoning"):
+                lines.append(f"   Reason: {e['llm_reasoning'][:300]}")
+
+        interactions.append({
+            "phase": "gap_scan",
+            "doc_id": doc_id,
+            "doc_title": doc_title,
+            "llm_response": "\n".join(lines) if lines else "(No evidence data)",
+            "usage": usage,
+            "model": model,
+            "extra": {"evidence_summary": {"found": found, "not_found": not_found, "inadequate": inadequate}},
+        })
+
+    # ── P2: checklist_verify — one entry per doc_id ──
+    for (doc_id, doc_title), group in doc_groups.items():
+        p2_rows = [r for r in group if (r.get("phase_results") or {}).get("phase_2", {}).get("status") == "completed"]
+        if not p2_rows:
+            continue
+        usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+        model = ""
+        lines = []
+        for r in p2_rows:
+            pr2 = (r.get("phase_results") or {}).get("phase_2") or {}
+            if pr2.get("llm_usage"):
+                for k in usage:
+                    usage[k] += pr2["llm_usage"].get(k, 0)
+            if not model and pr2.get("llm_model"):
+                model = pr2["llm_model"]
+            cid = r.get("clause_id", "")
+            ctitle = r.get("clause_title", "")
+            lines.append(f"[{cid} {ctitle}]")
+            for e in r.get("evidence_items") or []:
+                s = "✓" if e.get("found") else ("△" if e.get("is_inadequate") else "✗")
+                lines.append(f"  {s} {e.get('evidence_name', '')}: {e.get('source_section', '')}")
+        interactions.append({
+            "phase": "checklist_verify",
+            "doc_id": doc_id,
+            "doc_title": doc_title,
+            "llm_response": "\n".join(lines) if lines else "(Checklist verification completed)",
+            "usage": usage,
+            "model": model,
+        })
+
+    # ── P4: remediation — one entry per doc_id ──
+    for (doc_id, doc_title), group in doc_groups.items():
+        p4_rows = [r for r in group if r.get("remediation_suggestion")]
+        if not p4_rows:
+            continue
+        usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+        model = ""
+        lines = []
+        for r in p4_rows:
+            pr4 = (r.get("phase_results") or {}).get("phase_4") or {}
+            if pr4.get("llm_usage"):
+                for k in usage:
+                    usage[k] += pr4["llm_usage"].get(k, 0)
+            if not model and pr4.get("llm_model"):
+                model = pr4["llm_model"]
+            cid = r.get("clause_id", "")
+            ctitle = r.get("clause_title", "")
+            lines.append(f"[{cid} {ctitle}]")
+            if r.get("remediation_suggestion"):
+                lines.append(f"  改善建議: {r['remediation_suggestion']}")
+            if r.get("remediation_regulation_cite"):
+                lines.append(f"  法規引用: {r['remediation_regulation_cite']}")
+        interactions.append({
+            "phase": "remediation",
+            "doc_id": doc_id,
+            "doc_title": doc_title,
+            "llm_response": "\n".join(lines) if lines else "(Remediation completed)",
+            "usage": usage,
+            "model": model,
+        })
+
+    # ── P5: verification — one entry per clause×doc per round per role ──
+    for r in raw:
+        vr = r.get("verification_rounds") or []
+        if not vr:
+            continue
+        clause_id = r.get("clause_id", "")
+        clause_title = r.get("clause_title", "")
+        doc_id = r.get("doc_id", "")
+        model = ((r.get("phase_results") or {}).get("phase_5") or {}).get("llm_model", "")
+        for rnd in vr:
+            round_num = rnd.get("round", 0)
+            analyzer_data = rnd.get("analyzer") or {}
+            if analyzer_data:
+                interactions.append({
+                    "phase": "verification",
+                    "clause_id": clause_id,
+                    "clause_title": clause_title,
+                    "doc_id": doc_id,
+                    "round_number": round_num,
+                    "role": "analyzer",
+                    "llm_response": "",
+                    "parsed_response": analyzer_data,
+                    "model": model,
+                })
+            verifier_data = rnd.get("verifier") or {}
+            if verifier_data:
+                interactions.append({
+                    "phase": "verification",
+                    "clause_id": clause_id,
+                    "clause_title": clause_title,
+                    "doc_id": doc_id,
+                    "round_number": round_num,
+                    "role": "verifier",
+                    "llm_response": "",
+                    "parsed_response": verifier_data,
+                    "extra": {"agreement_level": verifier_data.get("agreement_level", "")},
+                    "model": model,
+                })
+
+    return interactions
+
+
 def _enrich_clause_titles(row_dict: dict) -> None:
     """Add clause_title_en and clause_title_ja fields by looking up the ISO 13485 checklist."""
     try:
@@ -664,10 +834,21 @@ async def get_report_translations(lang_code: str):
         return {}
 
     try:
-        with open(locale_file, "r", encoding="utf-8") as f:
-            data = _json2.load(f)
+        # Always load en-US as base so missing keys fall back to English
+        base: dict = {}
+        base_file = locales_dir / f"{DEFAULT_LANG}.json"
+        if base_file.exists():
+            with open(base_file, "r", encoding="utf-8") as f:
+                base = _json2.load(f)
+
+        target: dict = {}
+        if locale_file.exists() and locale_file != base_file:
+            with open(locale_file, "r", encoding="utf-8") as f:
+                target = _json2.load(f)
+
+        merged = {**base, **target}
         # Filter out _commands.* keys — those are for Chainlit command matching, not UI display
-        translations = {k: v for k, v in data.items() if not k.startswith("_commands.")}
+        translations = {k: v for k, v in merged.items() if not k.startswith("_commands.")}
         return translations
     except Exception:
         return {}
@@ -1533,7 +1714,7 @@ async def export_report(
         raise HTTPException(status_code=400, detail="Format must be 'word' or 'excel'")
 
     table = await _load_table(run_id)
-    flat_rows = table.to_flat_rows()
+    flat_rows = table.to_flat_rows(lang=lang)
     summary = table.summary()
 
     # Use existing export utilities
@@ -1554,7 +1735,7 @@ async def export_report(
             from docx.enum.text import WD_ALIGN_PARAGRAPH
 
             filepath = export_dir / f"compliance_report_{source_cmd}_{run_id}.docx"
-            assessment = _build_export_assessment(flat_rows, summary)
+            assessment = _build_export_assessment(flat_rows, summary, lang=lang)
 
             doc = Document()
             title = doc.add_heading(f"AI-QMS 合規性分析報告（{src_label}）", level=1)
@@ -1638,7 +1819,7 @@ async def export_report(
             from openpyxl.styles import Font, Alignment, PatternFill
 
             filepath = export_dir / f"compliance_report_{source_cmd}_{run_id}.xlsx"
-            assessment = _build_export_assessment(flat_rows, summary)
+            assessment = _build_export_assessment(flat_rows, summary, lang=lang)
 
             wb = Workbook()
             ws = wb.active
@@ -1867,62 +2048,87 @@ def _verdict_to_risk(verdict: str, audit_impact: str) -> Optional[str]:
     return result  # assess_risk returns risk level string directly
 
 
-def _build_export_assessment(flat_rows: list[dict], summary: dict) -> str:
+def _build_export_assessment(flat_rows: list[dict], summary: dict, lang: str = "zh-TW") -> str:
     """Build a markdown assessment text from flat rows for Word/Excel export."""
+    _lk = "en" if not lang.startswith("zh") and not lang.startswith("ja") else "ja" if lang.startswith("ja") else "zh"
+    _is_en = _lk == "en"
+    _is_ja = _lk == "ja"
+
+    _h_title = "Compliance Analysis Report" if _is_en else "コンプライアンス分析レポート" if _is_ja else "合規性分析報告"
+    _h_total = "Items Analyzed" if _is_en else "分析項目数" if _is_ja else "分析項目數"
+    _h_docs = "Documents" if _is_en else "文書数" if _is_ja else "文件數"
+    _h_ra = "Flagged for RA Review" if _is_en else "RAレビュー対象" if _is_ja else "需 RA 審查"
+    _h_verdict_dist = "Verdict Distribution" if _is_en else "判定結果分布" if _is_ja else "判定結果分布"
+    _h_risk_dist = "Risk Level Distribution" if _is_en else "リスクレベル分布" if _is_ja else "風險等級分布"
+    _h_detail = "Detailed Results" if _is_en else "詳細結果" if _is_ja else "詳細結果"
+    _h_doc = "Document" if _is_en else "文書" if _is_ja else "文件"
+    _h_verdict = "Verdict" if _is_en else "判定" if _is_ja else "判定"
+    _h_risk = "Risk" if _is_en else "リスク" if _is_ja else "風險"
+    _h_impact = "Audit Impact" if _is_en else "稽核影響" if _is_ja else "稽核影響"
+    _h_evidence = "Evidence" if _is_en else "証拠" if _is_ja else "證據"
+    _h_found = "found" if _is_en else "件が見つかりました" if _is_ja else "項找到"
+    _h_remedy = "Improvement Suggestion" if _is_en else "改善提案" if _is_ja else "改善建議"
+    _h_ra_override = "RA Override" if _is_en else "RAオーバーライド" if _is_ja else "RA 覆寫"
+    _h_ra_notes = "RA Notes" if _is_en else "RAメモ" if _is_ja else "RA 備註"
+    _incomplete = "(Pipeline incomplete)" if _is_en else "（パイプライン未完了）" if _is_ja else "（Pipeline 未完成）"
+    _items = "items" if _is_en else "件" if _is_ja else "項"
+
     lines = [
-        "# 合規性分析報告",
+        f"# {_h_title}",
         "",
-        f"**分析項目數**: {summary.get('total_rows', 0)}",
-        f"**文件數**: {summary.get('documents_analyzed', 0)}",
-        f"**需 RA 審查**: {summary.get('flagged_for_ra', 0)} 項",
+        f"**{_h_total}**: {summary.get('total_rows', 0)}",
+        f"**{_h_docs}**: {summary.get('documents_analyzed', 0)}",
+        f"**{_h_ra}**: {summary.get('flagged_for_ra', 0)} {_items}",
         "",
-        "## 判定結果分布",
+        f"## {_h_verdict_dist}",
         "",
     ]
 
     vd = summary.get("verdict_distribution", {})
     for v, count in vd.items():
         disp = VERDICT_DISPLAY.get(v, {})
-        lines.append(f"- {disp.get('icon', '')} {disp.get('label_zh', v)}: {count} 項")
+        label = disp.get(f"label_{_lk}", disp.get("label_zh", v))
+        lines.append(f"- {disp.get('icon', '')} {label}: {count} {_items}")
 
     lines.append("")
-    lines.append("## 風險等級分布")
+    lines.append(f"## {_h_risk_dist}")
     lines.append("")
 
     rd = summary.get("risk_distribution", {})
     for r, count in rd.items():
         disp = RISK_LEVEL_DISPLAY.get(r, {})
-        lines.append(f"- {disp.get('icon', '')} {disp.get('label_zh', r)}: {count} 項")
+        label = disp.get(f"label_{_lk}", disp.get("label_zh", r))
+        lines.append(f"- {disp.get('icon', '')} {label}: {count} {_items}")
 
     lines.append("")
-    lines.append("## 詳細結果")
+    lines.append(f"## {_h_detail}")
     lines.append("")
 
     for row in flat_rows:
         lines.append(f"### {row.get('clause_id', '')} — {row.get('clause_title', '')}")
         lines.append(
-            f"- **文件**: {row.get('doc_title', '')} ({row.get('doc_id', '')})"
+            f"- **{_h_doc}**: {row.get('doc_title', '')} ({row.get('doc_id', '')})"
         )
         _md_v = f"{row.get('verdict_icon', '')} {row.get('verdict_label', '')}".strip()
         _md_r = f"{row.get('risk_icon', '')} {row.get('risk_label', '')}".strip()
-        lines.append(f"- **判定**: {_md_v or '（Pipeline 未完成）'}")
-        lines.append(f"- **風險**: {_md_r or '（Pipeline 未完成）'}")
-        lines.append(f"- **稽核影響**: {row.get('audit_impact', '')}")
+        lines.append(f"- **{_h_verdict}**: {_md_v or _incomplete}")
+        lines.append(f"- **{_h_risk}**: {_md_r or _incomplete}")
+        lines.append(f"- **{_h_impact}**: {row.get('audit_impact', '')}")
         ev_found = row.get("evidence_found", 0)
         ev_total = row.get("evidence_total", 0)
-        lines.append(f"- **證據**: {ev_found}/{ev_total} 項找到")
+        lines.append(f"- **{_h_evidence}**: {ev_found}/{ev_total} {_h_found}")
 
         if row.get("remediation"):
-            lines.append(f"- **改善建議**: {row['remediation']}")
+            lines.append(f"- **{_h_remedy}**: {row['remediation']}")
 
         if row.get("ra_override"):
             override = row["ra_override"]
             lines.append(
-                f"- **RA 覆寫**: {override.get('verdict', '')} — {override.get('reason', '')}"
+                f"- **{_h_ra_override}**: {override.get('verdict', '')} — {override.get('reason', '')}"
             )
 
         if row.get("ra_notes"):
-            lines.append(f"- **RA 備註**: {row['ra_notes']}")
+            lines.append(f"- **{_h_ra_notes}**: {row['ra_notes']}")
 
         lines.append("")
 
@@ -2293,7 +2499,7 @@ async def export_deep_report(
         raise HTTPException(status_code=400, detail="Format must be 'word' or 'excel'")
 
     table = await _load_table(run_id)
-    flat_rows = table.to_flat_rows()
+    flat_rows = table.to_flat_rows(lang=lang)
     summary = table.summary()
 
     # Load interaction log
@@ -2306,6 +2512,17 @@ async def export_deep_report(
             interactions = ilog.get_interactions()
     except Exception:
         pass
+
+    # Fallback: synthesize interactions from state for runs that predate log_interaction()
+    if not interactions:
+        try:
+            interactions = _build_interactions_from_state(table._state.get_all_rows())
+            logger.info(
+                f"[deep_report] Synthesized {len(interactions)} interactions from state "
+                f"for run {run_id} (no interaction log found)"
+            )
+        except Exception as _e:
+            logger.warning(f"[deep_report] Could not synthesize interactions from state: {_e}")
 
     # Load crossexam record
     crossexam_record = None

@@ -1028,11 +1028,12 @@ class ComparisonTable:
 
     # ── Export helpers ──
 
-    def to_flat_rows(self) -> list[dict]:
+    def to_flat_rows(self, lang: str = "zh-TW") -> list[dict]:
         """Export comparison table as flat dicts (for Word/Excel export).
 
         Each dict has all relevant fields flattened for easy rendering.
         """
+        _lk = "en" if not lang.startswith("zh") and not lang.startswith("ja") else "ja" if lang.startswith("ja") else "zh"
         rows = []
         for r in self._state.get_all_rows():
             verdict_disp = VERDICT_DISPLAY.get(r.verdict or "", {})
@@ -1075,10 +1076,10 @@ class ComparisonTable:
                     "gap_severity": r.gap_severity,
                     "risk_level": r.risk_level,
                     "risk_icon": risk_disp.get("icon", ""),
-                    "risk_label": risk_disp.get("label_zh", ""),
+                    "risk_label": risk_disp.get(f"label_{_lk}", risk_disp.get("label_zh", "")),
                     "verdict": r.verdict,
                     "verdict_icon": verdict_disp.get("icon", ""),
-                    "verdict_label": verdict_disp.get("label_zh", ""),
+                    "verdict_label": verdict_disp.get(f"label_{_lk}", verdict_disp.get("label_zh", "")),
                     "remediation": r.remediation_suggestion,
                     "remediation_suggestion": r.remediation_suggestion,
                     "remediation_regulation_cite": r.remediation_regulation_cite,

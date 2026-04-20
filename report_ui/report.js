@@ -1019,7 +1019,7 @@
             rows = rows.filter((r) => {
                 const haystack = [
                     r.clause_id, r.clause_title, r.doc_id, r.doc_title,
-                    r.audit_question, r.verdict_label_zh, r.risk_label_zh,
+                    r.audit_question, r.verdict_label_zh, r.risk_label_zh, r.verdict_label_en, r.risk_label_en,
                 ].join(" ").toLowerCase();
                 return haystack.includes(searchText);
             });
@@ -1119,14 +1119,14 @@
         const evPct = evTotal > 0 ? Math.round((evFound / evTotal) * 100) : 0;
         const evFillClass = evPct >= 100 ? "fill-full" : evPct > 0 ? "fill-partial" : "fill-none";
 
-        const verdictBadge = getVerdictBadge(r.verdict, r.verdict_icon, r.verdict_label_zh, !!r.ra_override);
+        const verdictBadge = getVerdictBadge(r.verdict, r.verdict_icon, r.verdict ? t("verdict." + r.verdict) : "", !!r.ra_override);
 
         const riskTooltip = r.risk_level && r.gap_severity && r.audit_impact
             ? `${r.audit_impact} × ${r.gap_severity} → ${r.risk_level}`
             : '';
         const riskBadge = riskTooltip
-            ? `<span class="risk-badge-wrapper">${getRiskBadge(r.risk_level, r.risk_icon, r.risk_label_zh)}<span class="risk-tooltip">⚖️ ${escapeHtml(riskTooltip)}</span></span>`
-            : getRiskBadge(r.risk_level, r.risk_icon, r.risk_label_zh);
+            ? `<span class="risk-badge-wrapper">${getRiskBadge(r.risk_level, r.risk_icon, r.risk_level ? t("risk." + r.risk_level) : "")}<span class="risk-tooltip">⚖️ ${escapeHtml(riskTooltip)}</span></span>`
+            : getRiskBadge(r.risk_level, r.risk_icon, r.risk_level ? t("risk." + r.risk_level) : "");
 
         const pipelineIcons = renderPipelineIcons(r);
         const crossExamBadge = renderCrossExamBadge(r);
@@ -1236,9 +1236,9 @@
                     <span class="detail-label">${_i18nT("detail.auditQuestion")}</span>
                     <span class="detail-value">${escapeHtml(row.audit_question || "—")}</span>
                     <span class="detail-label">${_i18nT("detail.verdict")}</span>
-                    <span class="detail-value">${getVerdictBadge(row.verdict, row.verdict_icon, row.verdict_label_zh, !!row.ra_override)}</span>
+                    <span class="detail-value">${getVerdictBadge(row.verdict, row.verdict_icon, row.verdict ? t("verdict." + row.verdict) : "", !!row.ra_override)}</span>
                     <span class="detail-label">${_i18nT("detail.riskLevel")}</span>
-                    <span class="detail-value">${getRiskBadge(row.risk_level, row.risk_icon, row.risk_label_zh)}</span>
+                    <span class="detail-value">${getRiskBadge(row.risk_level, row.risk_icon, row.risk_level ? t("risk." + row.risk_level) : "")}</span>
                 </div>
             </div>`;
 
@@ -1501,7 +1501,7 @@
         const row = findRow(rowId);
         if (!row) return;
 
-        els.overrideCurrent.innerHTML = getVerdictBadge(row.verdict, row.verdict_icon, row.verdict_label_zh, !!row.ra_override);
+        els.overrideCurrent.innerHTML = getVerdictBadge(row.verdict, row.verdict_icon, row.verdict ? t("verdict." + row.verdict) : "", !!row.ra_override);
         els.overrideVerdict.value = row.verdict || "full_compliance";
         els.overrideReason.value = "";
 

@@ -16,7 +16,7 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
 
 # Output directory for generated files
-EXPORT_DIR = Path("data/exports")
+EXPORT_DIR = (Path(__file__).resolve().parent.parent.parent / "data" / "exports")
 EXPORT_DIR.mkdir(parents=True, exist_ok=True)
 
 # i18n UI strings

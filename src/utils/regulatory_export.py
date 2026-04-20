@@ -65,7 +65,7 @@ def _tl(key: str, lang: str = "zh-TW") -> list:
 
 
 # Output directory for generated files
-EXPORT_DIR = Path("data/exports")
+EXPORT_DIR = (Path(__file__).resolve().parent.parent.parent / "data" / "exports")
 EXPORT_DIR.mkdir(parents=True, exist_ok=True)
 
 # Shared styles

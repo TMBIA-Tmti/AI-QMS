@@ -1435,6 +1435,33 @@ def run_gap_scan_document(
             },
         )
 
+        # Interaction log: persist full LLM call for deep report export
+        if run_id:
+            try:
+                from src.database.interaction_log import get_interaction_log
+                get_interaction_log(run_id).log_interaction(
+                    phase="gap_scan",
+                    phase_label="Phase 1 - Gap Scan",
+                    doc_id=doc_id,
+                    doc_title=doc_title,
+                    system_prompt=_DOC_SYSTEM_PROMPTS[lk],
+                    user_prompt=user_prompt,
+                    llm_response=response_text,
+                    model=llm_model,
+                    usage=usage,
+                    duration_seconds=round(time.time() - phase_result.started_at, 2),
+                    extra={
+                        "clause_ids": [r.clause_id for r in scan_rows],
+                        "evidence_summary": {
+                            "found": total_found,
+                            "not_found": total_not_found,
+                            "inadequate": total_inadequate,
+                        },
+                    },
+                )
+            except Exception:
+                pass
+
         # SSE: conversation-style event for human-readable display
         _clause_details = []
         for row in scan_rows:

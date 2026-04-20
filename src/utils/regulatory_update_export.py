@@ -33,8 +33,8 @@ def _region_display(region_key: str, lang: str) -> str:
     return m.group(1) if m else region_key
 
 
-# Output directory for generated files
-EXPORT_DIR = Path("data/exports")
+# Output directory for generated files — use absolute path so cl.File always resolves correctly
+EXPORT_DIR = (Path(__file__).resolve().parent.parent.parent / "data" / "exports")
 EXPORT_DIR.mkdir(parents=True, exist_ok=True)
 
 # Shared styles (same as regulatory_export.py)
@@ -249,24 +249,45 @@ def export_regulatory_update_to_word(
 
     doc.add_paragraph()
 
-    # ── 縮寫說明 / Abbreviation Legend ──
-    doc.add_heading("縮寫說明 / Abbreviation Legend", level=2)
-    doc.add_paragraph(
-        "FDA / eCFR  — 美國食品藥物管理局 / 聯邦法規電子資料庫（21 CFR 820 QSR/QMSR）\n"
-        "TFDA        — 臺灣食品藥物管理署（醫療器材管理法, GMP）\n"
-        "EMA / MDCG  — 歐洲藥品管理局 / 醫療器材協調小組（EU MDR 2017/745, EU IVDR 2017/746）\n"
-        "PMDA        — 日本藥品與醫療器材局（QMS省令, JIS T 2304）\n"
-        "NMPA        — 中國國家藥品監督管理局（醫療器械生產質量管理規範）\n"
-        "TGA         — 澳洲治療用品管理局（Australian Medical Device Standards）\n"
-        "MFDS        — 韓國食品藥品安全處（KGMP）\n"
-        "HSA         — 新加坡衛生科學局（Singapore Medical Device GMP）\n"
-        "CDSCO       — 印度中央藥品標準控制組織（India MDR 2017）\n"
-        "ANVISA      — 巴西國家衛生監督局（Brazil RDC 665/2022）\n"
-        "Health Canada — 加拿大衛生部（CMDR SOR/98-282, ISO 13485）\n"
-        "MDSAP       — 醫療器材單一稽核計畫（美國/加拿大/巴西/澳洲/日本）\n"
-        "QMS         — 品質管理系統（Quality Management System）\n"
-        "RA          — 法規事務（Regulatory Affairs）"
-    )
+    # ── Abbreviation Legend (language-aware) ──
+    if lang.startswith("zh"):
+        abbrev_heading = "縮寫說明 / Abbreviation Legend"
+        abbrev_body = (
+            "FDA / eCFR  — 美國食品藥物管理局 / 聯邦法規電子資料庫（21 CFR 820 QSR/QMSR）\n"
+            "TFDA        — 臺灣食品藥物管理署（醫療器材管理法, GMP）\n"
+            "EMA / MDCG  — 歐洲藥品管理局 / 醫療器材協調小組（EU MDR 2017/745, EU IVDR 2017/746）\n"
+            "PMDA        — 日本藥品與醫療器材局（QMS省令, JIS T 2304）\n"
+            "NMPA        — 中國國家藥品監督管理局（醫療器械生產質量管理規範）\n"
+            "TGA         — 澳洲治療用品管理局（Australian Medical Device Standards）\n"
+            "MFDS        — 韓國食品藥品安全處（KGMP）\n"
+            "HSA         — 新加坡衛生科學局（Singapore Medical Device GMP）\n"
+            "CDSCO       — 印度中央藥品標準控制組織（India MDR 2017）\n"
+            "ANVISA      — 巴西國家衛生監督局（Brazil RDC 665/2022）\n"
+            "Health Canada — 加拿大衛生部（CMDR SOR/98-282, ISO 13485）\n"
+            "MDSAP       — 醫療器材單一稽核計畫（美國/加拿大/巴西/澳洲/日本）\n"
+            "QMS         — 品質管理系統（Quality Management System）\n"
+            "RA          — 法規事務（Regulatory Affairs）"
+        )
+    else:
+        abbrev_heading = "Abbreviation Legend"
+        abbrev_body = (
+            "FDA / eCFR  — U.S. Food & Drug Administration / Electronic Code of Federal Regulations (21 CFR 820 QSR/QMSR)\n"
+            "TFDA        — Taiwan Food and Drug Administration (Medical Devices Act, GMP)\n"
+            "EMA / MDCG  — European Medicines Agency / Medical Device Coordination Group (EU MDR 2017/745, EU IVDR 2017/746)\n"
+            "PMDA        — Japan Pharmaceuticals and Medical Devices Agency (QMS Ordinance, JIS T 2304)\n"
+            "NMPA        — China National Medical Products Administration (Medical Device GMP)\n"
+            "TGA         — Australia Therapeutic Goods Administration (Australian Medical Device Standards)\n"
+            "MFDS        — Korea Ministry of Food and Drug Safety (KGMP)\n"
+            "HSA         — Singapore Health Sciences Authority (Singapore Medical Device GMP)\n"
+            "CDSCO       — India Central Drugs Standard Control Organisation (India MDR 2017)\n"
+            "ANVISA      — Brazil National Health Surveillance Agency (Brazil RDC 665/2022)\n"
+            "Health Canada — Canada (CMDR SOR/98-282, ISO 13485)\n"
+            "MDSAP       — Medical Device Single Audit Program (US/Canada/Brazil/Australia/Japan)\n"
+            "QMS         — Quality Management System\n"
+            "RA          — Regulatory Affairs"
+        )
+    doc.add_heading(abbrev_heading, level=2)
+    doc.add_paragraph(abbrev_body)
 
     # ── 報告欄位說明 / Report Field Guide ──
     doc.add_heading("報告欄位說明 / Report Field Guide", level=2)
@@ -366,18 +387,15 @@ def export_regulatory_update_to_word(
                 f"{_region_display(r.get('region', ''), lang)} — {r.get('agency', '')}",
                 level=3,
             )
-            content = r.get("content_markdown", "")
-            preview = content[:1000] if len(content) > 1000 else content
-            p = doc.add_paragraph(preview)
-            for run in p.runs:
-                run.font.size = Pt(8)
-            if len(content) > 1000:
-                trunc = doc.add_paragraph(
-                    _t("regulatory_export.content_truncated", lang)
-                )
-                for run in trunc.runs:
+            content = r.get("content_markdown") or ""
+            for line in content.split("\n"):
+                stripped_line = line.strip()
+                if not stripped_line:
+                    doc.add_paragraph()
+                    continue
+                p = doc.add_paragraph(stripped_line)
+                for run in p.runs:
                     run.font.size = Pt(8)
-                    run.font.italic = True
             doc.add_paragraph()
 
     # Section 3: Assessment Report
@@ -516,9 +534,9 @@ def export_regulatory_update_to_excel(
         # Content summary
         content = r.get("content_markdown", "")
         content_summary = (
-            _strip_markdown(content)[:150]
+            _strip_markdown(content)
             if content
-            else (r.get("failure_reason", "")[:150])
+            else r.get("failure_reason", "")
         )
 
         # Storage path

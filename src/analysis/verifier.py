@@ -1440,6 +1440,32 @@ def run_verification_document(
             row.verification_agreed = agreed
             row.flagged_for_ra = not agreed
 
+            # Interaction log: persist verification dialogue for deep report export
+            if run_id and rounds:
+                try:
+                    from src.database.interaction_log import get_interaction_log
+                    import json as _json
+                    _rounds_summary = _json.dumps(rounds, ensure_ascii=False)
+                    get_interaction_log(run_id).log_interaction(
+                        phase="verification",
+                        phase_label="Phase 5 - Cross-Examination Verification",
+                        doc_id=doc_id,
+                        doc_title=doc_title,
+                        clause_id=row.clause_id,
+                        clause_title=row.clause_title,
+                        llm_response=_rounds_summary,
+                        model=model,
+                        usage=total_usage,
+                        round_number=len(rounds),
+                        extra={
+                            "agreed": agreed,
+                            "flagged_for_ra": not agreed,
+                            "rounds": rounds,
+                        },
+                    )
+                except Exception:
+                    pass
+
             if agreed:
                 total_agreed += 1
             else:
