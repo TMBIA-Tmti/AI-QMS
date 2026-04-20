@@ -73,12 +73,7 @@ DEVIATION_DIM_GAP_THRESHOLD = 20
 # i18n helper
 # ============================================================
 
-
-def _get_prompt_lang(lang: str) -> str:
-    """Normalize lang code to 'zh' or 'en' for prompt selection."""
-    if lang and lang.lower().startswith(("zh", "ja")):
-        return "zh"
-    return "en"
+from src.chainlit_app.lang_config import lang_key as _get_prompt_lang  # noqa: E402
 
 
 # ============================================================
@@ -155,6 +150,40 @@ Respond in the following JSON format:
   ],
   "summary": "Dim A assessment summary (2-3 sentences)"
 }""",
+    "ja": """あなたは品質管理システムの「MDSAP 法規正確性監査専門家」です。あなたの任務は、交差詰問における LLM の回答を MDSAP 法規原文と比較し、回答の正確性を評価することです。
+
+確認すべき項目：
+1. **法規引用の正確性**: LLM が引用した法規条文は正しいか？条番号と内容は原文と一致しているか？
+2. **完全性**: LLM は法規の重要な要件を見落としていないか？
+3. **解釈の正確性**: LLM の法規解釈は正しいか？歪曲や過度の簡略化はないか？
+4. **国間比較の正確性**: LLM が国間比較を行う際、差異の記述は正しいか？
+5. **原文との一貫性**: LLM の回答は法規原文の意味と一貫しているか？
+
+採点基準（この表に厳密に従うこと — 裁量的採点は不可）：
+
+| スコア範囲 | 基準 |
+|------------|------|
+| 90-100 | 引用が完全に正確、全条番号が原文と一致、欠落なし、国間比較が正確、解釈が正確 |
+| 70-89  | 概ね正確、軽微な欠落または不正確さがあるが、コア要件はカバー |
+| 50-69  | 部分的準拠、1-2の重要要件が欠落、または軽微な誤解釈 |
+| 30-49  | 表面的準拠のみ、実質的根拠なし、または重要な条文エラー |
+| 0-29   | 不準拠、幻覚引用、または有効な法規根拠を提供できない |
+
+以下の JSON 形式で回答してください：
+{
+  "dim_a_score": 0-100,
+  "score_rationale": "上表のどの区間に該当するかとその理由を説明",
+  "checks": [
+    {
+      "check_type": "reference_accuracy | completeness | interpretation | cross_comparison | text_consistency",
+      "regulation": "確認対象の法規名",
+      "issue": "発見された問題の説明（問題がない場合は null）",
+      "severity": "none | low | medium | high | critical",
+      "evidence": "裏付け証拠"
+    }
+  ],
+  "summary": "Dim A 評価の要約（2-3文）"
+}""",
 }
 
 _DIM_A_SYSTEM_PROMPTS_MDSAP_OFF = {
@@ -229,6 +258,42 @@ Respond in the following JSON format:
     }
   ],
   "summary": "Dim A assessment summary (2-3 sentences)"
+}""",
+    "ja": """あなたは品質管理システムの「法規正確性監査専門家」です。あなたの任務は、交差詰問における LLM の回答を TFDA（台湾）および EU MDR（欧州連合）の法規原文と比較し、回答の正確性を評価することです。
+
+現在システムは2カ国の法規（TFDA + EU_MDR）のみを使用しています。MDSAP 5カ国検証は有効化されていません。これら2つの法規に対してのみ評価してください。
+
+確認すべき項目：
+1. **法規引用の正確性**: LLM が引用した TFDA / EU MDR の条文は正しいか？
+2. **完全性**: LLM はこれら2カ国の法規の重要な要件を見落としていないか？
+3. **解釈の正確性**: LLM の法規解釈は正しいか？
+4. **国間比較の正確性**: LLM が TFDA と EU MDR の差異を比較する際、記述は正しいか？
+5. **原文との一貫性**: LLM の回答は法規原文の意味と一貫しているか？
+
+採点基準（この表に厳密に従うこと）：
+
+| スコア範囲 | 基準 |
+|------------|------|
+| 90-100 | 引用が完全に正確、全条番号が原文と一致、欠落なし、国間比較が正確 |
+| 70-89  | 概ね正確、軽微な欠落があるがコア要件はカバー |
+| 50-69  | 部分的準拠、1-2の重要要件が欠落 |
+| 30-49  | 表面的準拠のみ、実質的根拠なし |
+| 0-29   | 不準拠、幻覚引用 |
+
+以下の JSON 形式で回答してください：
+{
+  "dim_a_score": 0-100,
+  "score_rationale": "該当するスコア区間とその理由の説明",
+  "checks": [
+    {
+      "check_type": "reference_accuracy | completeness | interpretation | cross_comparison | text_consistency",
+      "regulation": "確認対象の法規（TFDA または EU_MDR）",
+      "issue": "発見された問題の説明（問題がない場合は null）",
+      "severity": "none | low | medium | high | critical",
+      "evidence": "裏付け証拠"
+    }
+  ],
+  "summary": "Dim A 評価の要約（2-3文）"
 }""",
 }
 
@@ -315,6 +380,44 @@ Respond in the following JSON format:
   ],
   "summary": "Dim B assessment summary (2-3 sentences)"
 }""",
+    "ja": """あなたは品質管理システムの「7カ国交差詰問品質評価専門家」です。あなたの任務は交差詰問の全体的な品質を評価することです。
+
+評価すべき項目：
+1. **国別カバレッジバランス**: 7カ国（US, EU, TW, CA, JP, BR, AU）のカバレッジは均衡しているか？
+2. **質問の深さ**: 質問は十分に深いか、表面的でないか？
+3. **回答品質**: 分析者と検証者の回答に実質的な内容があるか？
+4. **差異識別**: 国間の法規差異が正しく識別されているか？
+5. **同意率の妥当性**: 同意率は妥当な範囲内か（高すぎても低すぎても問題）？
+6. **実行可能性**: 推奨事項と発見は実行可能か？
+
+採点基準（この表に厳密に従うこと）：
+
+| スコア範囲 | 基準 |
+|------------|------|
+| 90-100 | 十分な質問深度、均衡な国別カバレッジ、実質的回答、正確な差異識別、妥当な同意率（55-85%）、実行可能な推奨 |
+| 70-89  | 概ね品質要件を満たす、1-2の軽微な不足、全体的に効果的な交差詰問 |
+| 50-69  | 質問深度不足またはカバレッジ不均衡、顕著な不足あるが部分的に効果的 |
+| 30-49  | 表面的な質問、実質のない回答、異常な同意率（<30%または>95%） |
+| 0-29   | 交差詰問品質が深刻に不足、差異識別不能、実行不可能な推奨 |
+
+以下の JSON 形式で回答してください：
+{
+  "dim_b_score": 0-100,
+  "score_rationale": "該当するスコア区間とその理由の説明",
+  "country_scores": {
+    "US": 0-100, "EU": 0-100, "TW": 0-100,
+    "CA": 0-100, "JP": 0-100, "BR": 0-100, "AU": 0-100
+  },
+  "findings": [
+    {
+      "category": "coverage_balance | question_depth | answer_quality | gap_identification | agreement_rate | actionability",
+      "severity": "low | medium | high | critical",
+      "description": "具体的な記述",
+      "recommendation": "推奨される改善措置"
+    }
+  ],
+  "summary": "Dim B 評価の要約（2-3文）"
+}""",
 }
 
 _DIM_B_SYSTEM_PROMPTS_MDSAP_OFF = {
@@ -396,6 +499,45 @@ Respond in the following JSON format:
   ],
   "summary": "Dim B assessment summary (2-3 sentences)"
 }""",
+    "ja": """あなたは品質管理システムの「2カ国交差詰問品質評価専門家」です。あなたの任務は TFDA（台湾）と EU MDR（欧州連合）の2カ国法規交差詰問の品質を評価することです。
+
+現在システムは2カ国の法規（TFDA + EU_MDR）のみを使用しています。これら2つの法規に対してのみ品質を評価してください。
+
+評価すべき項目：
+1. **国別カバレッジバランス**: TW と EU のカバレッジは均衡しているか？
+2. **質問の深さ**: 質問は十分に深いか？
+3. **回答品質**: 分析者と検証者の回答に実質的な内容があるか？
+4. **差異識別**: TFDA と EU MDR の法規差異が正しく識別されているか？
+5. **同意率の妥当性**: 同意率は妥当な範囲内か？
+6. **実行可能性**: 推奨事項と発見は実行可能か？
+
+採点基準（この表に厳密に従うこと）：
+
+| スコア範囲 | 基準 |
+|------------|------|
+| 90-100 | 十分な質問深度、均衡な TW/EU カバレッジ、実質的回答、正確な差異識別、妥当な同意率（55-85%） |
+| 70-89  | 概ね品質要件を満たす、1-2の軽微な不足 |
+| 50-69  | 質問深度不足またはカバレッジ不均衡 |
+| 30-49  | 表面的な質問、実質のない回答、異常な同意率 |
+| 0-29   | 交差詰問品質が深刻に不足 |
+
+以下の JSON 形式で回答してください：
+{
+  "dim_b_score": 0-100,
+  "score_rationale": "該当するスコア区間とその理由",
+  "country_scores": {
+    "EU": 0-100, "TW": 0-100
+  },
+  "findings": [
+    {
+      "category": "coverage_balance | question_depth | answer_quality | gap_identification | agreement_rate | actionability",
+      "severity": "low | medium | high | critical",
+      "description": "具体的な記述",
+      "recommendation": "推奨される改善措置"
+    }
+  ],
+  "summary": "Dim B 評価の要約（2-3文）"
+}""",
 }
 
 
@@ -427,6 +569,17 @@ Below are answer summaries from the most recent {record_count} cross-examination
 {exam_samples}
 
 Please compare cross-examination answers against MDSAP regulation source texts and provide an accuracy score.""",
+    "ja": """## MDSAP 法規正確性監査タスク
+
+以下は最新の {record_count} 件の交差詰問記録における MDSAP 法規に関する回答の要約です：
+
+### MDSAP 法規参考資料
+{mdsap_references}
+
+### 交差詰問回答サンプル
+{exam_samples}
+
+交差詰問の回答を MDSAP 法規原文と比較し、正確性スコアを付与してください。""",
 }
 
 _DIM_A_USER_TEMPLATES_MDSAP_OFF = {
@@ -456,6 +609,19 @@ Below are answer summaries from the most recent {record_count} cross-examination
 {exam_samples}
 
 Please compare cross-examination answers against TFDA / EU MDR regulation source texts and provide an accuracy score.""",
+    "ja": """## 法規正確性監査タスク（2カ国モード：TFDA + EU_MDR）
+
+以下は最新の {record_count} 件の交差詰問記録における TFDA（台湾）および EU MDR（欧州連合）法規に関する回答の要約です：
+
+⚠️ 現在2カ国の法規（TFDA + EU_MDR）のみ使用中。MDSAP 5カ国検証は未有効化。
+
+### 法規参考資料
+{mdsap_references}
+
+### 交差詰問回答サンプル
+{exam_samples}
+
+交差詰問の回答を TFDA / EU MDR 法規原文と比較し、正確性スコアを付与してください。""",
 }
 
 
@@ -500,6 +666,26 @@ Below are statistics from the most recent {record_count} cross-examination recor
 {sample_records}
 
 Please evaluate overall quality and score each country.""",
+    "ja": """## 7カ国交差詰問品質評価タスク
+
+以下は最新の {record_count} 件の交差詰問記録の統計データです：
+
+### 統計サマリー
+- 記録総数: {record_count}
+- 時間範囲: {time_range}
+- 平均同意率: {avg_agreement_rate:.1%}
+- カバー国: {countries}
+
+### 国別分布
+{country_distribution}
+
+### 質問タイプ分布
+{question_type_distribution}
+
+### サンプル記録
+{sample_records}
+
+全体的な品質を評価し、各国にスコアを付けてください。""",
 }
 
 _DIM_B_USER_TEMPLATES_MDSAP_OFF = {
@@ -547,6 +733,28 @@ Below are statistics from the most recent {record_count} cross-examination recor
 {sample_records}
 
 Please evaluate overall quality and score each country.""",
+    "ja": """## 2カ国交差詰問品質評価タスク（TFDA + EU_MDR）
+
+以下は最新の {record_count} 件の交差詰問記録の統計データです：
+
+⚠️ 現在2カ国の法規（TFDA + EU_MDR）のみ使用中。これら2つの法規に対してのみ品質を評価してください。
+
+### 統計サマリー
+- 記録総数: {record_count}
+- 時間範囲: {time_range}
+- 平均同意率: {avg_agreement_rate:.1%}
+- カバー国: {countries}
+
+### 国別分布
+{country_distribution}
+
+### 質問タイプ分布
+{question_type_distribution}
+
+### サンプル記録
+{sample_records}
+
+全体的な品質を評価し、各国にスコアを付けてください。""",
 }
 
 
@@ -592,6 +800,25 @@ Respond in the following JSON format:
   "deviation_summary": "Deviation summary (null if no deviations)",
   "country_trends": {
     "US": "trend description", ...
+  }
+}""",
+    "ja": """あなたは品質管理システムの「10日間メタレビュー専門家」です。あなたの任務は過去10日間の毎日監査結果を分析し、傾向分析と総合的な推奨事項を提供することです。
+
+分析すべき項目：
+1. **スコア傾向**: Dim A と Dim B のスコアは上昇、安定、低下のいずれか？
+2. **偏差パターン**: 持続的な偏差があるか？偏差は悪化しているか改善しているか？
+3. **国別パフォーマンス傾向**: 各国のスコアに一貫した傾向があるか？
+4. **改善推奨**: 10日間のデータに基づく具体的な推奨事項を提供。
+
+以下の JSON 形式で回答してください：
+{
+  "avg_dim_a": 0-100,
+  "avg_dim_b": 0-100,
+  "trend_analysis": "傾向分析テキスト（3-5文）",
+  "recommendations": ["推奨1", "推奨2", ...],
+  "deviation_summary": "偏差の要約（偏差がない場合は null）",
+  "country_trends": {
+    "US": "傾向の説明", ...
   }
 }""",
 }
@@ -929,7 +1156,7 @@ def run_daily_sampling_crossexam(
                     clause_title = getattr(matched_row, "clause_title", "")
                     _checklist = _get_checklist("ISO_13485")
                     _clause_info = _checklist.get(cid, {})
-                    audit_question = _get_audit_question(_clause_info) if _clause_info else getattr(matched_row, "audit_question", "")
+                    audit_question = _get_audit_question(_clause_info, lang=lang) if _clause_info else getattr(matched_row, "audit_question", "")
                     verdict = getattr(matched_row, "verdict", "")
 
                 clause_results.append(
@@ -1862,6 +2089,7 @@ def _parse_json_response(response_text: str) -> dict:
 
 def _generate_adjustment_guidance(
     result: DailyAuditResult,
+    lang: str = "zh-TW",
 ) -> tuple[list[str], list[str]]:
     """Generate fixed steps and dynamic recommendations for human adjustment.
 
@@ -1870,45 +2098,156 @@ def _generate_adjustment_guidance(
         - fixed_steps: Generic steps on how to use Eira's feedback mechanism
         - dynamic_recommendations: Specific advice derived from current findings
     """
+    lk = _get_prompt_lang(lang)
+
     # ---- Fixed steps (always the same) ----
-    fixed_steps = [
-        (
-            "檢視 Regulation Profile 設定 / Review Regulation Profile settings — "
-            "確認各國法規 Profile（TFDA, EU_MDR, QMSR 等）的內容是否完整且為最新版本。"
-            "如有法規更新，請至 Eira「法規清單更新」功能更新法規資料。"
-        ),
-        (
-            "確認 MDSAP 模式是否正確 / Verify MDSAP mode — "
-            "若貴組織取得或規劃 MDSAP 認證，請確保系統已啟用 MDSAP 模式"
-            "（7 國法規交叉詰問）。若僅針對台灣與歐盟市場，使用 2 國模式即可。"
-        ),
-        (
-            "利用 Eira 回饋功能 / Use Eira's Feedback feature — "
-            "在每日稽核報告中，對有疑慮的項目提供回饋（同意/不同意/部分同意），"
-            "系統將記錄您的意見並納入後續分析改善。"
-        ),
-        (
-            "檢查交叉詰問深度 / Review cross-examination depth — "
-            "若交叉詰問輪次不足或過早結束，可能導致品質評分偏低。"
-            "建議檢查 Verifier prompt 設定，確保詰問深度足夠。"
-        ),
-        (
-            "定期檢視 10 日總檢報告 / Review 10-Day Meta Review — "
-            "透過 10 日總檢報告追蹤趨勢變化，觀察各維度分數是否穩定改善。"
-            "若持續偏低，考慮調整 LLM 模型或法規資料。"
-        ),
-    ]
+    _FIXED_STEPS = {
+        "zh": [
+            (
+                "檢視 Regulation Profile 設定 / Review Regulation Profile settings — "
+                "確認各國法規 Profile（TFDA, EU_MDR, QMSR 等）的內容是否完整且為最新版本。"
+                "如有法規更新，請至 Eira「法規清單更新」功能更新法規資料。"
+            ),
+            (
+                "確認 MDSAP 模式是否正確 / Verify MDSAP mode — "
+                "若貴組織取得或規劃 MDSAP 認證，請確保系統已啟用 MDSAP 模式"
+                "（7 國法規交叉詰問）。若僅針對台灣與歐盟市場，使用 2 國模式即可。"
+            ),
+            (
+                "利用 Eira 回饋功能 / Use Eira's Feedback feature — "
+                "在每日稽核報告中，對有疑慮的項目提供回饋（同意/不同意/部分同意），"
+                "系統將記錄您的意見並納入後續分析改善。"
+            ),
+            (
+                "檢查交叉詰問深度 / Review cross-examination depth — "
+                "若交叉詰問輪次不足或過早結束，可能導致品質評分偏低。"
+                "建議檢查 Verifier prompt 設定，確保詰問深度足夠。"
+            ),
+            (
+                "定期檢視 10 日總檢報告 / Review 10-Day Meta Review — "
+                "透過 10 日總檢報告追蹤趨勢變化，觀察各維度分數是否穩定改善。"
+                "若持續偏低，考慮調整 LLM 模型或法規資料。"
+            ),
+        ],
+        "en": [
+            (
+                "Review Regulation Profile settings — "
+                "Ensure all country Regulation Profiles (TFDA, EU_MDR, QMSR, etc.) are complete and up-to-date. "
+                "If regulations have been updated, use Eira's 'Regulatory List Update' feature to refresh regulation data."
+            ),
+            (
+                "Verify MDSAP mode — "
+                "If your organization holds or plans MDSAP certification, ensure MDSAP mode is enabled "
+                "(7-country cross-examination). For Taiwan and EU markets only, 2-country mode is sufficient."
+            ),
+            (
+                "Use Eira's Feedback feature — "
+                "In daily audit reports, provide feedback (agree/disagree/partial) on items of concern. "
+                "The system will record your input and incorporate it into future analysis improvements."
+            ),
+            (
+                "Review cross-examination depth — "
+                "If cross-examination rounds are insufficient or end prematurely, quality scores may be low. "
+                "Review Verifier prompt settings to ensure adequate examination depth."
+            ),
+            (
+                "Review 10-Day Meta Review regularly — "
+                "Track trend changes through 10-day meta review reports to see if dimension scores are steadily improving. "
+                "If persistently low, consider adjusting the LLM model or regulation data."
+            ),
+        ],
+        "ja": [
+            (
+                "Regulation Profile 設定を確認 — "
+                "各国の法規 Profile（TFDA, EU_MDR, QMSR 等）の内容が完全で最新版であることを確認してください。"
+                "法規が更新された場合は、Eira の「法規リスト更新」機能で法規データを更新してください。"
+            ),
+            (
+                "MDSAP モードを確認 — "
+                "組織が MDSAP 認証を取得または計画している場合、MDSAP モードが有効になっていることを確認してください"
+                "（7カ国法規交差詰問）。台湾と EU 市場のみの場合、2カ国モードで十分です。"
+            ),
+            (
+                "Eira のフィードバック機能を活用 — "
+                "毎日の監査レポートで、懸念のある項目にフィードバック（同意/不同意/部分同意）を提供してください。"
+                "システムがご意見を記録し、今後の分析改善に反映します。"
+            ),
+            (
+                "交差詰問の深さを確認 — "
+                "交差詰問のラウンドが不足している、または早期に終了する場合、品質スコアが低くなる可能性があります。"
+                "Verifier プロンプト設定を確認し、十分な詰問深度を確保してください。"
+            ),
+            (
+                "10日間メタレビューを定期的に確認 — "
+                "10日間メタレビューレポートで傾向変化を追跡し、各ディメンションのスコアが着実に改善しているか確認してください。"
+                "持続的に低い場合は、LLM モデルまたは法規データの調整を検討してください。"
+            ),
+        ],
+    }
+    fixed_steps = _FIXED_STEPS.get(lk, _FIXED_STEPS["en"])
 
     # ---- Dynamic recommendations (based on current findings) ----
     dynamic_recs: list[str] = []
     sd = result.sampling_details or {}
     is_mdsap = sd.get("mdsap_enabled", False)
 
+    # Localized message templates
+    _msg = {
+        "zh": {
+            "overall_low": "⚠️ 整體評分 {score:.0f} 低於閾值 {threshold} — 建議立即檢視稽核發現事項，確認是否有系統性問題需處理。",
+            "dim_a_critical": "🔴 法規準確性 (Dim A) 有 {count} 項 critical/high 嚴重度問題 — 建議優先檢查法規引用是否正確，更新 Regulation Profile 中的條文內容。",
+            "completeness": "📋 法規完整性不足 ({count} 項) — LLM 可能遺漏關鍵法規要求。建議豐富 Regulation Profile 的內容，補充容易被遺漏的條文。",
+            "interpretation": "📖 法規解釋偏差 ({count} 項) — LLM 對法規的解釋可能過度簡化或曲解。建議在 Regulation Profile 中加入關鍵條文的正確解釋說明。",
+            "dim_b_critical": "🔴 交叉詰問品質 (Dim B) 有 {count} 項 critical/high 問題 — 建議檢查 Analyzer/Verifier 的 prompt 設定，確保詰問品質。",
+            "dim_gap": "📊 Dim A 與 Dim B 分數差距達 {gap:.0f} 分 — Dimension {lower_dim} 明顯較弱，建議針對該維度重點改善。",
+            "dim_a_label": "A (法規準確性)",
+            "dim_b_label": "B (交叉詰問品質)",
+            "deviation": "⚠️ 偏差已偵測 — {details}",
+            "deviation_default": "詳見偏差詳情",
+            "country_imbalance": "🌍 各國評分差距大 (最高 {max:.0f}, 最低 {min:.0f}) — 較弱國家: {countries}。建議補強這些國家的法規 Profile 資料。",
+            "flagged": "🚩 {count} 條 ISO 13485 條款被標記 — 包含: {ids}{ellipsis}。建議檢視這些條款的文件是否完整且符合最新法規要求。",
+            "incomplete": "📂 以下國家/法規資料不完整: {countries} — 部分評估結果可能不準確。建議補充缺少的法規資料。",
+            "all_good": "✅ 本次稽核未發現需要人為介入的明顯問題。建議持續定期檢視以保持品質。",
+        },
+        "en": {
+            "overall_low": "⚠️ Overall score {score:.0f} is below threshold {threshold} — Review audit findings immediately to check for systemic issues.",
+            "dim_a_critical": "🔴 Regulation Accuracy (Dim A) has {count} critical/high severity issues — Prioritize checking regulation references and update Regulation Profile content.",
+            "completeness": "📋 Regulation completeness gaps ({count} items) — LLM may have missed critical regulatory requirements. Enrich Regulation Profile content.",
+            "interpretation": "📖 Regulation interpretation deviations ({count} items) — LLM interpretation may be oversimplified or distorted. Add correct interpretation notes to Regulation Profile.",
+            "dim_b_critical": "🔴 Cross-Examination Quality (Dim B) has {count} critical/high issues — Review Analyzer/Verifier prompt settings to ensure examination quality.",
+            "dim_gap": "📊 Dim A and Dim B score gap is {gap:.0f} points — Dimension {lower_dim} is notably weaker; focus improvement on that dimension.",
+            "dim_a_label": "A (Regulation Accuracy)",
+            "dim_b_label": "B (Cross-Exam Quality)",
+            "deviation": "⚠️ Deviation detected — {details}",
+            "deviation_default": "See deviation details",
+            "country_imbalance": "🌍 Large country score gap (max {max:.0f}, min {min:.0f}) — Weaker countries: {countries}. Strengthen Regulation Profile data for these countries.",
+            "flagged": "🚩 {count} ISO 13485 clauses flagged — Including: {ids}{ellipsis}. Review whether documents for these clauses are complete and current.",
+            "incomplete": "📂 Incomplete data for: {countries} — Some assessment results may be inaccurate. Supplement missing regulation data.",
+            "all_good": "✅ No significant issues requiring human intervention found in this audit. Continue regular reviews to maintain quality.",
+        },
+        "ja": {
+            "overall_low": "⚠️ 全体スコア {score:.0f} が閾値 {threshold} を下回っています — 監査発見事項を直ちに確認し、体系的な問題がないか確認してください。",
+            "dim_a_critical": "🔴 法規正確性 (Dim A) に {count} 件の critical/high 重大度の問題があります — 法規引用が正しいか優先的に確認し、Regulation Profile の内容を更新してください。",
+            "completeness": "📋 法規完全性の不足 ({count} 件) — LLM が重要な法規要件を見落としている可能性があります。Regulation Profile の内容を充実させてください。",
+            "interpretation": "📖 法規解釈の偏差 ({count} 件) — LLM の法規解釈が過度に簡略化または歪曲されている可能性があります。Regulation Profile に正確な解釈説明を追加してください。",
+            "dim_b_critical": "🔴 交差詰問品質 (Dim B) に {count} 件の critical/high 問題があります — Analyzer/Verifier のプロンプト設定を確認してください。",
+            "dim_gap": "📊 Dim A と Dim B のスコア差が {gap:.0f} 点です — Dimension {lower_dim} が著しく弱いため、そのディメンションの重点改善を推奨します。",
+            "dim_a_label": "A (法規正確性)",
+            "dim_b_label": "B (交差詰問品質)",
+            "deviation": "⚠️ 偏差検出 — {details}",
+            "deviation_default": "偏差詳細を参照",
+            "country_imbalance": "🌍 国別スコアの差が大きい (最高 {max:.0f}, 最低 {min:.0f}) — 弱い国: {countries}。これらの国の Regulation Profile データを強化してください。",
+            "flagged": "🚩 {count} 件の ISO 13485 条項がフラグ付き — 含む: {ids}{ellipsis}。これらの条項の文書が完全で最新の法規要件に適合しているか確認してください。",
+            "incomplete": "📂 以下の国/法規のデータが不完全: {countries} — 一部の評価結果が不正確な可能性があります。不足している法規データを補充してください。",
+            "all_good": "✅ 今回の監査では人的介入を要する重大な問題は発見されませんでした。品質維持のため定期的な確認を続けてください。",
+        },
+    }
+    m = _msg.get(lk, _msg["en"])
+
     # 1. Overall score too low
     if result.overall_score < DEVIATION_OVERALL_THRESHOLD:
         dynamic_recs.append(
-            f"⚠️ 整體評分 {result.overall_score:.0f} 低於閾值 {DEVIATION_OVERALL_THRESHOLD} — "
-            f"建議立即檢視稽核發現事項，確認是否有系統性問題需處理。"
+            m["overall_low"].format(score=result.overall_score, threshold=DEVIATION_OVERALL_THRESHOLD)
         )
 
     # 2. Dim A specific issues
@@ -1923,10 +2262,7 @@ def _generate_adjustment_guidance(
             "high", 0
         )
         if critical_high > 0:
-            dynamic_recs.append(
-                f"🔴 法規準確性 (Dim A) 有 {critical_high} 項 critical/high 嚴重度問題 — "
-                f"建議優先檢查法規引用是否正確，更新 Regulation Profile 中的條文內容。"
-            )
+            dynamic_recs.append(m["dim_a_critical"].format(count=critical_high))
 
         completeness_issues = sum(
             1
@@ -1935,11 +2271,7 @@ def _generate_adjustment_guidance(
             and c.get("severity") not in ("none",)
         )
         if completeness_issues > 0:
-            dynamic_recs.append(
-                f"📋 法規完整性不足 ({completeness_issues} 項) — "
-                f"LLM 可能遺漏關鍵法規要求。建議豐富 Regulation Profile 的內容，"
-                f"補充容易被遺漏的條文。"
-            )
+            dynamic_recs.append(m["completeness"].format(count=completeness_issues))
 
         interpretation_issues = sum(
             1
@@ -1948,11 +2280,7 @@ def _generate_adjustment_guidance(
             and c.get("severity") not in ("none",)
         )
         if interpretation_issues > 0:
-            dynamic_recs.append(
-                f"📖 法規解釋偏差 ({interpretation_issues} 項) — "
-                f"LLM 對法規的解釋可能過度簡化或曲解。"
-                f"建議在 Regulation Profile 中加入關鍵條文的正確解釋說明。"
-            )
+            dynamic_recs.append(m["interpretation"].format(count=interpretation_issues))
 
     # 3. Dim B specific issues
     if result.dim_b_findings:
@@ -1962,28 +2290,24 @@ def _generate_adjustment_guidance(
             if f.get("severity") in ("critical", "high")
         )
         if b_critical_high > 0:
-            dynamic_recs.append(
-                f"🔴 交叉詰問品質 (Dim B) 有 {b_critical_high} 項 critical/high 問題 — "
-                f"建議檢查 Analyzer/Verifier 的 prompt 設定，確保詰問品質。"
-            )
+            dynamic_recs.append(m["dim_b_critical"].format(count=b_critical_high))
 
     # 4. Large gap between Dim A and Dim B
     dim_gap = abs(result.dim_a_score - result.dim_b_score)
     if dim_gap > DEVIATION_DIM_GAP_THRESHOLD:
         lower_dim = (
-            "A (法規準確性)"
+            m["dim_a_label"]
             if result.dim_a_score < result.dim_b_score
-            else "B (交叉詰問品質)"
+            else m["dim_b_label"]
         )
-        dynamic_recs.append(
-            f"📊 Dim A 與 Dim B 分數差距達 {dim_gap:.0f} 分 — "
-            f"Dimension {lower_dim} 明顯較弱，建議針對該維度重點改善。"
-        )
+        dynamic_recs.append(m["dim_gap"].format(gap=dim_gap, lower_dim=lower_dim))
 
     # 5. Deviation detected
     if result.deviation_detected:
         dynamic_recs.append(
-            f"⚠️ 偏差已偵測 — {result.deviation_details[:200] if result.deviation_details else '詳見偏差詳情'}"
+            m["deviation"].format(
+                details=result.deviation_details[:200] if result.deviation_details else m["deviation_default"]
+            )
         )
 
     # 6. Country score imbalance (MDSAP mode)
@@ -1999,9 +2323,10 @@ def _generate_adjustment_guidance(
                     if s < min_score + 10
                 ]
                 dynamic_recs.append(
-                    f"🌍 各國評分差距大 (最高 {max_score:.0f}, 最低 {min_score:.0f}) — "
-                    f"較弱國家: {', '.join(weak_countries)}。"
-                    f"建議補強這些國家的法規 Profile 資料。"
+                    m["country_imbalance"].format(
+                        max=max_score, min=min_score,
+                        countries=", ".join(weak_countries),
+                    )
                 )
 
     # 7. Clauses with flagged items
@@ -2010,24 +2335,22 @@ def _generate_adjustment_guidance(
     if flagged_clauses:
         flagged_ids = [c.get("clause_id", "?") for c in flagged_clauses[:5]]
         dynamic_recs.append(
-            f"🚩 {len(flagged_clauses)} 條 ISO 13485 條款被標記 — "
-            f"包含: {', '.join(flagged_ids)}"
-            f"{'...' if len(flagged_clauses) > 5 else ''}。"
-            f"建議檢視這些條款的文件是否完整且符合最新法規要求。"
+            m["flagged"].format(
+                count=len(flagged_clauses),
+                ids=", ".join(flagged_ids),
+                ellipsis="..." if len(flagged_clauses) > 5 else "",
+            )
         )
 
     # 8. Incomplete data
     if result.incomplete_data_warning:
         dynamic_recs.append(
-            f"📂 以下國家/法規資料不完整: {', '.join(result.incomplete_countries)} — "
-            f"部分評估結果可能不準確。建議補充缺少的法規資料。"
+            m["incomplete"].format(countries=", ".join(result.incomplete_countries))
         )
 
     # If no dynamic issues found, add a positive note
     if not dynamic_recs:
-        dynamic_recs.append(
-            "✅ 本次稽核未發現需要人為介入的明顯問題。建議持續定期檢視以保持品質。"
-        )
+        dynamic_recs.append(m["all_good"])
 
     return fixed_steps, dynamic_recs
 
@@ -2037,11 +2360,12 @@ def _generate_adjustment_guidance(
 # ============================================================
 
 
-def export_daily_audit_word(result: DailyAuditResult) -> Path:
+def export_daily_audit_word(result: DailyAuditResult, lang: str = "zh-TW") -> Path:
     """Export a daily audit result as a Word document.
 
     Args:
         result: DailyAuditResult to export
+        lang: Language code for report content
 
     Returns:
         Path to the generated .docx file
@@ -2053,16 +2377,345 @@ def export_daily_audit_word(result: DailyAuditResult) -> Path:
     EXPORT_DIR.mkdir(parents=True, exist_ok=True)
     filepath = EXPORT_DIR / f"daily_audit_{result.audit_date}.docx"
 
+    lk = _get_prompt_lang(lang)
+
+    # ---- Localized labels ----
+    _L = {
+        "zh": {
+            "title": "AI-QMS 每日稽核報告",
+            "meta": "稽核 ID: {aid}  |  日期: {date}  |  時間: {ts}",
+            "incomplete_banner": "⚠️ 基於不完整資料\n以下國家/法規資料不完整: {countries}",
+            "mode_mdsap": "MDSAP 7國 (全球)",
+            "mode_2country": "2國 (TFDA + EU_MDR)",
+            "audit_mode": "稽核模式: {mode}",
+            "abbrev_title": "縮寫說明",
+            "abbrev_body": (
+                "Dim A      — Dimension A：法規準確性評分（0-100），衡量 AI 引用法規條文的精確程度\n"
+                "Dim B      — Dimension B：交叉詰問品質評分（0-100），衡量 Analyzer/Verifier 辯論流程品質\n"
+                "RA         — 法規事務（Regulatory Affairs）；標記為需 RA 人員審查的高風險條款\n"
+                "QA Auditor — 第三方品質稽核員角色，由 AI 模擬獨立第三方對辯論記錄進行評分\n"
+                "Analyzer   — 分析者角色：針對法規條款分析文件是否符合，提出立場與證據\n"
+                "Verifier   — 驗證者角色：質疑 Analyzer 的論點，提出反證或挑戰\n"
+                "Agreement Level — 辯論結論：agree（同意）/ partial（部分同意）/ disagree（不同意）\n"
+                "MDSAP      — 醫療器材單一稽核計畫（美國/加拿大/巴西/澳洲/日本 5 國）\n"
+                "TFDA       — 臺灣食品藥物管理署；EU MDR — 歐盟醫療器材法規 2017/745\n"
+                "ISO 13485  — 醫療器材品質管理系統國際標準（71 條稽核問題的依據）\n"
+                "score_rationale — AI 對評分依據的文字說明，解釋落在哪個分數區間及原因"
+            ),
+            "how_title": "作用原理",
+            "how_body": (
+                "每日交叉詰問稽核採用三層架構：\n\n"
+                "【第一層：Phase 5 交叉詰問】\n"
+                "  Analyzer 分析每份 QMS 文件是否符合 ISO 13485 / TFDA / EU MDR 條款，\n"
+                "  Verifier 逐條質疑 Analyzer 的論點，雙方進行多輪辯論直到達成共識或標記為爭議。\n\n"
+                "【第二層：每日抽樣稽核（本報告）】\n"
+                "  從當天所有辯論記錄中隨機抽取 20% 條款，\n"
+                "  QA Auditor 以第三方視角評分辯論品質（Dim A：法規準確性，Dim B：詰問品質），\n"
+                "  並偵測時間軸分數偏差與國家評分失衡。\n\n"
+                "【第三層：10 日 Meta Review】\n"
+                "  累積 10 次以上每日稽核後，進行趨勢分析，偵測 overfitting / 系統性偏差。\n\n"
+                "【問題輪替機制】\n"
+                "  稽核問題以當天日期為 seed 確定性輪替。\n"
+                "  預期答案（expected_evidence）為靜態清單，定義各條款應提供的書面證據種類。"
+            ),
+            "scoring_title": "評分說明",
+            "scoring_body": (
+                "風險等級說明：\n"
+                "🔴 immediate_correction（立即矯正）= 重大不符合，須立即採取行動\n"
+                "🟠 deadline_correction（限期矯正）= 不符合，須在指定期限內完成矯正\n"
+                "🟡 improvement_plan（改善計畫）= 有缺口，須制定改善計畫\n"
+                "🟢 suggested_improvement（建議改善）= 輕微缺失，建議改善\n"
+                "✅ compliant（符合）= 符合法規要求\n\n"
+                "Dim A 評分（法規準確性）：\n"
+                "90-100 引用精確無誤 | 70-89 輕微遺漏 | 50-69 部分符合 | 30-49 表面符合 | 0-29 完全不符\n\n"
+                "Dim B 評分（詰問品質）：\n"
+                "90-100 深度均衡可操作 | 70-89 輕微缺失 | 50-69 明顯缺失 | 30-49 表面流於形式 | 0-29 嚴重不足"
+            ),
+            "score_summary": "評分摘要",
+            "dim_a_label": "法規準確性",
+            "dim_b_label": "交叉詰問品質驗證",
+            "regs_label": "比對法規",
+            "deviation_title": "偏差詳情",
+            "sampling_title": "20% 抽樣明細",
+            "source_pipeline": "來源分析",
+            "mode_label": "模式",
+            "sample_rate": "抽樣率",
+            "available_rows": "可用列數",
+            "sampled_rows": "抽樣列數",
+            "per_clause_title": "逐條分析結果",
+            "col_clause": "條號", "col_doc": "文件", "col_question": "稽核問題",
+            "col_verdict": "判定", "col_agreed": "同意", "col_qa_score": "QA 分數",
+            "col_q_quality": "問題品質", "col_hallucination": "幻覺",
+            "debate_title": "逐條辯論紀錄與第三方稽核",
+            "audit_question": "稽核問題",
+            "expected_evidence": "預期書面證據",
+            "analyzer": "分析者 (Analyzer)",
+            "position": "立場",
+            "evidence": "證據",
+            "verifier": "驗證者 (Verifier)",
+            "challenge": "質疑",
+            "comment": "評語",
+            "no_rounds": "（無辯論輪次紀錄）",
+            "qa_result": "第三方稽核結果: {score}/100 | 問題品質: {qq} | 回答正確性: {aa} | 邏輯一致性: {lc}",
+            "hallucination_detect": "🚨 幻覺偵測",
+            "qa_summary_title": "第三方稽核摘要",
+            "doc_score": "文件 {doc_id} — 總分: {score}/100",
+            "dim_a_mdsap": "Dimension A — MDSAP 法規準確性",
+            "dim_a_2c": "Dimension A — 法規準確性 (TFDA + EU_MDR)",
+            "score_rationale": "評分依據",
+            "check_items": "檢查項目",
+            "dim_b_mdsap": "Dimension B — MDSAP 5國交叉詰問品質驗證",
+            "dim_b_2c": "Dimension B — 2國交叉詰問品質驗證",
+            "country_scores": "各國評分",
+            "findings": "發現事項",
+            "crossval_title": "交叉驗證",
+            "td_stable": "穩定 ✅", "td_minor": "輕微漂移 ⚠️",
+            "td_significant": "顯著漂移 🔴", "td_insufficient": "資料不足",
+            "method1_title": "方法一：時間軸偏差（30天滾動平均）",
+            "insufficient_reason": "資料不足，無法比較",
+            "status": "狀態", "history_count": "歷史筆數",
+            "rolling_avg": "30天滾動均分", "today_score": "今日分數", "delta": "差距",
+            "ci_balanced": "均衡 ✅", "ci_minor": "輕微失衡 ⚠️",
+            "ci_significant": "顯著失衡 🔴", "ci_insufficient": "資料不足",
+            "method2_title": "方法二：國家間分數失衡",
+            "country_count": "國家數", "avg_score": "平均分",
+            "max_score": "最高", "min_score": "最低", "spread": "落差",
+            "outlier_countries": "異常國家（低於均分15分以上）",
+            "none": "無",
+            "overall_normal": "正常 ✅", "overall_monitor": "需持續觀察 ⚠️",
+            "overall_action": "需立即處理 🔴", "overall_insufficient": "資料不足",
+            "overall_assessment": "整體評估",
+            "adjust_title": "人為調整指引",
+            "general_steps_title": "一般改善步驟",
+            "dynamic_recs_title": "本次動態建議",
+            "records_suffix": "筆（過去30天）",
+        },
+        "en": {
+            "title": "AI-QMS Daily Audit Report",
+            "meta": "Audit ID: {aid}  |  Date: {date}  |  Time: {ts}",
+            "incomplete_banner": "⚠️ Based on Incomplete Data\nIncomplete data for: {countries}",
+            "mode_mdsap": "MDSAP 7-Country (Global)",
+            "mode_2country": "2-Country (TFDA + EU_MDR)",
+            "audit_mode": "Audit Mode: {mode}",
+            "abbrev_title": "Abbreviation Legend",
+            "abbrev_body": (
+                "Dim A      — Dimension A: Regulation Accuracy Score (0-100), measures precision of AI regulatory citations\n"
+                "Dim B      — Dimension B: Cross-Examination Quality Score (0-100), measures Analyzer/Verifier debate quality\n"
+                "RA         — Regulatory Affairs; high-risk clauses flagged for RA personnel review\n"
+                "QA Auditor — Third-party quality auditor role, AI-simulated independent third-party scoring of debate records\n"
+                "Analyzer   — Analyzer role: analyzes document compliance against regulatory clauses, presents position and evidence\n"
+                "Verifier   — Verifier role: challenges Analyzer's arguments, presents counter-evidence\n"
+                "Agreement Level — Debate conclusion: agree / partial / disagree\n"
+                "MDSAP      — Medical Device Single Audit Program (US/CA/BR/AU/JP)\n"
+                "TFDA       — Taiwan FDA; EU MDR — EU Medical Device Regulation 2017/745\n"
+                "ISO 13485  — International standard for medical device QMS (basis of 71 audit questions)\n"
+                "score_rationale — AI's textual explanation of scoring basis, explaining which score band applies and why"
+            ),
+            "how_title": "How This Report Works",
+            "how_body": (
+                "Daily cross-examination audit uses a three-layer architecture:\n\n"
+                "[Layer 1: Phase 5 Cross-Examination]\n"
+                "  Analyzer reviews each QMS document against ISO 13485 / TFDA / EU MDR clauses.\n"
+                "  Verifier challenges Analyzer's arguments clause-by-clause through multiple rounds until consensus or flagged.\n\n"
+                "[Layer 2: Daily Sampling Audit (this report)]\n"
+                "  Randomly samples 20% of clauses from the day's debate records.\n"
+                "  QA Auditor scores debate quality from a third-party perspective (Dim A: Regulation Accuracy, Dim B: Exam Quality).\n\n"
+                "[Layer 3: 10-Day Meta Review]\n"
+                "  After 10+ daily audits, performs trend analysis to detect overfitting / systematic bias.\n\n"
+                "[Question Rotation]\n"
+                "  Audit questions rotate deterministically using the date as seed.\n"
+                "  Expected evidence is a static checklist defining required documentary evidence per clause."
+            ),
+            "scoring_title": "Scoring Legend",
+            "scoring_body": (
+                "Risk Level Legend:\n"
+                "🔴 immediate_correction = Major nonconformity, immediate action required\n"
+                "🟠 deadline_correction = Nonconformity, must be corrected within deadline\n"
+                "🟡 improvement_plan = Gap found, improvement plan required\n"
+                "🟢 suggested_improvement = Minor deficiency, improvement suggested\n"
+                "✅ compliant = Meets regulatory requirements\n\n"
+                "Dim A Scoring (Regulation Accuracy):\n"
+                "90-100 Precise citations | 70-89 Minor omissions | 50-69 Partial compliance | 30-49 Surface compliance | 0-29 Non-compliant\n\n"
+                "Dim B Scoring (Examination Quality):\n"
+                "90-100 Deep, balanced, actionable | 70-89 Minor gaps | 50-69 Notable gaps | 30-49 Superficial | 0-29 Severely inadequate"
+            ),
+            "score_summary": "Score Summary",
+            "dim_a_label": "Regulation Accuracy",
+            "dim_b_label": "Cross-Exam Quality",
+            "regs_label": "Regulations",
+            "deviation_title": "Deviation Details",
+            "sampling_title": "20% Sampling Details",
+            "source_pipeline": "Source Pipeline",
+            "mode_label": "Mode",
+            "sample_rate": "Sample Rate",
+            "available_rows": "Available Rows",
+            "sampled_rows": "Sampled Rows",
+            "per_clause_title": "Per-Clause Results",
+            "col_clause": "Clause", "col_doc": "Doc", "col_question": "Audit Question",
+            "col_verdict": "Verdict", "col_agreed": "Agreed", "col_qa_score": "QA Score",
+            "col_q_quality": "Q. Quality", "col_hallucination": "Hallucination",
+            "debate_title": "Debate & QA Audit Details",
+            "audit_question": "Audit Question",
+            "expected_evidence": "Expected Evidence",
+            "analyzer": "Analyzer",
+            "position": "Position",
+            "evidence": "Evidence",
+            "verifier": "Verifier",
+            "challenge": "Challenge",
+            "comment": "Assessment",
+            "no_rounds": "(No debate rounds recorded)",
+            "qa_result": "QA Audit Result: {score}/100 | Q. Quality: {qq} | Answer Accuracy: {aa} | Logic Consistency: {lc}",
+            "hallucination_detect": "🚨 Hallucination Detected",
+            "qa_summary_title": "QA Audit Summary",
+            "doc_score": "Document {doc_id} — Score: {score}/100",
+            "dim_a_mdsap": "Dimension A — MDSAP Regulation Accuracy",
+            "dim_a_2c": "Dimension A — Regulation Accuracy (TFDA + EU_MDR)",
+            "score_rationale": "Score Rationale",
+            "check_items": "Check Items",
+            "dim_b_mdsap": "Dimension B — MDSAP 5-Country Cross-Exam Quality",
+            "dim_b_2c": "Dimension B — 2-Country Cross-Exam Quality",
+            "country_scores": "Country Scores",
+            "findings": "Findings",
+            "crossval_title": "Cross-Validation",
+            "td_stable": "Stable ✅", "td_minor": "Minor Drift ⚠️",
+            "td_significant": "Significant Drift 🔴", "td_insufficient": "Insufficient Data",
+            "method1_title": "Method 1: Temporal Drift (30-Day Rolling Average)",
+            "insufficient_reason": "Insufficient data for comparison",
+            "status": "Status", "history_count": "History Count",
+            "rolling_avg": "30-Day Rolling Avg", "today_score": "Today's Score", "delta": "Delta",
+            "ci_balanced": "Balanced ✅", "ci_minor": "Minor Imbalance ⚠️",
+            "ci_significant": "Significant Imbalance 🔴", "ci_insufficient": "Insufficient Data",
+            "method2_title": "Method 2: Country Score Imbalance",
+            "country_count": "Countries", "avg_score": "Avg Score",
+            "max_score": "Max", "min_score": "Min", "spread": "Spread",
+            "outlier_countries": "Outlier Countries (>15 pts below avg)",
+            "none": "None",
+            "overall_normal": "Normal ✅", "overall_monitor": "Monitor ⚠️",
+            "overall_action": "Action Required 🔴", "overall_insufficient": "Insufficient Data",
+            "overall_assessment": "Overall Assessment",
+            "adjust_title": "How to Adjust",
+            "general_steps_title": "General Improvement Steps",
+            "dynamic_recs_title": "Dynamic Recommendations",
+            "records_suffix": " records (past 30 days)",
+        },
+        "ja": {
+            "title": "AI-QMS 毎日監査レポート",
+            "meta": "監査 ID: {aid}  |  日付: {date}  |  時刻: {ts}",
+            "incomplete_banner": "⚠️ 不完全なデータに基づく\n不完全な国/法規データ: {countries}",
+            "mode_mdsap": "MDSAP 7カ国（グローバル）",
+            "mode_2country": "2カ国（TFDA + EU_MDR）",
+            "audit_mode": "監査モード: {mode}",
+            "abbrev_title": "略語説明",
+            "abbrev_body": (
+                "Dim A      — Dimension A：法規正確性スコア（0-100）、AI の法規引用の精度を測定\n"
+                "Dim B      — Dimension B：交差詰問品質スコア（0-100）、Analyzer/Verifier 議論品質を測定\n"
+                "RA         — 法規事務（Regulatory Affairs）；RA 担当者レビューが必要な高リスク条項\n"
+                "QA Auditor — 第三者品質監査役、AI が独立第三者として議論記録を採点\n"
+                "Analyzer   — 分析者：法規条項に対する文書適合性を分析、立場と証拠を提示\n"
+                "Verifier   — 検証者：Analyzer の議論に異議を唱え、反証を提示\n"
+                "Agreement Level — 議論結論：agree / partial / disagree\n"
+                "MDSAP      — 医療機器単一監査プログラム（米/加/伯/豪/日 5カ国）\n"
+                "TFDA       — 台湾 FDA；EU MDR — EU 医療機器規則 2017/745\n"
+                "ISO 13485  — 医療機器 QMS 国際規格（71監査質問の基準）\n"
+                "score_rationale — AI のスコア根拠の説明"
+            ),
+            "how_title": "このレポートの仕組み",
+            "how_body": (
+                "毎日交差詰問監査は三層アーキテクチャを採用：\n\n"
+                "【第1層：Phase 5 交差詰問】\n"
+                "  Analyzer が各 QMS 文書を ISO 13485 / TFDA / EU MDR 条項と照合分析。\n"
+                "  Verifier が Analyzer の議論を条項ごとに質問し、合意またはフラグまで複数ラウンド議論。\n\n"
+                "【第2層：毎日サンプリング監査（本レポート）】\n"
+                "  当日の議論記録から20%の条項をランダムサンプリング。\n"
+                "  QA Auditor が第三者視点で議論品質を採点。\n\n"
+                "【第3層：10日間メタレビュー】\n"
+                "  10回以上の毎日監査後、傾向分析を実施。\n\n"
+                "【質問ローテーション】\n"
+                "  監査質問は日付をシードとして決定的にローテーション。"
+            ),
+            "scoring_title": "採点説明",
+            "scoring_body": (
+                "リスクレベル：\n"
+                "🔴 immediate_correction = 重大不適合、即時対応必要\n"
+                "🟠 deadline_correction = 不適合、期限内是正必要\n"
+                "🟡 improvement_plan = ギャップあり、改善計画必要\n"
+                "🟢 suggested_improvement = 軽微な不足、改善推奨\n"
+                "✅ compliant = 法規要件適合\n\n"
+                "Dim A 採点（法規正確性）：\n"
+                "90-100 正確な引用 | 70-89 軽微な欠落 | 50-69 部分適合 | 30-49 表面適合 | 0-29 不適合\n\n"
+                "Dim B 採点（詰問品質）：\n"
+                "90-100 深く均衡で実行可能 | 70-89 軽微な不足 | 50-69 顕著な不足 | 30-49 表面的 | 0-29 深刻に不足"
+            ),
+            "score_summary": "スコアサマリー",
+            "dim_a_label": "法規正確性",
+            "dim_b_label": "交差詰問品質",
+            "regs_label": "比較法規",
+            "deviation_title": "偏差詳細",
+            "sampling_title": "20% サンプリング詳細",
+            "source_pipeline": "ソースパイプライン",
+            "mode_label": "モード",
+            "sample_rate": "サンプリング率",
+            "available_rows": "利用可能行数",
+            "sampled_rows": "サンプリング行数",
+            "per_clause_title": "条項別分析結果",
+            "col_clause": "条項", "col_doc": "文書", "col_question": "監査質問",
+            "col_verdict": "判定", "col_agreed": "同意", "col_qa_score": "QA スコア",
+            "col_q_quality": "質問品質", "col_hallucination": "幻覚",
+            "debate_title": "議論記録と第三者監査詳細",
+            "audit_question": "監査質問",
+            "expected_evidence": "予想される書面証拠",
+            "analyzer": "分析者 (Analyzer)",
+            "position": "立場",
+            "evidence": "証拠",
+            "verifier": "検証者 (Verifier)",
+            "challenge": "質問",
+            "comment": "評価",
+            "no_rounds": "（議論ラウンド記録なし）",
+            "qa_result": "第三者監査結果: {score}/100 | 質問品質: {qq} | 回答正確性: {aa} | 論理一貫性: {lc}",
+            "hallucination_detect": "🚨 幻覚検出",
+            "qa_summary_title": "第三者監査サマリー",
+            "doc_score": "文書 {doc_id} — スコア: {score}/100",
+            "dim_a_mdsap": "Dimension A — MDSAP 法規正確性",
+            "dim_a_2c": "Dimension A — 法規正確性 (TFDA + EU_MDR)",
+            "score_rationale": "スコア根拠",
+            "check_items": "チェック項目",
+            "dim_b_mdsap": "Dimension B — MDSAP 5カ国交差詰問品質",
+            "dim_b_2c": "Dimension B — 2カ国交差詰問品質",
+            "country_scores": "国別スコア",
+            "findings": "発見事項",
+            "crossval_title": "交差検証",
+            "td_stable": "安定 ✅", "td_minor": "軽微なドリフト ⚠️",
+            "td_significant": "顕著なドリフト 🔴", "td_insufficient": "データ不足",
+            "method1_title": "方法1：時間軸偏差（30日間ローリング平均）",
+            "insufficient_reason": "データ不足、比較不可",
+            "status": "ステータス", "history_count": "履歴件数",
+            "rolling_avg": "30日間ローリング平均", "today_score": "本日スコア", "delta": "差分",
+            "ci_balanced": "均衡 ✅", "ci_minor": "軽微な不均衡 ⚠️",
+            "ci_significant": "顕著な不均衡 🔴", "ci_insufficient": "データ不足",
+            "method2_title": "方法2：国間スコア不均衡",
+            "country_count": "国数", "avg_score": "平均スコア",
+            "max_score": "最高", "min_score": "最低", "spread": "差",
+            "outlier_countries": "異常国（平均より15点以上低い）",
+            "none": "なし",
+            "overall_normal": "正常 ✅", "overall_monitor": "要観察 ⚠️",
+            "overall_action": "要対応 🔴", "overall_insufficient": "データ不足",
+            "overall_assessment": "総合評価",
+            "adjust_title": "調整ガイド",
+            "general_steps_title": "一般改善ステップ",
+            "dynamic_recs_title": "今回の動的推奨",
+            "records_suffix": " 件（過去30日間）",
+        },
+    }
+    L = _L.get(lk, _L["en"])
+
     doc = Document()
-    title = doc.add_heading("AI-QMS 每日稽核報告 / Daily Audit Report", level=1)
+    title = doc.add_heading(L["title"], level=1)
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     # Metadata
     meta = doc.add_paragraph()
     meta.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    run = meta.add_run(
-        f"稽核 ID: {result.audit_id}  |  日期: {result.audit_date}  |  時間: {result.timestamp}"
-    )
+    run = meta.add_run(L["meta"].format(aid=result.audit_id, date=result.audit_date, ts=result.timestamp))
     run.font.size = Pt(9)
     run.font.color.rgb = RGBColor(128, 128, 128)
 
@@ -2070,8 +2723,7 @@ def export_daily_audit_word(result: DailyAuditResult) -> Path:
     if result.incomplete_data_warning:
         warning_para = doc.add_paragraph()
         warning_run = warning_para.add_run(
-            f"⚠️ 基於不完整資料 / Based on Incomplete Data\n"
-            f"以下國家/法規資料不完整: {', '.join(result.incomplete_countries)}"
+            L["incomplete_banner"].format(countries=", ".join(result.incomplete_countries))
         )
         warning_run.font.bold = True
         warning_run.font.color.rgb = RGBColor(204, 102, 0)  # orange
@@ -2080,10 +2732,10 @@ def export_daily_audit_word(result: DailyAuditResult) -> Path:
     is_mdsap = sd.get("mdsap_enabled", False)
     regs = sd.get("selected_regulations", [])
     regs_label = ", ".join(regs) if regs else "N/A"
-    mode_label = "MDSAP 7國 (全球)" if is_mdsap else "2國 (TFDA + EU_MDR)"
+    mode_label = L["mode_mdsap"] if is_mdsap else L["mode_2country"]
 
     mode_banner = doc.add_paragraph()
-    mode_banner_run = mode_banner.add_run(f"  稽核模式 / Audit Mode: {mode_label}  ")
+    mode_banner_run = mode_banner.add_run(f"  {L['audit_mode'].format(mode=mode_label)}  ")
     mode_banner_run.font.bold = True
     mode_banner_run.font.size = Pt(13)
     if is_mdsap:
@@ -2103,94 +2755,56 @@ def export_daily_audit_word(result: DailyAuditResult) -> Path:
     rpr = mode_banner_run._element.get_or_add_rPr()
     rpr.append(shading)
 
-    doc.add_heading("縮寫說明 / Abbreviation Legend", level=2)
-    doc.add_paragraph(
-        "Dim A      — Dimension A：法規準確性評分（0–100），衡量 AI 引用法規條文的精確程度\n"
-        "Dim B      — Dimension B：交叉詰問品質評分（0–100），衡量 Analyzer/Verifier 辯論流程品質\n"
-        "RA         — 法規事務（Regulatory Affairs）；標記為需 RA 人員審查的高風險條款\n"
-        "QA Auditor — 第三方品質稽核員角色，由 AI 模擬獨立第三方對辯論記錄進行評分\n"
-        "Analyzer   — 分析者角色：針對法規條款分析文件是否符合，提出立場與證據\n"
-        "Verifier   — 驗證者角色：質疑 Analyzer 的論點，提出反證或挑戰\n"
-        "Agreement Level — 辯論結論：agree（同意）/ partial（部分同意）/ disagree（不同意）\n"
-        "MDSAP      — 醫療器材單一稽核計畫（美國/加拿大/巴西/澳洲/日本 5 國）\n"
-        "TFDA       — 臺灣食品藥物管理署；EU MDR — 歐盟醫療器材法規 2017/745\n"
-        "ISO 13485  — 醫療器材品質管理系統國際標準（71 條稽核問題的依據）\n"
-        "score_rationale — AI 對評分依據的文字說明，解釋落在哪個分數區間及原因"
-    )
+    doc.add_heading(L["abbrev_title"], level=2)
+    doc.add_paragraph(L["abbrev_body"])
 
-    doc.add_heading("作用原理 / How This Report Works", level=2)
-    doc.add_paragraph(
-        "每日交叉詰問稽核採用三層架構：\n\n"
-        "【第一層：Phase 5 交叉詰問】\n"
-        "  Analyzer 分析每份 QMS 文件是否符合 ISO 13485 / TFDA / EU MDR 條款，\n"
-        "  Verifier 逐條質疑 Analyzer 的論點，雙方進行多輪辯論直到達成共識或標記為爭議。\n\n"
-        "【第二層：每日抽樣稽核（本報告）】\n"
-        "  從當天所有辯論記錄中隨機抽取 20% 條款，\n"
-        "  QA Auditor 以第三方視角評分辯論品質（Dim A：法規準確性，Dim B：詰問品質），\n"
-        "  並偵測時間軸分數偏差與國家評分失衡。\n\n"
-        "【第三層：10 日 Meta Review】\n"
-        "  累積 10 次以上每日稽核後，進行趨勢分析，偵測 overfitting / 系統性偏差。\n\n"
-        "【問題輪替機制】\n"
-        "  稽核問題以當天日期為 seed 確定性輪替。同一天所有執行使用相同問題（便於比較），\n"
-        "  不同天自動切換至下一個問題版本（目前前 10 條款各有 2 個問題，其餘條款固定）。\n"
-        "  預期答案（expected_evidence）為靜態清單，定義各條款應提供的書面證據種類。"
-    )
+    doc.add_heading(L["how_title"], level=2)
+    doc.add_paragraph(L["how_body"])
 
-    doc.add_heading("評分說明 / Scoring Legend", level=2)
-    doc.add_paragraph(
-        "風險等級說明：\n"
-        "🔴 immediate_correction（立即矯正）= 重大不符合，須立即採取行動\n"
-        "🟠 deadline_correction（限期矯正）= 不符合，須在指定期限內完成矯正\n"
-        "🟡 improvement_plan（改善計畫）= 有缺口，須制定改善計畫\n"
-        "🟢 suggested_improvement（建議改善）= 輕微缺失，建議改善\n"
-        "✅ compliant（符合）= 符合法規要求\n\n"
-        "Dim A 評分（法規準確性）：\n"
-        "90–100 引用精確無誤 | 70–89 輕微遺漏 | 50–69 部分符合 | 30–49 表面符合 | 0–29 完全不符\n\n"
-        "Dim B 評分（詰問品質）：\n"
-        "90–100 深度均衡可操作 | 70–89 輕微缺失 | 50–69 明顯缺失 | 30–49 表面流於形式 | 0–29 嚴重不足"
-    )
+    doc.add_heading(L["scoring_title"], level=2)
+    doc.add_paragraph(L["scoring_body"])
 
-    doc.add_heading("評分摘要 / Score Summary", level=2)
+    doc.add_heading(L["score_summary"], level=2)
     doc.add_paragraph(
         f"Overall Score: {result.overall_score:.0f}/100\n"
-        f"Dimension A (法規準確性 / Regulation Accuracy): {result.dim_a_score:.0f}/100\n"
-        f"Dimension B (交叉詰問品質驗證 / Cross-Exam Quality): {result.dim_b_score:.0f}/100\n"
-        f"比對法規 / Regulations: {regs_label}\n"
+        f"Dimension A ({L['dim_a_label']}): {result.dim_a_score:.0f}/100\n"
+        f"Dimension B ({L['dim_b_label']}): {result.dim_b_score:.0f}/100\n"
+        f"{L['regs_label']}: {regs_label}\n"
         f"Deviation Detected: {'Yes ⚠️' if result.deviation_detected else 'No ✅'}"
     )
 
     if result.deviation_detected:
-        doc.add_heading("偏差詳情 / Deviation Details", level=2)
+        doc.add_heading(L["deviation_title"], level=2)
         doc.add_paragraph(result.deviation_details)
 
     clauses = sd.get("clauses", [])
     if clauses or regs:
-        doc.add_heading("20% 抽樣明細 / Sampling Details", level=2)
+        doc.add_heading(L["sampling_title"], level=2)
         doc.add_paragraph(
-            f"來源分析 / Source Pipeline: {sd.get('source_run_id', 'N/A')}\n"
-            f"模式 / Mode: {mode_label}\n"
-            f"比對法規 / Regulations: {regs_label}\n"
-            f"抽樣率 / Sample Rate: {sd.get('sample_rate', 0.2):.0%}\n"
-            f"可用列數 / Available Rows: {sd.get('total_rows_available', 0)}\n"
-            f"抽樣列數 / Sampled Rows: {sd.get('sampled_count', 0)}"
+            f"{L['source_pipeline']}: {sd.get('source_run_id', 'N/A')}\n"
+            f"{L['mode_label']}: {mode_label}\n"
+            f"{L['regs_label']}: {regs_label}\n"
+            f"{L['sample_rate']}: {sd.get('sample_rate', 0.2):.0%}\n"
+            f"{L['available_rows']}: {sd.get('total_rows_available', 0)}\n"
+            f"{L['sampled_rows']}: {sd.get('sampled_count', 0)}"
         )
 
     audit_clauses = [c for c in clauses if not c.get("_qa_doc_summary")]
     summary_entries = [c for c in clauses if c.get("_qa_doc_summary")]
 
     if audit_clauses:
-        doc.add_heading("逐條分析結果 / Per-Clause Results", level=3)
+        doc.add_heading(L["per_clause_title"], level=3)
         table = doc.add_table(rows=1, cols=8)
         table.style = "Light Grid Accent 1"
         hdr = table.rows[0].cells
-        hdr[0].text = "條號"
-        hdr[1].text = "文件"
-        hdr[2].text = "稽核問題"
-        hdr[3].text = "判定"
-        hdr[4].text = "同意"
-        hdr[5].text = "QA 分數"
-        hdr[6].text = "問題品質"
-        hdr[7].text = "幻覺"
+        hdr[0].text = L["col_clause"]
+        hdr[1].text = L["col_doc"]
+        hdr[2].text = L["col_question"]
+        hdr[3].text = L["col_verdict"]
+        hdr[4].text = L["col_agreed"]
+        hdr[5].text = L["col_qa_score"]
+        hdr[6].text = L["col_q_quality"]
+        hdr[7].text = L["col_hallucination"]
         for clause in audit_clauses:
             row = table.add_row().cells
             row[0].text = str(clause.get("clause_id", ""))
@@ -2202,7 +2816,7 @@ def export_daily_audit_word(result: DailyAuditResult) -> Path:
             row[6].text = str(clause.get("question_quality", ""))
             row[7].text = "🚨" if clause.get("hallucination_detected") else "—"
 
-        doc.add_heading("逐條辯論紀錄與第三方稽核 / Debate & QA Audit Details", level=3)
+        doc.add_heading(L["debate_title"], level=3)
 
         # Load ISO checklist for expected_evidence lookup
         try:
@@ -2219,14 +2833,18 @@ def export_daily_audit_word(result: DailyAuditResult) -> Path:
 
             aq = clause.get("audit_question", "")
             if aq:
-                doc.add_paragraph(f"稽核問題: {aq}")
+                doc.add_paragraph(f"{L['audit_question']}: {aq}")
 
-            # Expected evidence from compliance rules
+            # Expected evidence from compliance rules — language-aware
             _clause_def = _ISO_CL.get(cid, {})
-            _exp_ev = _clause_def.get("expected_evidence", [])
+            _exp_ev = (
+                _clause_def.get("expected_evidence_ja") if lang.startswith("ja")
+                else _clause_def.get("expected_evidence_en") if not lang.startswith("zh")
+                else _clause_def.get("expected_evidence")
+            ) or _clause_def.get("expected_evidence", [])
             if _exp_ev:
                 doc.add_paragraph(
-                    "預期書面證據 / Expected Evidence:\n"
+                    f"{L['expected_evidence']}:\n"
                     + "\n".join(f"  • {e}" for e in _exp_ev),
                     style="Quote",
                 )
@@ -2258,27 +2876,27 @@ def export_daily_audit_word(result: DailyAuditResult) -> Path:
                         0
                     ].font.bold = True
                     doc.add_paragraph(
-                        f"分析者 (Analyzer) — confidence: {a_confidence}\n"
-                        f"立場: {a_position}"
+                        f"{L['analyzer']} — confidence: {a_confidence}\n"
+                        f"{L['position']}: {a_position}"
                     )
                     if a_evidence:
                         evidence_str = ", ".join(str(e)[:100] for e in a_evidence[:5])
-                        doc.add_paragraph(f"證據: {evidence_str}")
+                        doc.add_paragraph(f"{L['evidence']}: {evidence_str}")
 
-                    challenge_lines = f"驗證者 (Verifier) — agreement: {v_agreement}"
+                    challenge_lines = f"{L['verifier']} — agreement: {v_agreement}"
                     if isinstance(v_challenges, list) and v_challenges:
                         for ch in v_challenges[:3]:
                             if isinstance(ch, dict):
                                 challenge_lines += (
-                                    f"\n  質疑: {ch.get('point', str(ch))[:200]}"
+                                    f"\n  {L['challenge']}: {ch.get('point', str(ch))[:200]}"
                                 )
                             else:
-                                challenge_lines += f"\n  質疑: {str(ch)[:200]}"
+                                challenge_lines += f"\n  {L['challenge']}: {str(ch)[:200]}"
                     doc.add_paragraph(challenge_lines)
                     if v_assessment:
-                        doc.add_paragraph(f"評語: {v_assessment}")
+                        doc.add_paragraph(f"{L['comment']}: {v_assessment}")
             else:
-                doc.add_paragraph("（無辯論輪次紀錄）")
+                doc.add_paragraph(L["no_rounds"])
 
             qa_score = clause.get("score", 0)
             qq = clause.get("question_quality", "unknown")
@@ -2288,13 +2906,10 @@ def export_daily_audit_word(result: DailyAuditResult) -> Path:
             hal_detail = clause.get("hallucination_details", "")
             issues = clause.get("issues", [])
 
-            qa_text = (
-                f"第三方稽核結果: {qa_score}/100 | "
-                f"問題品質: {qq} | 回答正確性: {aa} | 邏輯一致性: {lc}"
-            )
+            qa_text = L["qa_result"].format(score=qa_score, qq=qq, aa=aa, lc=lc)
             if hal:
                 qa_text += (
-                    f"\n🚨 幻覺偵測: {hal_detail}" if hal_detail else "\n🚨 幻覺偵測"
+                    f"\n{L['hallucination_detect']}: {hal_detail}" if hal_detail else f"\n{L['hallucination_detect']}"
                 )
             p_qa = doc.add_paragraph(qa_text)
             p_qa.runs[0].font.italic = True
@@ -2306,13 +2921,13 @@ def export_daily_audit_word(result: DailyAuditResult) -> Path:
             doc.add_paragraph("")
 
     if summary_entries:
-        doc.add_heading("第三方稽核摘要 / QA Audit Summary", level=3)
+        doc.add_heading(L["qa_summary_title"], level=3)
         for entry in summary_entries:
             doc_id_s = entry.get("doc_id", "")
             score_s = entry.get("overall_score", 0)
             summary_s = entry.get("summary", "")
             recs_s = entry.get("recommendations", [])
-            doc.add_paragraph(f"文件 {doc_id_s} — 總分: {score_s}/100").runs[
+            doc.add_paragraph(L["doc_score"].format(doc_id=doc_id_s, score=score_s)).runs[
                 0
             ].font.bold = True
             if summary_s:
@@ -2321,17 +2936,13 @@ def export_daily_audit_word(result: DailyAuditResult) -> Path:
                 for rec in recs_s:
                     doc.add_paragraph(f"  💡 {rec}")
 
-    dim_a_title = (
-        "Dimension A — MDSAP 法規準確性"
-        if is_mdsap
-        else "Dimension A — 法規準確性 (TFDA + EU_MDR)"
-    )
+    dim_a_title = L["dim_a_mdsap"] if is_mdsap else L["dim_a_2c"]
     doc.add_heading(dim_a_title, level=2)
     doc.add_paragraph(result.dim_a_summary or "N/A")
     if result.dim_a_score_rationale:
-        doc.add_paragraph(f"評分依據: {result.dim_a_score_rationale}", style="Quote")
+        doc.add_paragraph(f"{L['score_rationale']}: {result.dim_a_score_rationale}", style="Quote")
     if result.dim_a_checks:
-        doc.add_heading("檢查項目", level=3)
+        doc.add_heading(L["check_items"], level=3)
         for check in result.dim_a_checks:
             doc.add_paragraph(
                 f"• [{check.get('severity', 'N/A')}] {check.get('check_type', '')}: "
@@ -2339,21 +2950,17 @@ def export_daily_audit_word(result: DailyAuditResult) -> Path:
                 f"(Regulation: {check.get('regulation', '')})"
             )
 
-    dim_b_title = (
-        "Dimension B — MDSAP 5國交叉詰問品質驗證"
-        if is_mdsap
-        else "Dimension B — 2國交叉詰問品質驗證"
-    )
+    dim_b_title = L["dim_b_mdsap"] if is_mdsap else L["dim_b_2c"]
     doc.add_heading(dim_b_title, level=2)
     doc.add_paragraph(result.dim_b_summary or "N/A")
     if result.dim_b_score_rationale:
-        doc.add_paragraph(f"評分依據: {result.dim_b_score_rationale}", style="Quote")
+        doc.add_paragraph(f"{L['score_rationale']}: {result.dim_b_score_rationale}", style="Quote")
     if result.dim_b_country_scores:
-        doc.add_heading("各國評分", level=3)
+        doc.add_heading(L["country_scores"], level=3)
         for country, score in sorted(result.dim_b_country_scores.items()):
             doc.add_paragraph(f"  {country}: {score:.0f}/100")
     if result.dim_b_findings:
-        doc.add_heading("發現事項", level=3)
+        doc.add_heading(L["findings"], level=3)
         for finding in result.dim_b_findings:
             doc.add_paragraph(
                 f"• [{finding.get('severity', 'N/A')}] {finding.get('category', '')}: "
@@ -2362,31 +2969,29 @@ def export_daily_audit_word(result: DailyAuditResult) -> Path:
 
     cv = result.cross_validation or {}
     if cv and not cv.get("error"):
-        doc.add_heading("交叉驗證 / Cross-Validation", level=2)
+        doc.add_heading(L["crossval_title"], level=2)
 
         # Method 1: Temporal drift
         td = cv.get("temporal_drift", {})
         td_status = td.get("status", "insufficient_data")
         td_labels = {
-            "stable": "穩定 ✅",
-            "minor_drift": "輕微漂移 ⚠️",
-            "significant_drift": "顯著漂移 🔴",
-            "insufficient_data": "資料不足",
+            "stable": L["td_stable"], "minor_drift": L["td_minor"],
+            "significant_drift": L["td_significant"], "insufficient_data": L["td_insufficient"],
         }
-        doc.add_heading("方法一：時間軸偏差（30天滾動平均）", level=3)
+        doc.add_heading(L["method1_title"], level=3)
         if td_status == "insufficient_data":
-            doc.add_paragraph(td.get("reason", "資料不足，無法比較"))
+            doc.add_paragraph(td.get("reason", L["insufficient_reason"]))
         else:
             doc.add_paragraph(
-                f"狀態: {td_labels.get(td_status, td_status)}\n"
-                f"歷史筆數: {td.get('history_count', 0)} 筆（過去30天）\n"
-                f"30天滾動均分: {td.get('rolling_avg_overall', 0):.1f} "
+                f"{L['status']}: {td_labels.get(td_status, td_status)}\n"
+                f"{L['history_count']}: {td.get('history_count', 0)}{L['records_suffix']}\n"
+                f"{L['rolling_avg']}: {td.get('rolling_avg_overall', 0):.1f} "
                 f"(DimA {td.get('rolling_avg_dim_a', 0):.1f} / "
                 f"DimB {td.get('rolling_avg_dim_b', 0):.1f})\n"
-                f"今日分數: {td.get('today_overall', 0):.1f} "
+                f"{L['today_score']}: {td.get('today_overall', 0):.1f} "
                 f"(DimA {td.get('today_dim_a', 0):.1f} / "
                 f"DimB {td.get('today_dim_b', 0):.1f})\n"
-                f"差距: {td.get('delta_overall', 0):+.1f} "
+                f"{L['delta']}: {td.get('delta_overall', 0):+.1f} "
                 f"(DimA {td.get('delta_dim_a', 0):+.1f} / "
                 f"DimB {td.get('delta_dim_b', 0):+.1f})"
             )
@@ -2395,49 +3000,45 @@ def export_daily_audit_word(result: DailyAuditResult) -> Path:
         ci = cv.get("country_imbalance", {})
         ci_status = ci.get("status", "insufficient_data")
         ci_labels = {
-            "balanced": "均衡 ✅",
-            "minor_imbalance": "輕微失衡 ⚠️",
-            "significant_imbalance": "顯著失衡 🔴",
-            "insufficient_data": "資料不足",
+            "balanced": L["ci_balanced"], "minor_imbalance": L["ci_minor"],
+            "significant_imbalance": L["ci_significant"], "insufficient_data": L["ci_insufficient"],
         }
-        doc.add_heading("方法二：國家間分數失衡", level=3)
+        doc.add_heading(L["method2_title"], level=3)
         if ci_status == "insufficient_data":
-            doc.add_paragraph(ci.get("reason", "資料不足，無法比較"))
+            doc.add_paragraph(ci.get("reason", L["insufficient_reason"]))
         else:
             outliers = ci.get("outlier_countries", {})
             outlier_text = (
-                "、".join(f"{c}({s:.0f})" for c, s in outliers.items())
+                ", ".join(f"{c}({s:.0f})" for c, s in outliers.items())
                 if outliers
-                else "無"
+                else L["none"]
             )
             doc.add_paragraph(
-                f"狀態: {ci_labels.get(ci_status, ci_status)}\n"
-                f"國家數: {ci.get('country_count', 0)}\n"
-                f"平均分: {ci.get('avg_score', 0):.1f}  "
-                f"最高: {ci.get('max_score', 0):.1f}  "
-                f"最低: {ci.get('min_score', 0):.1f}  "
-                f"落差: {ci.get('spread', 0):.1f}\n"
-                f"異常國家（低於均分15分以上）: {outlier_text}"
+                f"{L['status']}: {ci_labels.get(ci_status, ci_status)}\n"
+                f"{L['country_count']}: {ci.get('country_count', 0)}\n"
+                f"{L['avg_score']}: {ci.get('avg_score', 0):.1f}  "
+                f"{L['max_score']}: {ci.get('max_score', 0):.1f}  "
+                f"{L['min_score']}: {ci.get('min_score', 0):.1f}  "
+                f"{L['spread']}: {ci.get('spread', 0):.1f}\n"
+                f"{L['outlier_countries']}: {outlier_text}"
             )
 
         overall_labels = {
-            "normal": "正常 ✅",
-            "monitor": "需持續觀察 ⚠️",
-            "action_required": "需立即處理 🔴",
-            "insufficient_data": "資料不足",
+            "normal": L["overall_normal"], "monitor": L["overall_monitor"],
+            "action_required": L["overall_action"], "insufficient_data": L["overall_insufficient"],
         }
         overall = cv.get("overall_assessment", "insufficient_data")
-        doc.add_paragraph(f"整體評估: {overall_labels.get(overall, overall)}")
+        doc.add_paragraph(f"{L['overall_assessment']}: {overall_labels.get(overall, overall)}")
 
-    fixed_steps, dynamic_recs = _generate_adjustment_guidance(result)
+    fixed_steps, dynamic_recs = _generate_adjustment_guidance(result, lang=lang)
 
-    doc.add_heading("人為調整指引 / How to Adjust", level=2)
+    doc.add_heading(L["adjust_title"], level=2)
 
-    doc.add_heading("一般改善步驟 / General Improvement Steps", level=3)
+    doc.add_heading(L["general_steps_title"], level=3)
     for i, step in enumerate(fixed_steps, 1):
         doc.add_paragraph(f"{i}. {step}")
 
-    doc.add_heading("本次動態建議 / Dynamic Recommendations", level=3)
+    doc.add_heading(L["dynamic_recs_title"], level=3)
     for rec in dynamic_recs:
         doc.add_paragraph(f"• {rec}")
 
@@ -2447,11 +3048,12 @@ def export_daily_audit_word(result: DailyAuditResult) -> Path:
     return filepath
 
 
-def export_daily_audit_excel(result: DailyAuditResult) -> Path:
+def export_daily_audit_excel(result: DailyAuditResult, lang: str = "zh-TW") -> Path:
     """Export a daily audit result as an Excel file.
 
     Args:
         result: DailyAuditResult to export
+        lang: Language code for report content
 
     Returns:
         Path to the generated .xlsx file
@@ -2718,7 +3320,15 @@ def export_daily_audit_excel(result: DailyAuditResult) -> Path:
         ws_debate.column_dimensions["D"].width = 60
         ws_debate.column_dimensions["F"].width = 60
 
-    fixed_steps, dynamic_recs = _generate_adjustment_guidance(result)
+    fixed_steps, dynamic_recs = _generate_adjustment_guidance(result, lang=lang)
+
+    _guide_labels = {
+        "zh": ("人為調整指引", "一般改善步驟", "本次動態建議"),
+        "en": ("How to Adjust", "General Improvement Steps", "Dynamic Recommendations"),
+        "ja": ("調整ガイド", "一般改善ステップ", "今回の動的推奨"),
+    }
+    _glk = _get_prompt_lang(lang)
+    _gl = _guide_labels.get(_glk, _guide_labels["en"])
 
     ws_guide = wb.create_sheet("Adjustment Guidance")
     guide_section_font = Font(bold=True, size=12)
@@ -2726,13 +3336,13 @@ def export_daily_audit_excel(result: DailyAuditResult) -> Path:
         start_color="FFF2CC", end_color="FFF2CC", fill_type="solid"
     )
 
-    ws_guide.cell(row=1, column=1, value="人為調整指引 / How to Adjust").font = Font(
+    ws_guide.cell(row=1, column=1, value=_gl[0]).font = Font(
         bold=True, size=14
     )
     ws_guide.merge_cells("A1:B1")
 
     ws_guide.cell(
-        row=3, column=1, value="一般改善步驟 / General Improvement Steps"
+        row=3, column=1, value=_gl[1]
     ).font = guide_section_font
     for i, step in enumerate(fixed_steps, 1):
         row_idx = 3 + i
@@ -2743,7 +3353,7 @@ def export_daily_audit_excel(result: DailyAuditResult) -> Path:
 
     dynamic_start = 3 + len(fixed_steps) + 2
     ws_guide.cell(
-        row=dynamic_start, column=1, value="本次動態建議 / Dynamic Recommendations"
+        row=dynamic_start, column=1, value=_gl[2]
     ).font = guide_section_font
     for i, rec in enumerate(dynamic_recs, 1):
         row_idx = dynamic_start + i
@@ -2760,11 +3370,12 @@ def export_daily_audit_excel(result: DailyAuditResult) -> Path:
     return filepath
 
 
-def export_meta_review_word(result: MetaReviewResult) -> Path:
+def export_meta_review_word(result: MetaReviewResult, lang: str = "zh-TW") -> Path:
     """Export a meta review result as a Word document.
 
     Args:
         result: MetaReviewResult to export
+        lang: Language code for report content
 
     Returns:
         Path to the generated .docx file
@@ -2776,8 +3387,40 @@ def export_meta_review_word(result: MetaReviewResult) -> Path:
     EXPORT_DIR.mkdir(parents=True, exist_ok=True)
     filepath = EXPORT_DIR / f"meta_review_{result.period_end or 'latest'}.docx"
 
+    _mr_labels = {
+        "zh": {
+            "title": "AI-QMS 10日總檢報告",
+            "score_summary": "評分摘要",
+            "trend_analysis": "趨勢分析",
+            "deviation_summary": "偏差摘要",
+            "country_trends": "各國趨勢",
+            "recommendations": "建議",
+            "daily_results": "每日結果",
+        },
+        "en": {
+            "title": "AI-QMS 10-Day Meta Review Report",
+            "score_summary": "Score Summary",
+            "trend_analysis": "Trend Analysis",
+            "deviation_summary": "Deviation Summary",
+            "country_trends": "Country Trends",
+            "recommendations": "Recommendations",
+            "daily_results": "Daily Results",
+        },
+        "ja": {
+            "title": "AI-QMS 10日間メタレビューレポート",
+            "score_summary": "スコアサマリー",
+            "trend_analysis": "傾向分析",
+            "deviation_summary": "偏差サマリー",
+            "country_trends": "国別傾向",
+            "recommendations": "推奨事項",
+            "daily_results": "毎日の結果",
+        },
+    }
+    _mr_lk = _get_prompt_lang(lang)
+    _mr = _mr_labels.get(_mr_lk, _mr_labels["en"])
+
     doc = Document()
-    title = doc.add_heading("AI-QMS 10日總檢報告 / 10-Day Meta Review Report", level=1)
+    title = doc.add_heading(_mr["title"], level=1)
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     meta = doc.add_paragraph()
@@ -2791,7 +3434,7 @@ def export_meta_review_word(result: MetaReviewResult) -> Path:
     run.font.color.rgb = RGBColor(128, 128, 128)
 
     # Summary
-    doc.add_heading("評分摘要 / Score Summary", level=2)
+    doc.add_heading(_mr["score_summary"], level=2)
     doc.add_paragraph(
         f"Average Dim A (MDSAP Accuracy): {result.avg_dim_a:.0f}/100\n"
         f"Average Dim B (Cross-Exam Quality): {result.avg_dim_b:.0f}/100\n"
@@ -2799,28 +3442,28 @@ def export_meta_review_word(result: MetaReviewResult) -> Path:
     )
 
     # Trend Analysis
-    doc.add_heading("趨勢分析 / Trend Analysis", level=2)
+    doc.add_heading(_mr["trend_analysis"], level=2)
     doc.add_paragraph(result.trend_analysis or "N/A")
 
     # Deviation Summary
     if result.deviation_summary:
-        doc.add_heading("偏差摘要 / Deviation Summary", level=2)
+        doc.add_heading(_mr["deviation_summary"], level=2)
         doc.add_paragraph(result.deviation_summary)
 
     # Country Trends
     if result.country_trends:
-        doc.add_heading("各國趨勢 / Country Trends", level=2)
+        doc.add_heading(_mr["country_trends"], level=2)
         for country, trend in sorted(result.country_trends.items()):
             doc.add_paragraph(f"  {country}: {trend}")
 
     # Recommendations
     if result.recommendations:
-        doc.add_heading("建議 / Recommendations", level=2)
+        doc.add_heading(_mr["recommendations"], level=2)
         for i, rec in enumerate(result.recommendations, 1):
             doc.add_paragraph(f"{i}. {rec}")
 
     # Daily Results Table
-    doc.add_heading("每日結果 / Daily Results", level=2)
+    doc.add_heading(_mr["daily_results"], level=2)
     if result.daily_results:
         table = doc.add_table(rows=1, cols=5)
         table.style = "Light Grid Accent 1"
@@ -2844,11 +3487,12 @@ def export_meta_review_word(result: MetaReviewResult) -> Path:
     return filepath
 
 
-def export_meta_review_excel(result: MetaReviewResult) -> Path:
+def export_meta_review_excel(result: MetaReviewResult, lang: str = "zh-TW") -> Path:
     """Export a meta review result as an Excel file.
 
     Args:
         result: MetaReviewResult to export
+        lang: Language code for report content
 
     Returns:
         Path to the generated .xlsx file

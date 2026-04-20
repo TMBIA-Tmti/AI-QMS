@@ -84,6 +84,9 @@ _PIPELINE_DIR = Path("data/analysis_pipeline")
 # FastAPI router
 report_router = APIRouter(prefix="/api/report", tags=["report"])
 
+# Default language when no user preference is recorded.
+from src.chainlit_app.lang_config import DEFAULT_LANG, display_region as _display_region_fn
+
 
 # ── Phoenix tracing helper ──
 
@@ -108,13 +111,31 @@ def _phoenix_report_span(name: str, attributes: dict = None):
 # ============================================================
 
 
-def _load_table(run_id: str) -> ComparisonTable:
-    """Load a comparison table by run_id. Raises 404 if not found."""
+def _load_table_sync(run_id: str) -> ComparisonTable:
+    """Synchronous inner loader with retry — call via run_in_executor only."""
+    import time as _time
     filepath = _PIPELINE_DIR / f"{run_id}.json"
     if not filepath.exists():
-        raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
+        raise FileNotFoundError(run_id)
+    last_exc = None
+    for attempt in range(3):
+        try:
+            return ComparisonTable.load(run_id, _PIPELINE_DIR)
+        except Exception as e:
+            last_exc = e
+            if attempt < 2:
+                _time.sleep(0.3 * (attempt + 1))
+    raise RuntimeError(f"Failed after 3 attempts: {last_exc}")
+
+
+async def _load_table(run_id: str) -> ComparisonTable:
+    """Load a comparison table by run_id. Raises 404/500 if not found/failed."""
+    import asyncio
     try:
-        return ComparisonTable.load(run_id, _PIPELINE_DIR)
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, _load_table_sync, run_id)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
     except Exception as e:
         logger.error(f"Failed to load pipeline state {run_id}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
@@ -127,6 +148,19 @@ def _save_table(table: ComparisonTable) -> None:
     except Exception as e:
         logger.error(f"Failed to save pipeline state: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+def _enrich_clause_titles(row_dict: dict) -> None:
+    """Add clause_title_en and clause_title_ja fields by looking up the ISO 13485 checklist."""
+    try:
+        from src.analysis.compliance_rules import ISO_13485_CHECKLIST
+        info = ISO_13485_CHECKLIST.get(row_dict.get("clause_id", ""), {})
+        if not row_dict.get("clause_title_en"):
+            row_dict["clause_title_en"] = info.get("title_en", "")
+        if not row_dict.get("clause_title_ja"):
+            row_dict["clause_title_ja"] = info.get("title_ja", "")
+    except Exception:
+        pass
 
 
 def _row_to_api(row_dict: dict) -> dict:
@@ -144,6 +178,8 @@ def _row_to_api(row_dict: dict) -> dict:
     row_dict["risk_label_zh"] = r_disp.get("label_zh", risk or "")
     row_dict["risk_label_en"] = r_disp.get("label_en", risk or "")
     row_dict["risk_action_zh"] = r_disp.get("action_zh", "")
+
+    _enrich_clause_titles(row_dict)
 
     return row_dict
 
@@ -208,7 +244,9 @@ async def serve_report_static(filename: str):
         ".ico": "image/x-icon",
     }
     return FileResponse(
-        filepath, media_type=content_types.get(ext, "application/octet-stream")
+        filepath,
+        media_type=content_types.get(ext, "application/octet-stream"),
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
     )
 
 
@@ -366,10 +404,23 @@ async def list_regulations():
     )
 
 
+def _pick_clause_title(clause_info: dict, lang: str) -> str:
+    """Return the clause title in the appropriate language."""
+    if lang.startswith("ja"):
+        return clause_info.get("title_ja") or clause_info.get("title", "")
+    elif lang.startswith("zh"):
+        return clause_info.get("title", "")
+    else:  # en and all other languages -> English
+        return clause_info.get("title_en") or clause_info.get("title", "")
+
+
 @report_router.get("/crossref/table")
 async def get_crossref_table(
     regulations: str = Query(
         ..., description="Comma-separated regulation IDs, e.g. QMSR,EU_MDR,TFDA"
+    ),
+    lang: str = Query(
+        default="zh-TW", description="UI language code, e.g. en-US, ja-JP, zh-TW"
     ),
 ):
     """Get the full cross-reference comparison table.
@@ -397,7 +448,9 @@ async def get_crossref_table(
     for clause_id, clause_info in checklist.items():
         row = {
             "clause_id": clause_id,
-            "clause_title": clause_info.get("title", ""),
+            "clause_title": _pick_clause_title(clause_info, lang),
+            "clause_title_en": clause_info.get("title_en", ""),
+            "clause_title_ja": clause_info.get("title_ja", ""),
             "audit_impact": clause_info.get("audit_impact", ""),
             "regulations": {},
         }
@@ -468,6 +521,7 @@ async def get_crossref_table(
             "name_en": p.name_en,
             "name_zh": p.name_zh,
             "country": p.country,
+            "country_name_en": p.country_name_en,
             "country_name_zh": p.country_name_zh,
             "source": p.source,
             "effective_date": p.effective_date,
@@ -570,13 +624,53 @@ async def get_user_language():
     The crossref table uses this to set the default display language.
     """
     try:
-        from src.utils.user_settings import load_user_settings
+        from src.utils.user_settings import load_user_settings, _LANGUAGE_PATH
+        import json as _json
 
         settings = load_user_settings()
-        language = settings.get("language", "zh-TW")
+        language = settings.get("language", "")
+        if not language:
+            # Settings may have expired (90s TTL); fall back to TTL-free language file.
+            if _LANGUAGE_PATH.exists():
+                with open(_LANGUAGE_PATH, "r", encoding="utf-8") as _f:
+                    language = _json.load(_f).get("language", DEFAULT_LANG)
+            else:
+                language = DEFAULT_LANG
     except Exception:
-        language = "zh-TW"
+        language = DEFAULT_LANG
     return JSONResponse(content={"language": language})
+
+
+@report_router.get("/i18n/translations/{lang_code}")
+async def get_report_translations(lang_code: str):
+    """Serve locale translations for the report HTML page.
+
+    Returns the full locale JSON for lang_code, falling back to DEFAULT_LANG.
+    The JS report page fetches this instead of using a static TRANSLATIONS dict.
+    """
+    import json as _json2
+    locales_dir = Path(__file__).parent.parent / "chainlit_app" / "locales"
+
+    # Normalize: zh-CN maps to zh-TW for report (Traditional Chinese as default)
+    if lang_code.startswith("zh") and lang_code != "zh-TW":
+        lang_code = "zh-TW"
+
+    locale_file = locales_dir / f"{lang_code}.json"
+    if not locale_file.exists():
+        # Fall back to DEFAULT_LANG
+        locale_file = locales_dir / f"{DEFAULT_LANG}.json"
+
+    if not locale_file.exists():
+        return {}
+
+    try:
+        with open(locale_file, "r", encoding="utf-8") as f:
+            data = _json2.load(f)
+        # Filter out _commands.* keys — those are for Chainlit command matching, not UI display
+        translations = {k: v for k, v in data.items() if not k.startswith("_commands.")}
+        return translations
+    except Exception:
+        return {}
 
 
 @report_router.get("/crossref/upload-reminders")
@@ -893,7 +987,7 @@ async def adjust_standard_mapping(request: Request):
 @report_router.get("/{run_id}")
 async def get_report(run_id: str):
     """Get full report data for a specific run."""
-    table = _load_table(run_id)
+    table = await _load_table(run_id)
     state = table.state
 
     # Build enriched row list
@@ -943,7 +1037,7 @@ async def get_report(run_id: str):
 @report_router.get("/{run_id}/summary")
 async def get_summary(run_id: str):
     """Get summary statistics only."""
-    table = _load_table(run_id)
+    table = await _load_table(run_id)
     summary = table.summary()
     progress = table.state.progress_summary()
     budget = table.state.get_budget().to_dict()
@@ -971,7 +1065,7 @@ async def get_rows(
     search: Optional[str] = Query(None, description="Search in clause/doc titles"),
 ):
     """Get rows with optional filters."""
-    table = _load_table(run_id)
+    table = await _load_table(run_id)
     flat_rows = table.to_flat_rows()
 
     # Apply filters
@@ -1009,7 +1103,7 @@ async def get_rows(
 @report_router.get("/{run_id}/row/{row_id}")
 async def get_row_detail(run_id: str, row_id: str):
     """Get detailed data for a single row, including all phase results."""
-    table = _load_table(run_id)
+    table = await _load_table(run_id)
     row = table.state.get_row(row_id)
     if row is None:
         raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
@@ -1023,7 +1117,7 @@ async def get_row_detail(run_id: str, row_id: str):
 @report_router.get("/{run_id}/row/{row_id}/history")
 async def get_row_history(run_id: str, row_id: str):
     """Get version history for a specific row."""
-    table = _load_table(run_id)
+    table = await _load_table(run_id)
     row = table.state.get_row(row_id)
     if row is None:
         raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
@@ -1230,7 +1324,7 @@ async def override_verdict(run_id: str, row_id: str, body: dict):
         if not reason:
             raise HTTPException(status_code=400, detail="Missing 'reason' field")
 
-        table = _load_table(run_id)
+        table = await _load_table(run_id)
         updated = table.override_verdict(row_id, new_verdict, reason, user_id)
         if updated is None:
             raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
@@ -1263,7 +1357,7 @@ async def add_note(run_id: str, row_id: str, body: dict):
         if not note:
             raise HTTPException(status_code=400, detail="Missing 'note' field")
 
-        table = _load_table(run_id)
+        table = await _load_table(run_id)
         updated = table.add_clause_note(row_id, note, user_id)
         if updated is None:
             raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
@@ -1280,7 +1374,7 @@ async def restore_original(run_id: str, row_id: str):
     with _phoenix_report_span(
         "report_restore_original", {"run_id": run_id, "row_id": row_id}
     ):
-        table = _load_table(run_id)
+        table = await _load_table(run_id)
         updated = table.restore_llm_original(row_id)
         if updated is None:
             raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
@@ -1306,7 +1400,7 @@ async def preview_evidence_recalc(run_id: str, row_id: str, body: dict):
     with _phoenix_report_span(
         "report_evidence_preview", {"run_id": run_id, "row_id": row_id}
     ):
-        table = _load_table(run_id)
+        table = await _load_table(run_id)
         result = table.preview_evidence_recalc(row_id, evidence_items)
         if result is None:
             raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
@@ -1326,7 +1420,7 @@ async def confirm_evidence_update(run_id: str, row_id: str, body: dict):
     with _phoenix_report_span(
         "report_evidence_confirm", {"run_id": run_id, "row_id": row_id}
     ):
-        table = _load_table(run_id)
+        table = await _load_table(run_id)
         updated = table.update_evidence_items(row_id, evidence_items, user_id)
         if updated is None:
             raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
@@ -1344,7 +1438,7 @@ async def deep_recalc_evidence(run_id: str, row_id: str, body: dict = None):
     with _phoenix_report_span(
         "report_evidence_deep_recalc", {"run_id": run_id, "row_id": row_id}
     ):
-        table = _load_table(run_id)
+        table = await _load_table(run_id)
         row = table._state.get_row(row_id)
         if row is None:
             raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
@@ -1393,7 +1487,7 @@ async def reset_for_rerun(run_id: str, row_id: str, body: dict = None):
                 detail=f"Invalid phase: {from_phase_str}",
             )
 
-        table = _load_table(run_id)
+        table = await _load_table(run_id)
         updated = table.reset_row_for_rerun(row_id, from_phase)
         if updated is None:
             raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
@@ -1417,7 +1511,11 @@ async def reset_for_rerun(run_id: str, row_id: str, body: dict = None):
 
 
 @report_router.get("/{run_id}/export/{fmt}")
-async def export_report(run_id: str, fmt: str):
+async def export_report(
+    run_id: str,
+    fmt: str,
+    lang: str = Query(default=DEFAULT_LANG),
+):
     """Export summary report (摘要匯出) as Word or Excel.
 
     fmt: "word" or "excel"
@@ -1429,12 +1527,12 @@ async def export_report(run_id: str, fmt: str):
     # Forward deep report requests to the dedicated handler
     if fmt in ("deep_word", "deep_excel"):
         deep_fmt = fmt.replace("deep_", "")
-        return await export_deep_report(run_id, deep_fmt)
+        return await export_deep_report(run_id, deep_fmt, lang=lang)
 
     if fmt not in ("word", "excel"):
         raise HTTPException(status_code=400, detail="Format must be 'word' or 'excel'")
 
-    table = _load_table(run_id)
+    table = await _load_table(run_id)
     flat_rows = table.to_flat_rows()
     summary = table.summary()
 
@@ -1693,7 +1791,7 @@ async def export_report(run_id: str, fmt: str):
 @report_router.get("/{run_id}/filters")
 async def get_filter_options(run_id: str):
     """Get available filter options for the report (documents, clauses, verdicts, risks)."""
-    table = _load_table(run_id)
+    table = await _load_table(run_id)
     flat_rows = table.to_flat_rows()
 
     # Unique documents
@@ -1920,20 +2018,36 @@ def emit_cross_exam_event(run_id: str, event: dict) -> None:
         # call_soon_threadsafe so the asyncio.Queue wakeup is dispatched on the
         # correct event-loop thread and avoids the race condition that causes
         # missed notifications when put_nowait() is called cross-thread.
+        is_terminal = event.get("type") in ("complete", "error", "pipeline_complete")
         for queue in queues:
-            def _put(q=queue, ev=event):
+            def _put(q=queue, ev=event, terminal=is_terminal):
                 try:
                     q.put_nowait(ev)
                 except asyncio.QueueFull:
-                    logger.warning(f"SSE queue full for run {run_id}, dropping event")
+                    if terminal:
+                        try:
+                            q.get_nowait()  # drop oldest to make room for terminal event
+                        except asyncio.QueueEmpty:
+                            pass
+                        q.put_nowait(ev)
+                    else:
+                        logger.warning(f"SSE queue full for run {run_id}, dropping event")
             loop.call_soon_threadsafe(_put)
     else:
         # Called from within the event loop — direct put_nowait is safe
+        is_terminal = event.get("type") in ("complete", "error", "pipeline_complete")
         for queue in queues:
             try:
                 queue.put_nowait(event)
             except asyncio.QueueFull:
-                logger.warning(f"SSE queue full for run {run_id}, dropping event")
+                if is_terminal:
+                    try:
+                        queue.get_nowait()
+                    except asyncio.QueueEmpty:
+                        pass
+                    queue.put_nowait(event)
+                else:
+                    logger.warning(f"SSE queue full for run {run_id}, dropping event")
 
 
 async def _sse_generator(run_id: str, queue: asyncio.Queue):
@@ -2112,7 +2226,11 @@ async def get_crossexam_record(record_id: str):
 
 
 @report_router.get("/crossexam/history/{record_id}/export/{fmt}")
-async def export_crossexam_record(record_id: str, fmt: str):
+async def export_crossexam_record(
+    record_id: str,
+    fmt: str,
+    lang: str = Query(default=DEFAULT_LANG),
+):
     """Export a single cross-exam record as Word or Excel.
 
     fmt: 'word' or 'excel'
@@ -2134,9 +2252,9 @@ async def export_crossexam_record(record_id: str, fmt: str):
         )
 
         if fmt == "word":
-            filepath = export_crossexam_record_word(record.to_dict())
+            filepath = export_crossexam_record_word(record.to_dict(), lang=lang)
         else:
-            filepath = export_crossexam_record_excel(record.to_dict())
+            filepath = export_crossexam_record_excel(record.to_dict(), lang=lang)
 
         content_type = (
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -2159,7 +2277,11 @@ async def export_crossexam_record(record_id: str, fmt: str):
 
 
 @report_router.get("/{run_id}/export/deep_{fmt}")
-async def export_deep_report(run_id: str, fmt: str):
+async def export_deep_report(
+    run_id: str,
+    fmt: str,
+    lang: str = Query(default=DEFAULT_LANG),
+):
     """Export a full report including ALL LLM interactions.
 
     This is the "完整匯出" (Full Export) — includes comparison table,
@@ -2170,7 +2292,7 @@ async def export_deep_report(run_id: str, fmt: str):
     if fmt not in ("word", "excel"):
         raise HTTPException(status_code=400, detail="Format must be 'word' or 'excel'")
 
-    table = _load_table(run_id)
+    table = await _load_table(run_id)
     flat_rows = table.to_flat_rows()
     summary = table.summary()
 
@@ -2216,6 +2338,7 @@ async def export_deep_report(run_id: str, fmt: str):
             export_deep_report_excel,
         )
 
+        # Try calling with lang first; fall back gracefully if the export
         if fmt == "word":
             filepath = export_deep_report_word(
                 run_id,
@@ -2225,6 +2348,7 @@ async def export_deep_report(run_id: str, fmt: str):
                 crossexam_record,
                 meta_analysis,
                 qa_audit_summary,
+                lang=lang,
             )
         else:
             filepath = export_deep_report_excel(
@@ -2235,6 +2359,7 @@ async def export_deep_report(run_id: str, fmt: str):
                 crossexam_record,
                 meta_analysis,
                 qa_audit_summary,
+                lang=lang,
             )
 
         content_type = (
@@ -2273,7 +2398,10 @@ async def get_meta_analysis():
 
 
 @report_router.get("/crossexam/meta-analysis/export/{fmt}")
-async def export_meta_analysis(fmt: str):
+async def export_meta_analysis(
+    fmt: str,
+    lang: str = Query(default=DEFAULT_LANG),
+):
     """Export meta-analysis report as Word or Excel.
 
     fmt: 'word' or 'excel'
@@ -2294,13 +2422,14 @@ async def export_meta_analysis(fmt: str):
 
         # Export as a standalone report with just the meta-analysis section
         meta_analysis = result.llm_response
+        run_id_for_export = f"meta_analysis_{result.analysis_id}"
         if fmt == "word":
             filepath = export_deep_report_word(
-                f"meta_analysis_{result.analysis_id}", [], {}, None, None, meta_analysis
+                run_id_for_export, [], {}, None, None, meta_analysis, lang=lang,
             )
         else:
             filepath = export_deep_report_excel(
-                f"meta_analysis_{result.analysis_id}", [], {}, None, None, meta_analysis
+                run_id_for_export, [], {}, None, None, meta_analysis, lang=lang,
             )
 
         content_type = (
@@ -2494,7 +2623,7 @@ async def run_daily_audit_endpoint(request: Request):
             from src.utils.user_settings import load_user_settings
 
             settings = load_user_settings()
-            lang = settings.get("language", "zh-TW")
+            lang = settings.get("language", DEFAULT_LANG)
             model_name = settings.get("model_name", "default")
         except Exception:
             pass
@@ -2609,7 +2738,7 @@ async def run_meta_review_endpoint(request: Request):
             from src.utils.user_settings import load_user_settings
 
             settings = load_user_settings()
-            lang = settings.get("language", "zh-TW")
+            lang = settings.get("language", DEFAULT_LANG)
         except Exception:
             pass
 
@@ -2633,7 +2762,7 @@ async def run_meta_review_endpoint(request: Request):
 
 
 @report_router.get("/daily-audit/history/{audit_id}/export/{fmt}")
-async def export_audit_record(audit_id: str, fmt: str):
+async def export_audit_record(audit_id: str, fmt: str, lang: str = Query(default=DEFAULT_LANG)):
     """Export a single daily audit record as Word or Excel."""
     if fmt not in ("word", "excel"):
         raise HTTPException(status_code=400, detail="Format must be 'word' or 'excel'")
@@ -2659,9 +2788,9 @@ async def export_audit_record(audit_id: str, fmt: str):
             )
 
         if fmt == "word":
-            filepath = export_daily_audit_word(target)
+            filepath = export_daily_audit_word(target, lang=lang)
         else:
-            filepath = export_daily_audit_excel(target)
+            filepath = export_daily_audit_excel(target, lang=lang)
 
         content_type = (
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -2677,7 +2806,7 @@ async def export_audit_record(audit_id: str, fmt: str):
 
 
 @report_router.get("/daily-audit/export/{fmt}")
-async def export_latest_audit(fmt: str):
+async def export_latest_audit(fmt: str, lang: str = Query(default=DEFAULT_LANG)):
     """Export the latest daily audit record as Word or Excel."""
     if fmt not in ("word", "excel"):
         raise HTTPException(status_code=400, detail="Format must be 'word' or 'excel'")
@@ -2694,9 +2823,9 @@ async def export_latest_audit(fmt: str):
             raise HTTPException(status_code=404, detail="No audit records available")
 
         if fmt == "word":
-            filepath = export_daily_audit_word(records[0])
+            filepath = export_daily_audit_word(records[0], lang=lang)
         else:
-            filepath = export_daily_audit_excel(records[0])
+            filepath = export_daily_audit_excel(records[0], lang=lang)
 
         content_type = (
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -3141,7 +3270,7 @@ async def _run_reeval_with_feedback(
             from src.utils.user_settings import load_user_settings
 
             settings = load_user_settings()
-            lang = settings.get("language", "zh-TW")
+            lang = settings.get("language", DEFAULT_LANG)
         except Exception:
             pass
 

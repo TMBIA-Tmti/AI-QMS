@@ -65,12 +65,17 @@ def _decrypt_key(encrypted: str) -> str:
 
 _SETTINGS_DIR = Path(__file__).parent.parent.parent / "data" / "user_settings"
 _LAST_USER_PATH = _SETTINGS_DIR / "_last_user.json"
+# Language preference stored without TTL — language is not a credential.
+_LANGUAGE_PATH = Path(__file__).parent.parent.parent / "data" / "user_language.json"
 
 # Time-To-Live for saved settings (seconds).
 # After this many seconds of inactivity (no save/update), settings are
 # considered expired and will be auto-deleted on next load attempt.
 # 90 seconds = middle of user-requested 60-100s range.
 _SETTINGS_TTL_SECONDS = 90
+
+# Default language when no user preference is recorded.
+from src.chainlit_app.lang_config import DEFAULT_LANG
 
 # Legacy single-file path (for migration)
 _LEGACY_PATH = Path(__file__).parent.parent.parent / "data" / "user_settings.json"
@@ -113,7 +118,7 @@ def _migrate_legacy() -> dict:
             provider_name=settings.get("provider_name", ""),
             model_name=settings.get("model_name", ""),
             api_key=settings.get("api_key", ""),
-            language=settings.get("language", "zh-TW"),
+            language=settings.get("language", DEFAULT_LANG),
         )
 
         # Remove legacy file after successful migration
@@ -135,7 +140,7 @@ def save_user_settings(
     provider_name: str = "",
     model_name: str = "",
     api_key: str = "",
-    language: str = "zh-TW",
+    language: str = DEFAULT_LANG,
     user_id: str = "",
 ):
     """Save user settings to per-user JSON file.
@@ -159,6 +164,13 @@ def save_user_settings(
     }
     _SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
     _atomic_write_json(_settings_path(user_id), settings)
+
+    # Persist language without TTL so it survives credential expiry.
+    try:
+        _LANGUAGE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _atomic_write_json(_LANGUAGE_PATH, {"language": language})
+    except Exception:
+        pass
 
     # Update last active user pointer
     _atomic_write_json(

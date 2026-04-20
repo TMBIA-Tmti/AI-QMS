@@ -211,6 +211,9 @@ class AnalysisPipeline:
         self._on_phase_complete = on_phase_complete
         self._on_pause = on_pause
         self._on_row_complete = on_row_complete
+        # Per-document progress callback for Phase 1 (set by pipeline_runner)
+        # Signature: (docs_done: int, total_docs: int, doc_id: str) -> None
+        self._phase1_doc_callback: Optional[Callable] = None
 
         # State
         self._state = PipelineState(
@@ -268,6 +271,7 @@ class AnalysisPipeline:
             self._standard,
             llm_completion_fn=self._llm_fn,
             model=self._model,
+            lang=self._lang,
         )
         self._state.status = PhaseStatus.PENDING.value
         self._save_state()
@@ -511,7 +515,7 @@ class AnalysisPipeline:
         logger.info("Executing Phase 0: Data Quality Gate")
         self._state.current_phase = Phase.DATA_QUALITY.value
 
-        dq_result = run_data_quality_gate(self._state)
+        dq_result = run_data_quality_gate(self._state, lang=self._lang)
 
         self._notify_phase_complete(Phase.DATA_QUALITY)
         self._advance_global_phase(Phase.REFERENCE_MAPPING)
@@ -555,7 +559,9 @@ class AnalysisPipeline:
 
         import concurrent.futures
 
-        max_workers = min(4, len(doc_groups))
+        max_workers = min(8, len(doc_groups))
+        total_docs = len(doc_groups)
+        docs_completed = 0
 
         def _scan_single_doc(doc_id: str, rows: list) -> tuple:
             result = run_gap_scan_document(
@@ -565,6 +571,7 @@ class AnalysisPipeline:
                 llm_completion_fn=self._llm_fn,
                 model=self._model,
                 run_id=self._state.run_id,
+                lang=self._lang,
             )
             return (doc_id, rows, result)
 
@@ -578,6 +585,12 @@ class AnalysisPipeline:
                 try:
                     _, rows, result = future.result()
                     with self._state_lock:
+                        docs_completed += 1
+                        if self._phase1_doc_callback:
+                            try:
+                                self._phase1_doc_callback(docs_completed, total_docs, doc_id)
+                            except Exception:
+                                pass
                         for row in rows:
                             row.set_phase_result(Phase.GAP_SCAN, result)
                             if result.status in (
@@ -623,6 +636,7 @@ class AnalysisPipeline:
                 llm_completion_fn=self._llm_fn,
                 model=self._model,
                 run_id=self._state.run_id,
+                lang=self._lang,
             )
             return (doc_id, rows, result)
 
@@ -772,6 +786,7 @@ class AnalysisPipeline:
                 llm_completion_fn=self._llm_fn,
                 model=self._model,
                 run_id=self._state.run_id,
+                lang=self._lang,
             )
             return (doc_id, rows, result)
 
@@ -846,6 +861,7 @@ class AnalysisPipeline:
                 model=self._model,
                 selected_regulations=self._selected_regulations,
                 run_id=self._state.run_id,
+                lang=self._lang,
             )
             return (doc_id, rows, result)
 
@@ -925,6 +941,7 @@ class AnalysisPipeline:
                             model=self._model,
                             selected_regulations=self._selected_regulations,
                             run_id=self._state.run_id,
+                            lang=self._lang,
                         ): did
                         for did, drows in verified_doc_groups.items()
                     }
@@ -974,7 +991,16 @@ class AnalysisPipeline:
         logger.info("Executing Phase 6: Source Verification")
         self._state.current_phase = Phase.SOURCE_CHECK.value
 
-        result = run_source_check(self._state)
+        result = run_source_check(self._state, lang=self._lang)
+
+        # Phase 6 is global (not per-row), so advance all rows that are
+        # still at SOURCE_CHECK — this marks them COMPLETED and makes
+        # progress_percent reach 100%.
+        with self._state_lock:
+            for row in self._state.get_all_rows():
+                if row.current_phase == Phase.SOURCE_CHECK.value:
+                    row.advance_to_next_phase()
+                    self._state.update_row(row)
 
         self._notify_phase_complete(Phase.SOURCE_CHECK)
         self._save_state()
@@ -1048,14 +1074,16 @@ class AnalysisPipeline:
                 row.advance_to_next_phase()
 
         elif phase == Phase.GAP_SCAN:
-            result = run_gap_scan_row(row, self._state, self._llm_fn, self._model)
+            result = run_gap_scan_row(
+                row, self._state, self._llm_fn, self._model, lang=self._lang
+            )
             row.set_phase_result(Phase.GAP_SCAN, result)
             if result.status == PhaseStatus.COMPLETED.value:
                 row.advance_to_next_phase()
 
         elif phase == Phase.CHECKLIST_VERIFY:
             result = run_checklist_verify_row(
-                row, self._state, self._llm_fn, self._model
+                row, self._state, self._llm_fn, self._model, lang=self._lang
             )
             row.set_phase_result(Phase.CHECKLIST_VERIFY, result)
             if result.status == PhaseStatus.COMPLETED.value:
@@ -1068,7 +1096,9 @@ class AnalysisPipeline:
                 row.advance_to_next_phase()
 
         elif phase == Phase.REMEDIATION:
-            result = run_remediation_row(row, self._state, self._llm_fn, self._model)
+            result = run_remediation_row(
+                row, self._state, self._llm_fn, self._model, lang=self._lang
+            )
             row.set_phase_result(Phase.REMEDIATION, result)
             if result.status in (
                 PhaseStatus.COMPLETED.value,
@@ -1084,6 +1114,7 @@ class AnalysisPipeline:
                 self._model,
                 selected_regulations=self._selected_regulations,
                 run_id=self._state.run_id,
+                lang=self._lang,
             )
             row.set_phase_result(Phase.VERIFICATION, result)
             if result.status in (

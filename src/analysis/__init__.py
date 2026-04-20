@@ -125,6 +125,7 @@ def get_regulation_text(
     clause_id: str,
     standard: str,
     context_chars: int = 800,
+    lang: str = "zh-TW",
 ) -> str:
     """Retrieve regulation text from crawled data for a given clause.
 
@@ -156,6 +157,6 @@ def get_regulation_text(
                         end = min(len(content), match.end() + context_chars)
                         return content[start:end]
 
-        return "（系統中無此法規條文原文）"
+        return "（系統中無此法規條文原文）" if lang.startswith("zh") else "(No original regulation text found in system)"
     except Exception:
-        return "（無法取得法規條文）"
+        return "（無法取得法規條文）" if lang.startswith("zh") else "(Unable to retrieve regulation text)"

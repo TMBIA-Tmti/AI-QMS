@@ -180,7 +180,8 @@ class DoclingEngine:
                     "Docling 失敗，降級至 MarkItDown（%s）", result.error
                 )
                 result = self._parse_with_markitdown(path)
-                result.warnings.append("Docling 失敗，已自動降級至 MarkItDown")
+                # lang.startswith check not needed: internal engine warning
+                result.warnings.append("Docling failed, auto-downgraded to MarkItDown")
         elif engine == "markitdown":
             result = self._parse_with_markitdown(path)
         else:

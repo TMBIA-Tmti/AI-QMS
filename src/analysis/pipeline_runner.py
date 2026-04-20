@@ -50,6 +50,158 @@ __all__ = [
     "_pipeline_send_message_fn",
 ]
 
+
+# ============================================================
+# i18n strings for pipeline runner (progress + summary)
+# ============================================================
+
+_PIPELINE_I18N: dict[str, dict[str, str]] = {
+    "zh-TW": {
+        # to_summary_markdown
+        "pipeline_failed": "分析管線執行失敗",
+        "unknown_error": "未知錯誤",
+        "pipeline_title": "📊 合規性分析管線結果",
+        "analysis_id": "分析 ID",
+        "total_items": "總分析項目",
+        "completed_items": "完成項目",
+        "duration": "耗時",
+        "items_suffix": "項",
+        "seconds": "秒",
+        "verdicts_heading": "### 判定結果分布",
+        "no_verdicts": "- （尚無判定結果）",
+        "risk_heading": "### 風險等級分布",
+        "no_risk": "- （尚無風險評估）",
+        "ra_review_heading": "### ⚠️ 需 RA 審查",
+        "ra_review_note": "（交叉詰問 3 輪後仍有分歧，已標記待人工審查）",
+        "llm_usage_heading": "### 📈 LLM Token 用量",
+        "total_usage": "總用量",
+        "calls_made": "呼叫次數",
+        "calls_suffix": "次",
+        # progress messages
+        "phase_running": "執行中...",
+        "phase_done": "✅ 完成",
+        "phase_skipped": "⏭️ 跳過",
+        "phase_failed": "❌ 失敗",
+        "skip_not_in_mode": "當前模式不執行此階段",
+        "budget_exhausted": "Token 預算已用盡",
+        "rows_available_suffix": "項資料可用",
+        "evidence_done_suffix": "項完成證據搜尋",
+        "ra_review_detail_suffix": "項需 RA 審查",
+        "ra_review_all_pass": "所有項目驗證通過",
+        "source_check_detail": "{accessible} 可存取 / {broken} 失效",
+        "initializing": "初始化分析管線...",
+        "created_rows": "已建立 {n} 個分析項目",
+        "no_items_error": "無可分析的項目（未找到引用法規標準的品質文件）",
+        "critical_gaps_pause": "🔴 發現嚴重差距，管線已暫停",
+        "evidence_conflict_pause": "⚠️ 交叉驗證有分歧，管線已暫停",
+        "gap_scan_doc_progress": "執行中... — {done}/{total} 份文件 [{pct}%]",
+    },
+    "en-US": {
+        "pipeline_failed": "Pipeline analysis failed",
+        "unknown_error": "Unknown error",
+        "pipeline_title": "📊 Compliance Analysis Pipeline Results",
+        "analysis_id": "Analysis ID",
+        "total_items": "Total items",
+        "completed_items": "Completed items",
+        "duration": "Duration",
+        "items_suffix": "items",
+        "seconds": "seconds",
+        "verdicts_heading": "### Verdict Distribution",
+        "no_verdicts": "- (No verdict results yet)",
+        "risk_heading": "### Risk Level Distribution",
+        "no_risk": "- (No risk assessment yet)",
+        "ra_review_heading": "### ⚠️ Require RA Review",
+        "ra_review_note": "(Disagreement persisted after 3 cross-examination rounds — flagged for manual review)",
+        "llm_usage_heading": "### 📈 LLM Token Usage",
+        "total_usage": "Total usage",
+        "calls_made": "Calls made",
+        "calls_suffix": "calls",
+        "phase_running": "running...",
+        "phase_done": "✅ complete",
+        "phase_skipped": "⏭️ skipped",
+        "phase_failed": "❌ failed",
+        "skip_not_in_mode": "Skipped in current mode",
+        "budget_exhausted": "Token budget exhausted",
+        "rows_available_suffix": "items available",
+        "evidence_done_suffix": "evidence searches complete",
+        "ra_review_detail_suffix": "items require RA review",
+        "ra_review_all_pass": "All items verified",
+        "source_check_detail": "{accessible} accessible / {broken} broken",
+        "initializing": "Initializing analysis pipeline...",
+        "created_rows": "Created {n} analysis items",
+        "no_items_error": "No items to analyze (no QMS documents referencing the regulatory standard were found)",
+        "critical_gaps_pause": "🔴 Critical gaps detected — pipeline paused",
+        "evidence_conflict_pause": "⚠️ Cross-verification disagreement — pipeline paused",
+        "gap_scan_doc_progress": "running... — {done}/{total} docs [{pct}%]",
+    },
+    "ja-JP": {
+        "pipeline_failed": "分析パイプラインの実行に失敗しました",
+        "unknown_error": "不明なエラー",
+        "pipeline_title": "📊 コンプライアンス分析パイプライン結果",
+        "analysis_id": "分析 ID",
+        "total_items": "総分析項目",
+        "completed_items": "完了項目",
+        "duration": "所要時間",
+        "items_suffix": "件",
+        "seconds": "秒",
+        "verdicts_heading": "### 判定結果の分布",
+        "no_verdicts": "- （判定結果はまだありません）",
+        "risk_heading": "### リスクレベルの分布",
+        "no_risk": "- （リスク評価はまだありません）",
+        "ra_review_heading": "### ⚠️ RA レビューが必要",
+        "ra_review_note": "（交差尋問を3ラウンド行っても合意に至らず、手動レビュー対象としてフラグ設定）",
+        "llm_usage_heading": "### 📈 LLM トークン使用量",
+        "total_usage": "総使用量",
+        "calls_made": "呼び出し回数",
+        "calls_suffix": "回",
+        "phase_running": "実行中...",
+        "phase_done": "✅ 完了",
+        "phase_skipped": "⏭️ スキップ",
+        "phase_failed": "❌ 失敗",
+        "skip_not_in_mode": "現在のモードではこのフェーズを実行しません",
+        "budget_exhausted": "トークン予算を使い切りました",
+        "rows_available_suffix": "件のデータが利用可能",
+        "evidence_done_suffix": "件の証拠検索が完了",
+        "ra_review_detail_suffix": "件 RA レビューが必要",
+        "ra_review_all_pass": "すべての項目が検証済み",
+        "source_check_detail": "{accessible} 件アクセス可能 / {broken} 件リンク切れ",
+        "initializing": "分析パイプラインを初期化中...",
+        "created_rows": "{n} 件の分析項目を作成しました",
+        "no_items_error": "分析可能な項目がありません（規制基準を参照している QMS 文書が見つかりません）",
+        "critical_gaps_pause": "🔴 重大なギャップを検出 — パイプラインを一時停止",
+        "evidence_conflict_pause": "⚠️ 交差検証で意見の相違 — パイプラインを一時停止",
+        "gap_scan_doc_progress": "実行中... — {done}/{total} 件のドキュメント [{pct}%]",
+    },
+}
+
+
+from src.chainlit_app.lang_config import lang_key as _lang_key_short  # noqa: E402
+
+_PIPELINE_LANG_MAP = {"zh": "zh-TW", "en": "en-US", "ja": "ja-JP"}
+
+
+def _pipeline_lang_key(lang: str) -> str:
+    """Normalize language code to a pipeline i18n dict key.
+
+    Delegates short-form normalization to lang_config.lang_key, then maps
+    to the full locale codes used in _PIPELINE_I18N.
+    """
+    return _PIPELINE_LANG_MAP.get(_lang_key_short(lang), "en-US")
+
+
+def _t(lang: str, key: str, **fmt) -> str:
+    """Look up a localized pipeline string by key, with optional format args."""
+    lk = _pipeline_lang_key(lang)
+    text = _PIPELINE_I18N.get(lk, _PIPELINE_I18N["en-US"]).get(key)
+    if text is None:
+        text = _PIPELINE_I18N["en-US"].get(key, key)
+    if fmt:
+        try:
+            return text.format(**fmt)
+        except Exception:
+            return text
+    return text
+
 # Module-level send function, set by run_pipeline_analysis() when active.
 # Used by report_api.py for deviation/meta-review announcements via Chainlit.
 _pipeline_send_message_fn: Optional[Callable] = None
@@ -63,7 +215,7 @@ _pipeline_send_message_fn: Optional[Callable] = None
 class PipelineRunResult:
     """Result of a pipeline analysis run, ready for report rendering."""
 
-    def __init__(self):
+    def __init__(self, lang: str = "zh-TW"):
         self.success: bool = False
         self.run_id: str = ""
         self.state: Optional[PipelineState] = None
@@ -73,6 +225,7 @@ class PipelineRunResult:
         self.completed_rows: int = 0
         self.duration_seconds: float = 0.0
         self.state_file_path: Optional[str] = None
+        self.lang: str = lang
 
         # Summary data for the report
         self.verdict_distribution: dict[str, int] = {}
@@ -81,60 +234,86 @@ class PipelineRunResult:
         self.llm_budget_used: dict = {}
         self.verification_report: Optional[dict] = None
 
+    def _label_for_display(self, display: dict, fallback: str) -> str:
+        """Pick a localized label from a *_DISPLAY dict based on self.lang."""
+        lk = _pipeline_lang_key(self.lang)
+        if lk == "en-US":
+            return display.get("label_en") or display.get("label_zh") or fallback
+        if lk == "ja-JP":
+            return (
+                display.get("label_ja")
+                or display.get("label_en")
+                or display.get("label_zh")
+                or fallback
+            )
+        return display.get("label_zh") or fallback
+
     def to_summary_markdown(self) -> str:
         """Generate a summary markdown for inline Chainlit display."""
+        lang = self.lang
         if not self.success:
-            return f"⚠️ 分析管線執行失敗: {self.error or '未知錯誤'}"
+            return (
+                f"⚠️ {_t(lang, 'pipeline_failed')}: "
+                f"{self.error or _t(lang, 'unknown_error')}"
+            )
 
+        items = _t(lang, "items_suffix")
         lines = [
-            "## 📊 合規性分析管線結果",
+            f"## {_t(lang, 'pipeline_title')}",
             "",
-            f"**分析 ID**: `{self.run_id}`",
-            f"**總分析項目**: {self.total_rows} 項",
-            f"**完成項目**: {self.completed_rows} 項",
-            f"**耗時**: {self.duration_seconds:.1f} 秒",
+            f"**{_t(lang, 'analysis_id')}**: `{self.run_id}`",
+            f"**{_t(lang, 'total_items')}**: {self.total_rows} {items}",
+            f"**{_t(lang, 'completed_items')}**: {self.completed_rows} {items}",
+            f"**{_t(lang, 'duration')}**: {self.duration_seconds:.1f} {_t(lang, 'seconds')}",
             "",
-            "### 判定結果分布",
+            _t(lang, "verdicts_heading"),
         ]
 
         # Verdict distribution
         for verdict, count in self.verdict_distribution.items():
             display = VERDICT_DISPLAY.get(verdict, {})
             icon = display.get("icon", "❓")
-            label = display.get("label_zh", verdict)
-            lines.append(f"- {icon} **{label}**: {count} 項")
+            label = self._label_for_display(display, verdict)
+            lines.append(f"- {icon} **{label}**: {count} {items}")
 
         if not self.verdict_distribution:
-            lines.append("- （尚無判定結果）")
+            lines.append(_t(lang, "no_verdicts"))
 
         lines.append("")
-        lines.append("### 風險等級分布")
+        lines.append(_t(lang, "risk_heading"))
 
         # Risk distribution
         for risk, count in self.risk_distribution.items():
             display = RISK_LEVEL_DISPLAY.get(risk, {})
             icon = display.get("icon", "❓")
-            label = display.get("label_zh", risk)
-            lines.append(f"- {icon} **{label}**: {count} 項")
+            label = self._label_for_display(display, risk)
+            lines.append(f"- {icon} **{label}**: {count} {items}")
 
         if not self.risk_distribution:
-            lines.append("- （尚無風險評估）")
+            lines.append(_t(lang, "no_risk"))
 
         # Flagged
         if self.flagged_for_ra > 0:
             lines.append("")
-            lines.append(f"### ⚠️ 需 RA 審查: {self.flagged_for_ra} 項")
-            lines.append("（交叉詰問 3 輪後仍有分歧，已標記待人工審查）")
+            lines.append(
+                f"{_t(lang, 'ra_review_heading')}: {self.flagged_for_ra} {items}"
+            )
+            lines.append(_t(lang, "ra_review_note"))
 
         # LLM usage
         if self.llm_budget_used:
             lines.append("")
-            lines.append("### 📈 LLM Token 用量")
+            lines.append(_t(lang, "llm_usage_heading"))
             lines.append(
-                f"- 總用量: {self.llm_budget_used.get('total_tokens_used', 0):,} tokens "
+                f"- {_t(lang, 'total_usage')}: "
+                f"{self.llm_budget_used.get('total_tokens_used', 0):,} tokens "
                 f"({self.llm_budget_used.get('usage_percent', 0)}%)"
             )
-            lines.append(f"- 呼叫次數: {self.llm_budget_used.get('calls_made', 0)} 次")
+            lines.append(
+                f"- {_t(lang, 'calls_made')}: "
+                f"{self.llm_budget_used.get('calls_made', 0)} "
+                f"{_t(lang, 'calls_suffix')}"
+            )
 
         return "\n".join(lines)
 
@@ -155,40 +334,87 @@ _PHASE_ICONS = {
 }
 
 
+def _phase_display_name(phase: Phase, lang: str) -> str:
+    """Return a localized display name for a phase.
+
+    Uses the Phase.display_name attribute as Chinese fallback and provides
+    simple English/Japanese equivalents.
+    """
+    lk = _pipeline_lang_key(lang)
+    if lk == "zh-TW":
+        return phase.display_name
+    names = {
+        Phase.DATA_QUALITY: {
+            "en-US": "Phase 0: Data Quality Gate",
+            "ja-JP": "フェーズ 0: データ品質ゲート",
+        },
+        Phase.REFERENCE_MAPPING: {
+            "en-US": "Phase 0.5: Reference Mapping",
+            "ja-JP": "フェーズ 0.5: 参照マッピング",
+        },
+        Phase.GAP_SCAN: {
+            "en-US": "Phase 1: Gap Scan",
+            "ja-JP": "フェーズ 1: ギャップスキャン",
+        },
+        Phase.CHECKLIST_VERIFY: {
+            "en-US": "Phase 2: Checklist Verification",
+            "ja-JP": "フェーズ 2: チェックリスト検証",
+        },
+        Phase.RISK_ASSESSMENT: {
+            "en-US": "Phase 3: Risk Assessment",
+            "ja-JP": "フェーズ 3: リスク評価",
+        },
+        Phase.REMEDIATION: {
+            "en-US": "Phase 4: Remediation Suggestions",
+            "ja-JP": "フェーズ 4: 是正提案",
+        },
+        Phase.VERIFICATION: {
+            "en-US": "Phase 5: Cross-Examination",
+            "ja-JP": "フェーズ 5: 交差検証",
+        },
+        Phase.SOURCE_CHECK: {
+            "en-US": "Phase 6: Source Verification",
+            "ja-JP": "フェーズ 6: ソース検証",
+        },
+    }
+    return names.get(phase, {}).get(lk, phase.display_name)
+
+
 async def _send_progress(
     msg_fn: Optional[Callable],
     phase: Phase,
     status: str,
     detail: str = "",
     progress_pct: float | None = None,
+    lang: str = "zh-TW",
 ) -> None:
     """Send a progress message via Chainlit (or any async callback)."""
     if msg_fn is None:
         return
 
     icon = _PHASE_ICONS.get(phase, "📋")
-    phase_name = phase.display_name
+    phase_name = _phase_display_name(phase, lang)
     pct_str = f" [{progress_pct:.0f}%]" if progress_pct is not None else ""
 
     if status == "start":
-        text = f"{icon} **{phase_name}** 執行中...{pct_str}"
+        text = f"{icon} **{phase_name}** {_t(lang, 'phase_running')}{pct_str}"
     elif status == "done":
-        text = f"{icon} **{phase_name}** ✅ 完成{pct_str}"
+        text = f"{icon} **{phase_name}** {_t(lang, 'phase_done')}{pct_str}"
         if detail:
             text += f" — {detail}"
     elif status == "skip":
-        text = f"{icon} **{phase_name}** ⏭️ 跳過{pct_str}"
+        text = f"{icon} **{phase_name}** {_t(lang, 'phase_skipped')}{pct_str}"
         if detail:
             text += f" — {detail}"
     elif status == "fail":
-        text = f"{icon} **{phase_name}** ❌ 失敗{pct_str}"
+        text = f"{icon} **{phase_name}** {_t(lang, 'phase_failed')}{pct_str}"
         if detail:
             text += f" — {detail}"
     else:
         text = f"{icon} **{phase_name}** {detail}{pct_str}"
 
     try:
-        await msg_fn(text)
+        await asyncio.wait_for(msg_fn(text), timeout=10.0)
     except Exception:
         pass  # Best-effort UI update
 
@@ -212,6 +438,7 @@ async def run_pipeline_analysis(
     selected_regulations: list[str] | None = None,
     on_run_id_ready: Optional[Callable] = None,
     custom_skip_phases: list[str] | None = None,
+    lang: str = "zh-TW",
 ) -> PipelineRunResult:
     """Run the full analysis pipeline with async progress reporting.
 
@@ -239,7 +466,7 @@ async def run_pipeline_analysis(
     """
     global _pipeline_send_message_fn
 
-    result = PipelineRunResult()
+    result = PipelineRunResult(lang=lang)
     start_time = time.time()
     _pipeline_send_message_fn = send_message_fn
 
@@ -252,6 +479,7 @@ async def run_pipeline_analysis(
             max_time_seconds=max_time_seconds,
             standard=standard,
             selected_regulations=selected_regulations,
+            lang=lang,
         )
 
         pipeline.state.source_command = source_command
@@ -269,11 +497,11 @@ async def run_pipeline_analysis(
                 dq = state.data_quality_summary or {}
                 detail = (
                     f"{dq.get('rows_with_doc_content', 0)}/{dq.get('total_rows', 0)} "
-                    f"項資料可用"
+                    f"{_t(lang, 'rows_available_suffix')}"
                 )
-                await _send_progress(send_message_fn, phase, "done", detail, pct)
+                await _send_progress(send_message_fn, phase, "done", detail, lang=lang)
             elif phase == Phase.REFERENCE_MAPPING:
-                await _send_progress(send_message_fn, phase, "done", progress_pct=pct)
+                await _send_progress(send_message_fn, phase, "done", lang=lang)
             elif phase == Phase.GAP_SCAN:
                 found = sum(
                     1
@@ -282,10 +510,14 @@ async def run_pipeline_analysis(
                     == "completed"
                 )
                 await _send_progress(
-                    send_message_fn, phase, "done", f"{found} 項完成證據搜尋", pct
+                    send_message_fn,
+                    phase,
+                    "done",
+                    f"{found} {_t(lang, 'evidence_done_suffix')}",
+                    lang=lang,
                 )
             elif phase == Phase.CHECKLIST_VERIFY:
-                await _send_progress(send_message_fn, phase, "done", progress_pct=pct)
+                await _send_progress(send_message_fn, phase, "done", lang=lang)
             elif phase == Phase.RISK_ASSESSMENT:
                 # Count verdicts
                 verdicts: dict[str, int] = {}
@@ -296,19 +528,28 @@ async def run_pipeline_analysis(
                 partial = verdicts.get(Verdict.PARTIAL_COMPLIANCE, 0)
                 full = verdicts.get(Verdict.FULL_COMPLIANCE, 0)
                 detail = f"✅ {full} | ⚠️ {partial} | ❌ {non_compliant}"
-                await _send_progress(send_message_fn, phase, "done", detail, pct)
+                await _send_progress(send_message_fn, phase, "done", detail, lang=lang)
             elif phase == Phase.REMEDIATION:
-                await _send_progress(send_message_fn, phase, "done", progress_pct=pct)
+                await _send_progress(send_message_fn, phase, "done", lang=lang)
             elif phase == Phase.VERIFICATION:
                 flagged = sum(1 for r in rows if r.flagged_for_ra)
-                detail = f"{flagged} 項需 RA 審查" if flagged else "所有項目驗證通過"
-                await _send_progress(send_message_fn, phase, "done", detail, pct)
+                detail = (
+                    f"{flagged} {_t(lang, 'ra_review_detail_suffix')}"
+                    if flagged
+                    else _t(lang, "ra_review_all_pass")
+                )
+                await _send_progress(send_message_fn, phase, "done", detail, lang=lang)
             elif phase == Phase.SOURCE_CHECK:
                 sc = state.source_check_summary or {}
-                detail = (
-                    f"{sc.get('accessible', 0)} 可存取 / {sc.get('broken', 0)} 失效"
+                detail = _t(
+                    lang,
+                    "source_check_detail",
+                    accessible=sc.get("accessible", 0),
+                    broken=sc.get("broken", 0),
                 )
-                await _send_progress(send_message_fn, phase, "done", detail, pct)
+                # pct is now meaningful here — pipeline.py marks all rows
+                # COMPLETED at end of Phase 6, so this should read 100%.
+                await _send_progress(send_message_fn, phase, "done", detail, pct, lang=lang)
 
         # Sync callback wrapper for the pipeline (pipeline is sync, callbacks are async)
         # We need to bridge sync → async
@@ -320,7 +561,11 @@ async def run_pipeline_analysis(
 
         # Populate rows
         await _send_progress(
-            send_message_fn, Phase.DATA_QUALITY, "start", "初始化分析管線..."
+            send_message_fn,
+            Phase.DATA_QUALITY,
+            "start",
+            _t(lang, "initializing"),
+            lang=lang,
         )
         row_count = pipeline.initialize(scan_result)
 
@@ -332,7 +577,7 @@ async def run_pipeline_analysis(
                 logger.warning(f"on_run_id_ready callback failed: {e}")
 
         if row_count == 0:
-            result.error = "無可分析的項目（未找到引用法規標準的品質文件）"
+            result.error = _t(lang, "no_items_error")
             result.duration_seconds = time.time() - start_time
             return result
 
@@ -340,7 +585,8 @@ async def run_pipeline_analysis(
             send_message_fn,
             Phase.DATA_QUALITY,
             "start",
-            f"已建立 {row_count} 個分析項目",
+            _t(lang, "created_rows", n=row_count),
+            lang=lang,
         )
 
         # Override pipeline callbacks with our sync wrapper
@@ -361,7 +607,7 @@ async def run_pipeline_analysis(
             # Check if this phase should be skipped in current mode
             if pipeline._skip_phase_in_mode(phase):
                 await _send_progress(
-                    send_message_fn, phase, "skip", "當前模式不執行此階段"
+                    send_message_fn, phase, "skip", _t(lang, "skip_not_in_mode"), lang=lang
                 )
                 continue
 
@@ -370,12 +616,14 @@ async def run_pipeline_analysis(
 
             # Budget check for LLM phases
             if phase.uses_llm and pipeline._budget_exceeded():
-                await _send_progress(send_message_fn, phase, "fail", "Token 預算已用盡")
+                await _send_progress(
+                    send_message_fn, phase, "fail", _t(lang, "budget_exhausted"), lang=lang
+                )
                 pipeline.pause(PauseReason.LLM_BUDGET_EXCEEDED)
                 break
 
             # Send start message
-            await _send_progress(send_message_fn, phase, "start")
+            await _send_progress(send_message_fn, phase, "start", lang=lang)
 
             # Execute the phase in a thread to not block the event loop
             phase_executors = {
@@ -392,10 +640,85 @@ async def run_pipeline_analysis(
             executor = phase_executors.get(phase)
             if executor:
                 try:
-                    await loop.run_in_executor(None, executor)
+                    if phase == Phase.GAP_SCAN and send_message_fn is not None:
+                        # Phase 1: run with per-document progress monitoring
+                        import queue as _queue
+                        _doc_q: _queue.Queue = _queue.Queue()
+
+                        def _on_doc_done(done: int, total: int, doc_id: str) -> None:
+                            _doc_q.put((done, total, doc_id))
+
+                        pipeline._phase1_doc_callback = _on_doc_done
+                        _phase_name = _phase_display_name(Phase.GAP_SCAN, lang)
+                        _phase_icon = _PHASE_ICONS.get(Phase.GAP_SCAN, "🔎")
+
+                        phase_task = asyncio.ensure_future(
+                            loop.run_in_executor(None, executor)
+                        )
+                        _last_progress_time = asyncio.get_event_loop().time()
+                        _last_done = 0
+                        _last_total = 0
+                        while not phase_task.done():
+                            got_update = False
+                            while True:
+                                try:
+                                    done, total, _doc_id = _doc_q.get_nowait()
+                                    _last_done = done
+                                    _last_total = total
+                                    pct = round(done / total * 100) if total > 0 else 0
+                                    progress_text = (
+                                        f"{_phase_icon} **{_phase_name}** "
+                                        + _t(lang, "gap_scan_doc_progress",
+                                             done=done, total=total, pct=pct)
+                                    )
+                                    try:
+                                        await asyncio.wait_for(send_message_fn(progress_text), timeout=10.0)
+                                    except Exception:
+                                        pass  # UI update timed out or failed — continue, don't abort loop
+                                    _last_progress_time = asyncio.get_event_loop().time()
+                                    got_update = True
+                                except _queue.Empty:
+                                    break
+                            # Heartbeat every 15s when no new doc completes (LLM fallback running)
+                            if not got_update and _last_total > 0:
+                                elapsed_since = asyncio.get_event_loop().time() - _last_progress_time
+                                if elapsed_since >= 15:
+                                    pct = round(_last_done / _last_total * 100)
+                                    heartbeat = (
+                                        f"{_phase_icon} **{_phase_name}** "
+                                        + _t(lang, "gap_scan_doc_progress",
+                                             done=_last_done, total=_last_total, pct=pct)
+                                        + f" ⏳ ({int(elapsed_since)}s)"
+                                    )
+                                    try:
+                                        await asyncio.wait_for(send_message_fn(heartbeat), timeout=10.0)
+                                    except Exception:
+                                        pass  # UI update timed out or failed — continue
+                                    _last_progress_time = asyncio.get_event_loop().time()
+                            await asyncio.sleep(0.3)
+                        pipeline._phase1_doc_callback = None
+                        # Drain any remaining queue items (docs that completed
+                        # while the loop was sleeping or exiting)
+                        while True:
+                            try:
+                                done, total, _doc_id = _doc_q.get_nowait()
+                                pct = round(done / total * 100) if total > 0 else 0
+                                progress_text = (
+                                    f"{_phase_icon} **{_phase_name}** "
+                                    + _t(lang, "gap_scan_doc_progress",
+                                         done=done, total=total, pct=pct)
+                                )
+                                await asyncio.wait_for(send_message_fn(progress_text), timeout=10.0)
+                            except _queue.Empty:
+                                break
+                            except Exception:
+                                break
+                        await phase_task  # propagate any exception
+                    else:
+                        await loop.run_in_executor(None, executor)
                 except Exception as e:
                     logger.error(f"Phase {phase.value} failed: {e}")
-                    await _send_progress(send_message_fn, phase, "fail", str(e)[:100])
+                    await _send_progress(send_message_fn, phase, "fail", str(e)[:100], lang=lang)
                     continue
 
             # Process any queued phase complete events
@@ -407,7 +730,11 @@ async def run_pipeline_analysis(
             if phase == Phase.RISK_ASSESSMENT:
                 if pipeline._check_critical_gaps():
                     await _send_progress(
-                        send_message_fn, phase, "done", "🔴 發現嚴重差距，管線已暫停"
+                        send_message_fn,
+                        phase,
+                        "done",
+                        _t(lang, "critical_gaps_pause"),
+                        lang=lang,
                     )
                     # In auto mode we can resume and continue
                     pipeline.resume()
@@ -415,7 +742,11 @@ async def run_pipeline_analysis(
             if phase == Phase.VERIFICATION:
                 if pipeline._check_evidence_conflicts():
                     await _send_progress(
-                        send_message_fn, phase, "done", "⚠️ 交叉驗證有分歧，管線已暫停"
+                        send_message_fn,
+                        phase,
+                        "done",
+                        _t(lang, "evidence_conflict_pause"),
+                        lang=lang,
                     )
                     pipeline.resume()
 

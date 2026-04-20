@@ -37,6 +37,287 @@ EXPORT_DIR = Path("data/exports")
 
 
 # ============================================================
+# Language helpers (bilingual section headers)
+# ============================================================
+
+from src.chainlit_app.lang_config import lang_key as _lang_key  # noqa: E402
+
+
+_EXPORT_HEADERS: dict[str, dict[str, str]] = {
+    "zh": {
+        "title_crossexam": "AI-QMS 交叉詰問記錄",
+        "title_deep": "AI-QMS 完整分析報告",
+        "summary": "摘要",
+        "clause_details": "條款交叉詰問詳情",
+        "record_id": "記錄 ID",
+        "analysis_id": "分析 ID",
+        "time": "時間",
+        "regulations": "法規",
+        "countries": "國家",
+        "clause_count": "條款數",
+        "agreed": "同意",
+        "flagged_ra": "標記 RA",
+        "total_rounds": "總輪次",
+        "model": "模型",
+        "duration": "耗時",
+        "none": "無",
+        "doc": "文件",
+        "verdict": "判定",
+        "gap": "差距",
+        "yes": "是",
+        "no": "否",
+        # Word body labels
+        "how_it_works_heading": "作用原理 / How Cross-Examination Works",
+        "how_it_works_body": (
+            "Phase 5 交叉詰問採用辯論式 AI 稽核架構：\n\n"
+            "1. 依 ISO 13485 稽核清單（71 條款）抽取當次問題（以日期為 seed 輪替，各條款至少 7 個版本）\n"
+            "2. Analyzer（辯護方）分析各 QMS 文件，輸出：立場、信心度、關鍵證據\n"
+            "3. Verifier（質疑方）逐條質疑 Analyzer 論點，挑戰未引用的法規要求或證據漏洞\n"
+            "4. 雙方進行最多 3 輪辯論，達成 agree / partial / disagree 結論\n"
+            "5. QA Auditor（審查者）對整場辯論獨立評分（0–100）\n"
+            "6. 最終判定（verdict）依辯論結論與 gap_severity 由風險矩陣自動計算\n\n"
+            "縮寫對照：verdict — compliant / improvement_plan / deadline_correction / immediate_correction\n"
+            "         gap_severity — none / minor / major / critical\n"
+            "         flagged_for_ra — 需 RA 法規事務人員進一步審查"
+        ),
+        "audit_question": "稽核問題",
+        "expected_evidence": "預期書面證據（靜態清單）/ Expected Evidence (Static)",
+        "source_b_label": "🤖 [LLM 動態生成問題 (Side B)]",
+        "source_a_label": "📋 [靜態題庫問題 (Side A)]",
+        "focus_area_label": "聚焦面向",
+        "verifiable_by_label": "驗證方式",
+        "analyzer_label": "🔍 分析者（實際看到）",
+        "verifier_label": "⚖️ 驗證者（期望看到）",
+        "qa_audit_heading": "🔎 第三方稽核",
+        "score_label": "分數",
+        "question_quality_label": "問題品質",
+        "answer_accuracy_label": "回答準確",
+        "hallucination_label": "幻覺偵測",
+        "hallucination_yes": "⚠️ 是",
+        "hallucination_no": "否",
+        "ra_flag_yes": "⚠️ 是",
+        "ra_flag_no": "否",
+        "agreed_yes": "✅ 是",
+        "agreed_no": "❌ 否",
+        "meta_label": "記錄 ID: {rid}  |  分析 ID: {aid}  |  時間: {ts}",
+        "summary_body": "法規: {regs}\n國家: {countries}\n條款數: {clauses}  |  同意: {agreed}  |  標記 RA: {flagged}  |  總輪次: {rounds}\n模型: {model}  |  耗時: {duration:.1f}s",
+        # Deep report section headings
+        "deep_title": "AI-QMS 深度合規性分析報告",
+        "deep_meta": "分析 ID: {run_id}  |  匯出時間: {ts}",
+        "deep_s1": "第一章 執行摘要",
+        "deep_s1_intro": "本次合規性分析共評估 {total} 個條款-文件對照項目。\n\n判定結果分布:\n",
+        "deep_s1_risk": "\n風險等級分布:\n",
+        "deep_s1_ra": "\n⚠️ 需 RA 審查: {flagged} 項\n",
+        "deep_s2": "第二章 GAP 分析詳情 (Phase 1)",
+        "deep_s2_doc": "文件",
+        "deep_s2_found": "找到",
+        "deep_s2_not_found": "未找到",
+        "deep_s2_inadequate": "不足",
+        "deep_llm_response": "LLM 回應",
+        "deep_token_usage": "Token 用量: {tokens:,}  |  模型: {model}",
+        "deep_no_p1": "（本次分析無 Phase 1 LLM 互動記錄）",
+        "deep_no_record": "（無 LLM 互動記錄可用）",
+        "deep_s3": "第三章 驗證詳情 (Phase 2)",
+        "deep_no_p2": "（本次分析無 Phase 2 LLM 互動記錄）",
+        "deep_s4": "第四章 改善建議 (Phase 4)",
+        "deep_no_p4": "（本次分析無 Phase 4 LLM 互動記錄）",
+        "deep_s5": "第五章 交叉詰問 (Phase 5)",
+        "deep_no_p5": "（本次分析無 Phase 5 LLM 互動記錄）",
+        "deep_no_xexam": "（無交叉詰問記錄可用）",
+        "deep_s55": "第五章之二 第三方品質稽核 (Phase 5 Step 2)",
+        "deep_qa_score": "整體品質分數: {score}/100\n稽核條款數: {count}\n模型: {model}",
+        "deep_qa_summary": "稽核摘要",
+        "deep_qa_recs": "稽核建議",
+        "deep_qa_clause_results": "逐條稽核結果",
+        "deep_qa_tbl_headers": ["條款", "分數", "問題品質", "回答準確", "幻覺偵測", "問題"],
+        "deep_doc_label": "文件",
+        "deep_analyzer_label": "🔍 分析者",
+        "deep_verifier_label": "⚖️ 驗證者",
+    },
+    "en": {
+        "title_crossexam": "AI-QMS Cross-Examination Record",
+        "title_deep": "AI-QMS Full Analysis Report",
+        "summary": "Summary",
+        "clause_details": "Clause Cross-Examination Details",
+        "record_id": "Record ID",
+        "analysis_id": "Run ID",
+        "time": "Time",
+        "regulations": "Regulations",
+        "countries": "Countries",
+        "clause_count": "Clause count",
+        "agreed": "Agreed",
+        "flagged_ra": "Flagged for RA",
+        "total_rounds": "Total rounds",
+        "model": "Model",
+        "duration": "Duration",
+        "none": "None",
+        "doc": "Document",
+        "verdict": "Verdict",
+        "gap": "Gap",
+        "yes": "Yes",
+        "no": "No",
+        # Word body labels
+        "how_it_works_heading": "How Cross-Examination Works",
+        "how_it_works_body": (
+            "Phase 5 cross-examination uses a debate-based AI audit architecture:\n\n"
+            "1. Questions are drawn from the ISO 13485 audit checklist (71 clauses) with date-seeded rotation — at least 7 versions per clause\n"
+            "2. Analyzer (defender) analyzes each QMS document and outputs: position, confidence, key evidence\n"
+            "3. Verifier (challenger) challenges the Analyzer's arguments clause by clause, targeting uncited regulatory requirements or evidence gaps\n"
+            "4. Up to 3 debate rounds, reaching agree / partial / disagree conclusion\n"
+            "5. QA Auditor independently scores the entire debate (0–100)\n"
+            "6. Final verdict is auto-calculated from debate conclusion and gap_severity via the risk matrix\n\n"
+            "Abbreviations: verdict — compliant / improvement_plan / deadline_correction / immediate_correction\n"
+            "               gap_severity — none / minor / major / critical\n"
+            "               flagged_for_ra — requires further review by RA regulatory affairs personnel"
+        ),
+        "audit_question": "Audit Question",
+        "expected_evidence": "Expected Evidence (Static Checklist)",
+        "source_b_label": "🤖 [AI-Generated Question (Side B)]",
+        "source_a_label": "📋 [Static Question Pool (Side A)]",
+        "focus_area_label": "Focus area",
+        "verifiable_by_label": "Verifiable by",
+        "analyzer_label": "🔍 Analyzer (Actual Evidence Found)",
+        "verifier_label": "⚖️ Verifier (Expected to See)",
+        "qa_audit_heading": "🔎 Third-Party Audit",
+        "score_label": "Score",
+        "question_quality_label": "Question quality",
+        "answer_accuracy_label": "Answer accuracy",
+        "hallucination_label": "Hallucination detected",
+        "hallucination_yes": "⚠️ Yes",
+        "hallucination_no": "No",
+        "ra_flag_yes": "⚠️ Yes",
+        "ra_flag_no": "No",
+        "agreed_yes": "✅ Yes",
+        "agreed_no": "❌ No",
+        "meta_label": "Record ID: {rid}  |  Run ID: {aid}  |  Time: {ts}",
+        "summary_body": "Regulations: {regs}\nCountries: {countries}\nClauses: {clauses}  |  Agreed: {agreed}  |  Flagged RA: {flagged}  |  Total rounds: {rounds}\nModel: {model}  |  Duration: {duration:.1f}s",
+        # Deep report section headings
+        "deep_title": "AI-QMS Deep Compliance Analysis Report",
+        "deep_meta": "Run ID: {run_id}  |  Export time: {ts}",
+        "deep_s1": "Chapter 1: Executive Summary",
+        "deep_s1_intro": "This compliance analysis evaluated {total} clause-document pairs.\n\nVerdict distribution:\n",
+        "deep_s1_risk": "\nRisk level distribution:\n",
+        "deep_s1_ra": "\n⚠️ Requires RA review: {flagged} items\n",
+        "deep_s2": "Chapter 2: GAP Analysis Details (Phase 1)",
+        "deep_s2_doc": "Document",
+        "deep_s2_found": "Found",
+        "deep_s2_not_found": "Not found",
+        "deep_s2_inadequate": "Inadequate",
+        "deep_llm_response": "LLM Response",
+        "deep_token_usage": "Token usage: {tokens:,}  |  Model: {model}",
+        "deep_no_p1": "(No Phase 1 LLM interaction records for this analysis)",
+        "deep_no_record": "(No LLM interaction records available)",
+        "deep_s3": "Chapter 3: Verification Details (Phase 2)",
+        "deep_no_p2": "(No Phase 2 LLM interaction records for this analysis)",
+        "deep_s4": "Chapter 4: Improvement Suggestions (Phase 4)",
+        "deep_no_p4": "(No Phase 4 LLM interaction records for this analysis)",
+        "deep_s5": "Chapter 5: Cross-Examination (Phase 5)",
+        "deep_no_p5": "(No Phase 5 LLM interaction records for this analysis)",
+        "deep_no_xexam": "(No cross-examination records available)",
+        "deep_s55": "Chapter 5b: Third-Party QA Audit (Phase 5 Step 2)",
+        "deep_qa_score": "Overall quality score: {score}/100\nClauses audited: {count}\nModel: {model}",
+        "deep_qa_summary": "Audit Summary",
+        "deep_qa_recs": "Audit Recommendations",
+        "deep_qa_clause_results": "Per-Clause Audit Results",
+        "deep_qa_tbl_headers": ["Clause", "Score", "Question Quality", "Answer Accuracy", "Hallucination", "Issues"],
+        "deep_doc_label": "Document",
+        "deep_analyzer_label": "🔍 Analyzer",
+        "deep_verifier_label": "⚖️ Verifier",
+    },
+    "ja": {
+        "title_crossexam": "AI-QMS 相互尋問記録",
+        "title_deep": "AI-QMS 完全分析レポート",
+        "summary": "サマリー",
+        "clause_details": "条項相互尋問詳細",
+        "record_id": "記録ID",
+        "analysis_id": "実行ID",
+        "time": "時刻",
+        "regulations": "規制",
+        "countries": "国",
+        "clause_count": "条項数",
+        "agreed": "同意",
+        "flagged_ra": "RA要確認",
+        "total_rounds": "総ラウンド数",
+        "model": "モデル",
+        "duration": "所要時間",
+        "none": "なし",
+        "doc": "文書",
+        "verdict": "判定",
+        "gap": "ギャップ",
+        "yes": "はい",
+        "no": "いいえ",
+        # Word body labels
+        "how_it_works_heading": "相互尋問の仕組み / How Cross-Examination Works",
+        "how_it_works_body": (
+            "フェーズ5の相互尋問は、ディベート型AI監査アーキテクチャを使用します：\n\n"
+            "1. ISO 13485監査チェックリスト（71条項）から日付シードによる輪替での質問抽出 — 各条項最低7バージョン\n"
+            "2. 分析者（弁護側）が各QMS文書を分析し出力：立場、信頼度、主要証拠\n"
+            "3. 検証者（質疑側）が分析者の論点を条項ごとに質疑し、未引用の規制要件または証拠の欠落を指摘\n"
+            "4. 最大3ラウンドのディベートを経てagree / partial / disagreeの結論に達する\n"
+            "5. QA監査員が議論全体を独立採点（0〜100）\n"
+            "6. 最終判定はリスクマトリクスにより議論結論とgap_severityから自動算出\n\n"
+            "略語：verdict — compliant / improvement_plan / deadline_correction / immediate_correction\n"
+            "      gap_severity — none / minor / major / critical\n"
+            "      flagged_for_ra — RA規制担当者による追加審査が必要"
+        ),
+        "audit_question": "監査質問",
+        "expected_evidence": "期待される書面証拠（静的チェックリスト）",
+        "source_b_label": "🤖 [AI生成質問 (Side B)]",
+        "source_a_label": "📋 [静的質問プール (Side A)]",
+        "focus_area_label": "焦点領域",
+        "verifiable_by_label": "検証方法",
+        "analyzer_label": "🔍 分析者（実際に確認した証拠）",
+        "verifier_label": "⚖️ 検証者（期待される証拠）",
+        "qa_audit_heading": "🔎 第三者監査",
+        "score_label": "スコア",
+        "question_quality_label": "質問品質",
+        "answer_accuracy_label": "回答精度",
+        "hallucination_label": "ハルシネーション検出",
+        "hallucination_yes": "⚠️ あり",
+        "hallucination_no": "なし",
+        "ra_flag_yes": "⚠️ あり",
+        "ra_flag_no": "なし",
+        "agreed_yes": "✅ はい",
+        "agreed_no": "❌ いいえ",
+        "meta_label": "記録ID: {rid}  |  実行ID: {aid}  |  時刻: {ts}",
+        "summary_body": "規制: {regs}\n国: {countries}\n条項数: {clauses}  |  同意: {agreed}  |  RAフラグ: {flagged}  |  総ラウンド: {rounds}\nモデル: {model}  |  所要時間: {duration:.1f}s",
+        # Deep report section headings
+        "deep_title": "AI-QMS 詳細コンプライアンス分析レポート",
+        "deep_meta": "実行ID: {run_id}  |  エクスポート時刻: {ts}",
+        "deep_s1": "第1章 エグゼクティブサマリー",
+        "deep_s1_intro": "このコンプライアンス分析では {total} 件の条項-文書ペアを評価しました。\n\n判定結果の分布:\n",
+        "deep_s1_risk": "\nリスクレベルの分布:\n",
+        "deep_s1_ra": "\n⚠️ RA審査が必要: {flagged} 件\n",
+        "deep_s2": "第2章 GAP分析詳細 (Phase 1)",
+        "deep_s2_doc": "文書",
+        "deep_s2_found": "確認済み",
+        "deep_s2_not_found": "未確認",
+        "deep_s2_inadequate": "不十分",
+        "deep_llm_response": "LLM回答",
+        "deep_token_usage": "トークン使用量: {tokens:,}  |  モデル: {model}",
+        "deep_no_p1": "（この分析ではPhase 1のLLMインタラクション記録はありません）",
+        "deep_no_record": "（利用可能なLLMインタラクション記録はありません）",
+        "deep_s3": "第3章 検証詳細 (Phase 2)",
+        "deep_no_p2": "（この分析ではPhase 2のLLMインタラクション記録はありません）",
+        "deep_s4": "第4章 改善提案 (Phase 4)",
+        "deep_no_p4": "（この分析ではPhase 4のLLMインタラクション記録はありません）",
+        "deep_s5": "第5章 相互尋問 (Phase 5)",
+        "deep_no_p5": "（この分析ではPhase 5のLLMインタラクション記録はありません）",
+        "deep_no_xexam": "（利用可能な相互尋問記録はありません）",
+        "deep_s55": "第5章b 第三者QA監査 (Phase 5 Step 2)",
+        "deep_qa_score": "全体品質スコア: {score}/100\n監査条項数: {count}\nモデル: {model}",
+        "deep_qa_summary": "監査サマリー",
+        "deep_qa_recs": "監査推奨事項",
+        "deep_qa_clause_results": "条項別監査結果",
+        "deep_qa_tbl_headers": ["条項", "スコア", "質問品質", "回答精度", "ハルシネーション", "問題点"],
+        "deep_doc_label": "文書",
+        "deep_analyzer_label": "🔍 分析者",
+        "deep_verifier_label": "⚖️ 検証者",
+    },
+}
+
+
+# ============================================================
 # Shared: AI Roles Legend
 # ============================================================
 
@@ -107,11 +388,12 @@ def _add_ai_roles_legend(doc) -> None:
 # ============================================================
 
 
-def export_crossexam_record_word(record_dict: dict) -> Path:
+def export_crossexam_record_word(record_dict: dict, lang: str = "zh-TW") -> Path:
     """Export a single cross-exam record as a Word document.
 
     Args:
         record_dict: CrossExamRecord.to_dict() output
+        lang: UI language code (e.g., 'zh-TW', 'en', 'ja') — controls section headers
 
     Returns:
         Path to the generated .docx file
@@ -120,54 +402,50 @@ def export_crossexam_record_word(record_dict: dict) -> Path:
     from docx.shared import Pt, RGBColor, Inches
     from docx.enum.text import WD_ALIGN_PARAGRAPH
 
+    lk = _lang_key(lang)
+    h = _EXPORT_HEADERS[lk]
+
     EXPORT_DIR.mkdir(parents=True, exist_ok=True)
     filepath = EXPORT_DIR / f"crossexam_{record_dict.get('record_id', 'unknown')}.docx"
 
     doc = Document()
-    title = doc.add_heading("AI-QMS 交叉詰問記錄", level=1)
+    title = doc.add_heading(h["title_crossexam"], level=1)
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     # Metadata
     meta = doc.add_paragraph()
     meta.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     run = meta.add_run(
-        f"記錄 ID: {record_dict.get('record_id', '')}  |  "
-        f"分析 ID: {record_dict.get('run_id', '')}  |  "
-        f"時間: {record_dict.get('timestamp', '')}"
+        h["meta_label"].format(
+            rid=record_dict.get("record_id", ""),
+            aid=record_dict.get("run_id", ""),
+            ts=record_dict.get("timestamp", ""),
+        )
     )
     run.font.size = Pt(9)
     run.font.color.rgb = RGBColor(128, 128, 128)
 
-    # ── 角色說明 ──
+    # ── AI roles legend ──
     _add_ai_roles_legend(doc)
 
-    doc.add_heading("作用原理 / How Cross-Examination Works", level=2)
-    doc.add_paragraph(
-        "Phase 5 交叉詰問採用辯論式 AI 稽核架構：\n\n"
-        "1. 依 ISO 13485 稽核清單（71 條款）抽取當次問題（以日期為 seed 輪替，全 71 條各有至少 2 個版本）\n"
-        "2. Analyzer（辯護方）分析各 QMS 文件，輸出：立場、信心度、關鍵證據\n"
-        "3. Verifier（質疑方）逐條質疑 Analyzer 論點，挑戰未引用的法規要求或證據漏洞\n"
-        "4. 雙方進行最多 3 輪辯論，達成 agree / partial / disagree 結論\n"
-        "5. QA Auditor（審查者）對整場辯論獨立評分（0–100）\n"
-        "6. 最終判定（verdict）依辯論結論與 gap_severity 由風險矩陣自動計算\n\n"
-        "縮寫對照：verdict — compliant / improvement_plan / deadline_correction / immediate_correction\n"
-        "         gap_severity — none / minor / major / critical\n"
-        "         flagged_for_ra — 需 RA 法規事務人員進一步審查"
-    )
+    doc.add_heading(h["how_it_works_heading"], level=2)
+    doc.add_paragraph(h["how_it_works_body"])
 
     # Summary
-    doc.add_heading("摘要", level=2)
-    regs = ", ".join(record_dict.get("selected_regulations", [])) or "無"
-    countries = ", ".join(record_dict.get("countries", [])) or "無"
+    doc.add_heading(h["summary"], level=2)
+    regs = ", ".join(record_dict.get("selected_regulations", [])) or h["none"]
+    countries = ", ".join(record_dict.get("countries", [])) or h["none"]
     doc.add_paragraph(
-        f"法規: {regs}\n"
-        f"國家: {countries}\n"
-        f"條款數: {record_dict.get('total_clauses', 0)}  |  "
-        f"同意: {record_dict.get('total_agreed', 0)}  |  "
-        f"標記 RA: {record_dict.get('total_flagged', 0)}  |  "
-        f"總輪次: {record_dict.get('total_rounds', 0)}\n"
-        f"模型: {record_dict.get('llm_model', '')}  |  "
-        f"耗時: {record_dict.get('duration_seconds', 0):.1f}s"
+        h["summary_body"].format(
+            regs=regs,
+            countries=countries,
+            clauses=record_dict.get("total_clauses", 0),
+            agreed=record_dict.get("total_agreed", 0),
+            flagged=record_dict.get("total_flagged", 0),
+            rounds=record_dict.get("total_rounds", 0),
+            model=record_dict.get("llm_model", ""),
+            duration=record_dict.get("duration_seconds", 0),
+        )
     )
 
     # Load ISO checklist for expected_evidence lookup
@@ -177,50 +455,44 @@ def export_crossexam_record_word(record_dict: dict) -> Path:
         _ISO_CL = {}
 
     # Clause details
-    doc.add_heading("條款交叉詰問詳情", level=2)
+    doc.add_heading(h["clause_details"], level=2)
     for clause in record_dict.get("clauses", []):
-        cid = clause.get('clause_id', '')
+        cid = clause.get("clause_id", "")
         doc.add_heading(
             f"{cid} — {clause.get('clause_title', '')}",
             level=3,
         )
         doc.add_paragraph(
-            f"文件: {clause.get('doc_id', '')} {clause.get('doc_title', '')}\n"
-            f"判定: {clause.get('verdict', '')}  |  差距: {clause.get('gap_severity', '')}\n"
-            f"同意: {'✅ 是' if clause.get('agreed') else '❌ 否'}  |  "
-            f"RA 標記: {'⚠️ 是' if clause.get('flagged_for_ra') else '否'}"
+            f"{h['doc']}: {clause.get('doc_id', '')} {clause.get('doc_title', '')}\n"
+            f"{h['verdict']}: {clause.get('verdict', '')}  |  {h['gap']}: {clause.get('gap_severity', '')}\n"
+            f"{h['agreed']}: {h['agreed_yes'] if clause.get('agreed') else h['agreed_no']}  |  "
+            f"{h['flagged_ra']}: {h['ra_flag_yes'] if clause.get('flagged_for_ra') else h['ra_flag_no']}"
         )
 
         # Audit question source label (A/B hybrid)
         _cl_def = _ISO_CL.get(cid, {})
         _q_source = clause.get("question_source", "")
         if _q_source == "B":
-            _src_label = doc.add_paragraph(
-                "🤖 [LLM 動態生成問題 / AI-Generated Question (Side B)]",
-                style="Quote",
-            )
+            doc.add_paragraph(h["source_b_label"], style="Quote")
             _focus = clause.get("focus_area", "")
             if _focus:
-                doc.add_paragraph(f"  聚焦面向: {_focus}")
+                doc.add_paragraph(f"  {h['focus_area_label']}: {_focus}")
             _verifiable = clause.get("verifiable_by", "")
             if _verifiable:
-                doc.add_paragraph(f"  驗證方式: {_verifiable}")
+                doc.add_paragraph(f"  {h['verifiable_by_label']}: {_verifiable}")
         elif _q_source == "A":
-            doc.add_paragraph(
-                "📋 [靜態題庫問題 / Static Question Pool (Side A)]",
-                style="Quote",
-            )
+            doc.add_paragraph(h["source_a_label"], style="Quote")
 
         # Audit question
         _aq = clause.get("audit_question") or _cl_def.get("audit_question", "")
         if _aq:
-            doc.add_paragraph(f"稽核問題: {_aq}")
+            doc.add_paragraph(f"{h['audit_question']}: {_aq}")
 
         # Expected evidence (static checklist)
         _exp_ev = _cl_def.get("expected_evidence", [])
         if _exp_ev:
             doc.add_paragraph(
-                "預期書面證據（靜態清單）/ Expected Evidence (Static):\n"
+                f"{h['expected_evidence']}:\n"
                 + "\n".join(f"  • {e}" for e in _exp_ev),
                 style="Quote",
             )
@@ -230,13 +502,13 @@ def export_crossexam_record_word(record_dict: dict) -> Path:
 
             analyzer = rd.get("analyzer", {})
             p = doc.add_paragraph()
-            r = p.add_run("🔍 分析者（實際看到）: ")
+            r = p.add_run(f"{h['analyzer_label']}: ")
             r.bold = True
             _render_role_content(p, analyzer)
 
             verifier = rd.get("verifier", {})
             p = doc.add_paragraph()
-            r = p.add_run("⚖️ 驗證者（期望看到）: ")
+            r = p.add_run(f"{h['verifier_label']}: ")
             r.bold = True
             _render_role_content(p, verifier)
 
@@ -245,12 +517,13 @@ def export_crossexam_record_word(record_dict: dict) -> Path:
 
         qa = clause.get("qa_audit", {})
         if qa:
-            doc.add_heading("🔎 第三方稽核", level=4)
+            doc.add_heading(h["qa_audit_heading"], level=4)
             doc.add_paragraph(
-                f"分數: {qa.get('score', 0)}/100  |  "
-                f"問題品質: {qa.get('question_quality', '')}  |  "
-                f"回答準確: {qa.get('answer_accuracy', '')}\n"
-                f"幻覺偵測: {'⚠️ 是' if qa.get('hallucination_detected') else '否'}"
+                f"{h['score_label']}: {qa.get('score', 0)}/100  |  "
+                f"{h['question_quality_label']}: {qa.get('question_quality', '')}  |  "
+                f"{h['answer_accuracy_label']}: {qa.get('answer_accuracy', '')}\n"
+                f"{h['hallucination_label']}: "
+                f"{h['hallucination_yes'] if qa.get('hallucination_detected') else h['hallucination_no']}"
             )
             issues = qa.get("issues", [])
             if issues:
@@ -261,11 +534,12 @@ def export_crossexam_record_word(record_dict: dict) -> Path:
     return filepath
 
 
-def export_crossexam_record_excel(record_dict: dict) -> Path:
+def export_crossexam_record_excel(record_dict: dict, lang: str = "zh-TW") -> Path:
     """Export a single cross-exam record as an Excel file.
 
     Args:
         record_dict: CrossExamRecord.to_dict() output
+        lang: UI language code (e.g., 'zh-TW', 'en', 'ja')
 
     Returns:
         Path to the generated .xlsx file
@@ -273,26 +547,33 @@ def export_crossexam_record_excel(record_dict: dict) -> Path:
     from openpyxl import Workbook
     from openpyxl.styles import Font, Alignment, PatternFill
 
+    # lang reserved for future localization of sheet/section names
+    _lk = _lang_key(lang)
+
     EXPORT_DIR.mkdir(parents=True, exist_ok=True)
     filepath = EXPORT_DIR / f"crossexam_{record_dict.get('record_id', 'unknown')}.xlsx"
 
     wb = Workbook()
 
+    eh = _EXPORT_HEADERS[_lk]
+    _duration_label = {"zh": "耗時 (秒)", "en": "Duration (s)", "ja": "所要時間 (秒)"}[_lk]
+    _agreed_count_label = {"zh": "同意數", "en": "Agreed count", "ja": "同意数"}[_lk]
+
     # Sheet 1: Summary
     ws_sum = wb.active
-    ws_sum.title = "摘要"
+    ws_sum.title = eh["summary"]
     summary_data = [
-        ("記錄 ID", record_dict.get("record_id", "")),
-        ("分析 ID", record_dict.get("run_id", "")),
-        ("時間", record_dict.get("timestamp", "")),
-        ("法規", ", ".join(record_dict.get("selected_regulations", []))),
-        ("國家", ", ".join(record_dict.get("countries", []))),
-        ("條款數", record_dict.get("total_clauses", 0)),
-        ("同意數", record_dict.get("total_agreed", 0)),
-        ("RA 標記", record_dict.get("total_flagged", 0)),
-        ("總輪次", record_dict.get("total_rounds", 0)),
-        ("模型", record_dict.get("llm_model", "")),
-        ("耗時 (秒)", record_dict.get("duration_seconds", 0)),
+        (eh["record_id"], record_dict.get("record_id", "")),
+        (eh["analysis_id"], record_dict.get("run_id", "")),
+        (eh["time"], record_dict.get("timestamp", "")),
+        (eh["regulations"], ", ".join(record_dict.get("selected_regulations", []))),
+        (eh["countries"], ", ".join(record_dict.get("countries", []))),
+        (eh["clause_count"], record_dict.get("total_clauses", 0)),
+        (_agreed_count_label, record_dict.get("total_agreed", 0)),
+        (eh["flagged_ra"], record_dict.get("total_flagged", 0)),
+        (eh["total_rounds"], record_dict.get("total_rounds", 0)),
+        (eh["model"], record_dict.get("llm_model", "")),
+        (_duration_label, record_dict.get("duration_seconds", 0)),
     ]
     header_fill = PatternFill(
         start_color="4472C4", end_color="4472C4", fill_type="solid"
@@ -306,29 +587,31 @@ def export_crossexam_record_excel(record_dict: dict) -> Path:
     ws_sum.column_dimensions["A"].width = 15
     ws_sum.column_dimensions["B"].width = 50
 
-    # Sheet 2: Clause Details
-    ws_detail = wb.create_sheet("條款詳情")
-    headers = [
-        "條款 ID",          # 1
-        "條款名稱",          # 2
-        "文件 ID",           # 3
-        "判定",              # 4
-        "差距",              # 5
-        "同意",              # 6
-        "RA 標記",           # 7
-        "問題來源(A/B)",     # 8  ← new
-        "輪次數",            # 9
-        "R1 分析者立場",     # 10
-        "R1 分析者信心",     # 11
-        "R1 實際看到(證據)", # 12  ← new
-        "R1 驗證者評估",     # 13
-        "R1 Agreement",      # 14
-        "R1 期望看到(證據)", # 15  ← new
-        "QA 分數",           # 16
-        "問題品質",          # 17
-        "回答準確",          # 18
-        "幻覺偵測",          # 19
-    ]
+    _sheet2_headers: dict[str, list] = {
+        "zh": [
+            "條款 ID", "條款名稱", "文件 ID", "判定", "差距", "同意", "RA 標記",
+            "問題來源(A/B)", "輪次數", "R1 分析者立場", "R1 分析者信心",
+            "R1 實際看到(證據)", "R1 驗證者評估", "R1 Agreement",
+            "R1 期望看到(證據)", "QA 分數", "問題品質", "回答準確", "幻覺偵測",
+        ],
+        "en": [
+            "Clause ID", "Clause Name", "Doc ID", "Verdict", "Gap", "Agreed", "RA Flag",
+            "Question Source(A/B)", "Rounds", "R1 Analyzer Position", "R1 Analyzer Confidence",
+            "R1 Actual Evidence", "R1 Verifier Assessment", "R1 Agreement",
+            "R1 Expected Evidence", "QA Score", "Question Quality", "Answer Accuracy", "Hallucination",
+        ],
+        "ja": [
+            "条項ID", "条項名", "文書ID", "判定", "ギャップ", "同意", "RAフラグ",
+            "質問ソース(A/B)", "ラウンド数", "R1 分析者立場", "R1 分析者信頼度",
+            "R1 実際の証拠", "R1 検証者評価", "R1 Agreement",
+            "R1 期待される証拠", "QAスコア", "質問品質", "回答精度", "ハルシネーション",
+        ],
+    }
+    _sheet2_title: dict[str, str] = {
+        "zh": "條款詳情", "en": "Clause Details", "ja": "条項詳細"
+    }
+    ws_detail = wb.create_sheet(_sheet2_title[_lk])
+    headers = _sheet2_headers[_lk]
     for ci, h in enumerate(headers, 1):
         c = ws_detail.cell(row=1, column=ci, value=h)
         c.fill = header_fill
@@ -422,6 +705,7 @@ def export_deep_report_word(
     crossexam_record: dict | None = None,
     meta_analysis: dict | None = None,
     qa_audit_summary: dict | None = None,
+    lang: str = "zh-TW",
 ) -> Path:
     """Export a deep analysis report as Word document.
 
@@ -434,10 +718,14 @@ def export_deep_report_word(
         interactions: InteractionLog interactions list
         crossexam_record: CrossExamRecord.to_dict() (optional)
         meta_analysis: Meta-analysis QA results (optional)
+        qa_audit_summary: QA-audit summary (optional)
+        lang: UI language code (e.g., 'zh-TW', 'en', 'ja')
 
     Returns:
         Path to generated .docx
     """
+    _lk = _lang_key(lang)
+    dh = _EXPORT_HEADERS[_lk]
     from docx import Document
     from docx.shared import Pt, RGBColor, Inches
     from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -448,14 +736,16 @@ def export_deep_report_word(
     doc = Document()
 
     # ── Title ──
-    title = doc.add_heading("AI-QMS 深度合規性分析報告", level=1)
+    title = doc.add_heading(dh["deep_title"], level=1)
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     meta_p = doc.add_paragraph()
     meta_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     run = meta_p.add_run(
-        f"分析 ID: {run_id}  |  "
-        f"匯出時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        dh["deep_meta"].format(
+            run_id=run_id,
+            ts=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        )
     )
     run.font.size = Pt(9)
     run.font.color.rgb = RGBColor(128, 128, 128)
@@ -464,64 +754,61 @@ def export_deep_report_word(
     _add_ai_roles_legend(doc)
 
     # ── Section 1: Executive Summary ──
-    doc.add_heading("第一章 執行摘要", level=2)
+    doc.add_heading(dh["deep_s1"], level=2)
     verdict_dist = summary.get("verdict_distribution", {})
     risk_dist = summary.get("risk_distribution", {})
     total = summary.get("total_rows", len(flat_rows))
     flagged = summary.get("flagged_for_ra", 0)
 
-    summary_text = (
-        f"本次合規性分析共評估 {total} 個條款-文件對照項目。\n\n判定結果分布:\n"
-    )
+    summary_text = dh["deep_s1_intro"].format(total=total)
     for v, count in verdict_dist.items():
-        summary_text += f"  • {v}: {count} 項\n"
-    summary_text += f"\n風險等級分布:\n"
+        summary_text += f"  • {v}: {count}\n"
+    summary_text += dh["deep_s1_risk"]
     for r, count in risk_dist.items():
-        summary_text += f"  • {r}: {count} 項\n"
+        summary_text += f"  • {r}: {count}\n"
     if flagged:
-        summary_text += f"\n⚠️ 需 RA 審查: {flagged} 項\n"
+        summary_text += dh["deep_s1_ra"].format(flagged=flagged)
 
     doc.add_paragraph(summary_text)
 
     # ── Section 2: GAP Analysis Details ──
-    doc.add_heading("第二章 GAP 分析詳情 (Phase 1)", level=2)
+    doc.add_heading(dh["deep_s2"], level=2)
     if interactions:
         gap_interactions = [i for i in interactions if i.get("phase") == "gap_scan"]
         if gap_interactions:
             for gi in gap_interactions:
                 doc.add_heading(
-                    f"文件: {gi.get('doc_id', '')} — {gi.get('doc_title', '')}",
+                    f"{dh['deep_s2_doc']}: {gi.get('doc_id', '')} — {gi.get('doc_title', '')}",
                     level=3,
                 )
-                # Evidence summary
                 extra = gi.get("extra", {})
                 ev_sum = extra.get("evidence_summary", {})
                 if ev_sum:
                     doc.add_paragraph(
-                        f"找到: {ev_sum.get('found', 0)}  |  "
-                        f"未找到: {ev_sum.get('not_found', 0)}  |  "
-                        f"不足: {ev_sum.get('inadequate', 0)}"
+                        f"{dh['deep_s2_found']}: {ev_sum.get('found', 0)}  |  "
+                        f"{dh['deep_s2_not_found']}: {ev_sum.get('not_found', 0)}  |  "
+                        f"{dh['deep_s2_inadequate']}: {ev_sum.get('inadequate', 0)}"
                     )
-                # LLM Response (truncated for readability)
                 resp = gi.get("llm_response", "")
                 if resp:
-                    doc.add_heading("LLM 回應", level=4)
-                    # Split into manageable paragraphs
+                    doc.add_heading(dh["deep_llm_response"], level=4)
                     for chunk in _split_text(resp, 3000):
                         doc.add_paragraph(chunk)
                 usage = gi.get("usage", {})
                 if usage:
                     doc.add_paragraph(
-                        f"Token 用量: {usage.get('total_tokens', 0):,}  |  "
-                        f"模型: {gi.get('model', '')}"
+                        dh["deep_token_usage"].format(
+                            tokens=usage.get("total_tokens", 0),
+                            model=gi.get("model", ""),
+                        )
                     )
         else:
-            doc.add_paragraph("（本次分析無 Phase 1 LLM 互動記錄）")
+            doc.add_paragraph(dh["deep_no_p1"])
     else:
-        doc.add_paragraph("（無 LLM 互動記錄可用）")
+        doc.add_paragraph(dh["deep_no_record"])
 
     # ── Section 3: Verification Details ──
-    doc.add_heading("第三章 驗證詳情 (Phase 2)", level=2)
+    doc.add_heading(dh["deep_s3"], level=2)
     if interactions:
         verify_interactions = [
             i for i in interactions if i.get("phase") == "checklist_verify"
@@ -529,7 +816,7 @@ def export_deep_report_word(
         if verify_interactions:
             for vi in verify_interactions:
                 doc.add_heading(
-                    f"文件: {vi.get('doc_id', '')} — {vi.get('doc_title', '')}",
+                    f"{dh['deep_s2_doc']}: {vi.get('doc_id', '')} — {vi.get('doc_title', '')}",
                     level=3,
                 )
                 resp = vi.get("llm_response", "")
@@ -538,14 +825,19 @@ def export_deep_report_word(
                         doc.add_paragraph(chunk)
                 usage = vi.get("usage", {})
                 if usage:
-                    doc.add_paragraph(f"Token 用量: {usage.get('total_tokens', 0):,}")
+                    doc.add_paragraph(
+                        dh["deep_token_usage"].format(
+                            tokens=usage.get("total_tokens", 0),
+                            model=vi.get("model", ""),
+                        )
+                    )
         else:
-            doc.add_paragraph("（本次分析無 Phase 2 LLM 互動記錄）")
+            doc.add_paragraph(dh["deep_no_p2"])
     else:
-        doc.add_paragraph("（無 LLM 互動記錄可用）")
+        doc.add_paragraph(dh["deep_no_record"])
 
     # ── Section 4: Remediation ──
-    doc.add_heading("第四章 改善建議 (Phase 4)", level=2)
+    doc.add_heading(dh["deep_s4"], level=2)
     if interactions:
         remed_interactions = [
             i for i in interactions if i.get("phase") == "remediation"
@@ -553,7 +845,7 @@ def export_deep_report_word(
         if remed_interactions:
             for ri in remed_interactions:
                 doc.add_heading(
-                    f"文件: {ri.get('doc_id', '')} — {ri.get('doc_title', '')}",
+                    f"{dh['deep_s2_doc']}: {ri.get('doc_id', '')} — {ri.get('doc_title', '')}",
                     level=3,
                 )
                 resp = ri.get("llm_response", "")
@@ -561,18 +853,17 @@ def export_deep_report_word(
                     for chunk in _split_text(resp, 3000):
                         doc.add_paragraph(chunk)
         else:
-            doc.add_paragraph("（本次分析無 Phase 4 LLM 互動記錄）")
+            doc.add_paragraph(dh["deep_no_p4"])
     else:
-        doc.add_paragraph("（無 LLM 互動記錄可用）")
+        doc.add_paragraph(dh["deep_no_record"])
 
     # ── Section 5: Cross-Examination ──
-    doc.add_heading("第五章 交叉詰問 (Phase 5)", level=2)
+    doc.add_heading(dh["deep_s5"], level=2)
     if interactions:
         xexam_interactions = [
             i for i in interactions if i.get("phase") == "verification"
         ]
         if xexam_interactions:
-            # Group by clause_id
             clause_groups: dict[str, list[dict]] = {}
             for xi in xexam_interactions:
                 cid = xi.get("clause_id", "unknown")
@@ -583,9 +874,8 @@ def export_deep_report_word(
                 doc.add_heading(f"{cid} — {clause_title}", level=3)
                 doc_id = group[0].get("doc_id", "")
                 if doc_id:
-                    doc.add_paragraph(f"文件: {doc_id}")
+                    doc.add_paragraph(f"{dh['deep_doc_label']}: {doc_id}")
 
-                # Sort by round_number and role
                 group.sort(key=lambda x: (x.get("round_number", 0), x.get("role", "")))
 
                 current_round = 0
@@ -596,7 +886,11 @@ def export_deep_report_word(
                         doc.add_heading(f"Round {rd_num}", level=4)
 
                     role = xi.get("role", "")
-                    role_label = "🔍 分析者" if role == "analyzer" else "⚖️ 驗證者"
+                    role_label = (
+                        dh["deep_analyzer_label"]
+                        if role == "analyzer"
+                        else dh["deep_verifier_label"]
+                    )
 
                     p = doc.add_paragraph()
                     r = p.add_run(f"{role_label}: ")
@@ -614,7 +908,7 @@ def export_deep_report_word(
                     if agreement:
                         doc.add_paragraph(f"Agreement: {agreement}")
         else:
-            doc.add_paragraph("（本次分析無 Phase 5 LLM 互動記錄）")
+            doc.add_paragraph(dh["deep_no_p5"])
     elif crossexam_record:
         for clause in crossexam_record.get("clauses", []):
             doc.add_heading(
@@ -624,12 +918,12 @@ def export_deep_report_word(
             for rd in clause.get("rounds", []):
                 doc.add_heading(f"Round {rd.get('round', '?')}", level=4)
                 p = doc.add_paragraph()
-                r = p.add_run("🔍 分析者: ")
+                r = p.add_run(f"{dh['deep_analyzer_label']}: ")
                 r.bold = True
                 _render_role_content(p, rd.get("analyzer", {}))
 
                 p = doc.add_paragraph()
-                r = p.add_run("⚖️ 驗證者: ")
+                r = p.add_run(f"{dh['deep_verifier_label']}: ")
                 r.bold = True
                 _render_role_content(p, rd.get("verifier", {}))
 
@@ -639,48 +933,51 @@ def export_deep_report_word(
 
             qa = clause.get("qa_audit", {})
             if qa:
-                doc.add_heading("🔎 第三方稽核", level=4)
+                doc.add_heading(dh["qa_audit_heading"], level=4)
                 doc.add_paragraph(
-                    f"分數: {qa.get('score', 0)}/100  |  "
-                    f"問題品質: {qa.get('question_quality', '')}  |  "
-                    f"回答準確: {qa.get('answer_accuracy', '')}\n"
-                    f"幻覺偵測: {'⚠️ 是' if qa.get('hallucination_detected') else '否'}"
+                    f"{dh['score_label']}: {qa.get('score', 0)}/100  |  "
+                    f"{dh['question_quality_label']}: {qa.get('question_quality', '')}  |  "
+                    f"{dh['answer_accuracy_label']}: {qa.get('answer_accuracy', '')}\n"
+                    f"{dh['hallucination_label']}: "
+                    f"{dh['hallucination_yes'] if qa.get('hallucination_detected') else dh['hallucination_no']}"
                 )
                 issues = qa.get("issues", [])
                 if issues:
                     for iss in issues:
                         doc.add_paragraph(f"  • {iss}")
     else:
-        doc.add_paragraph("（無交叉詰問記錄可用）")
+        doc.add_paragraph(dh["deep_no_xexam"])
 
     # ── Section 5.5: Third-Party QA Audit ──
-    doc.add_heading("第五章之二 第三方品質稽核 (Phase 5 Step 2)", level=2)
+    doc.add_heading(dh["deep_s55"], level=2)
     _qa_sum = qa_audit_summary
     if not _qa_sum and crossexam_record:
         _qa_sum = crossexam_record.get("qa_audit_summary")
     if _qa_sum and not _qa_sum.get("skipped"):
         score = _qa_sum.get("overall_score", 0)
         doc.add_paragraph(
-            f"整體品質分數: {score}/100\n"
-            f"稽核條款數: {_qa_sum.get('clause_count', 0)}\n"
-            f"模型: {_qa_sum.get('llm_model', '')}"
+            dh["deep_qa_score"].format(
+                score=score,
+                count=_qa_sum.get("clause_count", 0),
+                model=_qa_sum.get("llm_model", ""),
+            )
         )
         qa_summary_text = _qa_sum.get("summary", "")
         if qa_summary_text:
-            doc.add_heading("稽核摘要", level=3)
+            doc.add_heading(dh["deep_qa_summary"], level=3)
             for chunk in _split_text(qa_summary_text, 3000):
                 doc.add_paragraph(chunk)
         qa_recs = _qa_sum.get("recommendations", [])
         if qa_recs:
-            doc.add_heading("稽核建議", level=3)
+            doc.add_heading(dh["deep_qa_recs"], level=3)
             for rec in qa_recs:
                 doc.add_paragraph(f"• {rec}")
         clause_audits = _qa_sum.get("clause_audits", [])
         if clause_audits:
-            doc.add_heading("逐條稽核結果", level=3)
+            doc.add_heading(dh["deep_qa_clause_results"], level=3)
             qa_tbl = doc.add_table(rows=1 + len(clause_audits), cols=6)
             qa_tbl.style = "Table Grid"
-            qa_headers = ["條款", "分數", "問題品質", "回答準確", "幻覺偵測", "問題"]
+            qa_headers = dh["deep_qa_tbl_headers"]
             for i, h in enumerate(qa_headers):
                 qa_tbl.rows[0].cells[i].text = h
             for qi, ca in enumerate(clause_audits, 1):
@@ -689,7 +986,7 @@ def export_deep_report_word(
                 qa_tbl.rows[qi].cells[2].text = ca.get("question_quality", "")
                 qa_tbl.rows[qi].cells[3].text = ca.get("answer_accuracy", "")
                 qa_tbl.rows[qi].cells[4].text = (
-                    "⚠️ 是" if ca.get("hallucination_detected") else "否"
+                    dh["hallucination_yes"] if ca.get("hallucination_detected") else dh["hallucination_no"]
                 )
                 issues = ca.get("issues", [])
                 qa_tbl.rows[qi].cells[5].text = "; ".join(issues) if issues else "無"
@@ -774,13 +1071,20 @@ def export_deep_report_excel(
     crossexam_record: dict | None = None,
     meta_analysis: dict | None = None,
     qa_audit_summary: dict | None = None,
+    lang: str = "zh-TW",
 ) -> Path:
     """Export a deep analysis report as Excel workbook.
 
     Multiple sheets: Summary, Compliance Table, LLM Interactions, Cross-Exam, Meta-Analysis.
+
+    Args:
+        lang: UI language code (e.g., 'zh-TW', 'en', 'ja') — reserved for
+            future localization of sheet/section names.
     """
     from openpyxl import Workbook
     from openpyxl.styles import Font, Alignment, PatternFill
+
+    _lk = _lang_key(lang)
 
     EXPORT_DIR.mkdir(parents=True, exist_ok=True)
     filepath = EXPORT_DIR / f"deep_report_{run_id}.xlsx"

@@ -100,16 +100,25 @@ def _format_details(details: dict) -> str:
     return "; ".join(parts)
 
 
-def format_audit_table_markdown(records: list) -> str:
+def format_audit_table_markdown(records: list, lang: str = "zh-TW") -> str:
     """Format audit records as a Markdown table for chat display."""
+    ui = _ui(lang)
     if not records:
-        return "📋 目前沒有任何文件更動紀錄。"
+        return f"📋 {ui['no_records']}"
+
+    _zh = lang.startswith("zh")
+    title = "文件更動紀錄" if _zh else "Document Change Records"
+    count_label = "筆" if _zh else "records"
 
     lines = [
-        f"📋 **文件更動紀錄** (共 {len(records)} 筆)\n",
-        "| # | 時間 | 操作 | 文件編號 | 操作者 | 詳情 |",
-        "|---|------|------|---------|--------|------|",
+        f"📋 **{title}** ({len(records)} {count_label})\n",
     ]
+    if _zh:
+        lines.append("| # | 時間 | 操作 | 文件編號 | 操作者 | 詳情 |")
+    else:
+        lines.append("| # | Time | Action | Document ID | Operator | Details |")
+    lines.append("|---|------|------|---------|--------|------|")
+
     for i, r in enumerate(records, 1):
         ts = r.get("timestamp", "")
         # Format timestamp to shorter form
@@ -119,7 +128,7 @@ def format_audit_table_markdown(records: list) -> str:
         except (ValueError, TypeError):
             ts_short = ts[:16] if ts else ""
 
-        action = _action_label(r.get("action", ""))
+        action = _action_label(r.get("action", ""), lang)
         doc_id = r.get("document_id", "")
         user = r.get("user_id", "")
         details = _format_details(r.get("details", {}))
@@ -129,7 +138,7 @@ def format_audit_table_markdown(records: list) -> str:
 
         lines.append(f"| {i} | {ts_short} | {action} | {doc_id} | {user} | {details} |")
 
-    lines.append("\n✅ 紀錄鏈完整性: SHA-256 雜湊鏈保護")
+    lines.append(f"\n✅ {ui['integrity']}: {ui['hash_protected']}")
     return "\n".join(lines)
 
 

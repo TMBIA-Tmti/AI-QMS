@@ -21,6 +21,17 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 # ── i18n helpers ──
 
 
+import re as _re
+
+
+def _region_display(region_key: str, lang: str) -> str:
+    """Extract English name for non-zh languages: '美國 (USA)' → 'USA'"""
+    if lang.startswith("zh"):
+        return region_key
+    m = _re.search(r'\(([^)]+)\)', region_key)
+    return m.group(1) if m else region_key
+
+
 def _t(key: str, lang: str = "zh-TW", **kwargs) -> str:
     """Translate a key using locale JSON files."""
     _cache = getattr(_t, "_cache", {})
@@ -231,7 +242,7 @@ def _render_verification_to_word(doc, verification_report: dict, lang: str = "zh
                 "fail": _t("regulatory_export.status_fail", lang),
             }
             vals = [
-                vd.get("region", ""),
+                _region_display(vd.get("region", ""), lang),
                 vd.get("agency", ""),
                 status_map.get(vd.get("overall_status"), vd.get("overall_status", "")),
                 f"{passed_n}/{len(checks)}",
@@ -297,7 +308,7 @@ def _render_verification_to_excel(wb, verification_report: dict, lang: str = "zh
         passed_n = sum(1 for c in checks if c.get("passed"))
         issues = "; ".join(c.get("message", "") for c in checks if not c.get("passed"))
         vals = [
-            vd.get("region", ""),
+            _region_display(vd.get("region", ""), lang),
             vd.get("agency", ""),
             status_map.get(vd.get("overall_status"), vd.get("overall_status", "")),
             f"{passed_n}/{len(checks)}",

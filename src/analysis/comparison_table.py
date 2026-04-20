@@ -25,6 +25,7 @@ from src.analysis.state import (
     PhaseStatus,
 )
 from src.analysis.compliance_rules import get_checklist, list_clauses, get_audit_question
+from src.chainlit_app.lang_config import lang_key as _lang_key
 from src.analysis.risk_matrix import (
     VERDICT_DISPLAY,
     RISK_LEVEL_DISPLAY,
@@ -60,6 +61,30 @@ class ComparisonTable:
     def state(self) -> PipelineState:
         return self._state
 
+    @classmethod
+    def build_initial_rows(
+        cls,
+        scan_result: dict,
+        standard: str = "ISO_13485",
+        storage_dir: Path = _DEFAULT_DIR,
+        llm_completion_fn=None,
+        model: str = "default",
+        lang: str = "en",
+    ) -> "ComparisonTable":
+        """Classmethod wrapper around the module-level ``build_initial_rows``.
+
+        Allows callers to use ``ComparisonTable.build_initial_rows(...)`` for
+        parity with ``populate_from_scan`` on an existing instance.
+        """
+        return build_initial_rows(
+            scan_result=scan_result,
+            standard=standard,
+            storage_dir=storage_dir,
+            llm_completion_fn=llm_completion_fn,
+            model=model,
+            lang=lang,
+        )
+
     # ── Row population ──
 
     def populate_from_scan(
@@ -68,6 +93,7 @@ class ComparisonTable:
         standard: str = "ISO_13485",
         llm_completion_fn=None,
         model: str = "default",
+        lang: str = "en",
     ) -> int:
         """Build initial rows from scan_regulatory_references() output + checklist.
 
@@ -163,8 +189,12 @@ class ComparisonTable:
                     doc_title=doc_title,
                     clause_title=clause_info.get("title", ""),
                     audit_impact=clause_info.get("audit_impact", "minor"),
-                    audit_question=get_audit_question(clause_info),
-                    expected_evidence=clause_info.get("expected_evidence", []),
+                    audit_question=get_audit_question(clause_info, lang=lang),
+                    expected_evidence=(
+                        clause_info.get("expected_evidence_ja") if _lang_key(lang) == "ja"
+                        else clause_info.get("expected_evidence_en") if _lang_key(lang) != "zh"
+                        else clause_info.get("expected_evidence")
+                    ) or clause_info.get("expected_evidence", []),
                 )
                 self._state.add_row(row)
                 row_count += 1
@@ -197,8 +227,12 @@ class ComparisonTable:
                         doc_title=doc_title,
                         clause_title=clause_info.get("title", ""),
                         audit_impact=clause_info.get("audit_impact", "minor"),
-                        audit_question=get_audit_question(clause_info),
-                        expected_evidence=clause_info.get("expected_evidence", []),
+                        audit_question=get_audit_question(clause_info, lang=lang),
+                        expected_evidence=(
+                            clause_info.get("expected_evidence_ja") if lang.startswith("ja")
+                            else clause_info.get("expected_evidence_en") if not lang.startswith("zh")
+                            else clause_info.get("expected_evidence")
+                        ) or clause_info.get("expected_evidence", []),
                     )
                     self._state.add_row(row)
                     row_count += 1
@@ -434,10 +468,15 @@ class ComparisonTable:
                     if dynamic_kw:
                         REGULATION_DETECTION_KEYWORDS[reg_id] = dynamic_kw
 
-            # Build searchable text (title + tags + body[:3000])
+            # Build searchable text — title + tags ONLY.
+            # Body is excluded because QMS form templates all contain a
+            # "Global Regulatory Landscape" boilerplate section that lists
+            # every major regulation (QMSR, MDR, TFDA, PMDA, HC, TGA…),
+            # which causes Strategy 5 to falsely expand every document to
+            # all 71 ISO 13485 clauses.  Cross-regulation expansion should
+            # only fire when the document is explicitly authored for that
+            # regulation (indicated by its title or tags).
             search_text = (title_normalized + " " + " ".join(doc_tags)).lower()
-            if doc_body:
-                search_text += " " + doc_body[:3000].lower()
 
             # Detect which regulations are mentioned
             matched_reg_ids: set[str] = set()
@@ -1096,6 +1135,7 @@ def build_initial_rows(
     storage_dir: Path = _DEFAULT_DIR,
     llm_completion_fn=None,
     model: str = "default",
+    lang: str = "en",
 ) -> ComparisonTable:
     """Convenience: create a new PipelineState + ComparisonTable and populate rows.
 
@@ -1105,11 +1145,13 @@ def build_initial_rows(
         storage_dir: Where to save pipeline state
         llm_completion_fn: LLM function for fallback doc classification
         model: LLM model name
+        lang: Language code for audit questions and expected evidence
+            ("en", "ja", or "zh"). Defaults to English.
 
     Returns:
         ComparisonTable ready for pipeline execution
     """
     state = PipelineState(standard=standard)
     table = ComparisonTable(state, storage_dir)
-    table.populate_from_scan(scan_result, standard, llm_completion_fn, model)
+    table.populate_from_scan(scan_result, standard, llm_completion_fn, model, lang=lang)
     return table

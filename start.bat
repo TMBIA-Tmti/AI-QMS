@@ -1,11 +1,11 @@
 @echo off
 chcp 65001 >nul 2>&1
-title AI-QMS Phase 1 Document Control - Launcher v3.5.0
+title AI-QMS Phase 1 Document Control - Launcher v3.6.0
 
 echo ========================================================
 echo  AI-QMS Phase 1 Document Control System
-echo  Version: v3.5.0 (Chainlit + Phoenix)
-echo  Date: 2026-02-28
+echo  Version: v3.6.0 (Chainlit + Phoenix)
+echo  Date: 2026-04-19
 echo ========================================================
 echo.
 echo  Architecture (Chainlit):
@@ -13,6 +13,7 @@ echo    Chainlit App:       Port 3000 (Single App, Chat Profiles)
 echo    Local LLM:          Ollama (Port 11434)
 echo    Phoenix:            Port 6006 (LLM Observability)
 echo.
+echo  v3.6.0 - Full i18n: zh/ja/en across all UI, reports, Word/Excel, pipeline, ISO clauses
 echo  v3.5.0 - Regulatory Region Auto-Query, Disconnect Resilience, Eira AI Assistant
 echo  v3.4.0 - Arize Phoenix LLM Observability, One-Click Launch + Auto-Update
 echo  v3.3.0 - /web Web Search with Source Credibility Ranking
@@ -137,7 +138,7 @@ echo  Starting Chainlit App (Port %CHAINLIT_PORT%)
 echo ========================================================
 echo.
 echo [INFO] Chainlit URL: http://localhost:%CHAINLIT_PORT%
-echo [INFO] Auto-Reload: ON (code changes auto-restart)
+echo [INFO] Auto-Reload: OFF (disabled to prevent UI disconnect during analysis)
 echo [INFO] Press Ctrl+C to stop
 echo.
 
@@ -150,7 +151,7 @@ if errorlevel 1 (
 )
 
 cd /d "%PROJECT_DIR%"
-"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port %CHAINLIT_PORT% -w
+"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port %CHAINLIT_PORT%
 goto check_error
 
 :start_all
@@ -187,7 +188,7 @@ echo  Press Ctrl+C to stop Chainlit
 echo.
 
 cd /d "%PROJECT_DIR%"
-"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port %CHAINLIT_PORT% -w
+"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port %CHAINLIT_PORT%
 goto check_error
 
 :start_phoenix
@@ -231,7 +232,7 @@ echo.
 start "" "http://localhost:%PHOENIX_PORT%"
 
 cd /d "%PROJECT_DIR%"
-"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port %CHAINLIT_PORT% -w
+"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port %CHAINLIT_PORT%
 goto check_error
 
 

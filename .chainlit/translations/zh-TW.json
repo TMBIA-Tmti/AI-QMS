@@ -58,7 +58,7 @@
     },
     "chat": {
         "input": {
-            "placeholder": "\u5728\u6b64\u8f38\u5165\u8a0a\u606f\u6216\u62d6\u653e\u6a94\u6848\uff08\u6700\u591a 100 \u4efd\uff0c\u6bcf\u4efd 500MB\uff09...",
+            "placeholder": "\u5728\u6b64\u8f38\u5165\u8a0a\u606f\u6216\u62d6\u653e\u6a94\u6848\uff08\u6700\u591a 10 \u4efd\uff0c\u6bcf\u4efd 50MB\uff09...",
             "actions": {
                 "send": "\u767c\u9001\u8a0a\u606f",
                 "stop": "\u505c\u6b62\u4efb\u52d9",

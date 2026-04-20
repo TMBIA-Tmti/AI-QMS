@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title data-i18n="page.title">AI-QMS 合規性分析報告</title>
+    <title data-i18n="page.title">AI-QMS Compliance Analysis Report</title>
     <link rel="stylesheet" href="/api/report/static/report.css">
 </head>
 <body>
@@ -13,7 +13,7 @@
     <!-- ===== Header ===== -->
     <header class="report-header">
         <div class="header-left">
-            <h1 data-i18n="header.title">📊 合規性分析報告</h1>
+            <h1 data-i18n="header.title">📊 Compliance Analysis Report</h1>
             <span class="run-id" id="headerRunId"></span>
             <span class="source-command-badge" id="headerSourceCommand"></span>
         </div>
@@ -25,11 +25,11 @@
 
     <!-- ===== Tab Navigation ===== -->
     <nav class="tab-nav" id="tabNav">
-        <button class="tab-btn active" data-tab="analysis" data-i18n="tab.analysis">📊 合規分析結果</button>
-        <button class="tab-btn" data-tab="crossref" data-i18n="tab.crossref">🔗 跨國法規交叉比對表</button>
-        <button class="tab-btn" data-tab="crossexam" data-i18n="tab.crossexam">💬 即時 LLM 互動</button>
-        <button class="tab-btn" data-tab="history" data-i18n="tab.history">📜 交叉詰問歷史</button>
-        <button class="tab-btn" data-tab="dailyaudit" data-i18n="tab.dailyaudit">🔍 每日稽核</button>
+        <button class="tab-btn active" data-tab="analysis" data-i18n="tab.analysis">📊 Compliance Results</button>
+        <button class="tab-btn" data-tab="crossref" data-i18n="tab.crossref">🔗 Cross-Country Regulation Comparison</button>
+        <button class="tab-btn" data-tab="crossexam" data-i18n="tab.crossexam">💬 Real-Time LLM Interaction</button>
+        <button class="tab-btn" data-tab="history" data-i18n="tab.history">📜 Cross-Examination History</button>
+        <button class="tab-btn" data-tab="dailyaudit" data-i18n="tab.dailyaudit">🔍 Daily Audit</button>
     </nav>
 
     <!-- ===== TAB: Analysis Results ===== -->
@@ -39,42 +39,42 @@
             <div class="card-icon">📋</div>
             <div class="card-body">
                 <div class="card-value" id="totalRows">—</div>
-                <div class="card-label" data-i18n="card.analysisItems">分析項目</div>
+                <div class="card-label" data-i18n="card.analysisItems">Analysis Items</div>
             </div>
         </div>
         <div class="summary-card card-compliant">
             <div class="card-icon">✅</div>
             <div class="card-body">
                 <div class="card-value" id="fullCompliance">—</div>
-                <div class="card-label" data-i18n="card.fullCompliance">完全符合</div>
+                <div class="card-label" data-i18n="card.fullCompliance">Full Compliance</div>
             </div>
         </div>
         <div class="summary-card card-partial">
             <div class="card-icon">⚠️</div>
             <div class="card-body">
                 <div class="card-value" id="partialCompliance">—</div>
-                <div class="card-label" data-i18n="card.partialCompliance">部分符合</div>
+                <div class="card-label" data-i18n="card.partialCompliance">Partial Compliance</div>
             </div>
         </div>
         <div class="summary-card card-non">
             <div class="card-icon">❌</div>
             <div class="card-body">
                 <div class="card-value" id="nonCompliance">—</div>
-                <div class="card-label" data-i18n="card.nonCompliance">未符合</div>
+                <div class="card-label" data-i18n="card.nonCompliance">Non-Compliance</div>
             </div>
         </div>
         <div class="summary-card card-flagged">
             <div class="card-icon">🚩</div>
             <div class="card-body">
                 <div class="card-value" id="flaggedCount">—</div>
-                <div class="card-label" data-i18n="card.raReview">需 RA 審查</div>
+                <div class="card-label" data-i18n="card.raReview">RA Review Required</div>
             </div>
         </div>
         <div class="summary-card card-budget">
             <div class="card-icon">📈</div>
             <div class="card-body">
                 <div class="card-value" id="tokenUsage">—</div>
-                <div class="card-label" data-i18n="card.tokenUsage">Token 用量</div>
+                <div class="card-label" data-i18n="card.tokenUsage">Token Usage</div>
             </div>
         </div>
     </section>
@@ -82,85 +82,85 @@
     <!-- ===== Phase Configuration Panel ===== -->
     <section class="phase-config-panel" id="phaseConfigPanel">
         <div class="phase-config-header">
-            <h3 data-i18n="phase.configTitle">⚙️ 分析階段設定</h3>
-            <button class="btn btn-sm btn-outline" id="btnTogglePhaseConfig" data-i18n="phase.toggleBtn" title="展開/收合分析階段設定">▼ 展開</button>
+            <h3 data-i18n="phase.configTitle">⚙️ Analysis Phase Settings</h3>
+            <button class="btn btn-sm btn-outline" id="btnTogglePhaseConfig" data-i18n="phase.toggleBtn" title="Expand/Collapse Phase Settings">▼ Expand</button>
         </div>
         <div class="phase-config-body" id="phaseConfigBody" style="display:none">
-            <p class="phase-config-desc" data-i18n="phase.configDesc">選擇要跳過的分析階段。跳過的階段將記錄在報告中，請注意相關風險。</p>
+            <p class="phase-config-desc" data-i18n="phase.configDesc">Select phases to skip. Skipped phases will be noted in the report.</p>
             <div class="phase-config-grid" id="phaseConfigGrid">
-                <label class="phase-config-item phase-core" title="核心階段 — 建議不要跳過">
+                <label class="phase-config-item phase-core" data-i18n-title="phase.coreTitle" title="Core phase - not recommended to skip">
                     <input type="checkbox" value="phase_0" data-phase="phase_0" disabled>
                     <span class="phase-config-badge">P0</span>
                     <div class="phase-config-info">
-                        <span class="phase-config-name" data-i18n="phase.p0">資料品質檢查</span>
-                        <span class="phase-config-risk risk-high" data-i18n="phase.p0Risk">⚠️ 跳過將無法驗證資料完整性，後續分析可能基於不完整資料</span>
+                        <span class="phase-config-name" data-i18n="phase.p0">Data Quality Check</span>
+                        <span class="phase-config-risk risk-high" data-i18n="phase.p0Risk">⚠️ Skipping will prevent data integrity verification; subsequent analysis may be based on incomplete data</span>
                     </div>
-                    <span class="phase-config-lock" title="核心階段，無法跳過">🔒</span>
+                    <span class="phase-config-lock" data-i18n-title="phase.coreLock" title="Core phase, cannot skip">🔒</span>
                 </label>
-                <label class="phase-config-item phase-core" title="核心階段 — 建議不要跳過">
+                <label class="phase-config-item phase-core" data-i18n-title="phase.coreTitle" title="Core phase - not recommended to skip">
                     <input type="checkbox" value="phase_0_5" data-phase="phase_0_5" disabled>
                     <span class="phase-config-badge">P0.5</span>
                     <div class="phase-config-info">
-                        <span class="phase-config-name" data-i18n="phase.p05">法規參照對應</span>
-                        <span class="phase-config-risk risk-high" data-i18n="phase.p05Risk">⚠️ 跳過將無法比對法規條文，分析將缺乏法規參照基礎</span>
+                        <span class="phase-config-name" data-i18n="phase.p05">Reference Mapping</span>
+                        <span class="phase-config-risk risk-high" data-i18n="phase.p05Risk">⚠️ Skipping will prevent regulatory text comparison; analysis will lack a regulatory reference basis</span>
                     </div>
-                    <span class="phase-config-lock" title="核心階段，無法跳過">🔒</span>
+                    <span class="phase-config-lock" data-i18n-title="phase.coreLock" title="Core phase, cannot skip">🔒</span>
                 </label>
-                <label class="phase-config-item phase-core" title="核心階段 — 建議不要跳過">
+                <label class="phase-config-item phase-core" data-i18n-title="phase.coreTitle" title="Core phase - not recommended to skip">
                     <input type="checkbox" value="phase_1" data-phase="phase_1" disabled>
                     <span class="phase-config-badge">P1</span>
                     <div class="phase-config-info">
-                        <span class="phase-config-name" data-i18n="phase.p1">差距掃描</span>
-                        <span class="phase-config-risk risk-critical" data-i18n="phase.p1Risk">🔴 核心階段，跳過將無法識別合規差距，無法產生分析結果</span>
+                        <span class="phase-config-name" data-i18n="phase.p1">Gap Scan</span>
+                        <span class="phase-config-risk risk-critical" data-i18n="phase.p1Risk">🔴 Core phase — skipping will prevent gap identification and analysis results cannot be generated</span>
                     </div>
-                    <span class="phase-config-lock" title="核心階段，無法跳過">🔒</span>
+                    <span class="phase-config-lock" data-i18n-title="phase.coreLock" title="Core phase, cannot skip">🔒</span>
                 </label>
                 <label class="phase-config-item phase-optional">
                     <input type="checkbox" value="phase_2" data-phase="phase_2">
                     <span class="phase-config-badge">P2</span>
                     <div class="phase-config-info">
-                        <span class="phase-config-name" data-i18n="phase.p2">查核表驗證</span>
-                        <span class="phase-config-risk risk-medium" data-i18n="phase.p2Risk">⚠️ 跳過將減少證據交叉驗證，可能遺漏不充分的證據</span>
+                        <span class="phase-config-name" data-i18n="phase.p2">Checklist Verification</span>
+                        <span class="phase-config-risk risk-medium" data-i18n="phase.p2Risk">⚠️ Skipping will reduce evidence cross-validation and may miss insufficient evidence</span>
                     </div>
                 </label>
-                <label class="phase-config-item phase-core" title="核心階段 — 建議不要跳過">
+                <label class="phase-config-item phase-core" data-i18n-title="phase.coreTitle" title="Core phase - not recommended to skip">
                     <input type="checkbox" value="phase_3" data-phase="phase_3" disabled>
                     <span class="phase-config-badge">P3</span>
                     <div class="phase-config-info">
-                        <span class="phase-config-name" data-i18n="phase.p3">風險評估</span>
-                        <span class="phase-config-risk risk-critical" data-i18n="phase.p3Risk">🔴 核心階段，跳過將無法產生風險等級判定</span>
+                        <span class="phase-config-name" data-i18n="phase.p3">Risk Assessment</span>
+                        <span class="phase-config-risk risk-critical" data-i18n="phase.p3Risk">🔴 Core phase — skipping will prevent risk level assessment</span>
                     </div>
-                    <span class="phase-config-lock" title="核心階段，無法跳過">🔒</span>
+                    <span class="phase-config-lock" data-i18n-title="phase.coreLock" title="Core phase, cannot skip">🔒</span>
                 </label>
                 <label class="phase-config-item phase-optional">
                     <input type="checkbox" value="phase_4" data-phase="phase_4">
                     <span class="phase-config-badge">P4</span>
                     <div class="phase-config-info">
-                        <span class="phase-config-name" data-i18n="phase.p4">改善建議</span>
-                        <span class="phase-config-risk risk-low" data-i18n="phase.p4Risk">跳過不影響判定結果，但將不會產生改善建議</span>
+                        <span class="phase-config-name" data-i18n="phase.p4">Remediation Suggestions</span>
+                        <span class="phase-config-risk risk-low" data-i18n="phase.p4Risk">Skipping does not affect verdict results, but no remediation suggestions will be generated</span>
                     </div>
                 </label>
                 <label class="phase-config-item phase-optional">
                     <input type="checkbox" value="phase_5" data-phase="phase_5">
                     <span class="phase-config-badge">P5</span>
                     <div class="phase-config-info">
-                        <span class="phase-config-name" data-i18n="phase.p5">獨立驗證</span>
-                        <span class="phase-config-risk risk-medium" data-i18n="phase.p5Risk">⚠️ 跳過將減少分析者/驗證者交叉詰問的品質保證</span>
+                        <span class="phase-config-name" data-i18n="phase.p5">Independent Verification</span>
+                        <span class="phase-config-risk risk-medium" data-i18n="phase.p5Risk">⚠️ Skipping will reduce quality assurance from analyst/verifier cross-examination</span>
                     </div>
                 </label>
                 <label class="phase-config-item phase-optional">
                     <input type="checkbox" value="phase_6" data-phase="phase_6">
                     <span class="phase-config-badge">P6</span>
                     <div class="phase-config-info">
-                        <span class="phase-config-name" data-i18n="phase.p6">來源驗證</span>
-                        <span class="phase-config-risk risk-low" data-i18n="phase.p6Risk">跳過不影響判定結果，但不會驗證法規來源連結有效性</span>
+                        <span class="phase-config-name" data-i18n="phase.p6">Source Verification</span>
+                        <span class="phase-config-risk risk-low" data-i18n="phase.p6Risk">Skipping does not affect verdict results, but regulatory source link validity will not be verified</span>
                     </div>
                 </label>
             </div>
             <div class="phase-config-actions">
-                <span class="phase-config-summary" id="phaseConfigSummary" data-i18n="phase.noSkip">目前設定：執行所有階段</span>
-                <button class="btn btn-sm btn-primary" id="btnApplyPhaseConfig" data-i18n="phase.apply">✅ 套用設定</button>
-                <button class="btn btn-sm btn-outline" id="btnResetPhaseConfig" data-i18n="phase.reset">🔄 重設為全部執行</button>
+                <span class="phase-config-summary" id="phaseConfigSummary" data-i18n="phase.noSkip">Current setting: Execute all phases</span>
+                <button class="btn btn-sm btn-primary" id="btnApplyPhaseConfig" data-i18n="phase.apply">✅ Apply Settings</button>
+                <button class="btn btn-sm btn-outline" id="btnResetPhaseConfig" data-i18n="phase.reset">🔄 Reset to Execute All</button>
             </div>
         </div>
     </section>
@@ -169,47 +169,47 @@
     <section class="filters-bar">
         <div class="filters-left">
             <div class="filter-group">
-                <label for="filterDoc" data-i18n="filter.document">文件</label>
+                <label for="filterDoc" data-i18n="filter.document">Document</label>
                 <select id="filterDoc">
-                    <option value="" data-i18n="filter.allDocs">全部文件</option>
+                    <option value="" data-i18n="filter.allDocs">All Documents</option>
                 </select>
             </div>
             <div class="filter-group">
-                <label for="filterVerdict" data-i18n="filter.verdict">判定結果</label>
+                <label for="filterVerdict" data-i18n="filter.verdict">Verdict</label>
                 <select id="filterVerdict">
-                    <option value="" data-i18n="filter.allVerdicts">全部結果</option>
+                    <option value="" data-i18n="filter.allVerdicts">All Verdicts</option>
                 </select>
             </div>
             <div class="filter-group">
-                <label for="filterRisk" data-i18n="filter.risk">風險等級</label>
+                <label for="filterRisk" data-i18n="filter.risk">Risk Level</label>
                 <select id="filterRisk">
-                    <option value="" data-i18n="filter.allRisks">全部等級</option>
+                    <option value="" data-i18n="filter.allRisks">All Levels</option>
                 </select>
             </div>
             <div class="filter-group">
                 <label for="filterFlagged">
-                    <input type="checkbox" id="filterFlagged"> <span data-i18n="filter.flaggedOnly">僅顯示需審查</span>
+                    <input type="checkbox" id="filterFlagged"> <span data-i18n="filter.flaggedOnly">Flagged Only</span>
                 </label>
             </div>
             <div class="filter-group search-group">
-                <input type="text" id="filterSearch" data-i18n-placeholder="filter.searchPlaceholder" placeholder="搜尋條款 / 文件...">
+                <input type="text" id="filterSearch" data-i18n-placeholder="filter.searchPlaceholder" placeholder="Search clause / document...">
             </div>
         </div>
         <div class="filters-right">
-            <button class="btn btn-outline" id="btnExportWord" title="匯出 Word">
+            <button class="btn btn-outline" id="btnExportWord" data-i18n-title="btn.exportWord" title="Export Word">
                 📄 Word
             </button>
-            <button class="btn btn-outline" id="btnExportExcel" title="匯出 Excel">
+            <button class="btn btn-outline" id="btnExportExcel" data-i18n-title="btn.exportExcel" title="Export Excel">
                 📊 Excel
             </button>
-            <button class="btn btn-accent" id="btnDeepReportWord" title="深度分析報告 Word">
-                📋 深度報告
+            <button class="btn btn-accent" id="btnDeepReportWord" data-i18n-title="btn.deepWord" title="Deep Analysis Report Word">
+                <span data-i18n="btn.deepReport">Deep Report</span>
             </button>
-            <button class="btn btn-accent" id="btnDeepReportExcel" title="深度分析報告 Excel">
-                📊 深度 Excel
+            <button class="btn btn-accent" id="btnDeepReportExcel" data-i18n-title="btn.deepExcel" title="Deep Analysis Report Excel">
+                <span data-i18n="btn.deepExcelBtn">Deep Excel</span>
             </button>
-            <button class="btn btn-primary" id="btnRefresh" title="重新整理">
-                🔄 重新整理
+            <button class="btn btn-primary" id="btnRefresh" data-i18n-title="btn.refresh" title="Refresh">
+                <span data-i18n="btn.refreshBtn">Refresh</span>
             </button>
         </div>
     </section>
@@ -217,26 +217,26 @@
     <!-- ===== Main Table ===== -->
     <section class="table-section">
         <div class="table-info">
-            <span id="tableCount">載入中...</span>
+            <span id="tableCount" data-i18n="ui.loading">Loading...</span>
         </div>
         <div class="table-container">
             <table class="report-table" id="reportTable">
                 <thead>
                     <tr>
-                        <th class="col-clause" data-i18n="table.clause">條款</th>
-                        <th class="col-doc" data-i18n="table.document">品質文件</th>
-                        <th class="col-question" data-i18n="table.question">稽核問題</th>
-                        <th class="col-pipeline" data-i18n="table.pipelineStatus">Pipeline 狀態</th>
-                        <th class="col-evidence" data-i18n="table.evidence">證據</th>
-                        <th class="col-verdict" data-i18n="table.verdict">判定</th>
-                        <th class="col-risk" data-i18n="table.risk">風險</th>
-                        <th class="col-flags" data-i18n="table.flags">標記</th>
-                        <th class="col-actions" data-i18n="table.actions">操作</th>
+                        <th class="col-clause" data-i18n="table.clause">Clause</th>
+                        <th class="col-doc" data-i18n="table.document">QMS Document</th>
+                        <th class="col-question" data-i18n="table.question">Audit Question</th>
+                        <th class="col-pipeline" data-i18n="table.pipelineStatus">Pipeline Status</th>
+                        <th class="col-evidence" data-i18n="table.evidence">Evidence</th>
+                        <th class="col-verdict" data-i18n="table.verdict">Verdict</th>
+                        <th class="col-risk" data-i18n="table.risk">Risk</th>
+                        <th class="col-flags" data-i18n="table.flags">Flags</th>
+                        <th class="col-actions" data-i18n="table.actions">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="reportTableBody">
                     <tr>
-                        <td colspan="9" class="loading-cell">載入中...</td>
+                        <td colspan="9" class="loading-cell" data-i18n="ui.loading">Loading...</td>
                     </tr>
                 </tbody>
             </table>
@@ -250,17 +250,17 @@
             <!-- Country Selector -->
             <div class="crossref-controls">
                 <div class="country-selector">
-                    <h3 data-i18n="crossref.selectCountries">🌍 選擇法規國家</h3>
+                    <h3 data-i18n="crossref.selectCountries">🌍 Select Regulatory Countries</h3>
                     <div class="country-checkboxes" id="countryCheckboxes">
                         <!-- Populated by JS -->
-                        <div class="loading-cell" data-i18n="crossref.loadingRegs">載入法規清單中...</div>
+                        <div class="loading-cell" data-i18n="crossref.loadingRegs">Loading regulation list...</div>
                     </div>
-                    <button class="btn btn-primary" id="btnLoadCrossref" data-i18n="crossref.generateTable">📊 產生交叉比對表</button>
+                    <button class="btn btn-primary" id="btnLoadCrossref" data-i18n="crossref.generateTable">📊 Generate Comparison Table</button>
                     <label class="country-check-item original-text-toggle" style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px">
                         <input type="checkbox" id="toggleOriginalText">
                         <span class="country-flag">📜</span>
                         <div>
-                            <div class="country-name" data-i18n="crossref.showOriginal">顯示法規原文</div>
+                            <div class="country-name" data-i18n="crossref.showOriginal">Show Original Regulatory Text</div>
                             <div class="country-meta">Show original regulatory text in native language</div>
                         </div>
                     </label>
@@ -268,7 +268,7 @@
                         <input type="checkbox" id="toggleMdsapVerify" checked>
                         <span class="country-flag">🛡️</span>
                         <div>
-                            <div class="country-name" data-i18n="crossref.mdsapVerify">MDSAP 交叉詰問驗證</div>
+                            <div class="country-name" data-i18n="crossref.mdsapVerify">MDSAP Cross-Examination Verification</div>
                             <div class="country-meta">Enable MDSAP cross-examination verification</div>
                         </div>
                     </label>
@@ -279,10 +279,10 @@
             <div class="upload-reminder-banner" id="uploadReminderBanner" style="display:none">
                 <div class="upload-reminder-icon">⚠️</div>
                 <div class="upload-reminder-content">
-                    <div class="upload-reminder-title" id="uploadReminderTitle" data-i18n="crossref.uploadTitle">部分國家法規原文尚未上傳</div>
+                    <div class="upload-reminder-title" id="uploadReminderTitle" data-i18n="crossref.uploadTitle">Regulatory text for some countries has not been uploaded</div>
                     <div class="upload-reminder-list" id="uploadReminderList"></div>
                 </div>
-                <button class="btn btn-outline btn-sm" id="btnDismissReminder" data-i18n="crossref.gotIt">知道了</button>
+                <button class="btn btn-outline btn-sm" id="btnDismissReminder" data-i18n="crossref.gotIt">Got it</button>
             </div>
 
             <!-- Cross-Reference Summary -->
@@ -295,10 +295,10 @@
                 <div class="table-info">
                     <span id="crossrefTableCount"></span>
                     <div class="crossref-legend">
-                        <span class="legend-item"><span class="legend-dot dot-full"></span><span data-i18n="crossref.legendFull">完全採用 (Full)</span></span>
-                        <span class="legend-item"><span class="legend-dot dot-partial"></span><span data-i18n="crossref.legendPartial">部分採用 (Partial)</span></span>
-                        <span class="legend-item"><span class="legend-dot dot-exceeds"></span><span data-i18n="crossref.legendExceeds">超越 ISO (Exceeds)</span></span>
-                        <span class="legend-item"><span class="legend-dot dot-na"></span><span data-i18n="crossref.legendNA">不適用 (N/A)</span></span>
+                        <span class="legend-item"><span class="legend-dot dot-full"></span><span data-i18n="crossref.legendFull">Full Adoption (Full)</span></span>
+                        <span class="legend-item"><span class="legend-dot dot-partial"></span><span data-i18n="crossref.legendPartial">Partial Adoption (Partial)</span></span>
+                        <span class="legend-item"><span class="legend-dot dot-exceeds"></span><span data-i18n="crossref.legendExceeds">Exceeds ISO (Exceeds)</span></span>
+                        <span class="legend-item"><span class="legend-dot dot-na"></span><span data-i18n="crossref.legendNA">Not Applicable (N/A)</span></span>
                     </div>
                 </div>
                 <div class="table-container">
@@ -315,15 +315,15 @@
 
             <!-- Inter-Country Differences -->
             <div class="intercountry-section" id="intercountrySection" style="display:none">
-                <h3 data-i18n="crossref.interCountry">🔀 國家間差異分析</h3>
-                <p class="delta-desc" data-i18n="crossref.interCountryDesc">以下顯示各國法規之間的差異 — 某國有但其他國家沒有的獨特要求。</p>
+                <h3 data-i18n="crossref.interCountry">🔀 Inter-Country Differences Analysis</h3>
+                <p class="delta-desc" data-i18n="crossref.interCountryDesc">Displays differences between national regulations — unique requirements that one country has but others do not.</p>
                 <div id="intercountryContainer"></div>
             </div>
 
             <!-- Unique Requirements (Delta Items) -->
             <div class="delta-section" id="deltaSection" style="display:none">
-                <h3 data-i18n="crossref.deltaTitle">🚨 國家獨有要求 (Delta Items) — 最高優先級</h3>
-                <p class="delta-desc" data-i18n="crossref.deltaDesc">以下為各國法規中超出 ISO 13485 的獨有要求，品質文件必須額外涵蓋這些內容。</p>
+                <h3 data-i18n="crossref.deltaTitle">🚨 Country-Specific Requirements (Delta Items) — Highest Priority</h3>
+                <p class="delta-desc" data-i18n="crossref.deltaDesc">Unique requirements from national regulations that exceed ISO 13485 — QMS documents must additionally cover these.</p>
                 <div id="deltaItemsContainer"></div>
             </div>
 
@@ -331,13 +331,13 @@
             <div class="download-bar" id="crossrefDownloadBar">
                 <div class="download-bar-row">
                     <select class="dl-type-select" id="crossrefDlTypeSelect">
-                        <option value="" data-i18n="dl.selectType">— 選擇報告類型 —</option>
-                        <option value="report" data-i18n="dl.opt.report">📊 合規分析報告</option>
-                        <option value="deep" data-i18n="dl.opt.deep">📋 深度分析報告</option>
-                        <option value="audit" data-i18n="dl.opt.audit">📝 每日稽核報告</option>
-                        <option value="meta" data-i18n="dl.opt.meta">🧠 10日總檢報告</option>
-                        <option value="quality" data-i18n="dl.opt.quality">🌟 品質分析報告</option>
-                        <option value="feedback" data-i18n="dl.opt.feedback">💬 意見紀錄</option>
+                        <option value="" data-i18n="dl.selectType">— Select Report Type —</option>
+                        <option value="report" data-i18n="dl.opt.report">📊 Compliance Analysis Report</option>
+                        <option value="deep" data-i18n="dl.opt.deep">📋 Deep Analysis Report</option>
+                        <option value="audit" data-i18n="dl.opt.audit">📝 Daily Audit Report</option>
+                        <option value="meta" data-i18n="dl.opt.meta">🧠 10-Day Meta Review</option>
+                        <option value="quality" data-i18n="dl.opt.quality">🌟 Quality Analysis Report</option>
+                        <option value="feedback" data-i18n="dl.opt.feedback">💬 Feedback Records</option>
                     </select>
                     <button class="btn btn-outline" id="crossrefDlWord" disabled>📄 Word</button>
                     <button class="btn btn-outline" id="crossrefDlExcel" disabled>📊 Excel</button>
@@ -350,96 +350,96 @@
                 <div class="command-bar-top">
                     <div class="command-feedback-history" id="crossrefFeedbackHistory" style="display:none">
                         <div class="feedback-history-header">
-                            <h4 data-i18n="cmd.feedbackRecords">📝 意見紀錄</h4>
-                            <button class="btn btn-sm btn-outline" id="closeCrossrefFeedback" data-i18n="cmd.close">✕ 關閉</button>
+                            <h4 data-i18n="cmd.feedbackRecords">📝 Feedback Records</h4>
+                            <button class="btn btn-sm btn-outline" id="closeCrossrefFeedback" data-i18n="cmd.close">✕ Close</button>
                         </div>
                         <div class="feedback-history-list" id="crossrefFeedbackList">
-                            <div class="empty-state-text">載入中...</div>
+                            <div class="empty-state-text" data-i18n="ui.loading">Loading...</div>
                         </div>
                     </div>
                     <div class="command-help-popup" id="crossrefHelpPopup" style="display:none">
                         <div class="help-popup-header">
-                            <h4 data-i18n="cmd.helpTitle">📖 使用說明與範例</h4>
-                            <button class="btn btn-sm btn-outline" id="closeCrossrefHelp" data-i18n="cmd.close">✕ 關閉</button>
+                            <h4 data-i18n="cmd.helpTitle">📖 Usage Guide &amp; Examples</h4>
+                            <button class="btn btn-sm btn-outline" id="closeCrossrefHelp" data-i18n="cmd.close">✕ Close</button>
                         </div>
                         <div class="help-popup-body">
                             <!-- 下載報告 -->
                             <div class="help-category">
-                                <div class="help-category-title">📥 下載報告</div>
-                                <div class="help-category-desc" data-i18n="help.cr.new.dlDesc">在輸入框輸入指令即可下載，格式：<code>/download 類型 格式</code></div>
+                                <div class="help-category-title" data-i18n="help.dlTitle">Download Reports</div>
+                                <div class="help-category-desc" data-i18n="help.cr.new.dlDesc">Enter a command in the input box to download, format: <code>/download type format</code></div>
                                 <div class="help-dl-grid">
-                                    <span class="help-dl-label">📜 每日稽核報告</span>
+                                    <span class="help-dl-label" data-i18n="help.dlAudit">Daily Audit Report</span>
                                     <span class="help-dl-btn">Word</span><span class="help-dl-btn">Excel</span>
-                                    <span class="help-dl-label">🧠 10日總檢報告</span>
+                                    <span class="help-dl-label" data-i18n="help.dlMeta">10-Day Meta Review</span>
                                     <span class="help-dl-btn">Word</span><span class="help-dl-btn">Excel</span>
-                                    <span class="help-dl-label">📄 合規分析報告</span>
+                                    <span class="help-dl-label" data-i18n="help.dlCompliance">Compliance Report</span>
                                     <span class="help-dl-btn">Word</span><span class="help-dl-btn">Excel</span>
-                                    <span class="help-dl-label">📋 深度分析報告</span>
+                                    <span class="help-dl-label" data-i18n="help.dlDeep">Deep Analysis Report</span>
                                     <span class="help-dl-btn">Word</span><span class="help-dl-btn">Excel</span>
                                 </div>
                                 <div class="help-example-card" style="margin-top:10px">
                                     <div class="help-example-input">
-                                        <span class="label" data-i18n="help.cr.new.exampleLabel">範例：</span>
+                                        <span class="label" data-i18n="help.cr.new.exampleLabel">Example:</span>
                                         <code>/download audit word</code>
                                     </div>
                                     <div class="help-example-effect">
                                         <span class="arrow">→</span>
-                                        <span data-i18n="help.cr.new.dlExample">下載最新的每日稽核報告（Word 格式）</span>
+                                        <span data-i18n="help.cr.new.dlExample">Download the latest daily audit report (Word format)</span>
                                     </div>
                                 </div>
                             </div>
 
                             <!-- 提供意見 -->
                             <div class="help-category">
-                                <div class="help-category-title" data-i18n="help.cr.new.fbTitle">💬 提供意見</div>
-                                <div class="help-category-desc" data-i18n="help.cr.new.fbDesc">提交意見後，系統會自動重新執行稽核評分</div>
+                                <div class="help-category-title" data-i18n="help.cr.new.fbTitle">💬 Submit Feedback</div>
+                                <div class="help-category-desc" data-i18n="help.cr.new.fbDesc">After submitting feedback, the system will automatically re-run audit scoring</div>
                                 <div class="help-example-card">
                                     <div class="help-example-input">
-                                        <span class="label" data-i18n="help.cr.new.exampleLabel">範例：</span>
-                                        <code>/feedback daily "Dim A 分數偏低，法規引用需更精確"</code>
+                                        <span class="label" data-i18n="help.cr.new.exampleLabel">Example:</span>
+                                        <code>/feedback daily "Dim A score is low, regulatory references need improvement"</code>
                                     </div>
                                     <div class="help-example-effect">
                                         <span class="arrow">→</span>
-                                        <span data-i18n="help.cr.new.fbDailyEffect">記錄意見並自動重新執行每日稽核評分</span>
+                                        <span data-i18n="help.cr.new.fbDailyEffect">Records feedback and automatically re-runs daily audit scoring</span>
                                     </div>
                                 </div>
                                 <div class="help-example-card">
                                     <div class="help-example-input">
-                                        <span class="label" data-i18n="help.cr.new.exampleLabel">範例：</span>
-                                        <code>/feedback meta "建議加強交叉詰問的深度"</code>
+                                        <span class="label" data-i18n="help.cr.new.exampleLabel">Example:</span>
+                                        <code>/feedback meta "Suggest deepening cross-examination"</code>
                                     </div>
                                     <div class="help-example-effect">
                                         <span class="arrow">→</span>
-                                        <span data-i18n="help.cr.new.fbMetaEffect">記錄意見到 10日總檢報告</span>
+                                        <span data-i18n="help.cr.new.fbMetaEffect">Records feedback to the 10-day meta review report</span>
                                     </div>
                                 </div>
                                 <div class="help-example-card">
                                     <div class="help-example-input">
-                                        <span class="label" data-i18n="help.cr.new.exampleLabel">範例：</span>
+                                        <span class="label" data-i18n="help.cr.new.exampleLabel">Example:</span>
                                         <code>/feedback history</code>
                                     </div>
                                     <div class="help-example-effect">
                                         <span class="arrow">→</span>
-                                        <span data-i18n="help.cr.new.fbHistoryEffect">查看、編輯或刪除過去提交的意見</span>
+                                        <span data-i18n="help.cr.new.fbHistoryEffect">View, edit or delete previously submitted feedback</span>
                                     </div>
                                 </div>
                             </div>
 
                             <!-- 快速操作 -->
                             <div class="help-category">
-                                <div class="help-category-title" data-i18n="help.cr.new.opsTitle">▶️ 快速操作</div>
+                                <div class="help-category-title" data-i18n="help.cr.new.opsTitle">▶️ Quick Actions</div>
                                 <div class="help-quick-grid">
-                                    <div class="help-quick-item"><code>/run audit</code> <span data-i18n="help.cr.new.opAudit">執行每日稽核</span></div>
-                                    <div class="help-quick-item"><code>/run meta</code> <span data-i18n="help.cr.new.opMeta">執行 10日總檢</span></div>
-                                    <div class="help-quick-item"><code>/downloads</code> <span data-i18n="help.cr.new.opDownloads">打開下載目錄</span></div>
-                                    <div class="help-quick-item"><code>/help</code> <span data-i18n="help.cr.new.opHelp">顯示此說明</span></div>
+                                    <div class="help-quick-item"><code>/run audit</code> <span data-i18n="help.cr.new.opAudit">Run Daily Audit</span></div>
+                                    <div class="help-quick-item"><code>/run meta</code> <span data-i18n="help.cr.new.opMeta">Run 10-Day Meta Review</span></div>
+                                    <div class="help-quick-item"><code>/downloads</code> <span data-i18n="help.cr.new.opDownloads">Open Downloads Folder</span></div>
+                                    <div class="help-quick-item"><code>/help</code> <span data-i18n="help.cr.new.opHelp">Show This Guide</span></div>
                                 </div>
                             </div>
                     </div>
                     <div class="download-catalog-popup" id="crossrefDownloadCatalog" style="display:none">
                         <div class="download-catalog-header">
-                            <h4 data-i18n="cmd.downloadCatalogTitle">📥 可下載資料目錄</h4>
-                            <button class="btn btn-sm btn-outline" id="closeCrossrefDownloads" data-i18n="cmd.close">✕ 關閉</button>
+                            <h4 data-i18n="cmd.downloadCatalogTitle">📥 Available Download Catalog</h4>
+                            <button class="btn btn-sm btn-outline" id="closeCrossrefDownloads" data-i18n="cmd.close">✕ Close</button>
                         </div>
                         <div class="download-catalog-body" id="crossrefDownloadList">
                             <!-- Populated by JS -->
@@ -448,18 +448,18 @@
                 </div>
                 <div class="command-bar-input">
                     <select class="cmd-action-select" id="crossrefActionSelect">
-                        <option value="" data-i18n="cmd.selectAction">— 選擇操作 —</option>
-                        <option value="download" data-i18n="cmd.opt.download">📥 下載報告</option>
-                        <option value="feedback" data-i18n="cmd.opt.feedback">💬 提供意見</option>
-                        <option value="feedback_history" data-i18n="cmd.opt.feedbackHistory">📝 查看意見紀錄</option>
-                        <option value="run" data-i18n="cmd.opt.run">▶️ 執行稽核/總檢</option>
-                        <option value="downloads" data-i18n="cmd.opt.downloads">📂 打開下載目錄</option>
+                        <option value="" data-i18n="cmd.selectAction">— Select Action —</option>
+                        <option value="download" data-i18n="cmd.opt.download">📥 Download Report</option>
+                        <option value="feedback" data-i18n="cmd.opt.feedback">💬 Submit Feedback</option>
+                        <option value="feedback_history" data-i18n="cmd.opt.feedbackHistory">📝 View Feedback Records</option>
+                        <option value="run" data-i18n="cmd.opt.run">▶️ Run Audit/Meta Review</option>
+                        <option value="downloads" data-i18n="cmd.opt.downloads">📂 Open Downloads Folder</option>
                     </select>
                     <input type="text" id="crossrefCommandInput" class="command-input"
-                           data-i18n-placeholder="cmd.inputPlaceholder" placeholder="輸入指令或意見... (輸入 /help 查看所有指令)">
-                    <button class="btn btn-icon" id="btnCrossrefHelp" data-i18n-title="cmd.helpBtn" title="使用說明">❓</button>
-                    <button class="btn btn-icon" id="btnCrossrefDownloads" data-i18n-title="cmd.downloadBtn" title="下載目錄">📥</button>
-                    <button class="btn btn-primary" id="btnCrossrefSend" data-i18n="cmd.send">發送</button>
+                           data-i18n-placeholder="cmd.inputPlaceholder" placeholder="Enter command or feedback... (type /help for all commands)">
+                    <button class="btn btn-icon" id="btnCrossrefHelp" data-i18n-title="cmd.helpBtn" title="Usage Guide">❓</button>
+                    <button class="btn btn-icon" id="btnCrossrefDownloads" data-i18n-title="cmd.downloadBtn" title="Download Catalog">📥</button>
+                    <button class="btn btn-primary" id="btnCrossrefSend" data-i18n="cmd.send">Send</button>
                 </div>
                 <div class="cmd-inline-help" id="crossrefInlineHelp" style="display:none"></div>
             </div>
@@ -473,33 +473,33 @@
             <!-- Cross-Examination Controls -->
             <div class="crossexam-controls">
                 <div class="crossexam-info">
-                    <h3 data-i18n="crossexam.title">💬 即時 LLM 互動查看器</h3>
-                    <p data-i18n="crossexam.desc">觀看所有 Phase 的 LLM 互動過程（Gap Scan、驗證、改善建議、交叉詰問），必要時可介入修正。</p>
+                    <h3 data-i18n="crossexam.title">💬 Real-Time LLM Interaction Viewer</h3>
+                    <p data-i18n="crossexam.desc">Watch all Phase LLM interactions (Gap Scan, Verification, Remediation, Cross-Examination) and intervene when necessary.</p>
                 </div>
                 <div class="crossexam-actions">
-                    <span class="crossexam-status" id="crossexamStatus" data-i18n="crossexam.notConnected">⏹ 未連線</span>
-                    <button class="btn btn-primary" id="btnConnectSSE" data-i18n="crossexam.connect">🔌 連線</button>
-                    <button class="btn btn-outline" id="btnPauseExam" disabled data-i18n="crossexam.pause">⏸ 暫停</button>
-                    <button class="btn btn-outline" id="btnResumeExam" disabled data-i18n="crossexam.resume" data-i18n-title="crossexam.resumeTitle" title="繼續進行交叉詰問分析">▶️ 繼續</button>
+                    <span class="crossexam-status" id="crossexamStatus" data-i18n="crossexam.notConnected">⏹ Not Connected</span>
+                    <button class="btn btn-primary" id="btnConnectSSE" data-i18n="crossexam.connect">🔌 Connect</button>
+                    <button class="btn btn-outline" id="btnPauseExam" disabled data-i18n="crossexam.pause">⏸ Pause</button>
+                    <button class="btn btn-outline" id="btnResumeExam" disabled data-i18n="crossexam.resume" data-i18n-title="crossexam.resumeTitle" title="Resume cross-examination analysis">▶️ Resume</button>
                 </div>
             </div>
 
             <!-- Phase Filter Bar -->
             <div class="phase-filter-bar" id="phaseFilterBar">
-                <button class="phase-filter-btn active" data-phase="all" data-i18n="crossexam.phaseAll">全部</button>
+                <button class="phase-filter-btn active" data-phase="all" data-i18n="crossexam.phaseAll">All</button>
                 <button class="phase-filter-btn" data-phase="1"><span class="phase-badge phase-1">P1</span> Gap Scan</button>
-                <button class="phase-filter-btn" data-phase="2"><span class="phase-badge phase-2">P2</span> <span data-i18n="crossexam.phaseVerify">驗證</span></button>
-                <button class="phase-filter-btn" data-phase="3"><span class="phase-badge phase-3">P3</span> <span data-i18n="crossexam.phaseRisk">風險評估</span></button>
-                <button class="phase-filter-btn" data-phase="4"><span class="phase-badge phase-4">P4</span> <span data-i18n="crossexam.phaseImprove">改善建議</span></button>
-                <button class="phase-filter-btn" data-phase="5"><span class="phase-badge phase-5">P5</span> <span data-i18n="crossexam.phaseCrossExam">交叉詰問</span></button>
+                <button class="phase-filter-btn" data-phase="2"><span class="phase-badge phase-2">P2</span> <span data-i18n="crossexam.phaseVerify">Verification</span></button>
+                <button class="phase-filter-btn" data-phase="3"><span class="phase-badge phase-3">P3</span> <span data-i18n="crossexam.phaseRisk">Risk Assessment</span></button>
+                <button class="phase-filter-btn" data-phase="4"><span class="phase-badge phase-4">P4</span> <span data-i18n="crossexam.phaseImprove">Remediation</span></button>
+                <button class="phase-filter-btn" data-phase="5"><span class="phase-badge phase-5">P5</span> <span data-i18n="crossexam.phaseCrossExam">Cross-Examination</span></button>
             </div>
 
             <!-- Run ID Input for SSE connection -->
             <div class="crossexam-connect" id="crossexamConnect">
                 <div class="form-group" style="margin-bottom:0;display:flex;gap:8px;align-items:center">
-                    <label style="white-space:nowrap;margin-bottom:0" data-i18n="crossexam.runIdLabel">分析 Run ID：</label>
+                    <label style="white-space:nowrap;margin-bottom:0" data-i18n="crossexam.runIdLabel">Analysis Run ID:</label>
                     <input type="text" id="sseRunIdInput" class="form-select" style="flex:1;max-width:400px"
-                           data-i18n-placeholder="crossexam.runIdPlaceholder" placeholder="輸入 Run ID 或使用目前的 Run ID">
+                           data-i18n-placeholder="crossexam.runIdPlaceholder" placeholder="Enter Run ID or use current Run ID">
                 </div>
             </div>
 
@@ -507,7 +507,7 @@
             <div class="crossexam-feed" id="crossexamFeed">
                 <div class="crossexam-empty">
                     <div class="empty-state-icon">💬</div>
-                    <div class="empty-state-text" data-i18n="crossexam.emptyFeed">連線後將顯示即時交叉詰問內容</div>
+                    <div class="empty-state-text" data-i18n="crossexam.emptyFeed">Real-time cross-examination content will appear after connecting</div>
                 </div>
             </div>
 
@@ -515,14 +515,14 @@
             <div class="download-bar" id="crossexamDownloadBar">
                 <div class="download-bar-row">
                     <select class="dl-type-select" id="crossexamDlTypeSelect">
-                        <option value="" data-i18n="dl.selectType">— 選擇報告類型 —</option>
-                        <option value="report" data-i18n="dl.opt.report">📊 合規分析報告</option>
-                        <option value="deep" data-i18n="dl.opt.deep">📋 深度分析報告</option>
-                        <option value="crossexam" data-i18n="dl.opt.crossexam">💬 交叉詰問記錄</option>
-                        <option value="audit" data-i18n="dl.opt.audit">📝 每日稽核報告</option>
-                        <option value="meta" data-i18n="dl.opt.meta">🧠 10日總檢報告</option>
-                        <option value="quality" data-i18n="dl.opt.quality">🌟 品質分析報告</option>
-                        <option value="feedback" data-i18n="dl.opt.feedback">💬 意見紀錄</option>
+                        <option value="" data-i18n="dl.selectType">— Select Report Type —</option>
+                        <option value="report" data-i18n="dl.opt.report">📊 Compliance Analysis Report</option>
+                        <option value="deep" data-i18n="dl.opt.deep">📋 Deep Analysis Report</option>
+                        <option value="crossexam" data-i18n="dl.opt.crossexam">💬 Cross-Examination Records</option>
+                        <option value="audit" data-i18n="dl.opt.audit">📝 Daily Audit Report</option>
+                        <option value="meta" data-i18n="dl.opt.meta">🧠 10-Day Meta Review</option>
+                        <option value="quality" data-i18n="dl.opt.quality">🌟 Quality Analysis Report</option>
+                        <option value="feedback" data-i18n="dl.opt.feedback">💬 Feedback Records</option>
                     </select>
                     <button class="btn btn-outline" id="crossexamDlWord" disabled>📄 Word</button>
                     <button class="btn btn-outline" id="crossexamDlExcel" disabled>📊 Excel</button>
@@ -535,103 +535,103 @@
                 <div class="command-bar-top">
                     <div class="command-feedback-history" id="crossexamFeedbackHistory" style="display:none">
                         <div class="feedback-history-header">
-                            <h4 data-i18n="cmd.feedbackRecords">📝 意見紀錄</h4>
-                            <button class="btn btn-sm btn-outline" id="closeCrossexamFeedback" data-i18n="cmd.close">✕ 關閉</button>
+                            <h4 data-i18n="cmd.feedbackRecords">📝 Feedback Records</h4>
+                            <button class="btn btn-sm btn-outline" id="closeCrossexamFeedback" data-i18n="cmd.close">✕ Close</button>
                         </div>
                         <div class="feedback-history-list" id="crossexamFeedbackList">
-                            <div class="empty-state-text">載入中...</div>
+                            <div class="empty-state-text" data-i18n="ui.loading">Loading...</div>
                         </div>
                     </div>
                     <div class="command-help-popup" id="crossexamHelpPopup" style="display:none">
                         <div class="help-popup-header">
-                            <h4 data-i18n="cmd.helpTitle">📖 使用說明與範例</h4>
-                            <button class="btn btn-sm btn-outline" id="closeCrossexamHelp" data-i18n="cmd.close">✕ 關閉</button>
+                            <h4 data-i18n="cmd.helpTitle">📖 Usage Guide &amp; Examples</h4>
+                            <button class="btn btn-sm btn-outline" id="closeCrossexamHelp" data-i18n="cmd.close">✕ Close</button>
                         </div>
                         <div class="help-popup-body">
                             <!-- 人工介入 -->
                             <div class="help-category">
-                                <div class="help-category-title">🙋 人工介入（最重要的功能！）</div>
-                                <div class="help-category-desc" data-i18n="help.ce.new.intDesc">直接在輸入框打字，就能介入 LLM 的對話。不需要任何特殊格式。</div>
-                                <div class="help-category-desc" data-i18n="help.ce.new.intWhen" style="margin-top:-4px;font-weight:600">什麼時候該介入？</div>
+                                <div class="help-category-title" data-i18n="help.humanTitle">Human Intervention (Most Important!)</div>
+                                <div class="help-category-desc" data-i18n="help.ce.new.intDesc">Type directly in the input box to intervene in the LLM conversation. No special format required.</div>
+                                <div class="help-category-desc" data-i18n="help.ce.new.intWhen" style="margin-top:-4px;font-weight:600">When should you intervene?</div>
                                 <ul class="help-scenario">
-                                    <li data-i18n="help.ce.new.intCase1">LLM 問錯方向 → 輸入「你應該問的是管理審查的頻率，不是內容」</li>
-                                    <li data-i18n="help.ce.new.intCase2">要補充資訊 → 輸入「我們的 SOP-001 第 5.2 節有規定這個流程」</li>
-                                    <li data-i18n="help.ce.new.intCase3">要修正判斷 → 輸入「這條應該是 partial compliance，因為...」</li>
+                                    <li data-i18n="help.ce.new.intCase1">LLM asks the wrong direction → type "You should be asking about the frequency of management reviews, not the content"</li>
+                                    <li data-i18n="help.ce.new.intCase2">Need to add information → type "Our SOP-001 section 5.2 defines this process"</li>
+                                    <li data-i18n="help.ce.new.intCase3">Need to correct a judgment → type "This should be partial compliance, because..."</li>
                                 </ul>
                             </div>
 
                             <!-- 下載記錄 -->
                             <div class="help-category">
-                                <div class="help-category-title">📥 下載記錄</div>
-                                <div class="help-category-desc" data-i18n="help.ce.new.dlDesc">在輸入框輸入指令即可下載，格式：<code>/download 類型 格式</code></div>
+                                <div class="help-category-title" data-i18n="help.dlRecordsTitle">Download Records</div>
+                                <div class="help-category-desc" data-i18n="help.ce.new.dlDesc">Enter a command in the input box to download, format: <code>/download type format</code></div>
                                 <div class="help-dl-grid">
-                                    <span class="help-dl-label">💬 交叉詰問記錄</span>
+                                    <span class="help-dl-label" data-i18n="help.dlCrossexam">Cross-Examination Records</span>
                                     <span class="help-dl-btn">Word</span><span class="help-dl-btn">Excel</span>
-                                    <span class="help-dl-label">🧠 品質分析報告</span>
+                                    <span class="help-dl-label" data-i18n="help.dlQuality">Quality Analysis Report</span>
                                     <span class="help-dl-btn">Word</span><span class="help-dl-btn">Excel</span>
                                 </div>
                                 <div class="help-example-card" style="margin-top:10px">
                                     <div class="help-example-input">
-                                        <span class="label" data-i18n="help.ce.new.exampleLabel">範例：</span>
+                                        <span class="label" data-i18n="help.ce.new.exampleLabel">Example:</span>
                                         <code>/download crossexam word</code>
                                     </div>
                                     <div class="help-example-effect">
                                         <span class="arrow">→</span>
-                                        <span data-i18n="help.ce.new.dlExample">下載交叉詰問記錄（Word 格式）</span>
+                                        <span data-i18n="help.ce.new.dlExample">Download cross-examination records (Word format)</span>
                                     </div>
                                 </div>
                             </div>
 
                             <!-- 提供意見 -->
                             <div class="help-category">
-                                <div class="help-category-title" data-i18n="help.ce.new.fbTitle">💬 提供意見</div>
-                                <div class="help-category-desc" data-i18n="help.ce.new.fbDesc">提交意見後，系統會自動重新執行稽核評分</div>
+                                <div class="help-category-title" data-i18n="help.ce.new.fbTitle">💬 Submit Feedback</div>
+                                <div class="help-category-desc" data-i18n="help.ce.new.fbDesc">After submitting feedback, the system will automatically re-run audit scoring</div>
                                 <div class="help-example-card">
                                     <div class="help-example-input">
-                                        <span class="label" data-i18n="help.ce.new.exampleLabel">範例：</span>
-                                        <code>/feedback daily "建議加強證據引用的精確度"</code>
+                                        <span class="label" data-i18n="help.ce.new.exampleLabel">Example:</span>
+                                        <code>/feedback daily "Suggest improving evidence citation accuracy"</code>
                                     </div>
                                     <div class="help-example-effect">
                                         <span class="arrow">→</span>
-                                        <span data-i18n="help.ce.new.fbDailyEffect">記錄意見並自動重新執行每日稽核評分</span>
+                                        <span data-i18n="help.ce.new.fbDailyEffect">Records feedback and automatically re-runs daily audit scoring</span>
                                     </div>
                                 </div>
                                 <div class="help-example-card">
                                     <div class="help-example-input">
-                                        <span class="label" data-i18n="help.ce.new.exampleLabel">範例：</span>
+                                        <span class="label" data-i18n="help.ce.new.exampleLabel">Example:</span>
                                         <code>/feedback history</code>
                                     </div>
                                     <div class="help-example-effect">
                                         <span class="arrow">→</span>
-                                        <span data-i18n="help.ce.new.fbHistoryEffect">查看、編輯或刪除過去提交的意見</span>
+                                        <span data-i18n="help.ce.new.fbHistoryEffect">View, edit or delete previously submitted feedback</span>
                                     </div>
                                 </div>
                             </div>
 
                             <!-- 進階設定 -->
                             <div class="help-category">
-                                <div class="help-category-title" data-i18n="help.ce.new.advTitle">🔧 進階設定</div>
+                                <div class="help-category-title" data-i18n="help.ce.new.advTitle">🔧 Advanced Settings</div>
                                 <div class="help-example-card">
-                                    <div class="help-category-desc" data-i18n="help.ce.new.adjustDesc" style="margin-bottom:6px">調整補充標準的條款對應關係：</div>
+                                    <div class="help-category-desc" data-i18n="help.ce.new.adjustDesc" style="margin-bottom:6px">Adjust clause mapping for supplemental standards:</div>
                                     <div class="help-example-input">
-                                        <span class="label" data-i18n="help.ce.new.exampleLabel">範例：</span>
-                                        <code>/adjust ISO_14971 "風險管理流程" 7.1 -> 7.3.3</code>
+                                        <span class="label" data-i18n="help.ce.new.exampleLabel">Example:</span>
+                                        <code>/adjust ISO_14971 "Risk Management Process" 7.1 -> 7.3.3</code>
                                     </div>
                                     <div class="help-example-effect">
                                         <span class="arrow">→</span>
-                                        <span data-i18n="help.ce.new.adjustEffect">將 ISO 14971 的「風險管理流程」從對應 7.1 改為 7.3.3</span>
+                                        <span data-i18n="help.ce.new.adjustEffect">Change ISO 14971 "Risk Management Process" mapping from 7.1 to 7.3.3</span>
                                     </div>
                                 </div>
                                 <div class="help-quick-grid" style="margin-top:8px">
-                                    <div class="help-quick-item"><code>/standards</code> <span data-i18n="help.ce.new.opStandards">查看所有標準對應</span></div>
-                                    <div class="help-quick-item"><code>/downloads</code> <span data-i18n="help.ce.new.opDownloads">打開下載目錄</span></div>
+                                    <div class="help-quick-item"><code>/standards</code> <span data-i18n="help.ce.new.opStandards">View all standard mappings</span></div>
+                                    <div class="help-quick-item"><code>/downloads</code> <span data-i18n="help.ce.new.opDownloads">Open Downloads Folder</span></div>
                                 </div>
                             </div>
                     </div>
                     <div class="download-catalog-popup" id="crossexamDownloadCatalog" style="display:none">
                         <div class="download-catalog-header">
-                            <h4 data-i18n="cmd.downloadCatalogTitle">📥 可下載資料目錄</h4>
-                            <button class="btn btn-sm btn-outline" id="closeCrossexamDownloads" data-i18n="cmd.close">✕ 關閉</button>
+                            <h4 data-i18n="cmd.downloadCatalogTitle">📥 Available Download Catalog</h4>
+                            <button class="btn btn-sm btn-outline" id="closeCrossexamDownloads" data-i18n="cmd.close">✕ Close</button>
                         </div>
                         <div class="download-catalog-body" id="crossexamDownloadList">
                             <!-- Populated by JS -->
@@ -640,22 +640,22 @@
                 </div>
                 <div class="command-bar-input">
                     <select class="cmd-action-select" id="crossexamActionSelect">
-                        <option value="" data-i18n="cmd.selectAction">— 選擇操作 —</option>
-                        <option value="inject" data-i18n="cmd.opt.inject">🙋 人工介入</option>
-                        <option value="download" data-i18n="cmd.opt.download">📥 下載報告</option>
-                        <option value="feedback" data-i18n="cmd.opt.feedback">💬 提供意見</option>
-                        <option value="feedback_history" data-i18n="cmd.opt.feedbackHistory">📝 查看意見紀錄</option>
-                        <option value="run" data-i18n="cmd.opt.run">▶️ 執行稽核/總檢</option>
-                        <option value="downloads" data-i18n="cmd.opt.downloads">📂 打開下載目錄</option>
-                        <option value="adjust" data-i18n="cmd.opt.adjust">🔧 調整條款對應</option>
-                        <option value="standards" data-i18n="cmd.opt.standards">📜 列出補充標準</option>
+                        <option value="" data-i18n="cmd.selectAction">— Select Action —</option>
+                        <option value="inject" data-i18n="cmd.opt.inject">🙋 Human Intervention</option>
+                        <option value="download" data-i18n="cmd.opt.download">📥 Download Report</option>
+                        <option value="feedback" data-i18n="cmd.opt.feedback">💬 Submit Feedback</option>
+                        <option value="feedback_history" data-i18n="cmd.opt.feedbackHistory">📝 View Feedback Records</option>
+                        <option value="run" data-i18n="cmd.opt.run">▶️ Run Audit/Meta Review</option>
+                        <option value="downloads" data-i18n="cmd.opt.downloads">📂 Open Downloads Folder</option>
+                        <option value="adjust" data-i18n="cmd.opt.adjust">🔧 Adjust Clause Mapping</option>
+                        <option value="standards" data-i18n="cmd.opt.standards">📜 List Supplemental Standards</option>
                     </select>
                     <input type="text" id="humanMessageInput" class="command-input" style="flex:1"
-                           data-i18n-placeholder="crossexam.inputPlaceholder" placeholder="輸入介入訊息或指令... (輸入 /help 查看所有指令)" disabled>
-                    <button class="btn btn-icon" id="btnCrossexamHelp" data-i18n-title="cmd.helpBtn" title="使用說明">❓</button>
-                    <button class="btn btn-icon" id="btnCrossexamDownloads" data-i18n-title="cmd.downloadBtn" title="下載目錄">📥</button>
+                           data-i18n-placeholder="crossexam.inputPlaceholder" placeholder="Enter intervention message or command... (type /help for all commands)" disabled>
+                    <button class="btn btn-icon" id="btnCrossexamHelp" data-i18n-title="cmd.helpBtn" title="Usage Guide">❓</button>
+                    <button class="btn btn-icon" id="btnCrossexamDownloads" data-i18n-title="cmd.downloadBtn" title="Download Catalog">📥</button>
                     <button class="btn btn-primary" id="btnSendHuman" disabled data-i18n="cmd.send">
-                        發送
+                        Send
                     </button>
                 </div>
                 <div class="cmd-inline-help" id="crossexamInlineHelp" style="display:none"></div>
@@ -668,13 +668,13 @@
         <section class="history-section">
             <div class="history-controls">
                 <div class="history-info">
-                    <h3 data-i18n="history.title">📜 交叉詰問歷史記錄</h3>
-                    <p data-i18n="history.desc">查看所有的交叉詰問歷史記錄，每筆記錄都可以單獨下載。當記錄達 10 筆時，可啟動品質分析。</p>
+                    <h3 data-i18n="history.title">📜 Cross-Examination History</h3>
+                    <p data-i18n="history.desc">View all cross-examination history records, each downloadable individually. When records reach 10, quality analysis can be launched.</p>
                 </div>
                 <div class="history-actions">
-                    <span class="history-count" id="historyCount" data-i18n="history.count">0 筆記錄</span>
-                    <button class="btn btn-primary" id="btnLoadHistory" data-i18n="history.load">🔄 載入歷史</button>
-                    <button class="btn btn-accent" id="btnRunMetaAnalysis" disabled data-i18n-title="history.qualityNeed10" title="需要10筆以上記錄" data-i18n="history.qualityAnalysis">🧠 品質分析</button>
+                    <span class="history-count" id="historyCount" data-i18n="history.count">0 Records</span>
+                    <button class="btn btn-primary" id="btnLoadHistory" data-i18n="history.load">🔄 Load History</button>
+                    <button class="btn btn-accent" id="btnRunMetaAnalysis" disabled data-i18n-title="history.qualityNeed10" title="Requires 10+ records" data-i18n="history.qualityAnalysis">🧠 Quality Analysis</button>
                 </div>
             </div>
 
@@ -682,17 +682,17 @@
             <div class="history-list" id="historyList">
                 <div class="empty-state">
                     <div class="empty-state-icon">📜</div>
-                    <div class="empty-state-text" data-i18n="history.empty">點擊「載入歷史」查看交叉詰問記錄</div>
+                    <div class="empty-state-text" data-i18n="history.empty">Click "Load History" to view cross-examination records</div>
                 </div>
             </div>
 
             <!-- Meta-Analysis Results -->
             <div class="meta-analysis-section" id="metaAnalysisSection" style="display:none">
-                <h3 data-i18n="history.metaTitle">🧠 交叉詰問品質分析</h3>
+                <h3 data-i18n="history.metaTitle">🧠 Cross-Examination Quality Analysis</h3>
                 <div class="meta-analysis-content" id="metaAnalysisContent"></div>
                 <div class="meta-analysis-actions">
-                    <button class="btn btn-outline" id="btnExportMetaWord" data-i18n="history.exportMetaWord">📄 匯出品質分析 Word</button>
-                    <button class="btn btn-outline" id="btnExportMetaExcel" data-i18n="history.exportMetaExcel">📊 匯出品質分析 Excel</button>
+                    <button class="btn btn-outline" id="btnExportMetaWord" data-i18n="history.exportMetaWord">📄 Export Quality Analysis Word</button>
+                    <button class="btn btn-outline" id="btnExportMetaExcel" data-i18n="history.exportMetaExcel">📊 Export Quality Analysis Excel</button>
                 </div>
             </div>
         </section>
@@ -705,23 +705,23 @@
             <div class="upload-reminder-banner deviation-alert-banner" id="deviationAlertBanner" style="display:none">
                 <div class="upload-reminder-icon">⚠️</div>
                 <div class="upload-reminder-content">
-                    <div class="upload-reminder-title" id="deviationAlertTitle" data-i18n="audit.deviationTitle">稽核分數差異警告</div>
+                    <div class="upload-reminder-title" id="deviationAlertTitle" data-i18n="audit.deviationTitle">Audit Score Deviation Warning</div>
                     <div class="upload-reminder-list" id="deviationAlertDetails"></div>
                 </div>
-                <button class="btn btn-outline btn-sm" id="btnDismissDeviation" data-i18n="crossref.gotIt">知道了</button>
+                <button class="btn btn-outline btn-sm" id="btnDismissDeviation" data-i18n="crossref.gotIt">Got it</button>
             </div>
 
             <!-- Daily Audit Controls -->
             <div class="daily-audit-controls">
                 <div class="daily-audit-info">
-                    <h3 data-i18n="audit.title">🔍 每日稽核評分</h3>
-                    <p data-i18n="audit.desc">第三方 LLM 每日對交叉詰問結果進行評分，包含法規準確度（Dim A）與交叉詰問品質（Dim B）兩個維度。每 10 天進行總檢。</p>
+                    <h3 data-i18n="audit.title">🔍 Daily Audit Score</h3>
+                    <p data-i18n="audit.desc">Third-party LLM scores cross-examination results daily across two dimensions: Regulatory Accuracy (Dim A) and Cross-Examination Quality (Dim B). Meta-review every 10 days.</p>
                 </div>
                 <div class="daily-audit-actions">
-                    <span class="daily-audit-count" id="dailyAuditCount" data-i18n="audit.count">0 筆紀錄</span>
-                    <button class="btn btn-primary" id="btnRunDailyAudit" data-i18n="audit.run" data-i18n-title="audit.runTitle" title="立即執行每日稽核評分，包含 MDSAP 法規準確性與交叉詰問品質兩個維度">▶️ 執行每日稽核</button>
-                    <button class="btn btn-accent" id="btnRunMetaReview" disabled data-i18n-title="audit.metaNeed10" title="需要 10 筆以上紀錄" data-i18n="audit.metaReview">🧠 10日總檢</button>
-                    <button class="btn btn-outline" id="btnLoadAuditHistory" data-i18n="audit.loadHistory">🔄 載入歷史</button>
+                    <span class="daily-audit-count" id="dailyAuditCount" data-i18n="audit.count">0 Records</span>
+                    <button class="btn btn-primary" id="btnRunDailyAudit" data-i18n="audit.run" data-i18n-title="audit.runTitle" title="Run daily audit scoring now, covering MDSAP regulatory accuracy and cross-examination quality">▶️ Run Daily Audit</button>
+                    <button class="btn btn-accent" id="btnRunMetaReview" disabled data-i18n-title="audit.metaNeed10" title="Requires 10+ records" data-i18n="audit.metaReview">🧠 10-Day Meta Review</button>
+                    <button class="btn btn-outline" id="btnLoadAuditHistory" data-i18n="audit.loadHistory">🔄 Load History</button>
                 </div>
             </div>
 
@@ -731,21 +731,21 @@
                     <div class="card-icon">🎯</div>
                     <div class="card-body">
                         <div class="card-value" id="auditOverallScore">—</div>
-                        <div class="card-label" data-i18n="card.overallScore">總分</div>
+                        <div class="card-label" data-i18n="card.overallScore">Overall Score</div>
                     </div>
                 </div>
                 <div class="summary-card card-compliant">
                     <div class="card-icon">📜</div>
                     <div class="card-body">
                         <div class="card-value" id="auditDimAScore">—</div>
-                        <div class="card-label" data-i18n="card.dimA">法規準確度 (Dim A)</div>
+                        <div class="card-label" data-i18n="card.dimA">Regulatory Accuracy (Dim A)</div>
                     </div>
                 </div>
                 <div class="summary-card card-partial">
                     <div class="card-icon">💬</div>
                     <div class="card-body">
                         <div class="card-value" id="auditDimBScore">—</div>
-                        <div class="card-label" data-i18n="card.dimB">交叉詰問品質 (Dim B)</div>
+                        <div class="card-label" data-i18n="card.dimB">Cross-Exam Quality (Dim B)</div>
                     </div>
                 </div>
             </div>
@@ -754,19 +754,19 @@
             <div class="daily-audit-history" id="dailyAuditHistory">
                 <div class="empty-state">
                     <div class="empty-state-icon">🔍</div>
-                    <div class="empty-state-text" data-i18n="audit.empty">點擊「載入歷史」查看每日稽核紀錄</div>
+                    <div class="empty-state-text" data-i18n="audit.empty">Click "Load History" to view daily audit records</div>
                 </div>
             </div>
 
             <!-- 10-Day Meta Review Results -->
             <div class="meta-review-section" id="metaReviewSection" style="display:none">
-                <h3 data-i18n="audit.metaReviewTitle">🧠 10日總檢報告</h3>
+                <h3 data-i18n="audit.metaReviewTitle">🧠 10-Day Meta Review Report</h3>
                 <div class="meta-review-content" id="metaReviewContent"></div>
                 <div class="meta-review-actions">
-                    <button class="btn btn-outline" id="btnExportAuditWord" data-i18n="audit.exportAuditWord">📄 匯出稽核報告 Word</button>
-                    <button class="btn btn-outline" id="btnExportAuditExcel" data-i18n="audit.exportAuditExcel">📊 匯出稽核報告 Excel</button>
-                    <button class="btn btn-outline" id="btnExportMetaReviewWord" data-i18n="audit.exportMetaWord">📄 匯出總檢報告 Word</button>
-                    <button class="btn btn-outline" id="btnExportMetaReviewExcel" data-i18n="audit.exportMetaExcel">📊 匯出總檢報告 Excel</button>
+                    <button class="btn btn-outline" id="btnExportAuditWord" data-i18n="audit.exportAuditWord">📄 Export Audit Report Word</button>
+                    <button class="btn btn-outline" id="btnExportAuditExcel" data-i18n="audit.exportAuditExcel">📊 Export Audit Report Excel</button>
+                    <button class="btn btn-outline" id="btnExportMetaReviewWord" data-i18n="audit.exportMetaWord">📄 Export Meta Review Word</button>
+                    <button class="btn btn-outline" id="btnExportMetaReviewExcel" data-i18n="audit.exportMetaExcel">📊 Export Meta Review Excel</button>
                 </div>
             </div>
         </section>
@@ -776,7 +776,7 @@
     <div class="modal-overlay" id="detailModal">
         <div class="modal-content modal-large">
             <div class="modal-header">
-                <h2 id="detailTitle" data-i18n="modal.detailTitle">條款詳情</h2>
+                <h2 id="detailTitle" data-i18n="modal.detailTitle">Clause Details</h2>
                 <button class="modal-close" id="detailClose">&times;</button>
             </div>
             <div class="modal-body" id="detailBody">
@@ -789,50 +789,50 @@
     <div class="modal-overlay" id="overrideModal">
         <div class="modal-content modal-medium">
             <div class="modal-header">
-                <h2 data-i18n="modal.overrideTitle">✏️ 覆寫判定結果</h2>
+                <h2 data-i18n="modal.overrideTitle">✏️ Override Verdict</h2>
                 <button class="modal-close" id="overrideClose">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label data-i18n="modal.overrideCurrent">目前判定</label>
+                    <label data-i18n="modal.overrideCurrent">Current Verdict</label>
                     <div id="overrideCurrent" class="current-verdict"></div>
                 </div>
                 <div class="form-group">
-                    <label for="overrideVerdict" data-i18n="modal.overrideNew">新判定結果</label>
+                    <label for="overrideVerdict" data-i18n="modal.overrideNew">New Verdict</label>
                     <select id="overrideVerdict" class="form-select">
-                        <option value="full_compliance" data-i18n="verdict.full">✅ 完全符合</option>
-                        <option value="partial_compliance" data-i18n="verdict.partial">⚠️ 部分符合</option>
-                        <option value="non_compliance" data-i18n="verdict.non">❌ 未符合</option>
-                        <option value="insufficient_data" data-i18n="verdict.insufficient">⬜ 資料不足</option>
+                        <option value="full_compliance" data-i18n="verdict.full">✅ Full Compliance</option>
+                        <option value="partial_compliance" data-i18n="verdict.partial">⚠️ Partial Compliance</option>
+                        <option value="non_compliance" data-i18n="verdict.non">❌ Non-Compliance</option>
+                        <option value="insufficient_data" data-i18n="verdict.insufficient">⬜ Insufficient Data</option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label for="overrideReason"><span data-i18n="modal.overrideReason">覆寫原因</span> <span class="required">*</span></label>
+                    <label for="overrideReason"><span data-i18n="modal.overrideReason">Override Reason</span> <span class="required">*</span></label>
                     <textarea id="overrideReason" class="form-textarea" rows="3"
-                              data-i18n-placeholder="modal.overrideReasonPlaceholder" placeholder="請說明為何覆寫此判定結果..."></textarea>
+                              data-i18n-placeholder="modal.overrideReasonPlaceholder" placeholder="Please explain why you are overriding this verdict..."></textarea>
                 </div>
                 <div class="llm-assist-section" id="overrideLlmAssist">
                     <div class="llm-assist-header">
-                        <span>🤖 LLM 智慧輔助</span>
-                        <span class="llm-assist-hint">輸入文字、URL 或文章，LLM 會分析並提供建議</span>
+                        <span data-i18n="llmAssist.title">LLM Smart Assist</span>
+                        <span class="llm-assist-hint" data-i18n="llmAssist.hint">Enter text, URL or article for LLM analysis and suggestions</span>
                     </div>
                     <div class="llm-assist-input-row">
                         <textarea id="overrideLlmInput" class="form-textarea llm-assist-textarea" rows="2"
-                                  placeholder="輸入補充資料（文字、URL、文章或算式）..."></textarea>
-                        <button class="btn btn-assist" onclick="window.__report.llmAssist('override')" id="overrideLlmBtn">🔍 分析</button>
+                                  data-i18n-placeholder="llmAssist.inputPlaceholder" placeholder="Enter supplementary materials (text, URL, article or formula)..."></textarea>
+                        <button class="btn btn-assist" onclick="window.__report.llmAssist('override')" id="overrideLlmBtn" data-i18n="llmAssist.analyze">Analyze</button>
                     </div>
                     <div class="llm-assist-result" id="overrideLlmResult" style="display:none">
                         <div class="llm-assist-result-content" id="overrideLlmResultContent"></div>
                         <div class="llm-assist-result-actions">
-                            <button class="btn btn-sm btn-primary" onclick="window.__report.applyLlmResult('override')">✅ 採用建議</button>
-                            <button class="btn btn-sm btn-cancel" onclick="window.__report.dismissLlmResult('override')">✕ 忽略</button>
+                            <button class="btn btn-sm btn-primary" onclick="window.__report.applyLlmResult('override')" data-i18n="llmAssist.apply">Apply Suggestion</button>
+                            <button class="btn btn-sm btn-cancel" onclick="window.__report.dismissLlmResult('override')" data-i18n="llmAssist.dismiss">Dismiss</button>
                         </div>
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-cancel" id="overrideCancelBtn" data-i18n="modal.cancel">取消</button>
-                <button class="btn btn-primary" id="overrideSaveBtn" data-i18n="modal.confirmOverride">確認覆寫</button>
+                <button class="btn btn-cancel" id="overrideCancelBtn" data-i18n="modal.cancel">Cancel</button>
+                <button class="btn btn-primary" id="overrideSaveBtn" data-i18n="modal.confirmOverride">Confirm Override</button>
             </div>
         </div>
     </div>
@@ -841,41 +841,41 @@
     <div class="modal-overlay" id="noteModal">
         <div class="modal-content modal-medium">
             <div class="modal-header">
-                <h2 data-i18n="modal.noteTitle">📝 新增條款備註</h2>
+                <h2 data-i18n="modal.noteTitle">📝 Add Clause Note</h2>
                 <button class="modal-close" id="noteClose">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label data-i18n="modal.noteClause">條款</label>
+                    <label data-i18n="modal.noteClause">Clause</label>
                     <div id="noteClauseInfo" class="clause-info"></div>
                 </div>
                 <div class="form-group">
-                    <label for="noteText" data-i18n="modal.noteText">備註內容</label>
+                    <label for="noteText" data-i18n="modal.noteText">Note Content</label>
                     <textarea id="noteText" class="form-textarea" rows="4"
-                              data-i18n-placeholder="modal.notePlaceholder" placeholder="此備註將永久附加在此條款，每次分析時都會被納入考量..."></textarea>
+                              data-i18n-placeholder="modal.notePlaceholder" placeholder="This note will be permanently attached to this clause and considered in every analysis..."></textarea>
                 </div>
                 <div class="llm-assist-section" id="noteLlmAssist">
                     <div class="llm-assist-header">
-                        <span>🤖 LLM 智慧輔助</span>
-                        <span class="llm-assist-hint">輸入文字、URL 或文章，LLM 會分析並提供建議</span>
+                        <span data-i18n="llmAssist.title">LLM Smart Assist</span>
+                        <span class="llm-assist-hint" data-i18n="llmAssist.hint">Enter text, URL or article for LLM analysis and suggestions</span>
                     </div>
                     <div class="llm-assist-input-row">
                         <textarea id="noteLlmInput" class="form-textarea llm-assist-textarea" rows="2"
-                                  placeholder="輸入補充資料（文字、URL、文章或算式）..."></textarea>
-                        <button class="btn btn-assist" onclick="window.__report.llmAssist('note')" id="noteLlmBtn">🔍 分析</button>
+                                  data-i18n-placeholder="llmAssist.inputPlaceholder" placeholder="Enter supplementary materials (text, URL, article or formula)..."></textarea>
+                        <button class="btn btn-assist" onclick="window.__report.llmAssist('note')" id="noteLlmBtn" data-i18n="llmAssist.analyze">Analyze</button>
                     </div>
                     <div class="llm-assist-result" id="noteLlmResult" style="display:none">
                         <div class="llm-assist-result-content" id="noteLlmResultContent"></div>
                         <div class="llm-assist-result-actions">
-                            <button class="btn btn-sm btn-primary" onclick="window.__report.applyLlmResult('note')">✅ 採用建議</button>
-                            <button class="btn btn-sm btn-cancel" onclick="window.__report.dismissLlmResult('note')">✕ 忽略</button>
+                            <button class="btn btn-sm btn-primary" onclick="window.__report.applyLlmResult('note')" data-i18n="llmAssist.apply">Apply Suggestion</button>
+                            <button class="btn btn-sm btn-cancel" onclick="window.__report.dismissLlmResult('note')" data-i18n="llmAssist.dismiss">Dismiss</button>
                         </div>
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-cancel" id="noteCancelBtn" data-i18n="modal.cancel">取消</button>
-                <button class="btn btn-primary" id="noteSaveBtn" data-i18n="modal.saveNote">儲存備註</button>
+                <button class="btn btn-cancel" id="noteCancelBtn" data-i18n="modal.cancel">Cancel</button>
+                <button class="btn btn-primary" id="noteSaveBtn" data-i18n="modal.saveNote">Save Note</button>
             </div>
         </div>
     </div>
@@ -884,7 +884,7 @@
     <div class="modal-overlay" id="historyModal">
         <div class="modal-content modal-large">
             <div class="modal-header">
-                <h2 data-i18n="modal.historyTitle">📜 版本歷史</h2>
+                <h2 data-i18n="modal.historyTitle">📜 Version History</h2>
                 <button class="modal-close" id="historyClose">&times;</button>
             </div>
             <div class="modal-body" id="historyBody">

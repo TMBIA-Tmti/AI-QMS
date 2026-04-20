@@ -1,11 +1,11 @@
 @echo off
 chcp 65001 >nul 2>&1
-title AI-QMS Phase 1 - Chainlit v3.5.0
+title AI-QMS Phase 1 - Chainlit v3.6.0
 
 echo ========================================================
 echo  AI-QMS Phase 1 Document Control System
-echo  Version: v3.5.0 (Chainlit + Phoenix)
-echo  Date: 2026-02-28
+echo  Version: v3.6.0 (Chainlit + Phoenix)
+echo  Date: 2026-04-19
 echo ========================================================
 echo.
 echo  Architecture (Chainlit + Phoenix):
@@ -14,6 +14,7 @@ echo    Chat Profiles:      Main Agent + Doc Control
 echo    Local LLM:          Ollama (Port 11434)
 echo    LLM Observability:  Phoenix (Port 6006)
 echo.
+echo  v3.6.0 - Full i18n: zh/ja/en across all UI, reports, Word/Excel, pipeline, ISO clauses
 echo  v3.5.0 - Regulatory Region Auto-Query, Disconnect Resilience, Eira AI Assistant
 echo  v3.4.0 - Arize Phoenix LLM Observability, One-Click Launch + Auto-Update
 echo  v3.3.0 - /web Web Search with Source Credibility Ranking
@@ -175,14 +176,14 @@ echo.
 echo  Chainlit URL: http://localhost:%CHAINLIT_PORT%
 echo  Phoenix URL:  http://localhost:%PHOENIX_PORT% (if available)
 echo.
-echo  Auto-Reload: ON (code changes auto-restart)
+echo  Auto-Reload: OFF (disabled to prevent UI disconnect during analysis)
 echo  Press Ctrl+C to stop
 echo ========================================================
 echo.
 
 :: Run Chainlit from project directory
 cd /d "%PROJECT_DIR%"
-"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port %CHAINLIT_PORT% -w
+"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port %CHAINLIT_PORT%
 
 echo.
 echo ========================================================
