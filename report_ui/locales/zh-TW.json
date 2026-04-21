@@ -397,5 +397,9 @@
   "verdict.partial_compliance": "⚠️ 部分符合",
   "verdict.non_compliance": "❌ 未符合",
   "verdict.insufficient_data": "⬜ 資料不足",
-  "verdict.not_applicable": "➖ 不適用"
+  "verdict.not_applicable": "➖ 不適用",
+  "toast.exporting": "匯出 {fmt} 中...",
+  "toast.exportingDeep": "匯出深度報告（{fmt}）中...",
+  "toast.formatError": "匯出格式錯誤",
+  "toast.rerunFailed": "重新分析失敗: {msg}"
 }

@@ -397,5 +397,9 @@
   "verdict.partial_compliance": "⚠️ 部分準拠",
   "verdict.non_compliance": "❌ 不適合",
   "verdict.insufficient_data": "⬜ データ不足",
-  "verdict.not_applicable": "➖ 適用外"
+  "verdict.not_applicable": "➖ 適用外",
+  "toast.exporting": "{fmt} をエクスポート中...",
+  "toast.exportingDeep": "詳細レポート（{fmt}）をエクスポート中...",
+  "toast.formatError": "エクスポート形式エラー",
+  "toast.rerunFailed": "再分析失敗: {msg}"
 }

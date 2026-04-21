@@ -397,5 +397,9 @@
   "verdict.partial_compliance": "⚠️ Partial Compliance",
   "verdict.non_compliance": "❌ Non-Compliance",
   "verdict.insufficient_data": "⬜ Insufficient Data",
-  "verdict.not_applicable": "➖ Not Applicable"
+  "verdict.not_applicable": "➖ Not Applicable",
+  "toast.exporting": "Exporting {fmt}...",
+  "toast.exportingDeep": "Exporting deep report ({fmt})...",
+  "toast.formatError": "Invalid export format",
+  "toast.rerunFailed": "Re-analysis failed: {msg}"
 }

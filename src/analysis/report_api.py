@@ -1817,9 +1817,9 @@ async def export_report(
         else:  # excel
             from openpyxl import Workbook
             from openpyxl.styles import Font, Alignment, PatternFill
+            from openpyxl.utils import get_column_letter as _get_col_letter
 
             filepath = export_dir / f"compliance_report_{source_cmd}_{run_id}.xlsx"
-            assessment = _build_export_assessment(flat_rows, summary, lang=lang)
 
             wb = Workbook()
             ws = wb.active
@@ -1917,10 +1917,10 @@ async def export_report(
                 )
                 ws.cell(row=ri, column=13, value=row.get("ra_notes", "") or "")
 
-            # Auto-width
-            for col in ws.columns:
+            # Auto-width (use column index to avoid MergedCell.column_letter AttributeError)
+            for idx, col in enumerate(ws.columns, 1):
                 max_len = max((len(str(c.value or "")) for c in col), default=8)
-                ws.column_dimensions[col[0].column_letter].width = min(max_len + 2, 50)
+                ws.column_dimensions[_get_col_letter(idx)].width = min(max_len + 2, 50)
 
             _qa_sum_xl = getattr(table.state, "qa_audit_summary", None)
             if _qa_sum_xl and not _qa_sum_xl.get("skipped"):
@@ -3453,13 +3453,13 @@ async def export_feedback_records(fmt: str):
                     ]
                 )
             # Auto-width
-            for col in ws.columns:
+            from openpyxl.utils import get_column_letter as _get_col_letter_fb
+            for idx, col in enumerate(ws.columns, 1):
                 max_len = 0
-                col_letter = col[0].column_letter
                 for cell in col:
                     if cell.value:
                         max_len = max(max_len, len(str(cell.value)))
-                ws.column_dimensions[col_letter].width = min(max_len + 2, 60)
+                ws.column_dimensions[_get_col_letter_fb(idx)].width = min(max_len + 2, 60)
 
             filepath = EXPORT_DIR / f"feedback_records_{ts}.xlsx"
             wb.save(str(filepath))
