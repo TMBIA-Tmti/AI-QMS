@@ -1757,7 +1757,8 @@
     }
 
     function exportReport(format) {
-        const url = `${API_BASE}/${RUN_ID}/export/${format}`;
+        const _lang = (window.__i18n && window.__i18n.lang) || "en-US";
+        const url = `${API_BASE}/${RUN_ID}/export/${format}?lang=${encodeURIComponent(_lang)}`;
         showToast(t('toast.exporting', {fmt: format.toUpperCase()}), "info");
         downloadFileFetch(url);
     }
@@ -3652,7 +3653,8 @@
     // ============================================================
 
     function exportDeepReport(format) {
-        const url = `${API_BASE}/${RUN_ID}/export/deep_${format}`;
+        const _lang = (window.__i18n && window.__i18n.lang) || "en-US";
+        const url = `${API_BASE}/${RUN_ID}/export/deep_${format}?lang=${encodeURIComponent(_lang)}`;
         showToast(t('toast.exportingDeep', {fmt: format.toUpperCase()}), "info");
         downloadFileFetch(url);
     }
@@ -3734,7 +3736,8 @@
     }
 
     function exportHistoryRecord(recordId, format) {
-        const url = `${API_BASE}/crossexam/history/${recordId}/export/${format}`;
+        const _lang = (window.__i18n && window.__i18n.lang) || "en-US";
+        const url = `${API_BASE}/crossexam/history/${recordId}/export/${format}?lang=${encodeURIComponent(_lang)}`;
         showToast(t('toast.exportingCrossexam', {fmt: format.toUpperCase()}), "info");
         downloadFileFetch(url);
     }
@@ -3790,7 +3793,8 @@
     }
 
     function exportMetaAnalysis(format) {
-        const url = `${API_BASE}/crossexam/meta-analysis/export/${format}`;
+        const _lang = (window.__i18n && window.__i18n.lang) || "en-US";
+        const url = `${API_BASE}/crossexam/meta-analysis/export/${format}?lang=${encodeURIComponent(_lang)}`;
         showToast(t('toast.exportingQuality', {fmt: format.toUpperCase()}), "info");
         downloadFileFetch(url);
     }
@@ -3975,19 +3979,22 @@
     }
 
     function exportDailyAudit(format) {
-        const url = `${API_BASE}/daily-audit/export/${format}`;
+        const _lang = (window.__i18n && window.__i18n.lang) || "en-US";
+        const url = `${API_BASE}/daily-audit/export/${format}?lang=${encodeURIComponent(_lang)}`;
         showToast(t('toast.exportingAudit', {fmt: format.toUpperCase()}), 'info');
         downloadFileFetch(url);
     }
 
     function exportMetaReviewReport(format) {
-        const url = `${API_BASE}/daily-audit/meta-review/export/${format}`;
+        const _lang = (window.__i18n && window.__i18n.lang) || "en-US";
+        const url = `${API_BASE}/daily-audit/meta-review/export/${format}?lang=${encodeURIComponent(_lang)}`;
         showToast(t('toast.exportingMetaReview', {fmt: format.toUpperCase()}), 'info');
         downloadFileFetch(url);
     }
 
     function exportAuditRecord(auditId, format) {
-        const url = `${API_BASE}/daily-audit/history/${auditId}/export/${format}`;
+        const _lang = (window.__i18n && window.__i18n.lang) || "en-US";
+        const url = `${API_BASE}/daily-audit/history/${auditId}/export/${format}?lang=${encodeURIComponent(_lang)}`;
         showToast(t('toast.exportingAuditRecord', {fmt: format.toUpperCase()}), 'info');
         downloadFileFetch(url);
     }
