@@ -1755,47 +1755,51 @@ async def export_report(
             doc.add_heading("摘要", level=2)
             doc.add_paragraph(assessment)
 
+            # Phase progress section
+            from src.utils.crossexam_export import _pipeline_status_str, _PHASE_ORDER, _PHASE_LABELS, _PHASE_NAMES_ZH, _PHASE_NAMES_EN, _STATUS_ICONS
+            _prog_doc = table.state.progress_summary()
+            _budget_doc = _prog_doc.get("llm_budget", {})
+            _phase_dist_doc = _prog_doc.get("phase_distribution", {})
+            _skipped_doc = list(table.state.skipped_phases or [])
+            doc.add_heading("Pipeline 執行進度", level=2)
+            prog_tbl = doc.add_table(rows=1 + len(_PHASE_ORDER), cols=4)
+            prog_tbl.style = "Table Grid"
+            for ci, hdr in enumerate(["階段", "名稱（中文）", "名稱（英文）", "行數"]):
+                prog_tbl.rows[0].cells[ci].text = hdr
+            for pi, ph in enumerate(_PHASE_ORDER, 1):
+                is_skip = ph in _skipped_doc
+                prog_tbl.rows[pi].cells[0].text = _PHASE_LABELS[ph] + (" ↷" if is_skip else "")
+                prog_tbl.rows[pi].cells[1].text = _PHASE_NAMES_ZH.get(ph, ph)
+                prog_tbl.rows[pi].cells[2].text = _PHASE_NAMES_EN.get(ph, ph)
+                prog_tbl.rows[pi].cells[3].text = "↷ 跳過" if is_skip else str(_phase_dist_doc.get(ph, 0))
+            doc.add_paragraph(
+                f"Token 用量: {_budget_doc.get('total_tokens_used', 0):,}  |  "
+                f"LLM 呼叫: {_budget_doc.get('calls_made', 0)}  |  "
+                f"預算: {_budget_doc.get('usage_percent', 0)}%"
+            )
+
             # Detail table
             doc.add_heading("詳細分析結果", level=2)
             if flat_rows:
-                headers = [
-                    "條款",
-                    "文件",
-                    "稽核影響",
-                    "判定",
-                    "風險",
-                    "差距",
-                    "RA 標記",
-                ]
+                headers = ["條款", "文件", "稽核影響", "判定", "風險", "差距", "RA 標記", "Pipeline 狀態"]
                 tbl = doc.add_table(rows=1 + len(flat_rows), cols=len(headers))
                 tbl.style = "Table Grid"
                 for i, h in enumerate(headers):
                     tbl.rows[0].cells[i].text = h
                 _incomplete_label = "（Pipeline 未完成）"
                 for ri, row in enumerate(flat_rows, 1):
-                    tbl.rows[ri].cells[
-                        0
-                    ].text = f"{row.get('clause_id', '')} {row.get('clause_title', '')}"
+                    tbl.rows[ri].cells[0].text = f"{row.get('clause_id', '')} {row.get('clause_title', '')}"
                     tbl.rows[ri].cells[1].text = f"{row.get('doc_id', '')}"
                     tbl.rows[ri].cells[2].text = row.get("audit_impact", "")
                     _v_icon = row.get("verdict_icon", "")
                     _v_label = row.get("verdict_label", "")
-                    tbl.rows[ri].cells[3].text = (
-                        f"{_v_icon} {_v_label}"
-                        if _v_icon or _v_label
-                        else _incomplete_label
-                    )
+                    tbl.rows[ri].cells[3].text = f"{_v_icon} {_v_label}" if _v_icon or _v_label else _incomplete_label
                     _r_icon = row.get("risk_icon", "")
                     _r_label = row.get("risk_label", "")
-                    tbl.rows[ri].cells[4].text = (
-                        f"{_r_icon} {_r_label}"
-                        if _r_icon or _r_label
-                        else _incomplete_label
-                    )
+                    tbl.rows[ri].cells[4].text = f"{_r_icon} {_r_label}" if _r_icon or _r_label else _incomplete_label
                     tbl.rows[ri].cells[5].text = row.get("gap_severity", "") or ""
-                    tbl.rows[ri].cells[6].text = (
-                        "⚠️" if row.get("flagged_for_ra") else ""
-                    )
+                    tbl.rows[ri].cells[6].text = "⚠️" if row.get("flagged_for_ra") else ""
+                    tbl.rows[ri].cells[7].text = _pipeline_status_str(row.get("phase_status_summary", {}))
 
             _qa_sum = getattr(table.state, "qa_audit_summary", None)
             if _qa_sum and not _qa_sum.get("skipped"):
@@ -1833,7 +1837,7 @@ async def export_report(
                 value=f"AI-QMS 合規性分析報告（{src_label}）",
             )
             title_cell.font = Font(bold=True, size=14)
-            ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=13)
+            ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=14)
 
             meta_cell = ws.cell(
                 row=2,
@@ -1841,7 +1845,7 @@ async def export_report(
                 value=f"分析 ID: {run_id}  |  來源指令: {src_label}  |  匯出時間: {_dt_xl.now().strftime('%Y-%m-%d %H:%M:%S')}",
             )
             meta_cell.font = Font(size=9, color="808080")
-            ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=13)
+            ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=14)
 
             TITLE_ROWS = 3
             data_start_row = TITLE_ROWS + 1
@@ -1861,6 +1865,7 @@ async def export_report(
                 "RA 標記",
                 "RA 覆寫",
                 "RA 備註",
+                "Pipeline 狀態",
             ]
             header_fill = PatternFill(
                 start_color="4472C4", end_color="4472C4", fill_type="solid"
@@ -1916,11 +1921,41 @@ async def export_report(
                     else "",
                 )
                 ws.cell(row=ri, column=13, value=row.get("ra_notes", "") or "")
+                from src.utils.crossexam_export import _pipeline_status_str as _pss
+                ws.cell(row=ri, column=14, value=_pss(row.get("phase_status_summary", {})))
 
-            # Auto-width (use column index to avoid MergedCell.column_letter AttributeError)
+            # Auto-width
             for idx, col in enumerate(ws.columns, 1):
                 max_len = max((len(str(c.value or "")) for c in col), default=8)
                 ws.column_dimensions[_get_col_letter(idx)].width = min(max_len + 2, 50)
+
+            # Phase Progress sheet
+            from src.utils.crossexam_export import _PHASE_ORDER as _po, _PHASE_LABELS as _pl, _PHASE_NAMES_ZH as _pnzh, _PHASE_NAMES_EN as _pnen
+            _prog_xl = table.state.progress_summary()
+            _budget_xl = _prog_xl.get("llm_budget", {})
+            _phase_dist_xl = _prog_xl.get("phase_distribution", {})
+            _skipped_xl = list(table.state.skipped_phases or [])
+            ws_prog = wb.create_sheet("Pipeline 進度")
+            _ph_font = Font(bold=True, color="FFFFFF", size=10)
+            _ph_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+            for ci, hdr in enumerate(["階段", "名稱（中文）", "名稱（英文）", "行數", "狀態"], 1):
+                c = ws_prog.cell(row=1, column=ci, value=hdr)
+                c.font = _ph_font
+                c.fill = _ph_fill
+            for pi, ph in enumerate(_po, 2):
+                is_skip = ph in _skipped_xl
+                ws_prog.cell(row=pi, column=1, value=_pl[ph])
+                ws_prog.cell(row=pi, column=2, value=_pnzh.get(ph, ph))
+                ws_prog.cell(row=pi, column=3, value=_pnen.get(ph, ph))
+                ws_prog.cell(row=pi, column=4, value=_phase_dist_xl.get(ph, 0))
+                ws_prog.cell(row=pi, column=5, value="↷ 跳過" if is_skip else "✓")
+            br = len(_po) + 3
+            ws_prog.cell(row=br, column=1, value="Token 用量").font = Font(bold=True)
+            ws_prog.cell(row=br, column=2, value=_budget_xl.get("total_tokens_used", 0))
+            ws_prog.cell(row=br+1, column=1, value="LLM 呼叫次數").font = Font(bold=True)
+            ws_prog.cell(row=br+1, column=2, value=_budget_xl.get("calls_made", 0))
+            ws_prog.cell(row=br+2, column=1, value="預算使用率").font = Font(bold=True)
+            ws_prog.cell(row=br+2, column=2, value=f"{_budget_xl.get('usage_percent', 0)}%")
 
             _qa_sum_xl = getattr(table.state, "qa_audit_summary", None)
             if _qa_sum_xl and not _qa_sum_xl.get("skipped"):
@@ -2554,37 +2589,55 @@ async def export_deep_report(
             export_deep_report_word,
             export_deep_report_excel,
         )
+        import io as _io
+        import tempfile as _tempfile
+        import os as _os
 
-        # Try calling with lang first; fall back gracefully if the export
-        if fmt == "word":
-            filepath = export_deep_report_word(
-                run_id,
-                flat_rows,
-                summary,
-                interactions,
-                crossexam_record,
-                meta_analysis,
-                qa_audit_summary,
-                lang=lang,
-            )
-        else:
-            filepath = export_deep_report_excel(
-                run_id,
-                flat_rows,
-                summary,
-                interactions,
-                crossexam_record,
-                meta_analysis,
-                qa_audit_summary,
-                lang=lang,
-            )
+        _progress = table.state.progress_summary()
+        _data_quality = table.state.data_quality_summary
+        _source_check = table.state.source_check_summary
+        _skipped_phases = list(table.state.skipped_phases or [])
 
         content_type = (
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             if fmt == "word"
             else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-        return FileResponse(filepath, media_type=content_type, filename=filepath.name)
+        dl_filename = f"deep_report_{run_id}.{'docx' if fmt == 'word' else 'xlsx'}"
+
+        _suffix = ".docx" if fmt == "word" else ".xlsx"
+        _tmp_fd, _tmp_path = _tempfile.mkstemp(suffix=_suffix)
+        _os.close(_tmp_fd)
+        try:
+            if fmt == "word":
+                export_deep_report_word(
+                    run_id, flat_rows, summary, interactions, crossexam_record,
+                    meta_analysis, qa_audit_summary, lang=lang, progress=_progress,
+                    data_quality=_data_quality, source_check=_source_check,
+                    skipped_phases=_skipped_phases,
+                    output_path=Path(_tmp_path),
+                )
+            else:
+                export_deep_report_excel(
+                    run_id, flat_rows, summary, interactions, crossexam_record,
+                    meta_analysis, qa_audit_summary, lang=lang, progress=_progress,
+                    data_quality=_data_quality, source_check=_source_check,
+                    skipped_phases=_skipped_phases,
+                    output_path=Path(_tmp_path),
+                )
+            with open(_tmp_path, "rb") as _f:
+                _content = _f.read()
+        finally:
+            try:
+                _os.unlink(_tmp_path)
+            except OSError:
+                pass
+
+        return StreamingResponse(
+            _io.BytesIO(_content),
+            media_type=content_type,
+            headers={"Content-Disposition": f'attachment; filename="{dl_filename}"'},
+        )
 
     except ImportError:
         raise HTTPException(status_code=500, detail="Export dependencies not available")

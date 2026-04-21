@@ -1008,7 +1008,7 @@ class ComparisonTable:
             return []
 
         runs = []
-        for f in sorted(storage_dir.glob("run_*.json"), reverse=True):
+        for f in sorted(storage_dir.glob("run_*.json"), key=lambda p: p.stat().st_mtime, reverse=True):
             try:
                 data = json.loads(f.read_text(encoding="utf-8"))
                 runs.append(

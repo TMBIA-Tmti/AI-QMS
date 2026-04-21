@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from datetime import datetime
 from pathlib import Path
@@ -969,6 +970,7 @@ def export_deep_report_word(
     data_quality: dict | None = None,
     source_check: dict | None = None,
     skipped_phases: list[str] | None = None,
+    output_path: "Path | None" = None,
 ) -> Path:
     """Export a deep analysis report as Word document.
 
@@ -994,7 +996,7 @@ def export_deep_report_word(
     from docx.enum.text import WD_ALIGN_PARAGRAPH
 
     EXPORT_DIR.mkdir(parents=True, exist_ok=True)
-    filepath = EXPORT_DIR / f"deep_report_{run_id}.docx"
+    filepath = output_path if output_path is not None else (EXPORT_DIR / f"deep_report_{run_id}.docx")
 
     doc = Document()
 
@@ -1521,6 +1523,7 @@ def export_deep_report_excel(
     data_quality: dict | None = None,
     source_check: dict | None = None,
     skipped_phases: list[str] | None = None,
+    output_path: "Path | None" = None,
 ) -> Path:
     """Export a deep analysis report as Excel workbook.
 
@@ -1529,6 +1532,7 @@ def export_deep_report_excel(
     Args:
         lang: UI language code (e.g., 'zh-TW', 'en', 'ja') — reserved for
             future localization of sheet/section names.
+        output_path: Optional custom output path. If None, writes to EXPORT_DIR.
     """
     from openpyxl import Workbook
     from openpyxl.styles import Font, Alignment, PatternFill
@@ -1539,7 +1543,7 @@ def export_deep_report_excel(
     _label_key = "label_en" if _lk == "en" else "label_ja" if _lk == "ja" else "label_zh"
 
     EXPORT_DIR.mkdir(parents=True, exist_ok=True)
-    filepath = EXPORT_DIR / f"deep_report_{run_id}.xlsx"
+    filepath = output_path if output_path is not None else (EXPORT_DIR / f"deep_report_{run_id}.xlsx")
 
     wb = Workbook()
     header_fill = PatternFill(
@@ -1630,7 +1634,8 @@ def export_deep_report_excel(
     _budget_xl = _prog.get("llm_budget", {})
     _phase_dist_xl = _prog.get("phase_distribution", {})
     _skipped_xl = skipped_phases or []
-    ws_prog = wb.create_sheet(dh.get("deep_s0", "Pipeline Progress")[:31])
+    _xl_safe = lambda s: re.sub(r'[:\\/*?\[\]]', '', s)[:31]
+    ws_prog = wb.create_sheet(_xl_safe(dh.get("deep_s0", "Pipeline Progress")))
 
     _sec_fill = PatternFill(start_color="1F3864", end_color="1F3864", fill_type="solid")
     _sec_font = Font(bold=True, color="FFFFFF", size=11)
