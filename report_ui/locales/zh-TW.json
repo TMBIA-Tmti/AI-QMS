@@ -1,19 +1,16 @@
 {
   "page.title": "📊 合規性分析報告",
   "page.header": "📊 合規性分析報告",
-
   "tabs.analysis": "📊 合規分析結果",
   "tabs.crossref": "🔗 跨國法規交叉比對表",
   "tabs.crossexam": "💬 即時 LLM 互動",
   "tabs.verification": "🔍 資料驗證",
-
   "summary.total_rows": "分析項目",
   "summary.full_compliance": "完全符合",
   "summary.partial_compliance": "部分符合",
   "summary.non_compliance": "未符合",
   "summary.flagged_count": "需 RA 審查",
   "summary.token_usage": "Token 用量",
-
   "filters.document": "文件",
   "filters.all_documents": "全部文件",
   "filters.verdict": "判定結果",
@@ -22,11 +19,9 @@
   "filters.all_risk_levels": "全部等級",
   "filters.flagged_only": "僅顯示需審查",
   "filters.search_placeholder": "搜尋條款 / 文件...",
-
   "actions.export_word": "📄 Word",
   "actions.export_excel": "📊 Excel",
   "actions.refresh": "🔄 重新整理",
-
   "table.clause": "條款",
   "table.document": "品質文件",
   "table.audit_question": "稽核問題",
@@ -40,16 +35,13 @@
   "table.empty": "無符合條件的項目",
   "table.invalid_id": "❌ 無效的報告 ID",
   "table.load_error": "❌ 載入失敗: {error}",
-
   "status.completed": "✅ 已完成",
   "status.running": "⏳ 執行中",
   "status.paused": "⏸️ 已暫停",
   "status.failed": "❌ 失敗",
   "status.pending": "⏳ 等待中",
-
   "verdict.undetermined": "— 未判定",
   "risk.unassessed": "— 未評估",
-
   "row.flag_tooltip": "需 RA 審查",
   "row.btn_detail": "詳情",
   "row.btn_override": "覆寫判定",
@@ -57,7 +49,6 @@
   "row.btn_history": "歷史",
   "row.btn_restore": "還原 LLM 原始判定",
   "row.btn_rerun": "重新分析",
-
   "detail.title": "條款詳情",
   "detail.basic_info": "📋 基本資訊",
   "detail.clause_id": "條款 ID",
@@ -112,8 +103,8 @@
   "ui.analyzer": "🔍 分析者",
   "ui.rounds": "輪",
   "ui.verifier": "🛡️ 驗證者",
-  "ui.agreed": "✅ 一致",
-  "ui.disagreed": "❌ 不一致",
+  "ui.agreed": "一致",
+  "ui.disagreed": "不一致",
   "ui.roundN": "第 {n} 輪",
   "ui.crossexamAgreed": "{rounds} 輪後達成一致",
   "ui.crossexamDisagreed": "{rounds} 輪後仍不一致",
@@ -171,7 +162,6 @@
   "detail.regulation_cite": "📖 法規引用",
   "detail.phase_results": "⏱️ 階段執行記錄",
   "detail.load_error": "載入詳情失敗: {error}",
-
   "phase.phase_0": "資料品質檢查",
   "phase.phase_0_5": "法規參照對應",
   "phase.phase_1": "差距掃描",
@@ -180,7 +170,6 @@
   "phase.phase_4": "改善建議",
   "phase.phase_5": "獨立驗證",
   "phase.phase_6": "來源驗證",
-
   "override.title": "✏️ 覆寫判定結果",
   "override.current_verdict": "目前判定",
   "override.new_verdict": "新判定結果",
@@ -198,7 +187,6 @@
   "override.success": "判定已覆寫",
   "override.error": "覆寫失敗: {error}",
   "override.rerun_prompt": "判定已成功覆寫。\n\n是否要重置此條款以便下次執行分析時重新跑過？\n（重置後需在 Chainlit 重新執行「法規清單」才會重新分析）",
-
   "note.title": "📝 新增條款備註",
   "note.clause_label": "條款",
   "note.content_label": "備註內容",
@@ -209,7 +197,6 @@
   "note.saving": "儲存中...",
   "note.success": "備註已儲存",
   "note.error": "儲存失敗: {error}",
-
   "history.title": "📜 版本歷史",
   "history.empty": "此條款尚無修改歷史",
   "history.override_verdict": "覆寫判定",
@@ -224,23 +211,17 @@
   "history.current_override": "✏️ 目前覆寫狀態",
   "history.current_notes": "📝 目前備註",
   "history.load_error": "載入歷史失敗: {error}",
-
   "restore.confirm": "確定要還原為 LLM 原始判定結果嗎？\n（此操作會記錄在版本歷史中）",
   "restore.success": "已還原 LLM 原始判定",
   "restore.error": "還原失敗: {error}",
-
   "rerun.confirm": "確定要重新分析此條款嗎？\n\n條款: {clause}\n\n此操作會重置該條款的分析結果，並在 Chainlit 下次執行\n「法規清單」時自動重新分析這個條款。",
   "rerun.success": "🔄 條款 {clause_id} 已重置為待重新分析\n{message}",
   "rerun.error": "重置失敗: {error}",
-
   "export.progress": "正在匯出 {format} 報告...",
-
   "format.seconds": "{value} 秒",
   "format.minutes": "{mins} 分 {secs} 秒",
-
   "toast.load_error": "載入失敗: {error}",
   "toast.downloadFailed": "下載失敗: {msg}",
-
   "crossref.select_countries": "🌍 選擇法規國家",
   "crossref.loading_regulations": "✨ 載入法規清單中...",
   "crossref.no_regulations": "❌ 無可用法規",
@@ -273,7 +254,6 @@
   "crossref.unique_requirements": "🚨 獨有要求:",
   "crossref.doc_evidence": "📄 對應品質文件",
   "crossref.more_items": "...及 {count} 項更多",
-
   "intercountry.title": "🔀 國家間差異分析",
   "intercountry.desc": "以下顯示各國法規之間的差異 — 某國有但其他國家沒有的獨特要求。",
   "intercountry.unique_diff": "獨有差異",
@@ -281,7 +261,6 @@
   "intercountry.unique_reqs": "🚨 國家獨有要求 ({count} 項)：",
   "intercountry.not_covered": "➖ 該國未涵蓋但其他國家有的條款：",
   "intercountry.no_diffs": "所選國家法規高度一致，無顯著差異",
-
   "delta.title": "🚨 國家獨有要求 (Delta Items) — 最高優先級",
   "delta.desc": "以下為各國法規中超出 ISO 13485 的獨有要求，品質文件必須額外涵蓋這些內容。",
   "delta.unique_count": "{country} — {count} 項獨有要求",
@@ -291,7 +270,6 @@
   "delta.confidence": "可信度 {value}%",
   "delta.no_items": "所選國家法規無獨有要求",
   "delta.semantic_analysis": "💡 語意解釋 / 跨國差異分析",
-
   "crossexam.title": "💬 即時 LLM 互動查看器",
   "crossexam.desc": "觀看所有 Phase 的 LLM 互動過程（Gap Scan、驗證、改善建議、交叉詰問），必要時可介入修正。",
   "crossexam.disconnected": "⏹ 未連線",
@@ -318,12 +296,10 @@
   "crossexam.pause_error": "暫停失敗: {error}",
   "crossexam.resume_error": "繼續失敗: {error}",
   "crossexam.send_error": "發送失敗: {error}",
-
   "crossexam.phase_all": "全部",
   "crossexam.phase_verify": "驗證",
   "crossexam.phase_remediation": "改善建議",
   "crossexam.phase_crossexam": "交叉詰問",
-
   "sse.connected": "✅ 已連線至即時 LLM 互動串流",
   "sse.streaming": "🟢 串流中",
   "sse.pipeline_started": "🚀 分析管線已啟動",
@@ -350,13 +326,11 @@
   "sse.paused": "⏸ 已暫停",
   "sse.resumed": "▶️ 已繼續",
   "sse.clauses": "條款:",
-
   "sse.evidence_found": "找到",
   "sse.evidence_not_found": "未找到",
   "sse.evidence_inadequate": "不充分",
   "sse.suggestions_count": "建議數: {count}",
   "sse.agreed_count": "一致: {agreed} | 標記: {flagged}",
-
   "llm.view_response": "📄 查看 LLM 回應",
   "llm.view_raw": "📄 查看原始回應",
   "llm.view_prompt": "📄 查看 Prompt 預覽",
@@ -365,7 +339,6 @@
   "llm.unknown_evidence": "未知",
   "llm.remediation_header": "🛠️ {title}",
   "llm.suggestion_default": "建議",
-
   "verification.pass": "通過",
   "verification.warning": "警告",
   "verification.fail": "失敗",
@@ -386,7 +359,6 @@
   "verification.th_status": "狀態",
   "verification.th_checks": "檢查項目",
   "verification.th_issues": "問題",
-
   "method.official_crossref": "📜 官方交叉參照",
   "method.clause_structure": "📁 條文結構對應",
   "method.semantic_en": "🇬🇧 英文語意分析",
@@ -394,7 +366,6 @@
   "method.keyword_match": "🔑 關鍵字比對",
   "method.expert_judgment": "🧑‍💻 專家判斷",
   "method.llm_analysis": "🤖 LLM 分析",
-
   "lang.en": "English",
   "lang.zh-TW": "繁體中文",
   "lang.zh-CN": "簡體中文",
@@ -402,7 +373,6 @@
   "lang.fr": "Français",
   "lang.ja": "日本語",
   "lang.ko": "한국어",
-
   "dialog.help_title": "可用命令 (Available Commands):",
   "dialog.help_adjust_desc": "調整補充標準的 ISO 13485 對應條款",
   "dialog.help_adjust_example": "例:",
@@ -412,5 +382,20 @@
   "dialog.standards_load_error": "無法載入標準清單: {error}",
   "dialog.adjust_format_error": "✗ 格式錯誤。用法:",
   "dialog.adjust_example": "例:",
-  "dialog.adjust_error": "調整失敗: {error}"
+  "dialog.adjust_error": "調整失敗: {error}",
+  "gap.missing": "缺失",
+  "gap.incomplete": "不完整",
+  "gap.inadequate": "不充分",
+  "gap.outdated": "過時",
+  "gap.none": "無",
+  "risk.immediate_correction": "🔴 立即改正",
+  "risk.deadline_correction": "🟠 限期改正",
+  "risk.improvement_plan": "🟡 改善計畫",
+  "risk.suggested_improvement": "🟢 建議改善",
+  "risk.compliant": "✅ 符合",
+  "verdict.full_compliance": "✅ 完全符合",
+  "verdict.partial_compliance": "⚠️ 部分符合",
+  "verdict.non_compliance": "❌ 未符合",
+  "verdict.insufficient_data": "⬜ 資料不足",
+  "verdict.not_applicable": "➖ 不適用"
 }

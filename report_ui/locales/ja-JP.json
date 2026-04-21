@@ -1,19 +1,16 @@
 {
   "page.title": "📊 コンプライアンス分析レポート",
   "page.header": "📊 コンプライアンス分析レポート",
-
   "tabs.analysis": "📊 コンプライアンス分析結果",
   "tabs.crossref": "🔗 各国規制クロスリファレンス",
   "tabs.crossexam": "💬 リアルタイム LLM インタラクション",
   "tabs.verification": "🔍 データ検証",
-
   "summary.total_rows": "分析項目",
   "summary.full_compliance": "完全準拠",
   "summary.partial_compliance": "部分準拠",
   "summary.non_compliance": "非準拠",
   "summary.flagged_count": "RA レビュー要",
   "summary.token_usage": "トークン使用量",
-
   "filters.document": "文書",
   "filters.all_documents": "全文書",
   "filters.verdict": "判定結果",
@@ -22,11 +19,9 @@
   "filters.all_risk_levels": "全レベル",
   "filters.flagged_only": "レビュー要のみ表示",
   "filters.search_placeholder": "条項 / 文書を検索...",
-
   "actions.export_word": "📄 Word",
   "actions.export_excel": "📊 Excel",
   "actions.refresh": "🔄 更新",
-
   "table.clause": "条項",
   "table.document": "品質文書",
   "table.audit_question": "監査質問",
@@ -40,16 +35,13 @@
   "table.empty": "条件に一致する項目がありません",
   "table.invalid_id": "❌ 無効なレポート ID",
   "table.load_error": "❌ 読み込み失敗: {error}",
-
   "status.completed": "✅ 完了",
   "status.running": "⏳ 実行中",
   "status.paused": "⏸️ 一時停止",
   "status.failed": "❌ 失敗",
   "status.pending": "⏳ 待機中",
-
   "verdict.undetermined": "— 未判定",
   "risk.unassessed": "— 未評価",
-
   "row.flag_tooltip": "RA レビュー要",
   "row.btn_detail": "詳細",
   "row.btn_override": "判定上書き",
@@ -57,7 +49,6 @@
   "row.btn_history": "履歴",
   "row.btn_restore": "LLM 元判定を復元",
   "row.btn_rerun": "再分析",
-
   "detail.title": "条項詳細",
   "detail.basic_info": "📋 基本情報",
   "detail.clause_id": "条項 ID",
@@ -112,8 +103,8 @@
   "ui.analyzer": "🔍 分析者",
   "ui.rounds": "ラウンド",
   "ui.verifier": "🛡️ 検証者",
-  "ui.agreed": "✅ 一致",
-  "ui.disagreed": "❌ 不一致",
+  "ui.agreed": "一致",
+  "ui.disagreed": "不一致",
   "ui.roundN": "第 {n} ラウンド",
   "ui.crossexamAgreed": "{rounds} ラウンド後に一致",
   "ui.crossexamDisagreed": "{rounds} ラウンド後も不一致",
@@ -171,7 +162,6 @@
   "detail.regulation_cite": "📖 規制引用",
   "detail.phase_results": "⏱️ フェーズ実行ログ",
   "detail.load_error": "詳細の読み込みに失敗: {error}",
-
   "phase.phase_0": "データ品質チェック",
   "phase.phase_0_5": "規制参照マッピング",
   "phase.phase_1": "ギャップスキャン",
@@ -180,7 +170,6 @@
   "phase.phase_4": "改善提案",
   "phase.phase_5": "独立検証",
   "phase.phase_6": "ソース検証",
-
   "override.title": "✏️ 判定結果の上書き",
   "override.current_verdict": "現在の判定",
   "override.new_verdict": "新しい判定結果",
@@ -198,7 +187,6 @@
   "override.success": "判定が上書きされました",
   "override.error": "上書き失敗: {error}",
   "override.rerun_prompt": "判定が正常に上書きされました。\n\nこの条項を次回分析時に再実行するためにリセットしますか？\n（リセット後、Chainlit で「規制リスト」を再実行する必要があります）",
-
   "note.title": "📝 条項メモの追加",
   "note.clause_label": "条項",
   "note.content_label": "メモ内容",
@@ -209,7 +197,6 @@
   "note.saving": "保存中...",
   "note.success": "メモが保存されました",
   "note.error": "保存失敗: {error}",
-
   "history.title": "📜 バージョン履歴",
   "history.empty": "この条項の変更履歴はありません",
   "history.override_verdict": "判定上書き",
@@ -224,23 +211,17 @@
   "history.current_override": "✏️ 現在の上書き状態",
   "history.current_notes": "📝 現在のメモ",
   "history.load_error": "履歴の読み込みに失敗: {error}",
-
   "restore.confirm": "LLM の元の判定結果に復元してもよろしいですか？\n（この操作はバージョン履歴に記録されます）",
   "restore.success": "LLM 元判定が復元されました",
   "restore.error": "復元失敗: {error}",
-
   "rerun.confirm": "この条項を再分析してもよろしいですか？\n\n条項: {clause}\n\nこの操作は分析結果をリセットします。Chainlit で次回\n「規制リスト」を実行した際に自動的に再分析されます。",
   "rerun.success": "🔄 条項 {clause_id} が再分析のためにリセットされました\n{message}",
   "rerun.error": "リセット失敗: {error}",
-
   "export.progress": "{format} レポートをエクスポート中...",
-
   "format.seconds": "{value} 秒",
   "format.minutes": "{mins} 分 {secs} 秒",
-
   "toast.load_error": "読み込み失敗: {error}",
   "toast.downloadFailed": "ダウンロード失敗: {msg}",
-
   "crossref.select_countries": "🌍 規制国を選択",
   "crossref.loading_regulations": "✨ 規制一覧を読み込み中...",
   "crossref.no_regulations": "❌ 利用可能な規制がありません",
@@ -273,7 +254,6 @@
   "crossref.unique_requirements": "🚨 固有要件:",
   "crossref.doc_evidence": "📄 対応品質文書",
   "crossref.more_items": "...他 {count} 件",
-
   "intercountry.title": "🔀 国間差異分析",
   "intercountry.desc": "各国規制間の差異を表示します — ある国にはあるが他の国にはない固有の要件。",
   "intercountry.unique_diff": "固有の差異",
@@ -281,7 +261,6 @@
   "intercountry.unique_reqs": "🚨 国固有の要件（{count} 件）：",
   "intercountry.not_covered": "➖ この国では未対応だが他の国では対応している条項：",
   "intercountry.no_diffs": "選択された国の規制は高度に一貫しており、顕著な差異はありません",
-
   "delta.title": "🚨 国固有要件（デルタ項目）— 最優先",
   "delta.desc": "以下は各国規制における ISO 13485 を超える固有要件です。品質文書はこれらの内容を追加でカバーする必要があります。",
   "delta.unique_count": "{country} — {count} 件の固有要件",
@@ -291,7 +270,6 @@
   "delta.confidence": "信頼度 {value}%",
   "delta.no_items": "選択された国の規制に固有要件はありません",
   "delta.semantic_analysis": "💡 意味解析 / 各国間の差異分析",
-
   "crossexam.title": "💬 リアルタイム LLM インタラクションビューア",
   "crossexam.desc": "全フェーズの LLM インタラクション（ギャップスキャン、検証、改善提案、クロス尋問）を観察し、必要に応じて介入できます。",
   "crossexam.disconnected": "⏹ 未接続",
@@ -318,12 +296,10 @@
   "crossexam.pause_error": "一時停止失敗: {error}",
   "crossexam.resume_error": "再開失敗: {error}",
   "crossexam.send_error": "送信失敗: {error}",
-
   "crossexam.phase_all": "すべて",
   "crossexam.phase_verify": "検証",
   "crossexam.phase_remediation": "改善提案",
   "crossexam.phase_crossexam": "クロス尋問",
-
   "sse.connected": "✅ リアルタイム LLM インタラクションストリームに接続しました",
   "sse.streaming": "🟢 ストリーミング中",
   "sse.pipeline_started": "🚀 分析パイプラインが開始されました",
@@ -350,13 +326,11 @@
   "sse.paused": "⏸ 一時停止",
   "sse.resumed": "▶️ 再開",
   "sse.clauses": "条項:",
-
   "sse.evidence_found": "見つかった",
   "sse.evidence_not_found": "未発見",
   "sse.evidence_inadequate": "不十分",
   "sse.suggestions_count": "提案数: {count}",
   "sse.agreed_count": "一致: {agreed} | フラグ: {flagged}",
-
   "llm.view_response": "📄 LLM 応答を表示",
   "llm.view_raw": "📄 元の応答を表示",
   "llm.view_prompt": "📄 プロンプトプレビューを表示",
@@ -365,7 +339,6 @@
   "llm.unknown_evidence": "不明",
   "llm.remediation_header": "🛠️ {title}",
   "llm.suggestion_default": "提案",
-
   "verification.pass": "合格",
   "verification.warning": "警告",
   "verification.fail": "不合格",
@@ -386,7 +359,6 @@
   "verification.th_status": "ステータス",
   "verification.th_checks": "チェック項目",
   "verification.th_issues": "問題",
-
   "method.official_crossref": "📜 公式クロスリファレンス",
   "method.clause_structure": "📁 条文構造マッピング",
   "method.semantic_en": "🇬🇧 英語意味分析",
@@ -394,7 +366,6 @@
   "method.keyword_match": "🔑 キーワードマッチング",
   "method.expert_judgment": "🧑‍💻 専門家判断",
   "method.llm_analysis": "🤖 LLM 分析",
-
   "lang.en": "English",
   "lang.zh-TW": "繁體中文",
   "lang.zh-CN": "簡体中文",
@@ -402,7 +373,6 @@
   "lang.fr": "Français",
   "lang.ja": "日本語",
   "lang.ko": "한국어",
-
   "dialog.help_title": "利用可能なコマンド:",
   "dialog.help_adjust_desc": "補足標準の ISO 13485 条項マッピングを調整",
   "dialog.help_adjust_example": "例:",
@@ -412,5 +382,20 @@
   "dialog.standards_load_error": "標準一覧の読み込みに失敗: {error}",
   "dialog.adjust_format_error": "✗ フォーマットエラー。使用法:",
   "dialog.adjust_example": "例:",
-  "dialog.adjust_error": "調整失敗: {error}"
+  "dialog.adjust_error": "調整失敗: {error}",
+  "gap.missing": "欠如",
+  "gap.incomplete": "不完全",
+  "gap.inadequate": "不十分",
+  "gap.outdated": "古い",
+  "gap.none": "なし",
+  "risk.immediate_correction": "🔴 即時是正",
+  "risk.deadline_correction": "🟠 期限付き是正",
+  "risk.improvement_plan": "🟡 改善計画",
+  "risk.suggested_improvement": "🟢 改善推奨",
+  "risk.compliant": "✅ 適合",
+  "verdict.full_compliance": "✅ 完全準拠",
+  "verdict.partial_compliance": "⚠️ 部分準拠",
+  "verdict.non_compliance": "❌ 不適合",
+  "verdict.insufficient_data": "⬜ データ不足",
+  "verdict.not_applicable": "➖ 適用外"
 }

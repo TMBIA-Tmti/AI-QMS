@@ -1292,7 +1292,7 @@
                 const formula = `${escapeHtml(row.audit_impact || '?')} × ${escapeHtml(row.gap_severity)} → ${escapeHtml(row.risk_level)}`;
                 html += `<div class="risk-reasoning">
                     <h4>⚖️ ${_i18nT('detail.riskReasoning')}</h4>
-                    <div class="risk-formula">📊 ${_i18nT('detail.auditImpact')}(${escapeHtml(row.audit_impact || '?')}) × ${_i18nT('detail.gapSeverity')}(${escapeHtml(row.gap_severity)}) → ${_i18nT('detail.riskLevel')}(${escapeHtml(row.risk_level)})</div>`;
+                    <div class="risk-formula">📊 ${_i18nT('detail.auditImpact')}(${escapeHtml(row.audit_impact || '?')}) × ${_i18nT('detail.gapSeverity')}(${escapeHtml(t('gap.' + row.gap_severity))}) → ${_i18nT('detail.riskLevel')}(${escapeHtml(t('risk.' + row.risk_level))})</div>`;
 
                 // Extract evidence_stats from phase_3.output if available
                 const p3 = (row.phase_results || {}).phase_3;
@@ -1395,7 +1395,7 @@
                 for (let i = 0; i < rounds.length; i++) {
                     const round = rounds[i];
                     const agreed = round.agreed;
-                    const statusText = agreed ? "✅ " + t("ui.agreed") : "❌ " + t("ui.disagreed");
+                    const statusText = agreed ? t("ui.agreed") : t("ui.disagreed");
 
                     html += `<div class="verification-round">
                         <div class="verification-round-header">
@@ -1515,9 +1515,9 @@
                     if (key === 'phase_3' && pr.output) {
                         const out = pr.output;
                         const parts = [];
-                        if (out.gap_severity) parts.push(`${t('detail.gapSeverity')}: ${out.gap_severity}`);
-                        if (out.risk_level) parts.push(`${t('detail.riskLevel')}: ${out.risk_level}`);
-                        if (out.verdict) parts.push(`${t('detail.verdict')}: ${out.verdict}`);
+                        if (out.gap_severity) parts.push(`${t('detail.gapSeverity')}: ${t('gap.' + out.gap_severity)}`);
+                        if (out.risk_level) parts.push(`${t('detail.riskLevel')}: ${t('risk.' + out.risk_level)}`);
+                        if (out.verdict) parts.push(`${t('detail.verdict')}: ${t('verdict.' + out.verdict)}`);
                         if (parts.length) {
                             html += `<span class="detail-label"></span>
                                 <span class="detail-value" style="font-size:0.78rem;color:#78350f">└─ ${escapeHtml(parts.join(' | '))}</span>`;
@@ -3219,9 +3219,9 @@
                     const stats = d.evidence_stats || {};
                     return `<tr>
                         <td style="font-weight:600">${escapeHtml(d.clause_id || '')}</td>
-                        <td>${escapeHtml(d.gap_severity || '')}</td>
-                        <td>${escapeHtml(d.risk_level || '')}</td>
-                        <td><span class="verdict-badge verdict-${(d.verdict || '').toLowerCase().replace(/\s+/g, '-')}">${escapeHtml(d.verdict || '')}</span></td>
+                        <td>${escapeHtml(d.gap_severity ? t('gap.' + d.gap_severity) : '')}</td>
+                        <td>${escapeHtml(d.risk_level ? t('risk.' + d.risk_level) : '')}</td>
+                        <td><span class="verdict-badge verdict-${(d.verdict || '').toLowerCase().replace(/\s+/g, '-')}">${escapeHtml(d.verdict ? t('verdict.' + d.verdict) : '')}</span></td>
                         <td>${stats.found_adequate || 0}/${stats.total || 0}</td>
                     </tr>`;
                 }).join('');

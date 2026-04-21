@@ -1,19 +1,16 @@
 {
   "page.title": "📊 Compliance Analysis Report",
   "page.header": "📊 Compliance Analysis Report",
-
   "tabs.analysis": "📊 Compliance Analysis",
   "tabs.crossref": "🔗 Cross-Country Regulatory Comparison",
   "tabs.crossexam": "💬 Real-Time LLM Interaction",
   "tabs.verification": "🔍 Data Verification",
-
   "summary.total_rows": "Analysis Items",
   "summary.full_compliance": "Fully Compliant",
   "summary.partial_compliance": "Partially Compliant",
   "summary.non_compliance": "Non-Compliant",
   "summary.flagged_count": "RA Review Required",
   "summary.token_usage": "Token Usage",
-
   "filters.document": "Document",
   "filters.all_documents": "All Documents",
   "filters.verdict": "Verdict",
@@ -22,11 +19,9 @@
   "filters.all_risk_levels": "All Levels",
   "filters.flagged_only": "Show Flagged Only",
   "filters.search_placeholder": "Search clauses / documents...",
-
   "actions.export_word": "📄 Word",
   "actions.export_excel": "📊 Excel",
   "actions.refresh": "🔄 Refresh",
-
   "table.clause": "Clause",
   "table.document": "Quality Document",
   "table.audit_question": "Audit Question",
@@ -40,16 +35,13 @@
   "table.empty": "No matching items",
   "table.invalid_id": "❌ Invalid report ID",
   "table.load_error": "❌ Load failed: {error}",
-
   "status.completed": "✅ Completed",
   "status.running": "⏳ Running",
   "status.paused": "⏸️ Paused",
   "status.failed": "❌ Failed",
   "status.pending": "⏳ Pending",
-
   "verdict.undetermined": "— Undetermined",
   "risk.unassessed": "— Unassessed",
-
   "row.flag_tooltip": "RA Review Required",
   "row.btn_detail": "Details",
   "row.btn_override": "Override Verdict",
@@ -57,7 +49,6 @@
   "row.btn_history": "History",
   "row.btn_restore": "Restore LLM Original",
   "row.btn_rerun": "Re-analyze",
-
   "detail.title": "Clause Details",
   "detail.basic_info": "📋 Basic Information",
   "detail.clause_id": "Clause ID",
@@ -112,8 +103,8 @@
   "ui.analyzer": "🔍 Analyzer",
   "ui.rounds": "rounds",
   "ui.verifier": "🛡️ Verifier",
-  "ui.agreed": "✅ Agreed",
-  "ui.disagreed": "❌ Disagreed",
+  "ui.agreed": "Agreed",
+  "ui.disagreed": "Disagreed",
   "ui.roundN": "Round {n}",
   "ui.crossexamAgreed": "Agreed after {rounds} round(s)",
   "ui.crossexamDisagreed": "Disagreed after {rounds} round(s)",
@@ -171,7 +162,6 @@
   "detail.regulation_cite": "📖 Regulatory Citation",
   "detail.phase_results": "⏱️ Phase Execution Log",
   "detail.load_error": "Failed to load details: {error}",
-
   "phase.phase_0": "Data Quality Check",
   "phase.phase_0_5": "Regulatory Reference Mapping",
   "phase.phase_1": "Gap Scan",
@@ -180,7 +170,6 @@
   "phase.phase_4": "Remediation Suggestions",
   "phase.phase_5": "Independent Verification",
   "phase.phase_6": "Source Verification",
-
   "override.title": "✏️ Override Verdict",
   "override.current_verdict": "Current Verdict",
   "override.new_verdict": "New Verdict",
@@ -198,7 +187,6 @@
   "override.success": "Verdict overridden",
   "override.error": "Override failed: {error}",
   "override.rerun_prompt": "Verdict has been successfully overridden.\n\nWould you like to reset this clause for re-analysis on the next run?\n(After reset, you need to run \"Regulatory List\" in Chainlit to re-analyze)",
-
   "note.title": "📝 Add Clause Note",
   "note.clause_label": "Clause",
   "note.content_label": "Note Content",
@@ -209,7 +197,6 @@
   "note.saving": "Saving...",
   "note.success": "Note saved",
   "note.error": "Save failed: {error}",
-
   "history.title": "📜 Version History",
   "history.empty": "No modification history for this clause",
   "history.override_verdict": "Override Verdict",
@@ -224,23 +211,17 @@
   "history.current_override": "✏️ Current Override Status",
   "history.current_notes": "📝 Current Notes",
   "history.load_error": "Failed to load history: {error}",
-
   "restore.confirm": "Are you sure you want to restore the original LLM verdict?\n(This action will be recorded in version history)",
   "restore.success": "LLM original verdict restored",
   "restore.error": "Restore failed: {error}",
-
   "rerun.confirm": "Are you sure you want to re-analyze this clause?\n\nClause: {clause}\n\nThis will reset the analysis results. The clause will be\nre-analyzed when you next run \"Regulatory List\" in Chainlit.",
   "rerun.success": "🔄 Clause {clause_id} has been reset for re-analysis\n{message}",
   "rerun.error": "Reset failed: {error}",
-
   "export.progress": "Exporting {format} report...",
-
   "format.seconds": "{value} sec",
   "format.minutes": "{mins} min {secs} sec",
-
   "toast.load_error": "Load failed: {error}",
   "toast.downloadFailed": "Download failed: {msg}",
-
   "crossref.select_countries": "🌍 Select Regulatory Countries",
   "crossref.loading_regulations": "✨ Loading regulatory list...",
   "crossref.no_regulations": "❌ No regulations available",
@@ -273,7 +254,6 @@
   "crossref.unique_requirements": "🚨 Unique Requirements:",
   "crossref.doc_evidence": "📄 Corresponding Quality Documents",
   "crossref.more_items": "...and {count} more",
-
   "intercountry.title": "🔀 Inter-Country Difference Analysis",
   "intercountry.desc": "Shows differences between country regulations — unique requirements that one country has but others don't.",
   "intercountry.unique_diff": "Unique Differences",
@@ -281,7 +261,6 @@
   "intercountry.unique_reqs": "🚨 Country-Unique Requirements ({count}):",
   "intercountry.not_covered": "➖ Clauses not covered by this country but covered by others:",
   "intercountry.no_diffs": "Selected country regulations are highly consistent, no significant differences",
-
   "delta.title": "🚨 Country-Unique Requirements (Delta Items) — Highest Priority",
   "delta.desc": "The following are unique requirements in each country's regulations that exceed ISO 13485. Quality documents must additionally cover these.",
   "delta.unique_count": "{country} — {count} unique requirements",
@@ -291,7 +270,6 @@
   "delta.confidence": "Confidence {value}%",
   "delta.no_items": "No unique requirements in selected country regulations",
   "delta.semantic_analysis": "💡 Semantic Analysis / Cross-Country Differences",
-
   "crossexam.title": "💬 Real-Time LLM Interaction Viewer",
   "crossexam.desc": "Watch all Phase LLM interactions (Gap Scan, Verification, Remediation, Cross-Examination) and intervene when necessary.",
   "crossexam.disconnected": "⏹ Disconnected",
@@ -318,12 +296,10 @@
   "crossexam.pause_error": "Pause failed: {error}",
   "crossexam.resume_error": "Resume failed: {error}",
   "crossexam.send_error": "Send failed: {error}",
-
   "crossexam.phase_all": "All",
   "crossexam.phase_verify": "Verification",
   "crossexam.phase_remediation": "Remediation",
   "crossexam.phase_crossexam": "Cross-Examination",
-
   "sse.connected": "✅ Connected to real-time LLM interaction stream",
   "sse.streaming": "🟢 Streaming",
   "sse.pipeline_started": "🚀 Analysis pipeline started",
@@ -350,13 +326,11 @@
   "sse.paused": "⏸ Paused",
   "sse.resumed": "▶️ Resumed",
   "sse.clauses": "Clauses:",
-
   "sse.evidence_found": "Found",
   "sse.evidence_not_found": "Not Found",
   "sse.evidence_inadequate": "Inadequate",
   "sse.suggestions_count": "Suggestions: {count}",
   "sse.agreed_count": "Agreed: {agreed} | Flagged: {flagged}",
-
   "llm.view_response": "📄 View LLM Response",
   "llm.view_raw": "📄 View Raw Response",
   "llm.view_prompt": "📄 View Prompt Preview",
@@ -365,7 +339,6 @@
   "llm.unknown_evidence": "Unknown",
   "llm.remediation_header": "🛠️ {title}",
   "llm.suggestion_default": "Suggestion",
-
   "verification.pass": "Passed",
   "verification.warning": "Warning",
   "verification.fail": "Failed",
@@ -386,7 +359,6 @@
   "verification.th_status": "Status",
   "verification.th_checks": "Checks",
   "verification.th_issues": "Issues",
-
   "method.official_crossref": "📜 Official Cross-Reference",
   "method.clause_structure": "📁 Clause Structure Mapping",
   "method.semantic_en": "🇬🇧 English Semantic Analysis",
@@ -394,7 +366,6 @@
   "method.keyword_match": "🔑 Keyword Matching",
   "method.expert_judgment": "🧑‍💻 Expert Judgment",
   "method.llm_analysis": "🤖 LLM Analysis",
-
   "lang.en": "English",
   "lang.zh-TW": "Traditional Chinese",
   "lang.zh-CN": "Simplified Chinese",
@@ -402,7 +373,6 @@
   "lang.fr": "Français",
   "lang.ja": "Japanese",
   "lang.ko": "Korean",
-
   "dialog.help_title": "Available Commands:",
   "dialog.help_adjust_desc": "Adjust ISO 13485 clause mapping for supplemental standards",
   "dialog.help_adjust_example": "Example:",
@@ -412,5 +382,20 @@
   "dialog.standards_load_error": "Unable to load standards list: {error}",
   "dialog.adjust_format_error": "✗ Format error. Usage:",
   "dialog.adjust_example": "Example:",
-  "dialog.adjust_error": "Adjustment failed: {error}"
+  "dialog.adjust_error": "Adjustment failed: {error}",
+  "gap.missing": "Missing",
+  "gap.incomplete": "Incomplete",
+  "gap.inadequate": "Inadequate",
+  "gap.outdated": "Outdated",
+  "gap.none": "None",
+  "risk.immediate_correction": "🔴 Immediate Correction",
+  "risk.deadline_correction": "🟠 Deadline Correction",
+  "risk.improvement_plan": "🟡 Improvement Plan",
+  "risk.suggested_improvement": "🟢 Suggested Improvement",
+  "risk.compliant": "✅ Compliant",
+  "verdict.full_compliance": "✅ Full Compliance",
+  "verdict.partial_compliance": "⚠️ Partial Compliance",
+  "verdict.non_compliance": "❌ Non-Compliance",
+  "verdict.insufficient_data": "⬜ Insufficient Data",
+  "verdict.not_applicable": "➖ Not Applicable"
 }
