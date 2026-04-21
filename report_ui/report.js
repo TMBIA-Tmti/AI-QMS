@@ -1390,7 +1390,7 @@
             const rounds = row.verification_rounds || [];
             if (rounds.length > 0) {
                 html += `<div class="detail-section">
-                    <h3>🔄 ${_i18nT('detail.crossExam')} (${rounds.length} ${_i18nT('ui.rounds')})</h3>`;
+                    <h3>${_i18nT('detail.crossExam')} (${rounds.length} ${_i18nT('ui.rounds')})</h3>`;
 
                 for (let i = 0; i < rounds.length; i++) {
                     const round = rounds[i];
