@@ -134,7 +134,7 @@ _EXPORT_HEADERS: dict[str, dict[str, str]] = {
         "deep_analyzer_label": "🔍 分析者",
         "deep_verifier_label": "⚖️ 驗證者",
         "deep_s6": "第六章 合規性分析結果表",
-        "deep_s6_headers": ["條款", "文件", "稽核影響", "判定", "風險", "差距", "RA 標記"],
+        "deep_s6_headers": ["條款", "文件", "稽核影響", "判定", "風險", "差距", "RA 標記", "Pipeline 狀態"],
         "deep_s7": "第七章 交叉詰問品質分析",
         "deep_s7_findings": "發現事項",
         "deep_s7_recs": "建議",
@@ -156,7 +156,22 @@ _EXPORT_HEADERS: dict[str, dict[str, str]] = {
         "xl_flagged_ra": "需 RA 審查",
         "xl_verdict_prefix": "判定 - ",
         "xl_risk_prefix": "風險 - ",
-        "xl_comp_headers": ["條款 ID","條款名稱","文件 ID","文件標題","稽核影響","稽核問題","判定","風險等級","差距嚴重度","證據 (找到/總計)","RA 標記","RA 覆寫","RA 備註","改善建議 (LLM P4)","法規引用 (LLM P4)","分析者立場 (LLM P5)","驗證者評語 (LLM P5)"],
+        "xl_comp_headers": ["條款 ID","條款名稱","文件 ID","文件標題","稽核影響","稽核問題","判定","風險等級","差距嚴重度","證據 (找到/總計)","RA 標記","RA 覆寫","RA 備註","改善建議 (LLM P4)","法規引用 (LLM P4)","分析者立場 (LLM P5)","驗證者評語 (LLM P5)","Pipeline 狀態"],
+        "deep_s0": "第零章 Pipeline 執行進度總覽",
+        "deep_s0_phase_col_phase": "階段",
+        "deep_s0_phase_col_name_zh": "名稱（中文）",
+        "deep_s0_phase_col_name_en": "名稱（英文）",
+        "deep_s0_phase_col_rows": "行數",
+        "deep_s0_phase_col_status": "狀態",
+        "deep_s0_skipped": "已跳過階段",
+        "deep_s0_budget_title": "LLM Token 使用統計",
+        "deep_s0_budget_total": "已使用 Token",
+        "deep_s0_budget_calls": "LLM 呼叫次數",
+        "deep_s0_budget_pct": "預算使用率",
+        "deep_s0_budget_remaining": "剩餘 Token",
+        "deep_s0_dq_title": "資料品質檢查結果 (P0)",
+        "deep_s0_sc_title": "來源驗證結果 (P6)",
+        "deep_s0_none": "（無資料）",
         "xl_llm_headers": ["Phase","文件 ID","條款 ID","角色","Round","LLM 回應 (摘要)","Token 用量","模型","時間"],
         "xl_xe_headers": ["條款 ID","條款名稱","文件 ID","判定","同意","RA 標記","輪次數","R1 分析者立場","R1 分析者信心","R1 驗證者評估","R1 Agreement","QA 分數","問題品質","回答準確","幻覺偵測"],
     },
@@ -250,7 +265,7 @@ _EXPORT_HEADERS: dict[str, dict[str, str]] = {
         "deep_analyzer_label": "🔍 Analyzer",
         "deep_verifier_label": "⚖️ Verifier",
         "deep_s6": "Chapter 6: Compliance Analysis Results",
-        "deep_s6_headers": ["Clause", "Document", "Audit Impact", "Verdict", "Risk", "Gap", "RA Flag"],
+        "deep_s6_headers": ["Clause", "Document", "Audit Impact", "Verdict", "Risk", "Gap", "RA Flag", "Pipeline Status"],
         "deep_s7": "Chapter 7: Cross-Examination Quality Analysis",
         "deep_s7_findings": "Findings",
         "deep_s7_recs": "Recommendations",
@@ -272,7 +287,22 @@ _EXPORT_HEADERS: dict[str, dict[str, str]] = {
         "xl_flagged_ra": "Flagged for RA",
         "xl_verdict_prefix": "Verdict - ",
         "xl_risk_prefix": "Risk - ",
-        "xl_comp_headers": ["Clause ID","Clause Title","Doc ID","Doc Title","Audit Impact","Audit Question","Verdict","Risk Level","Gap Severity","Evidence (Found/Total)","RA Flag","RA Override","RA Notes","Improvement Suggestion (P4)","Regulation Cite (P4)","Analyzer Position (P5)","Verifier Assessment (P5)"],
+        "xl_comp_headers": ["Clause ID","Clause Title","Doc ID","Doc Title","Audit Impact","Audit Question","Verdict","Risk Level","Gap Severity","Evidence (Found/Total)","RA Flag","RA Override","RA Notes","Improvement Suggestion (P4)","Regulation Cite (P4)","Analyzer Position (P5)","Verifier Assessment (P5)","Pipeline Status"],
+        "deep_s0": "Chapter 0: Pipeline Execution Progress",
+        "deep_s0_phase_col_phase": "Phase",
+        "deep_s0_phase_col_name_zh": "Name (ZH)",
+        "deep_s0_phase_col_name_en": "Name (EN)",
+        "deep_s0_phase_col_rows": "Rows",
+        "deep_s0_phase_col_status": "Status",
+        "deep_s0_skipped": "Skipped Phases",
+        "deep_s0_budget_title": "LLM Token Usage",
+        "deep_s0_budget_total": "Tokens Used",
+        "deep_s0_budget_calls": "LLM Calls",
+        "deep_s0_budget_pct": "Budget Used %",
+        "deep_s0_budget_remaining": "Remaining Tokens",
+        "deep_s0_dq_title": "Data Quality Check Results (P0)",
+        "deep_s0_sc_title": "Source Verification Results (P6)",
+        "deep_s0_none": "(No data)",
         "xl_llm_headers": ["Phase","Doc ID","Clause ID","Role","Round","LLM Response (excerpt)","Token Usage","Model","Timestamp"],
         "xl_xe_headers": ["Clause ID","Clause Title","Doc ID","Verdict","Agreed","RA Flag","Rounds","R1 Analyzer Position","R1 Analyzer Confidence","R1 Verifier Assessment","R1 Agreement","QA Score","Question Quality","Answer Accuracy","Hallucination"],
     },
@@ -366,7 +396,7 @@ _EXPORT_HEADERS: dict[str, dict[str, str]] = {
         "deep_analyzer_label": "🔍 分析者",
         "deep_verifier_label": "⚖️ 検証者",
         "deep_s6": "第6章 コンプライアンス分析結果表",
-        "deep_s6_headers": ["条項", "文書", "監査影響", "判定", "リスク", "ギャップ", "RAフラグ"],
+        "deep_s6_headers": ["条項", "文書", "監査影響", "判定", "リスク", "ギャップ", "RAフラグ", "パイプライン状態"],
         "deep_s7": "第7章 相互尋問品質分析",
         "deep_s7_findings": "発見事項",
         "deep_s7_recs": "推奨事項",
@@ -388,11 +418,61 @@ _EXPORT_HEADERS: dict[str, dict[str, str]] = {
         "xl_flagged_ra": "RA要確認",
         "xl_verdict_prefix": "判定 - ",
         "xl_risk_prefix": "リスク - ",
-        "xl_comp_headers": ["条項ID","条項名","文書ID","文書タイトル","監査影響","監査質問","判定","リスクレベル","ギャップ重大度","証拠（確認/合計）","RAフラグ","RAオーバーライド","RAメモ","改善提案 (P4)","規制引用 (P4)","分析者立場 (P5)","検証者評価 (P5)"],
+        "xl_comp_headers": ["条項ID","条項名","文書ID","文書タイトル","監査影響","監査質問","判定","リスクレベル","ギャップ重大度","証拠（確認/合計）","RAフラグ","RAオーバーライド","RAメモ","改善提案 (P4)","規制引用 (P4)","分析者立場 (P5)","検証者評価 (P5)","パイプライン状態"],
+        "deep_s0": "フェーズ0：パイプライン実行進捗",
+        "deep_s0_phase_col_phase": "フェーズ",
+        "deep_s0_phase_col_name_zh": "名前（中国語）",
+        "deep_s0_phase_col_name_en": "名前（英語）",
+        "deep_s0_phase_col_rows": "行数",
+        "deep_s0_phase_col_status": "状態",
+        "deep_s0_skipped": "スキップされたフェーズ",
+        "deep_s0_budget_title": "LLMトークン使用統計",
+        "deep_s0_budget_total": "使用トークン数",
+        "deep_s0_budget_calls": "LLM呼び出し回数",
+        "deep_s0_budget_pct": "予算使用率",
+        "deep_s0_budget_remaining": "残りトークン",
+        "deep_s0_dq_title": "データ品質チェック結果 (P0)",
+        "deep_s0_sc_title": "ソース検証結果 (P6)",
+        "deep_s0_none": "（データなし）",
         "xl_llm_headers": ["Phase","文書ID","条項ID","役割","Round","LLM回答（抜粋）","トークン使用量","モデル","タイムスタンプ"],
         "xl_xe_headers": ["条項ID","条項名","文書ID","判定","同意","RAフラグ","ラウンド数","R1分析者立場","R1分析者信頼度","R1検証者評価","R1 Agreement","QAスコア","質問品質","回答精度","ハルシネーション"],
     },
 }
+
+
+# ============================================================
+# Shared: Word visual helpers
+# ============================================================
+
+
+def _shade_cell(cell, fill_hex: str) -> None:
+    """Apply background fill to a Word table cell (tcPr level, not pPr)."""
+    from docx.oxml.ns import qn
+    from docx.oxml import OxmlElement
+    tc = cell._tc
+    tcPr = tc.get_or_add_tcPr()
+    for existing in tcPr.findall(qn("w:shd")):
+        tcPr.remove(existing)
+    shd = OxmlElement("w:shd")
+    shd.set(qn("w:val"), "clear")
+    shd.set(qn("w:color"), "auto")
+    shd.set(qn("w:fill"), fill_hex)
+    tcPr.append(shd)
+
+
+def _bold_cell(cell, text: str, fill_hex: str | None = None, font_color: str | None = None,
+               font_size: int = 9) -> None:
+    """Set cell text bold, optionally with background fill and font color."""
+    from docx.shared import Pt, RGBColor
+    cell.text = ""
+    run = cell.paragraphs[0].add_run(text)
+    run.bold = True
+    run.font.size = Pt(font_size)
+    if font_color:
+        r, g, b = int(font_color[0:2], 16), int(font_color[2:4], 16), int(font_color[4:6], 16)
+        run.font.color.rgb = RGBColor(r, g, b)
+    if fill_hex:
+        _shade_cell(cell, fill_hex)
 
 
 # ============================================================
@@ -885,6 +965,10 @@ def export_deep_report_word(
     meta_analysis: dict | None = None,
     qa_audit_summary: dict | None = None,
     lang: str = "zh-TW",
+    progress: dict | None = None,
+    data_quality: dict | None = None,
+    source_check: dict | None = None,
+    skipped_phases: list[str] | None = None,
 ) -> Path:
     """Export a deep analysis report as Word document.
 
@@ -932,6 +1016,159 @@ def export_deep_report_word(
     # ── AI Roles Legend ──
     _add_ai_roles_legend(doc, lang)
 
+    # ── Section 0: Pipeline Execution Progress ──
+    doc.add_heading(dh["deep_s0"], level=2)
+    # Phase progress table
+    _prog = progress or {}
+    _budget = _prog.get("llm_budget", {})
+    _phase_dist = _prog.get("phase_distribution", {})
+    _skipped = skipped_phases or []
+    phase_tbl = doc.add_table(rows=1 + len(_PHASE_ORDER), cols=4)
+    phase_tbl.style = "Table Grid"
+    _ph_headers = [dh["deep_s0_phase_col_phase"], dh["deep_s0_phase_col_name_zh"], dh["deep_s0_phase_col_name_en"], dh["deep_s0_phase_col_rows"]]
+    for ci, hdr in enumerate(_ph_headers):
+        phase_tbl.rows[0].cells[ci].text = hdr
+    for ri, ph in enumerate(_PHASE_ORDER, 1):
+        ph_label = _PHASE_LABELS[ph]
+        is_skipped = ph in _skipped
+        row_count = _phase_dist.get(ph, 0)
+        phase_tbl.rows[ri].cells[0].text = ph_label + (" (↷)" if is_skipped else "")
+        phase_tbl.rows[ri].cells[1].text = _PHASE_NAMES_ZH.get(ph, ph)
+        phase_tbl.rows[ri].cells[2].text = _PHASE_NAMES_EN.get(ph, ph)
+        phase_tbl.rows[ri].cells[3].text = str(row_count) if not is_skipped else "↷ 跳過"
+    # LLM budget
+    doc.add_heading(dh["deep_s0_budget_title"], level=3)
+    doc.add_paragraph(
+        f"{dh['deep_s0_budget_total']}: {_budget.get('total_tokens_used', 0):,}\n"
+        f"{dh['deep_s0_budget_calls']}: {_budget.get('calls_made', 0)}\n"
+        f"{dh['deep_s0_budget_pct']}: {_budget.get('usage_percent', 0)}%\n"
+        f"{dh['deep_s0_budget_remaining']}: {_budget.get('remaining', 0):,}"
+    )
+    # Skipped phases summary
+    if _skipped:
+        doc.add_heading(dh["deep_s0_skipped"], level=3)
+        for sp in _skipped:
+            doc.add_paragraph(f"  • {_PHASE_LABELS.get(sp, sp)} — {_PHASE_NAMES_ZH.get(sp, sp)} / {_PHASE_NAMES_EN.get(sp, sp)}")
+    # P0 Data Quality
+    if data_quality:
+        doc.add_heading(dh["deep_s0_dq_title"], level=3)
+        # Scalar summary stats
+        for k, v in data_quality.items():
+            if k == "documents_checked":
+                continue
+            if isinstance(v, list):
+                doc.add_paragraph(f"  {k}: {len(v)} 項")
+            elif isinstance(v, dict):
+                doc.add_paragraph(f"  {k}:")
+                for kk, vv in v.items():
+                    doc.add_paragraph(f"    • {kk}: {vv}")
+            else:
+                doc.add_paragraph(f"  {k}: {v}")
+        # documents_checked as Word table
+        docs = data_quality.get("documents_checked")
+        if docs and isinstance(docs, dict):
+            doc.add_paragraph(f"  檢核文件清單（共 {len(docs)} 份）：")
+            dq_tbl = doc.add_table(rows=1 + len(docs), cols=5)
+            dq_tbl.style = "Table Grid"
+            dq_hdr = dq_tbl.rows[0].cells
+            for ci, h in enumerate(["文件 ID", "存在", "有內容", "字元數", "廢止"]):
+                dq_hdr[ci].text = h
+                r = dq_hdr[ci].paragraphs[0].runs
+                (r[0] if r else dq_hdr[ci].paragraphs[0].add_run(h)).bold = True
+            for di, (doc_id, info) in enumerate(docs.items(), 1):
+                if isinstance(info, dict):
+                    dq_tbl.rows[di].cells[0].text = doc_id
+                    dq_tbl.rows[di].cells[1].text = "✓" if info.get("exists") else "✗"
+                    dq_tbl.rows[di].cells[2].text = "✓" if info.get("has_content") else "✗"
+                    dq_tbl.rows[di].cells[3].text = f"{info.get('content_length', 0):,}"
+                    dq_tbl.rows[di].cells[4].text = "是" if info.get("is_obsolete") else "否"
+                else:
+                    dq_tbl.rows[di].cells[0].text = doc_id
+                    dq_tbl.rows[di].cells[1].text = str(info)
+            doc.add_paragraph("")
+    # P6 Source Check
+    if source_check:
+        doc.add_heading(dh["deep_s0_sc_title"], level=3)
+        for k, v in source_check.items():
+            if k == "verification_results" and isinstance(v, list):
+                # Summary line
+                total_u = len(v)
+                acc = sum(1 for i in v if isinstance(i, dict) and i.get("accessible"))
+                broken = total_u - acc
+                doc.add_paragraph(f"  共 {total_u} 筆 URL：可存取 {acc}，無法存取 {broken}")
+                # Word table: 狀態 | 機構 | 地區 | URL | 變更 | 錯誤
+                tbl = doc.add_table(rows=1, cols=6)
+                tbl.style = "Table Grid"
+                hdr = tbl.rows[0].cells
+                for ci, h in enumerate(["狀態", "機構", "地區", "URL", "內容變更", "錯誤訊息"]):
+                    hdr[ci].text = h
+                    run = hdr[ci].paragraphs[0].runs[0]
+                    run.bold = True
+                from docx.shared import Pt
+                from docx.oxml.ns import qn
+                from docx.oxml import OxmlElement
+                for item in v:
+                    if not isinstance(item, dict):
+                        continue
+                    row_cells = tbl.add_row().cells
+                    row_cells[0].text = "✓" if item.get("accessible") else "✗"
+                    row_cells[1].text = item.get("agency", "")
+                    row_cells[2].text = item.get("region", "")
+                    url_val = item.get("url", "")
+                    row_cells[3].text = url_val[:80] + ("…" if len(url_val) > 80 else "")
+                    row_cells[4].text = "是" if item.get("content_changed") else ("—" if item.get("accessible") else "")
+                    row_cells[5].text = (item.get("error") or "")[:80]
+                doc.add_paragraph("")  # spacer
+            elif isinstance(v, list):
+                doc.add_paragraph(f"  {k}: {len(v)} 項")
+            elif isinstance(v, dict):
+                doc.add_paragraph(f"  {k}:")
+                for kk, vv in v.items():
+                    doc.add_paragraph(f"    • {kk}: {vv}")
+            else:
+                doc.add_paragraph(f"  {k}: {v}")
+
+    # ── Section 0.5: Risk Priority Summary Table ──
+    _risk_rows = [r for r in flat_rows if r.get("risk_level", "") in ("immediate_correction", "deadline_correction")
+                  or r.get("verdict", "") in ("non_compliance", "partial_compliance")]
+    if _risk_rows:
+        doc.add_heading("第 0.5 章 風險優先項目摘要 / Risk Priority Summary", level=2)
+        doc.add_paragraph(
+            f"以下 {len(_risk_rows)} 個條款-文件對照項目屬於高風險／嚴重不符合，需優先處理。\n"
+            f"Below {len(_risk_rows)} clause-document pairs are high/critical risk or non-compliant — require priority action."
+        )
+        _risk_sort_order = {"immediate_correction": 0, "deadline_correction": 1, "improvement_plan": 2, "compliant": 9}
+        _risk_rows_sorted = sorted(_risk_rows, key=lambda r: (_risk_sort_order.get(r.get("risk_level",""), 9), r.get("clause_id","")))
+        risk_tbl = doc.add_table(rows=1 + len(_risk_rows_sorted), cols=7)
+        risk_tbl.style = "Table Grid"
+        _risk_hdr_labels = ["條款 ID", "條款名稱", "文件 ID", "判定", "風險等級", "差距嚴重度", "改善建議 (摘要)"]
+        for ci, h in enumerate(_risk_hdr_labels):
+            cell = risk_tbl.rows[0].cells[ci]
+            _bold_cell(cell, h, fill_hex="1F3864", font_color="FFFFFF", font_size=9)
+        for ti, r in enumerate(_risk_rows_sorted, 1):
+            risk_level = r.get("risk_level", "").lower()
+            verdict = r.get("verdict", "")
+            row_bg = "FFE0E0" if risk_level == "immediate_correction" else ("FFF2CC" if risk_level == "deadline_correction" else "E8F5E9")
+            cells = risk_tbl.rows[ti].cells
+            ri_icon = "🔴" if risk_level == "immediate_correction" else ("🟡" if risk_level == "deadline_correction" else "🟢")
+            vals = [
+                r.get("clause_id", ""),
+                r.get("clause_title", "")[:60],
+                r.get("doc_id", ""),
+                r.get("verdict_label", verdict),
+                f"{ri_icon} {r.get('risk_label', risk_level)}",
+                r.get("gap_severity", "") or "—",
+                (r.get("remediation_suggestion") or "")[:150],
+            ]
+            for ci, val in enumerate(vals):
+                cells[ci].text = val
+                _shade_cell(cells[ci], row_bg)
+                for run in cells[ci].paragraphs[0].runs:
+                    run.font.size = Pt(8)
+                    if risk_level == "immediate_correction":
+                        run.bold = True
+        doc.add_paragraph("")
+
     # ── Section 1: Executive Summary ──
     doc.add_heading(dh["deep_s1"], level=2)
     verdict_dist = summary.get("verdict_distribution", {})
@@ -975,8 +1212,7 @@ def export_deep_report_word(
                 resp = gi.get("llm_response", "")
                 if resp:
                     doc.add_heading(dh["deep_llm_response"], level=4)
-                    for chunk in _split_text(resp, 3000):
-                        doc.add_paragraph(chunk)
+                    _render_gap_json_response(doc, resp)
                 usage = gi.get("usage", {})
                 if usage:
                     doc.add_paragraph(
@@ -1004,8 +1240,7 @@ def export_deep_report_word(
                 )
                 resp = vi.get("llm_response", "")
                 if resp:
-                    for chunk in _split_text(resp, 3000):
-                        doc.add_paragraph(chunk)
+                    _render_gap_json_response(doc, resp)
                 usage = vi.get("usage", {})
                 if usage:
                     doc.add_paragraph(
@@ -1033,8 +1268,7 @@ def export_deep_report_word(
                 )
                 resp = ri.get("llm_response", "")
                 if resp:
-                    for chunk in _split_text(resp, 3000):
-                        doc.add_paragraph(chunk)
+                    _render_gap_json_response(doc, resp)
         else:
             doc.add_paragraph(dh["deep_no_p4"])
     else:
@@ -1061,35 +1295,52 @@ def export_deep_report_word(
 
                 group.sort(key=lambda x: (x.get("round_number", 0), x.get("role", "")))
 
-                current_round = 0
                 for xi in group:
-                    rd_num = xi.get("round_number", 0)
-                    if rd_num != current_round:
-                        current_round = rd_num
-                        doc.add_heading(f"Round {rd_num}", level=4)
+                    # P5 llm_response is a JSON array of rounds
+                    raw = xi.get("llm_response", "")
+                    rounds_data = []
+                    if raw:
+                        try:
+                            parsed_rounds = json.loads(raw)
+                            if isinstance(parsed_rounds, list):
+                                rounds_data = parsed_rounds
+                            elif isinstance(parsed_rounds, dict):
+                                rounds_data = [parsed_rounds]
+                        except Exception:
+                            pass
+                    if not rounds_data:
+                        # Fallback: treat as a single-role interaction
+                        parsed = xi.get("parsed_response")
+                        role = xi.get("role", "")
+                        role_label = dh["deep_analyzer_label"] if role == "analyzer" else dh["deep_verifier_label"]
+                        p = doc.add_paragraph()
+                        p.add_run(f"{role_label}: ").bold = True
+                        if parsed and isinstance(parsed, dict):
+                            _render_role_content(p, parsed)
+                        else:
+                            p.add_run((raw or "")[:2000])
+                        continue
 
-                    role = xi.get("role", "")
-                    role_label = (
-                        dh["deep_analyzer_label"]
-                        if role == "analyzer"
-                        else dh["deep_verifier_label"]
-                    )
-
-                    p = doc.add_paragraph()
-                    r = p.add_run(f"{role_label}: ")
-                    r.bold = True
-
-                    parsed = xi.get("parsed_response")
-                    if parsed and isinstance(parsed, dict):
-                        _render_role_content(p, parsed)
-                    else:
-                        resp = xi.get("llm_response", "")
-                        p.add_run(resp[:3000])
-
-                    extra = xi.get("extra", {})
-                    agreement = extra.get("agreement_level", "")
-                    if agreement:
-                        doc.add_paragraph(f"Agreement: {agreement}")
+                    for rd in rounds_data:
+                        rd_num = rd.get("round", "?")
+                        doc.add_heading(f"── Round {rd_num} ──", level=4)
+                        # Analyzer block
+                        analyzer = rd.get("analyzer") or {}
+                        if analyzer:
+                            _render_p5_role_block(doc, dh["deep_analyzer_label"], analyzer, "DDEEFF")
+                        # Verifier block
+                        verifier = rd.get("verifier") or {}
+                        if verifier:
+                            agreement = verifier.get("agreement_level", "")
+                            _render_p5_role_block(doc, dh["deep_verifier_label"], verifier, "FCE4D6")
+                            if agreement:
+                                ag_p = doc.add_paragraph()
+                                ag_p.add_run("Agreement: ").bold = True
+                                ag_color = "C00000" if "disagree" in agreement.lower() else ("FF8000" if "partial" in agreement.lower() else "00A000")
+                                from docx.shared import RGBColor as _RGB
+                                r_run = ag_p.add_run(agreement)
+                                r_run.bold = True
+                                r_run.font.color.rgb = _RGB(*bytes.fromhex(ag_color.ljust(6, "0")))
         else:
             doc.add_paragraph(dh["deep_no_p5"])
     elif crossexam_record:
@@ -1184,22 +1435,33 @@ def export_deep_report_word(
         headers = dh["deep_s6_headers"]
         tbl = doc.add_table(rows=1 + len(flat_rows), cols=len(headers))
         tbl.style = "Table Grid"
+        _S6_HDR_FILL = "1F3864"
         for i, h in enumerate(headers):
-            tbl.rows[0].cells[i].text = h
+            _bold_cell(tbl.rows[0].cells[i], h, fill_hex=_S6_HDR_FILL, font_color="FFFFFF", font_size=9)
+        _S6_RISK_FILL = {
+            "immediate_correction": "FFE0E0",
+            "deadline_correction":  "FFF2CC",
+            "improvement_plan":     "E8F5E9",
+            "compliant":            "F2F2F2",
+        }
         for ri, row in enumerate(flat_rows, 1):
-            tbl.rows[ri].cells[
-                0
-            ].text = f"{row.get('clause_id', '')} {row.get('clause_title', '')}"
-            tbl.rows[ri].cells[1].text = f"{row.get('doc_id', '')}"
-            tbl.rows[ri].cells[2].text = row.get("audit_impact", "")
-            tbl.rows[ri].cells[
-                3
-            ].text = f"{row.get('verdict_icon', '')} {row.get('verdict_label', '')}"
-            tbl.rows[ri].cells[
-                4
-            ].text = f"{row.get('risk_icon', '')} {row.get('risk_label', '')}"
-            tbl.rows[ri].cells[5].text = row.get("gap_severity", "") or ""
-            tbl.rows[ri].cells[6].text = "⚠️" if row.get("flagged_for_ra") else ""
+            rl = row.get("risk_level", "")
+            row_bg = _S6_RISK_FILL.get(rl, "FFFFFF")
+            row_cells = tbl.rows[ri].cells
+            row_cells[0].text = f"{row.get('clause_id', '')} {row.get('clause_title', '')}"
+            row_cells[1].text = f"{row.get('doc_id', '')}"
+            row_cells[2].text = row.get("audit_impact", "")
+            row_cells[3].text = f"{row.get('verdict_icon', '')} {row.get('verdict_label', '')}"
+            row_cells[4].text = f"{row.get('risk_icon', '')} {row.get('risk_label', '')}"
+            row_cells[5].text = row.get("gap_severity", "") or ""
+            row_cells[6].text = "⚠️" if row.get("flagged_for_ra") else ""
+            row_cells[7].text = _pipeline_status_str(row.get("phase_status_summary", {}))
+            for ci in range(8):
+                _shade_cell(row_cells[ci], row_bg)
+                for run in row_cells[ci].paragraphs[0].runs:
+                    run.font.size = Pt(8)
+                    if rl == "immediate_correction":
+                        run.bold = True
 
     # ── Section 7: Meta-Analysis (if available) ──
     if meta_analysis:
@@ -1255,6 +1517,10 @@ def export_deep_report_excel(
     meta_analysis: dict | None = None,
     qa_audit_summary: dict | None = None,
     lang: str = "zh-TW",
+    progress: dict | None = None,
+    data_quality: dict | None = None,
+    source_check: dict | None = None,
+    skipped_phases: list[str] | None = None,
 ) -> Path:
     """Export a deep analysis report as Excel workbook.
 
@@ -1280,6 +1546,14 @@ def export_deep_report_excel(
         start_color="4472C4", end_color="4472C4", fill_type="solid"
     )
     header_font = Font(bold=True, color="FFFFFF", size=10)
+
+    # Risk-level fill colors reused across sheets
+    _RISK_XE_FILL = {
+        "immediate_correction": PatternFill(start_color="FFE0E0", end_color="FFE0E0", fill_type="solid"),
+        "deadline_correction":  PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid"),
+        "improvement_plan":     PatternFill(start_color="E8F5E9", end_color="E8F5E9", fill_type="solid"),
+        "compliant":            PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid"),
+    }
 
     # ── Sheet 1: Summary ──
     ws_sum = wb.active
@@ -1349,8 +1623,175 @@ def export_deep_report_excel(
         ws_comp.cell(row=ri, column=15, value=row.get("remediation_regulation_cite", "") or "")
         ws_comp.cell(row=ri, column=16, value=row.get("analyzer_position", "") or "")
         ws_comp.cell(row=ri, column=17, value=row.get("verifier_position", "") or "")
+        ws_comp.cell(row=ri, column=18, value=_pipeline_status_str(row.get("phase_status_summary", {})))
+
+    # ── Sheet: Phase Progress (unified single table) ──
+    _prog = progress or {}
+    _budget_xl = _prog.get("llm_budget", {})
+    _phase_dist_xl = _prog.get("phase_distribution", {})
+    _skipped_xl = skipped_phases or []
+    ws_prog = wb.create_sheet(dh.get("deep_s0", "Pipeline Progress")[:31])
+
+    _sec_fill = PatternFill(start_color="1F3864", end_color="1F3864", fill_type="solid")
+    _sec_font = Font(bold=True, color="FFFFFF", size=11)
+    _sub_fill = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")
+    _sub_font = Font(bold=True, size=10)
+
+    def _prog_sec_hdr(ws, row, label, ncols=7):
+        c = ws.cell(row=row, column=1, value=label)
+        c.fill = _sec_fill
+        c.font = _sec_font
+        for col in range(2, ncols + 1):
+            ws.cell(row=row, column=col).fill = _sec_fill
+
+    def _prog_col_hdr(ws, row, labels):
+        for ci, lbl in enumerate(labels, 1):
+            c = ws.cell(row=row, column=ci, value=lbl)
+            c.fill = _sub_fill
+            c.font = _sub_font
+
+    cur = 1  # current row pointer
+
+    # ── Section A: Execution Phases ──
+    _prog_sec_hdr(ws_prog, cur, "▌ 執行階段狀態 / Execution Phase Status")
+    cur += 1
+    _prog_col_hdr(ws_prog, cur, [
+        dh.get("deep_s0_phase_col_phase", "階段"),
+        dh.get("deep_s0_phase_col_name_zh", "名稱（中）"),
+        dh.get("deep_s0_phase_col_name_en", "Name (EN)"),
+        dh.get("deep_s0_phase_col_rows", "Row 數"),
+        dh.get("deep_s0_phase_col_status", "狀態"),
+    ])
+    cur += 1
+    for ph in _PHASE_ORDER:
+        is_skipped = ph in _skipped_xl
+        ws_prog.cell(row=cur, column=1, value=_PHASE_LABELS[ph])
+        ws_prog.cell(row=cur, column=2, value=_PHASE_NAMES_ZH.get(ph, ph))
+        ws_prog.cell(row=cur, column=3, value=_PHASE_NAMES_EN.get(ph, ph))
+        ws_prog.cell(row=cur, column=4, value=_phase_dist_xl.get(ph, 0))
+        ws_prog.cell(row=cur, column=5, value="↷ Skipped" if is_skipped else "✓")
+        cur += 1
+
+    # ── Section B: LLM Budget ──
+    _prog_sec_hdr(ws_prog, cur, "▌ LLM 預算 / LLM Budget")
+    cur += 1
+    _prog_col_hdr(ws_prog, cur, ["項目", "數值"])
+    cur += 1
+    ws_prog.cell(row=cur, column=1, value=dh.get("deep_s0_budget_total", "Token 總用量"))
+    ws_prog.cell(row=cur, column=2, value=_budget_xl.get("total_tokens_used", 0))
+    cur += 1
+    ws_prog.cell(row=cur, column=1, value=dh.get("deep_s0_budget_calls", "呼叫次數"))
+    ws_prog.cell(row=cur, column=2, value=_budget_xl.get("calls_made", 0))
+    cur += 1
+    ws_prog.cell(row=cur, column=1, value=dh.get("deep_s0_budget_pct", "預算使用%"))
+    ws_prog.cell(row=cur, column=2, value=f"{_budget_xl.get('usage_percent', 0)}%")
+    cur += 1
+
+    # ── Section C: Data Quality P0 ──
+    _DQ_KEY_LABEL = {
+        "total_rows":                  "總分析筆數 / Total Rows / 総分析行数",
+        "rows_with_doc_content":       "有文件內容筆數 / Rows w/ Doc Content / 文書内容あり",
+        "rows_without_doc_content":    "無文件內容筆數 / Rows w/o Doc Content / 文書内容なし",
+        "rows_with_regulatory_data":   "有法規資料筆數 / Rows w/ Reg. Data / 規制データあり",
+        "rows_without_regulatory_data":"無法規資料筆數 / Rows w/o Reg. Data / 規制データなし",
+        "regulatory_data_available":   "法規資料可用 / Reg. Data Available / 規制データ利用可能",
+        "overall_pass":                "整體通過 / Overall Pass / 全体合格",
+        "issues":                      "問題數量 / Issues / 問題数",
+    }
+    _SC_KEY_LABEL = {
+        "total_urls":        "URL 總數 / Total URLs / URL総数",
+        "accessible":        "可存取數 / Accessible / アクセス可能",
+        "inaccessible":      "無法存取 / Inaccessible / アクセス不可",
+        "content_changed":   "內容已變更 / Content Changed / 内容変更あり",
+        "errors":            "錯誤數 / Errors / エラー数",
+        "overall_pass":      "整體通過 / Overall Pass / 全体合格",
+    }
+    if data_quality:
+        _prog_sec_hdr(ws_prog, cur, "▌ 資料品質 P0 / Data Quality (Phase 0)")
+        cur += 1
+        _prog_col_hdr(ws_prog, cur, ["項目 (中/EN/日)", "數值"])
+        cur += 1
+        # Summary stats (scalar fields)
+        for k, v in data_quality.items():
+            if k == "documents_checked":
+                continue
+            if not isinstance(v, (dict, list)):
+                ws_prog.cell(row=cur, column=1, value=_DQ_KEY_LABEL.get(k, k))
+                ws_prog.cell(row=cur, column=2, value=v)
+                cur += 1
+        # documents_checked table
+        if "documents_checked" in data_quality and isinstance(data_quality["documents_checked"], dict):
+            docs = data_quality["documents_checked"]
+            ws_prog.cell(row=cur, column=1, value=f"檢核文件清單 ({len(docs)} 份)").font = _sub_font
+            cur += 1
+            _prog_col_hdr(ws_prog, cur, ["文件 ID", "存在", "有內容", "字元數", "廢止"])
+            cur += 1
+            for doc_id, info in docs.items():
+                if isinstance(info, dict):
+                    ws_prog.cell(row=cur, column=1, value=doc_id)
+                    ws_prog.cell(row=cur, column=2, value="✓" if info.get("exists") else "✗")
+                    ws_prog.cell(row=cur, column=3, value="✓" if info.get("has_content") else "✗")
+                    ws_prog.cell(row=cur, column=4, value=info.get("content_length", 0))
+                    ws_prog.cell(row=cur, column=5, value="是" if info.get("is_obsolete") else "否")
+                    cur += 1
+
+    # ── Section D: Source Check P6 ──
+    if source_check:
+        _prog_sec_hdr(ws_prog, cur, "▌ 法規來源驗證 P6 / Source Check (Phase 6)")
+        cur += 1
+        _prog_col_hdr(ws_prog, cur, ["項目 (中/EN/日)", "數值"])
+        cur += 1
+        for k, v in source_check.items():
+            if k == "verification_results":
+                continue
+            if not isinstance(v, (dict, list)):
+                ws_prog.cell(row=cur, column=1, value=_SC_KEY_LABEL.get(k, k))
+                ws_prog.cell(row=cur, column=2, value=v)
+                cur += 1
+        vr = source_check.get("verification_results", [])
+        if vr:
+            ws_prog.cell(row=cur, column=1, value=f"URL 驗證結果 ({len(vr)} 筆)").font = _sub_font
+            cur += 1
+            _prog_col_hdr(ws_prog, cur, ["狀態", "機構", "地區", "URL", "內容變更", "HTTP 狀態", "錯誤訊息"])
+            cur += 1
+            for item in vr:
+                if not isinstance(item, dict):
+                    continue
+                ws_prog.cell(row=cur, column=1, value="✓" if item.get("accessible") else "✗")
+                ws_prog.cell(row=cur, column=2, value=item.get("agency", ""))
+                ws_prog.cell(row=cur, column=3, value=item.get("region", ""))
+                ws_prog.cell(row=cur, column=4, value=(item.get("url", ""))[:150])
+                ws_prog.cell(row=cur, column=5, value="是" if item.get("content_changed") else ("—" if item.get("accessible") else ""))
+                ws_prog.cell(row=cur, column=6, value=item.get("status_code") or "")
+                ws_prog.cell(row=cur, column=7, value=(item.get("error") or "")[:120])
+                cur += 1
+
+    # Auto-width for progress sheet
+    for col in ws_prog.columns:
+        max_len = max((len(str(c.value or "")) for c in col), default=8)
+        ws_prog.column_dimensions[col[0].column_letter].width = min(max_len + 2, 60)
+
+    # track dq_row for backward compat (not used below, just kept)
+    dq_row = cur
 
     # ── Sheet 3: LLM Interactions ──
+    _PHASE_LABEL_MAP = {
+        "gap_scan":          "P1 差距掃描 / Gap Scan",
+        "checklist_verify":  "P2 查核表驗證 / Checklist Verify",
+        "remediation":       "P4 改善建議 / Remediation",
+        "verification":      "P5 交叉詰問 / Cross-Exam",
+    }
+    _ROLE_LABEL_MAP = {
+        "analyzer": "分析者 / Analyzer",
+        "verifier": "驗證者 / Verifier",
+    }
+    # Phase-based alternating fill colors for LLM sheet
+    _LLM_PHASE_FILL = {
+        "gap_scan":         PatternFill(start_color="DDEEFF", end_color="DDEEFF", fill_type="solid"),
+        "checklist_verify": PatternFill(start_color="E8F5E9", end_color="E8F5E9", fill_type="solid"),
+        "remediation":      PatternFill(start_color="FFF9C4", end_color="FFF9C4", fill_type="solid"),
+        "verification":     PatternFill(start_color="FCE4D6", end_color="FCE4D6", fill_type="solid"),
+    }
     if interactions:
         ws_llm = wb.create_sheet(dh["xl_sheet_llm"])
         llm_headers = dh["xl_llm_headers"]
@@ -1359,106 +1800,202 @@ def export_deep_report_excel(
             c.fill = header_fill
             c.font = header_font
         for ri, interaction in enumerate(interactions, 2):
-            ws_llm.cell(row=ri, column=1, value=interaction.get("phase_label", ""))
+            phase = interaction.get("phase", "")
+            phase_label = interaction.get("phase_label") or _PHASE_LABEL_MAP.get(phase, phase)
+            clause_id = interaction.get("clause_id") or ""
+            role = interaction.get("role") or ""
+            role_label = _ROLE_LABEL_MAP.get(role, role) if role else "批次 / Batch"
+            # For non-P5 phases (gap_scan/checklist_verify/remediation), clause_id is per-doc
+            clause_display = clause_id if clause_id else ("—（文件層級）" if phase != "verification" else "")
+            row_fill = _LLM_PHASE_FILL.get(phase)
+            ws_llm.cell(row=ri, column=1, value=phase_label)
             ws_llm.cell(row=ri, column=2, value=interaction.get("doc_id", ""))
-            ws_llm.cell(row=ri, column=3, value=interaction.get("clause_id", ""))
-            ws_llm.cell(row=ri, column=4, value=interaction.get("role", ""))
-            ws_llm.cell(row=ri, column=5, value=interaction.get("round_number", 0))
-            resp = interaction.get("llm_response", "")
-            ws_llm.cell(row=ri, column=6, value=resp[:500])
-            ws_llm.cell(
-                row=ri,
-                column=7,
-                value=interaction.get("usage", {}).get("total_tokens", 0),
+            ws_llm.cell(row=ri, column=3, value=clause_display)
+            ws_llm.cell(row=ri, column=4, value=role_label)
+            ws_llm.cell(row=ri, column=5, value=interaction.get("round_number") or "—")
+            resp_text = _format_llm_response_for_excel(
+                interaction.get("llm_response", "") or "",
+                phase,
+                interaction.get("parsed_response"),
             )
+            ws_llm.cell(row=ri, column=6, value=resp_text[:1200])
+            ws_llm.cell(row=ri, column=7, value=interaction.get("usage", {}).get("total_tokens", 0))
             ws_llm.cell(row=ri, column=8, value=interaction.get("model", ""))
-            ws_llm.cell(row=ri, column=9, value=interaction.get("timestamp", ""))
+            ws_llm.cell(row=ri, column=9, value=interaction.get("timestamp", "—"))
+            if row_fill:
+                for ci in range(1, 10):
+                    ws_llm.cell(row=ri, column=ci).fill = row_fill
 
+        # Freeze header row
+        ws_llm.freeze_panes = "A2"
         for col in ws_llm.columns:
             max_len = max((len(str(c.value or "")) for c in col), default=8)
             ws_llm.column_dimensions[col[0].column_letter].width = min(max_len + 2, 60)
+        # Set fixed widths for key columns
+        ws_llm.column_dimensions["A"].width = 28  # Phase
+        ws_llm.column_dimensions["B"].width = 16  # Doc ID
+        ws_llm.column_dimensions["C"].width = 20  # Clause ID
+        ws_llm.column_dimensions["D"].width = 22  # Role
+        ws_llm.column_dimensions["F"].width = 60  # LLM Response
 
     # ── Sheet 4: Cross-Exam Details ──
-    if crossexam_record:
-        ws_xe = wb.create_sheet(dh["xl_sheet_crossexam"])
-        xe_headers = dh["xl_xe_headers"]
-        for ci, h in enumerate(xe_headers, 1):
-            c = ws_xe.cell(row=1, column=ci, value=h)
-            c.fill = header_fill
-            c.font = header_font
+    # Build cross-exam rows from crossexam_record (preferred) or flat_rows (fallback)
+    ws_xe = wb.create_sheet(dh["xl_sheet_crossexam"])
+    # Extended headers to include all round details
+    _xe_ext_headers = [
+        "條款 ID", "條款名稱", "文件 ID", "判定", "同意", "RA 標記", "輪次數",
+        "R1 分析者立場", "R1 分析者信心", "R1 關鍵證據",
+        "R1 驗證者質疑", "R1 Agreement",
+        "QA 分數", "問題品質", "回答準確", "幻覺偵測",
+    ]
+    for ci, h in enumerate(_xe_ext_headers, 1):
+        c = ws_xe.cell(row=1, column=ci, value=h)
+        c.fill = header_fill
+        c.font = header_font
+    # Fill rows from interactions (most data-complete source for this run)
+    _xe_rows_written = 0
+    _p5_interactions = [i for i in (interactions or []) if i.get("phase") == "verification"]
+    if _p5_interactions:
+        _p5_seen: dict[str, dict] = {}
+        for ix in _p5_interactions:
+            cid = ix.get("clause_id", "")
+            did = ix.get("doc_id", "")
+            key = f"{cid}||{did}"
+            if key not in _p5_seen:
+                _p5_seen[key] = {"clause_id": cid, "doc_id": did, "clause_title": ix.get("clause_title",""), "rounds": []}
+            raw = ix.get("llm_response", "") or ""
+            try:
+                rds = json.loads(raw)
+                if isinstance(rds, list):
+                    _p5_seen[key]["rounds"].extend(rds)
+            except Exception:
+                pass
+        for ri, entry in enumerate(sorted(_p5_seen.values(), key=lambda x: x["clause_id"]), 2):
+            rds = entry.get("rounds", [])
+            # Merge first round data
+            r1_a = (rds[0].get("analyzer") or {}) if rds else {}
+            r1_v = (rds[0].get("verifier") or {}) if rds else {}
+            # Find matching flat_row for verdict/agreed/qa
+            fr = next((r for r in flat_rows if r.get("clause_id") == entry["clause_id"] and r.get("doc_id") == entry["doc_id"]), {})
+            qa = fr.get("qa_audit") or {}
+            row_verdict = fr.get("verdict", "")
+            row_rl = fr.get("risk_level", "")
+            row_fill_xe = _RISK_XE_FILL.get(row_rl)
+            a_ev_list = r1_a.get("key_evidence") or []
+            a_ev_str = "; ".join(str(e)[:100] for e in a_ev_list[:3])
+            v_chal_list = r1_v.get("challenges") or []
+            v_chal_str = "; ".join(
+                str(c.get("point", c) if isinstance(c, dict) else c)[:100]
+                for c in v_chal_list[:3]
+            )
+            row_vals = [
+                entry["clause_id"],
+                entry["clause_title"][:80],
+                entry["doc_id"],
+                fr.get("verdict_label", row_verdict),
+                "Y" if fr.get("verification_agreed") else "N",
+                "⚠️" if fr.get("flagged_for_ra") else "",
+                len(rds),
+                str(r1_a.get("position") or "")[:500],
+                str(r1_a.get("confidence") or r1_a.get("confidence_score") or ""),
+                a_ev_str[:400],
+                v_chal_str[:400],
+                r1_v.get("agreement_level", ""),
+                qa.get("score", "") if qa else "",
+                qa.get("question_quality", "") if qa else "",
+                qa.get("answer_accuracy", "") if qa else "",
+                "是" if qa and qa.get("hallucination_detected") else ("否" if qa else ""),
+            ]
+            for ci2, v in enumerate(row_vals, 1):
+                c = ws_xe.cell(row=ri, column=ci2, value=v)
+                c.font = Font(size=9)
+                if row_fill_xe:
+                    c.fill = row_fill_xe
+            _xe_rows_written += 1
+    elif crossexam_record:
         for ri, clause in enumerate(crossexam_record.get("clauses", []), 2):
-            ws_xe.cell(row=ri, column=1, value=clause.get("clause_id", ""))
-            ws_xe.cell(row=ri, column=2, value=clause.get("clause_title", ""))
-            ws_xe.cell(row=ri, column=3, value=clause.get("doc_id", ""))
-            ws_xe.cell(row=ri, column=4, value=clause.get("verdict", ""))
-            ws_xe.cell(row=ri, column=5, value="Y" if clause.get("agreed") else "N")
-            ws_xe.cell(
-                row=ri, column=6, value="Y" if clause.get("flagged_for_ra") else ""
-            )
             rounds = clause.get("rounds", [])
-            ws_xe.cell(row=ri, column=7, value=len(rounds))
-            if rounds:
-                r1_a = rounds[0].get("analyzer", {})
-                r1_v = rounds[0].get("verifier", {})
-                ws_xe.cell(
-                    row=ri,
-                    column=8,
-                    value=_flatten_role_text(r1_a, "position")[:500],
-                )
-                ws_xe.cell(
-                    row=ri,
-                    column=9,
-                    value=str(r1_a.get("confidence", r1_a.get("confidence_score", ""))),
-                )
-                ws_xe.cell(
-                    row=ri,
-                    column=10,
-                    value=_flatten_role_text(r1_v, "assessment")[:500],
-                )
-                ws_xe.cell(
-                    row=ri,
-                    column=11,
-                    value=r1_v.get("agreement_level", ""),
-                )
-            qa = clause.get("qa_audit", {})
-            ws_xe.cell(row=ri, column=12, value=qa.get("score", "") if qa else "")
-            ws_xe.cell(
-                row=ri, column=13, value=qa.get("question_quality", "") if qa else ""
-            )
-            ws_xe.cell(
-                row=ri, column=14, value=qa.get("answer_accuracy", "") if qa else ""
-            )
-            ws_xe.cell(
-                row=ri,
-                column=15,
-                value="Yes"
-                if qa and qa.get("hallucination_detected")
-                else ("No" if qa else ""),
-            )
+            r1_a = rounds[0].get("analyzer", {}) if rounds else {}
+            r1_v = rounds[0].get("verifier", {}) if rounds else {}
+            qa = clause.get("qa_audit", {}) or {}
+            a_ev_list = r1_a.get("key_evidence") or []
+            v_chal_list = r1_v.get("challenges") or []
+            row_vals = [
+                clause.get("clause_id", ""), clause.get("clause_title", ""), clause.get("doc_id", ""),
+                clause.get("verdict", ""),
+                "Y" if clause.get("agreed") else "N",
+                "Y" if clause.get("flagged_for_ra") else "",
+                len(rounds),
+                _flatten_role_text(r1_a, "position")[:500],
+                str(r1_a.get("confidence", r1_a.get("confidence_score", ""))),
+                "; ".join(str(e)[:100] for e in a_ev_list[:3]),
+                "; ".join(str(c.get("point",c) if isinstance(c,dict) else c)[:100] for c in v_chal_list[:3]),
+                r1_v.get("agreement_level", ""),
+                qa.get("score", ""), qa.get("question_quality", ""), qa.get("answer_accuracy", ""),
+                "是" if qa.get("hallucination_detected") else "否",
+            ]
+            for ci2, v in enumerate(row_vals, 1):
+                ws_xe.cell(row=ri, column=ci2, value=v).font = Font(size=9)
+            _xe_rows_written += 1
+    elif flat_rows:
+        for ri, row in enumerate(flat_rows, 2):
+            qa = row.get("qa_audit") or {}
+            row_vals = [
+                row.get("clause_id",""), row.get("clause_title","")[:80], row.get("doc_id",""),
+                row.get("verdict_label", row.get("verdict","")),
+                "Y" if row.get("verification_agreed") else "N",
+                "⚠️" if row.get("flagged_for_ra") else "",
+                str(row.get("verification_rounds", "")),
+                (row.get("analyzer_position") or "")[:500],
+                "",
+                "",
+                (row.get("verifier_position") or "")[:400],
+                "",
+                qa.get("score","") if qa else "",
+                qa.get("question_quality","") if qa else "",
+                qa.get("answer_accuracy","") if qa else "",
+                "是" if qa and qa.get("hallucination_detected") else ("否" if qa else ""),
+            ]
+            for ci2, v in enumerate(row_vals, 1):
+                ws_xe.cell(row=ri, column=ci2, value=v).font = Font(size=9)
+            _xe_rows_written += 1
+    if not _xe_rows_written:
+        ws_xe.cell(row=2, column=1, value="（無交叉詰問資料）")
+    ws_xe.freeze_panes = "A2"
+    for col in ws_xe.columns:
+        max_len = max((len(str(c.value or "")) for c in col), default=8)
+        ws_xe.column_dimensions[col[0].column_letter].width = min(max_len + 2, 50)
+    ws_xe.column_dimensions["B"].width = 40
+    ws_xe.column_dimensions["H"].width = 50
+    ws_xe.column_dimensions["J"].width = 40
+    ws_xe.column_dimensions["K"].width = 40
 
-    _qa_sum_xl = qa_audit_summary
-    if not _qa_sum_xl and crossexam_record:
-        _qa_sum_xl = crossexam_record.get("qa_audit_summary")
-    if _qa_sum_xl and not _qa_sum_xl.get("skipped"):
-        _qa_sheet_name = {"zh": "第三方稽核", "en": "Third-Party QA", "ja": "第三者QA"}[_lk]
-        ws_qa = wb.create_sheet(_qa_sheet_name)
-        qa_xl_headers = dh["deep_qa_tbl_headers"]
-        for ci, h in enumerate(qa_xl_headers, 1):
-            c = ws_qa.cell(row=1, column=ci, value=h)
-            c.fill = header_fill
-            c.font = header_font
-        for qi, ca in enumerate(_qa_sum_xl.get("clause_audits", []), 2):
-            ws_qa.cell(row=qi, column=1, value=ca.get("clause_id", ""))
-            ws_qa.cell(row=qi, column=2, value=ca.get("score", 0))
-            ws_qa.cell(row=qi, column=3, value=ca.get("question_quality", ""))
-            ws_qa.cell(row=qi, column=4, value=ca.get("answer_accuracy", ""))
-            ws_qa.cell(
-                row=qi,
-                column=5,
-                value="Yes" if ca.get("hallucination_detected") else "No",
-            )
-            issues = ca.get("issues", [])
-            ws_qa.cell(row=qi, column=6, value="; ".join(issues) if issues else "")
+    # ── Sheet: 第三方稽核 — use per-row qa_audit data from flat_rows ──
+    _qa_rows = [r for r in (flat_rows or []) if r.get("qa_audit")]
+    _qa_sheet_name = {"zh": "第三方稽核", "en": "Third-Party QA", "ja": "第三者QA"}[_lk]
+    ws_qa = wb.create_sheet(_qa_sheet_name)
+    _qa_row_headers = ["條款 ID", "文件 ID", "分數", "評分說明", "問題品質", "回答準確性", "幻覺偵測", "問題清單"]
+    for ci, h in enumerate(_qa_row_headers, 1):
+        c = ws_qa.cell(row=1, column=ci, value=h)
+        c.fill = header_fill
+        c.font = header_font
+    if _qa_rows:
+        for qi, row in enumerate(_qa_rows, 2):
+            qa = row.get("qa_audit", {}) or {}
+            ws_qa.cell(row=qi, column=1, value=row.get("clause_id", ""))
+            ws_qa.cell(row=qi, column=2, value=row.get("doc_id", ""))
+            ws_qa.cell(row=qi, column=3, value=qa.get("score", ""))
+            ws_qa.cell(row=qi, column=4, value=(qa.get("score_rationale", "") or "")[:300])
+            ws_qa.cell(row=qi, column=5, value=qa.get("question_quality", ""))
+            ws_qa.cell(row=qi, column=6, value=qa.get("answer_accuracy", ""))
+            ws_qa.cell(row=qi, column=7, value="是" if qa.get("hallucination_detected") else "否")
+            issues = qa.get("issues", []) or []
+            ws_qa.cell(row=qi, column=8, value="; ".join(str(i) for i in issues) if issues else "")
+    else:
+        ws_qa.cell(row=2, column=1, value="（無第三方稽核資料）")
+    for col in ws_qa.columns:
+        max_len = max((len(str(c.value or "")) for c in col), default=8)
+        ws_qa.column_dimensions[col[0].column_letter].width = min(max_len + 2, 50)
 
     # ── Sheet 5: Meta-Analysis ──
     if meta_analysis:
@@ -1484,6 +2021,50 @@ def export_deep_report_excel(
     for col in ws_comp.columns:
         max_len = max((len(str(c.value or "")) for c in col), default=8)
         ws_comp.column_dimensions[col[0].column_letter].width = min(max_len + 2, 50)
+    # ── Sheet: 風險分析 / Risk Analysis ──
+    _risk_sheet_name = {"zh": "風險分析", "en": "Risk Analysis", "ja": "リスク分析"}[_lk]
+    ws_risk = wb.create_sheet(_risk_sheet_name)
+    _risk_prio = {"immediate_correction": 0, "deadline_correction": 1, "improvement_plan": 2, "compliant": 9}
+    _risk_rows_xl = sorted(flat_rows, key=lambda r: (_risk_prio.get(r.get("risk_level",""), 9), r.get("clause_id","")))
+    _risk_hdrs = ["優先度", "條款 ID", "條款名稱", "文件 ID", "判定", "判定圖示", "風險等級", "差距嚴重度", "RA 標記", "改善建議", "法規引用"]
+    for ci, h in enumerate(_risk_hdrs, 1):
+        c = ws_risk.cell(row=1, column=ci, value=h)
+        c.fill = header_fill; c.font = header_font
+    _RISK_FILL = {
+        "immediate_correction": PatternFill(start_color="FFE0E0", end_color="FFE0E0", fill_type="solid"),
+        "deadline_correction":  PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid"),
+        "improvement_plan":     PatternFill(start_color="E8F5E9", end_color="E8F5E9", fill_type="solid"),
+        "compliant":            PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid"),
+    }
+    _PRIO_LABEL = {"immediate_correction": "🔴 立即改正", "deadline_correction": "🟡 期限改正", "improvement_plan": "🟢 改進計劃", "compliant": "✅ 符合"}
+    for ri2, row in enumerate(_risk_rows_xl, 2):
+        rl = row.get("risk_level", "")
+        row_fill = _RISK_FILL.get(rl)
+        vals = [
+            _PRIO_LABEL.get(rl, rl),
+            row.get("clause_id",""), row.get("clause_title","")[:60],
+            row.get("doc_id",""),
+            row.get("verdict_label", row.get("verdict","")),
+            row.get("verdict_icon",""),
+            row.get("risk_label", rl),
+            row.get("gap_severity","") or "—",
+            "⚠️" if row.get("flagged_for_ra") else "",
+            (row.get("remediation_suggestion") or "")[:300],
+            (row.get("remediation_regulation_cite") or "")[:200],
+        ]
+        for ci2, v in enumerate(vals, 1):
+            c = ws_risk.cell(row=ri2, column=ci2, value=v)
+            if row_fill: c.fill = row_fill
+            c.font = Font(size=9)
+    ws_risk.freeze_panes = "A2"
+    ws_risk.column_dimensions["A"].width = 16
+    ws_risk.column_dimensions["B"].width = 12
+    ws_risk.column_dimensions["C"].width = 40
+    ws_risk.column_dimensions["D"].width = 14
+    ws_risk.column_dimensions["E"].width = 14
+    ws_risk.column_dimensions["J"].width = 50
+    ws_risk.column_dimensions["K"].width = 30
+
 
     safe_save_binary(filepath, wb.save)
     return filepath
@@ -1491,7 +2072,163 @@ def export_deep_report_excel(
 
 # ============================================================
 # Helpers
+
+
+def _strip_md_fence(s: str) -> str:
+    """Remove ```json ... ``` or ``` ... ``` fences."""
+    import re
+    s = s.strip()
+    m = re.match(r"^```(?:json)?\s*(.*?)\s*```$", s, re.DOTALL)
+    return m.group(1) if m else s
+
+
+def _format_llm_response_for_excel(raw_resp: str, phase: str, parsed_response=None) -> str:
+    """Convert LLM response to human-readable single-line summary for Excel cell.
+
+    Each phase has a different JSON structure:
+      gap_scan        → clause_results[cid].evidence_results[]
+      checklist_verify→ clause_results[cid].verification_results[]
+      remediation     → clause_results[cid].remediation{}
+      verification    → [{round, analyzer{position,key_evidence}, verifier{challenges,agreement_level}}]
+    """
+    if not raw_resp:
+        return ""
+
+    # ── Phase 5 (verification): JSON array of rounds ──
+    if phase == "verification":
+        try:
+            rds = json.loads(_strip_md_fence(raw_resp))
+            if isinstance(rds, list):
+                parts = []
+                for rd in rds[:3]:
+                    rn = rd.get("round", "?")
+                    a = rd.get("analyzer") or {}
+                    v = rd.get("verifier") or {}
+                    a_pos = str(a.get("position") or "")[:100]
+                    a_ev_list = a.get("key_evidence") or []
+                    a_ev = "; ".join(str(e)[:50] for e in a_ev_list[:2])
+                    v_chals = "; ".join(
+                        str(c.get("point", c) if isinstance(c, dict) else c)[:60]
+                        for c in (v.get("challenges") or [])[:2]
+                    )
+                    v_ag = v.get("agreement_level", "")
+                    summary = f"[R{rn}] 分析者: {a_pos}"
+                    if a_ev: summary += f" ▸證據: {a_ev}"
+                    if v_chals: summary += f" ⚠質疑: {v_chals}"
+                    if v_ag: summary += f" → {v_ag}"
+                    parts.append(summary)
+                return " ‖ ".join(parts)
+        except Exception:
+            pass
+        return (raw_resp[:800]).replace("\n", " ")
+
+    # ── Try to parse JSON (may have ```json fence or LLM quirks) ──
+    try:
+        parsed = json.loads(_strip_md_fence(raw_resp))
+    except Exception:
+        try:
+            parsed = json.loads(_sanitize_llm_json(_strip_md_fence(raw_resp)))
+        except Exception:
+            return raw_resp[:800].replace("\n", " ")
+
+    if not isinstance(parsed, dict):
+        return str(parsed)[:800]
+
+    clause_results = parsed.get("clause_results", {})
+    if not clause_results:
+        # Flat dict (older format)
+        return _format_flat_dict_summary(parsed)
+
+    # Summarise each clause's results
+    out_parts = []
+    for cid, data in clause_results.items():
+        if not isinstance(data, dict):
+            continue
+
+        # ── gap_scan ──
+        ev_results = data.get("evidence_results", [])
+        if ev_results:
+            found_count = sum(1 for e in ev_results if e.get("found"))
+            total = len(ev_results)
+            missing = [e.get("evidence_name", "") for e in ev_results if not e.get("found")]
+            s = f"[{cid}] 找到 {found_count}/{total}"
+            if missing:
+                s += f" ✗缺: {'; '.join(missing[:3])}"
+            out_parts.append(s)
+            continue
+
+        # ── checklist_verify ──
+        ver_results = data.get("verification_results", [])
+        if ver_results:
+            full = sum(1 for e in ver_results if e.get("adequacy") == "full")
+            partial = sum(1 for e in ver_results if e.get("adequacy") == "partial")
+            missing_v = [e.get("evidence_name","") for e in ver_results if e.get("adequacy") in ("missing","none","")]
+            s = f"[{cid}] 完整:{full} 部分:{partial}"
+            if missing_v:
+                s += f" ✗缺: {'; '.join(missing_v[:3])}"
+            out_parts.append(s)
+            continue
+
+        # ── remediation ──
+        remed = data.get("remediation", {})
+        if remed and isinstance(remed, dict):
+            summary = str(remed.get("summary") or "")[:150]
+            priority = remed.get("priority", "")
+            suggestions = remed.get("suggestions", []) or []
+            actions = "; ".join(
+                str(sg.get("action", sg) if isinstance(sg, dict) else sg)[:80]
+                for sg in suggestions[:2]
+            )
+            s = f"[{cid}]"
+            if priority: s += f" 優先:{priority}"
+            if summary: s += f" {summary}"
+            if actions: s += f" ▶{actions}"
+            out_parts.append(s)
+            continue
+
+        # Unknown sub-structure
+        out_parts.append(f"[{cid}] {str(data)[:120]}")
+
+    return " | ".join(out_parts) if out_parts else raw_resp[:400].replace("\n", " ")
+
+
+def _format_flat_dict_summary(d: dict) -> str:
+    """Format a flat dict response as a brief summary string."""
+    parts = []
+    for key in ("summary", "position", "assessment", "overall_assessment", "conclusion"):
+        val = d.get(key)
+        if val and isinstance(val, str):
+            parts.append(f"{key}: {val[:200]}")
+            break
+    return " | ".join(parts) if parts else str(d)[:300]
 # ============================================================
+
+
+_PHASE_NAMES_ZH = {
+    "phase_0": "資料品質檢查", "phase_0_5": "法規參照對應",
+    "phase_1": "差距掃描", "phase_2": "查核表驗證",
+    "phase_3": "風險評估", "phase_4": "改善建議",
+    "phase_5": "獨立驗證", "phase_6": "來源驗證",
+}
+_PHASE_NAMES_EN = {
+    "phase_0": "Data Quality Gate", "phase_0_5": "Reference Mapping",
+    "phase_1": "Gap Scan", "phase_2": "Checklist Verification",
+    "phase_3": "Risk Assessment", "phase_4": "Remediation",
+    "phase_5": "Independent Verification", "phase_6": "Source Verification",
+}
+_PHASE_ORDER = ["phase_0", "phase_0_5", "phase_1", "phase_2", "phase_3", "phase_4", "phase_5", "phase_6"]
+_PHASE_LABELS = {"phase_0": "P0", "phase_0_5": "P0.5", "phase_1": "P1", "phase_2": "P2",
+                 "phase_3": "P3", "phase_4": "P4", "phase_5": "P5", "phase_6": "P6"}
+_STATUS_ICONS = {"completed": "✓", "skipped": "↷", "failed": "✗", "running": "⟳", "pending": "○", "paused": "⏸"}
+
+
+def _pipeline_status_str(phase_status_summary: dict) -> str:
+    parts = []
+    for p in _PHASE_ORDER:
+        st = phase_status_summary.get(p, "pending")
+        icon = _STATUS_ICONS.get(st, "?")
+        parts.append(f"{_PHASE_LABELS[p]}{icon}")
+    return " ".join(parts)
 
 
 def _split_text(text: str, max_len: int = 3000) -> list[str]:
@@ -1502,6 +2239,233 @@ def _split_text(text: str, max_len: int = 3000) -> list[str]:
         chunks.append(text[:max_len])
         text = text[max_len:]
     return chunks
+
+
+def _sanitize_llm_json(s: str) -> str:
+    """Fix common LLM JSON mistakes so json.loads() can parse the result.
+
+    Handles:
+    - Bare N/A → null  (e.g. "source_section": N/A)
+    - Python None/True/False → null/true/false
+    - Trailing commas before } or ]
+    """
+    import re
+    # N/A bare value (with or without trailing comma/newline)
+    s = re.sub(r':\s*N/A\s*([,\n\r\}])', lambda m: ': null' + m.group(1), s)
+    s = re.sub(r':\s*N/A\s*$', ': null', s, flags=re.MULTILINE)
+    # Python-style literals
+    s = re.sub(r'\bNone\b', 'null', s)
+    s = re.sub(r'\bTrue\b', 'true', s)
+    s = re.sub(r'\bFalse\b', 'false', s)
+    # Trailing commas before closing bracket
+    s = re.sub(r',\s*([\}\]])', r'\1', s)
+    return s
+
+
+def _render_gap_json_response(doc, resp: str) -> None:
+    """Parse and render a phase JSON llm_response as readable Word content.
+
+    Handles responses wrapped in ```json ... ``` code fences.
+    Falls back to raw paragraph dump if JSON parsing fails.
+
+    Supported structures:
+      gap_scan:        {"clause_results": {"<cid>": {"evidence_results": [...]}}}
+      checklist_verify:{"clause_results": {"<cid>": {"verification_results": [...]}}}
+                        or flat {"verification_results": [...]}
+      remediation:     {"remediation": {"summary", "priority", "suggestions": [...],
+                                        "regulation_citation"}}
+    """
+    if not resp:
+        return
+
+    # Strip ```json / ``` fences
+    stripped = resp.strip()
+    if stripped.startswith("```"):
+        lines = stripped.splitlines()
+        inner_lines = lines[1:]
+        if inner_lines and inner_lines[-1].strip() == "```":
+            inner_lines = inner_lines[:-1]
+        stripped = "\n".join(inner_lines).strip()
+
+    try:
+        data = json.loads(stripped)
+    except (json.JSONDecodeError, ValueError):
+        try:
+            data = json.loads(_sanitize_llm_json(stripped))
+        except (json.JSONDecodeError, ValueError):
+            for chunk in _split_text(resp, 3000):
+                doc.add_paragraph(chunk)
+            return
+
+    # ── Remediation: flat {"remediation": {...}} ──
+    if "remediation" in data and isinstance(data.get("remediation"), dict):
+        _render_remediation_block(doc, data["remediation"])
+        return
+
+    # ── Flat checklist_verify (older format): {"verification_results": [...]} ──
+    if "verification_results" in data and isinstance(data.get("verification_results"), list):
+        _render_verification_results_table(doc, data["verification_results"])
+        return
+
+    clause_results = data.get("clause_results", {})
+    if not clause_results:
+        for chunk in _split_text(resp, 3000):
+            doc.add_paragraph(chunk)
+        return
+
+    for clause_id, clause_data in clause_results.items():
+        # ── gap_scan ──
+        evidence_list = clause_data.get("evidence_results", [])
+        if evidence_list:
+            ev_tbl = doc.add_table(rows=1 + len(evidence_list), cols=5)
+            ev_tbl.style = "Table Grid"
+            hdr_cells = ev_tbl.rows[0].cells
+            for ci, h in enumerate(["狀態", "證據名稱", "原文位置", "原文引用", "分析說明"]):
+                hdr_cells[ci].text = h
+                run = hdr_cells[ci].paragraphs[0].runs[0] if hdr_cells[ci].paragraphs[0].runs else hdr_cells[ci].paragraphs[0].add_run(h)
+                run.bold = True
+            for ei, ev in enumerate(evidence_list, 1):
+                found = ev.get("found", False)
+                inadequate = ev.get("is_inadequate", False)
+                outdated = ev.get("is_outdated", False)
+                flags = []
+                if inadequate:
+                    flags.append("不足")
+                if outdated:
+                    flags.append("過時")
+                status_str = ("✓" if found else "✗") + (f" [{','.join(flags)}]" if flags else "")
+                score = ev.get("relevance_score", "")
+                name_str = ev.get("evidence_name", "")
+                if score != "":
+                    name_str += f" [相關度:{score}]"
+                source_quote = ev.get("source_quote", "") or ""
+                q_str = source_quote[:300] + ("…" if len(source_quote) > 300 else "")
+                reasoning = ev.get("reasoning", "") or ""
+                r_str = reasoning[:400] + ("…" if len(reasoning) > 400 else "")
+                ev_tbl.rows[ei].cells[0].text = status_str
+                ev_tbl.rows[ei].cells[1].text = name_str
+                ev_tbl.rows[ei].cells[2].text = (ev.get("source_section") or "")[:200]
+                ev_tbl.rows[ei].cells[3].text = q_str
+                ev_tbl.rows[ei].cells[4].text = r_str
+            continue
+
+        # ── checklist_verify (clause_results-wrapped) ──
+        ver_list = clause_data.get("verification_results", [])
+        if ver_list:
+            _render_verification_results_table(doc, ver_list)
+            continue
+
+        # ── remediation (clause_results-wrapped, unlikely but handled) ──
+        remed = clause_data.get("remediation", {})
+        if remed and isinstance(remed, dict):
+            _render_remediation_block(doc, remed)
+
+
+def _render_verification_results_table(doc, ver_list: list) -> None:
+    """Render checklist_verify verification_results[] as a Word table."""
+    _ADEQUACY_ICON = {"full": "✓", "partial": "△", "irrelevant": "—", "not_found": "✗"}
+    tbl = doc.add_table(rows=1 + len(ver_list), cols=4)
+    tbl.style = "Table Grid"
+    hdr_cells = tbl.rows[0].cells
+    for ci, h in enumerate(["充分性", "證據名稱", "相關度", "說明"]):
+        hdr_cells[ci].text = h
+        run = hdr_cells[ci].paragraphs[0].runs[0] if hdr_cells[ci].paragraphs[0].runs else hdr_cells[ci].paragraphs[0].add_run(h)
+        run.bold = True
+    for ei, vr in enumerate(ver_list, 1):
+        adequacy = vr.get("adequacy", "")
+        icon = _ADEQUACY_ICON.get(adequacy, adequacy)
+        score = vr.get("semantic_score", "")
+        score_str = f"{score:.2f}" if isinstance(score, float) else (str(score) if score != "" else "")
+        explanation = vr.get("explanation", "") or ""
+        tbl.rows[ei].cells[0].text = icon
+        tbl.rows[ei].cells[1].text = vr.get("evidence_name", "")
+        tbl.rows[ei].cells[2].text = score_str
+        tbl.rows[ei].cells[3].text = explanation[:500] + ("…" if len(explanation) > 500 else "")
+
+
+def _render_remediation_block(doc, remed: dict) -> None:
+    """Render a remediation dict as structured Word content."""
+    summary = (remed.get("summary") or "").strip()
+    priority = (remed.get("priority") or "").strip()
+    regulation_citation = (remed.get("regulation_citation") or "").strip()
+    suggestions = remed.get("suggestions") or []
+
+    if summary or priority:
+        p = doc.add_paragraph()
+        if priority:
+            p.add_run(f"優先級 / Priority: {priority}　").bold = True
+        if summary:
+            p.add_run(summary)
+
+    for idx, sg in enumerate(suggestions, 1):
+        if not isinstance(sg, dict):
+            doc.add_paragraph(str(sg)[:500])
+            continue
+        doc.add_paragraph(f"建議 {idx} / Suggestion {idx}", style="Heading 4" if "Heading 4" in [s.name for s in doc.styles] else None)
+        tbl = doc.add_table(rows=4, cols=2)
+        tbl.style = "Table Grid"
+        labels = ["具體動作 / Action", "目標章節 / Target Section", "法規依據 / Regulation Basis", "範例內容 / Example Content"]
+        keys = ["action", "target_section", "regulation_basis", "example_content"]
+        for ri2, (lbl, key) in enumerate(zip(labels, keys)):
+            val = (sg.get(key) or "").strip()
+            tbl.rows[ri2].cells[0].text = lbl
+            run0 = tbl.rows[ri2].cells[0].paragraphs[0].runs[0] if tbl.rows[ri2].cells[0].paragraphs[0].runs else tbl.rows[ri2].cells[0].paragraphs[0].add_run(lbl)
+            run0.bold = True
+            tbl.rows[ri2].cells[1].text = val
+
+    if regulation_citation:
+        p = doc.add_paragraph()
+        p.add_run("法規引用 / Regulation Citation: ").bold = True
+        p.add_run(regulation_citation[:800] + ("…" if len(regulation_citation) > 800 else ""))
+
+
+def _render_p5_role_block(doc, label: str, data: dict, fill_hex: str = "FFFFFF") -> None:
+    """Render a P5 Analyzer or Verifier block as a single-row Word table for visual distinction."""
+    from docx.shared import Pt, RGBColor
+    tbl = doc.add_table(rows=1, cols=1)
+    tbl.style = "Table Grid"
+    cell = tbl.rows[0].cells[0]
+    _shade_cell(cell, fill_hex)
+    p = cell.paragraphs[0]
+    label_run = p.add_run(f"{label}\n")
+    label_run.bold = True
+    label_run.font.size = Pt(10)
+
+    parts = []
+    position = (data.get("position") or data.get("overall_assessment") or "")
+    if position:
+        parts.append(("立場 / Position", str(position)[:800]))
+    key_evidence = data.get("key_evidence") or []
+    if key_evidence:
+        ev_lines = "\n".join(f"  • {str(e)[:200]}" for e in key_evidence[:5])
+        parts.append(("▸ 關鍵證據 / Key Evidence", ev_lines))
+    confidence = data.get("confidence") or data.get("confidence_score") or ""
+    if confidence:
+        parts.append(("信心度 / Confidence", str(confidence)))
+    challenges = data.get("challenges") or []
+    if challenges:
+        ch_lines = []
+        for ch in challenges[:3]:
+            if isinstance(ch, dict):
+                ch_lines.append(f"  ⚠ {str(ch.get('point', ch))[:200]}")
+            else:
+                ch_lines.append(f"  ⚠ {str(ch)[:200]}")
+        parts.append(("⚠ 質疑 / Challenges", "\n".join(ch_lines)))
+    weaknesses = data.get("acknowledged_weaknesses") or []
+    if weaknesses:
+        wk_lines = "\n".join(f"  • {str(w)[:200]}" for w in weaknesses[:3])
+        parts.append(("已承認弱點 / Weaknesses", wk_lines))
+    agreement = data.get("agreement_level") or ""
+    if agreement:
+        parts.append(("Agreement", agreement))
+
+    for field_label, val in parts:
+        cell.add_paragraph("")
+        sub_p = cell.add_paragraph()
+        sub_p.add_run(f"{field_label}: ").bold = True
+        sub_p.add_run(val)
+
+    doc.add_paragraph("")
 
 
 def _render_role_content(paragraph, data: dict) -> None:
@@ -1543,8 +2507,49 @@ def _render_role_content(paragraph, data: dict) -> None:
             parts.append(f"{label}:")
             for item in val:
                 parts.append(f"    • {item}")
+        elif key == "response" and isinstance(val, dict):
+            # Structured analyzer response: arbitrary numbered section keys
+            for sec_title, sec_data in val.items():
+                parts.append(f"  【{sec_title}】")
+                if isinstance(sec_data, dict):
+                    content = (sec_data.get("content") or sec_data.get("analysis")
+                               or sec_data.get("回應內容") or sec_data.get("position") or "")
+                    if content:
+                        parts.append(f"    {str(content)[:600]}{'…' if len(str(content)) > 600 else ''}")
+                    reg_ev = sec_data.get("regulation_evidence") or sec_data.get("引用法規") or []
+                    if isinstance(reg_ev, list) and reg_ev:
+                        parts.append("    ▸ 引用法規:")
+                        for re_item in reg_ev[:4]:
+                            if isinstance(re_item, dict):
+                                parts.append(f"      • [{re_item.get('source','')}] {str(re_item.get('text',''))[:100]}")
+                    doc_ev = sec_data.get("document_evidence") or sec_data.get("引用文件") or []
+                    if isinstance(doc_ev, list) and doc_ev:
+                        parts.append("    ▸ 引用文件:")
+                        for de_item in doc_ev[:4]:
+                            if isinstance(de_item, dict):
+                                parts.append(f"      • {de_item.get('name','')} §{de_item.get('section','')} v{de_item.get('version','')}")
+                elif isinstance(sec_data, str):
+                    parts.append(f"    {sec_data[:400]}")
+        elif key == "response" and isinstance(val, str):
+            # Try to parse as JSON, otherwise show plain
+            try:
+                parsed_resp = json.loads(val.strip().lstrip("```json").lstrip("```").rstrip("```").strip())
+                if isinstance(parsed_resp, dict):
+                    for sec_title, sec_data in parsed_resp.items():
+                        parts.append(f"  【{sec_title}】")
+                        if isinstance(sec_data, dict):
+                            content = (sec_data.get("content") or sec_data.get("analysis")
+                                       or sec_data.get("回應內容") or "")
+                            if content:
+                                parts.append(f"    {str(content)[:600]}{'…' if len(str(content)) > 600 else ''}")
+                        elif isinstance(sec_data, str):
+                            parts.append(f"    {sec_data[:400]}")
+                else:
+                    parts.append(f"response: {val[:2000]}")
+            except (json.JSONDecodeError, ValueError):
+                parts.append(f"response: {val[:2000]}")
         elif isinstance(val, dict):
-            parts.append(f"{key}: {json.dumps(val, ensure_ascii=False)}")
+            parts.append(f"{key}: {json.dumps(val, ensure_ascii=False)[:500]}")
         else:
             parts.append(f"{key}: {val}")
 
@@ -1560,10 +2565,28 @@ def _render_role_content(paragraph, data: dict) -> None:
                     parts.append(f"      法規依據: {reg_basis}")
                 exp_ev = ch.get("expected_evidence", "")
                 if exp_ev:
-                    parts.append(f"      ▸ 期望看到: {exp_ev}")
+                    if isinstance(exp_ev, list):
+                        parts.append("      ▸ 期望看到:")
+                        for ei in exp_ev[:4]:
+                            parts.append(f"        • {str(ei)[:200]}")
+                    else:
+                        parts.append(f"      ▸ 期望看到: {str(exp_ev)[:300]}")
                 wci = ch.get("worst_case_impact", "")
                 if wci:
-                    parts.append(f"      ⚠ 風險影響: {wci}")
+                    if isinstance(wci, dict):
+                        scenario = wci.get("scenario", "") or wci.get("worst_case", "")
+                        sev = wci.get("severity", "")
+                        conseq = wci.get("regulatory_consequences", [])
+                        if scenario:
+                            parts.append(f"      ⚠ 情境: {str(scenario)[:200]}")
+                        if sev:
+                            parts.append(f"        嚴重度: {sev}")
+                        if isinstance(conseq, list) and conseq:
+                            parts.append("        法規後果:")
+                            for c in conseq[:3]:
+                                parts.append(f"          • {str(c)[:150]}")
+                    else:
+                        parts.append(f"      ⚠ 風險影響: {str(wci)[:200]}")
             else:
                 parts.append(f"  [{i}] {ch}")
 
@@ -1571,12 +2594,46 @@ def _render_role_content(paragraph, data: dict) -> None:
     if remaining and isinstance(remaining, list):
         parts.append("─── 未解疑慮 / Remaining Concerns ───")
         for c in remaining:
-            parts.append(f"  • {c}")
+            if isinstance(c, dict):
+                point = c.get("point", "")
+                reg_basis = c.get("regulation_basis", "")
+                exp_ev = c.get("expected_evidence", "")
+                wci = c.get("worst_case_impact", "")
+                if point:
+                    parts.append(f"  • {str(point)[:500]}{'…' if len(str(point)) > 500 else ''}")
+                if reg_basis:
+                    parts.append(f"    法規依據: {str(reg_basis)[:200]}")
+                if exp_ev:
+                    if isinstance(exp_ev, list):
+                        parts.append("    ▸ 期望證據:")
+                        for ei in exp_ev[:4]:
+                            parts.append(f"      • {str(ei)[:200]}")
+                    else:
+                        parts.append(f"    ▸ 期望證據: {str(exp_ev)[:300]}{'…' if len(str(exp_ev)) > 300 else ''}")
+                if wci:
+                    if isinstance(wci, dict):
+                        scenario = wci.get("scenario", "") or wci.get("worst_case", "")
+                        sev = wci.get("severity", "")
+                        conseq = wci.get("regulatory_consequences", [])
+                        if scenario:
+                            parts.append(f"    ⚠ 情境: {str(scenario)[:200]}")
+                        if sev:
+                            parts.append(f"      嚴重度: {sev}")
+                        if isinstance(conseq, list) and conseq:
+                            parts.append("      法規後果:")
+                            for c in conseq[:3]:
+                                parts.append(f"        • {str(c)[:150]}")
+                    else:
+                        parts.append(f"    ⚠ 風險影響: {str(wci)[:200]}")
+            else:
+                parts.append(f"  • {c}")
 
     if parts:
         paragraph.add_run("\n".join(parts)[:4000])
     else:
-        paragraph.add_run(json.dumps(data, ensure_ascii=False, indent=2)[:3000])
+        # Fallback: render as readable key-value pairs
+        kv_lines = [f"{k}: {v}" for k, v in data.items() if v is not None]
+        paragraph.add_run("\n".join(kv_lines)[:4000] if kv_lines else "（無內容）")
 
 
 def _flatten_role_text(data: dict, primary_key: str) -> str:
@@ -1587,5 +2644,5 @@ def _flatten_role_text(data: dict, primary_key: str) -> str:
     if isinstance(val, list):
         return "; ".join(str(v) for v in val)
     if isinstance(val, dict):
-        return json.dumps(val, ensure_ascii=False)
-    return str(val) if val else json.dumps(data, ensure_ascii=False)
+        return "; ".join(f"{k}: {v}" for k, v in val.items())
+    return str(val) if val else "; ".join(f"{k}: {v}" for k, v in data.items() if v is not None)
