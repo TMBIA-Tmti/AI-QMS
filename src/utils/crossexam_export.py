@@ -1532,6 +1532,8 @@ def _render_role_content(paragraph, data: dict) -> None:
         "agreement_level",
         "concerns",
         "recommendation",
+        "acknowledged_weaknesses",
+        "response",
     ):
         val = data.get(key)
         if val is None:
