@@ -1690,6 +1690,81 @@ async def reset_for_rerun(run_id: str, row_id: str, body: dict = None):
 # API Endpoints — Export
 # ============================================================
 
+_SUMMARY_EXPORT_TEXT = {
+    "zh": {
+        "title": "AI-QMS 合規性分析報告（{src_label}）",
+        "meta": "分析 ID: {run_id}  |  來源指令: {src_label}  |  匯出時間: {ts}",
+        "section_summary": "摘要",
+        "section_pipeline": "Pipeline 執行進度",
+        "section_detail": "詳細分析結果",
+        "section_qa": "交叉詰問品質稽核摘要",
+        "qa_score": "整體品質分數",
+        "qa_clauses": "稽核條款數",
+        "qa_summary": "摘要",
+        "qa_recs": "建議",
+        "phase_headers": ["階段", "名稱（中文）", "名稱（英文）", "行數", "狀態"],
+        "phase_skipped": "↷ 跳過",
+        "token_usage": "Token 用量",
+        "llm_calls": "LLM 呼叫次數",
+        "budget_pct": "預算使用率",
+        "incomplete": "（Pipeline 未完成）",
+        "detail_headers": ["條款", "文件", "稽核影響", "判定", "風險", "差距", "RA 標記", "Pipeline 狀態"],
+        "xl_detail_headers": ["條款 ID", "條款名稱", "文件 ID", "文件標題", "稽核影響", "稽核問題", "判定", "風險等級", "差距嚴重度", "證據 (找到/總計)", "RA 標記", "RA 覆寫", "RA 備註", "Pipeline 狀態"],
+        "xl_sheet_main": "合規分析",
+        "xl_sheet_pipeline": "Pipeline 進度",
+        "xl_sheet_qa": "QA 稽核摘要",
+        "src_labels": {"regulatory_list": "法規清單", "regulatory_update": "法規清單更新"},
+    },
+    "en": {
+        "title": "AI-QMS Compliance Analysis Report ({src_label})",
+        "meta": "Run ID: {run_id}  |  Source: {src_label}  |  Exported: {ts}",
+        "section_summary": "Summary",
+        "section_pipeline": "Pipeline Execution Progress",
+        "section_detail": "Detailed Analysis Results",
+        "section_qa": "Cross-Examination QA Audit Summary",
+        "qa_score": "Overall Quality Score",
+        "qa_clauses": "Clauses Audited",
+        "qa_summary": "Summary",
+        "qa_recs": "Recommendations",
+        "phase_headers": ["Phase", "Name (ZH)", "Name (EN)", "Rows", "Status"],
+        "phase_skipped": "↷ Skipped",
+        "token_usage": "Token Usage",
+        "llm_calls": "LLM Calls",
+        "budget_pct": "Budget Used",
+        "incomplete": "(Pipeline Incomplete)",
+        "detail_headers": ["Clause", "Document", "Audit Impact", "Verdict", "Risk", "Gap", "RA Flag", "Pipeline Status"],
+        "xl_detail_headers": ["Clause ID", "Clause Title", "Doc ID", "Doc Title", "Audit Impact", "Audit Question", "Verdict", "Risk Level", "Gap Severity", "Evidence (found/total)", "RA Flag", "RA Override", "RA Notes", "Pipeline Status"],
+        "xl_sheet_main": "Compliance Analysis",
+        "xl_sheet_pipeline": "Pipeline Progress",
+        "xl_sheet_qa": "QA Audit Summary",
+        "src_labels": {"regulatory_list": "Regulatory List", "regulatory_update": "Regulatory Update"},
+    },
+    "ja": {
+        "title": "AI-QMS コンプライアンス分析レポート（{src_label}）",
+        "meta": "実行 ID: {run_id}  |  ソース: {src_label}  |  エクスポート: {ts}",
+        "section_summary": "サマリー",
+        "section_pipeline": "パイプライン実行進捗",
+        "section_detail": "詳細分析結果",
+        "section_qa": "クロス尋問品質監査サマリー",
+        "qa_score": "総合品質スコア",
+        "qa_clauses": "監査条項数",
+        "qa_summary": "サマリー",
+        "qa_recs": "推奨事項",
+        "phase_headers": ["フェーズ", "名称（中）", "名称（英）", "行数", "ステータス"],
+        "phase_skipped": "↷ スキップ",
+        "token_usage": "トークン使用量",
+        "llm_calls": "LLM 呼び出し数",
+        "budget_pct": "予算使用率",
+        "incomplete": "（パイプライン未完了）",
+        "detail_headers": ["条項", "文書", "監査影響", "判定", "リスク", "ギャップ", "RA フラグ", "パイプライン状態"],
+        "xl_detail_headers": ["条項 ID", "条項名", "文書 ID", "文書タイトル", "監査影響", "監査質問", "判定", "リスクレベル", "ギャップ深刻度", "証拠 (発見/総計)", "RA フラグ", "RA 上書き", "RA メモ", "パイプライン状態"],
+        "xl_sheet_main": "コンプライアンス分析",
+        "xl_sheet_pipeline": "パイプライン進捗",
+        "xl_sheet_qa": "QA 監査サマリー",
+        "src_labels": {"regulatory_list": "規制リスト", "regulatory_update": "規制リスト更新"},
+    },
+}
+
 
 @report_router.get("/{run_id}/export/{fmt}")
 async def export_report(
@@ -1713,6 +1788,9 @@ async def export_report(
     if fmt not in ("word", "excel"):
         raise HTTPException(status_code=400, detail="Format must be 'word' or 'excel'")
 
+    _lk = "ja" if lang.startswith("ja") else "en" if not lang.startswith("zh") else "zh"
+    _tx = _SUMMARY_EXPORT_TEXT[_lk]
+
     table = await _load_table(run_id)
     flat_rows = table.to_flat_rows(lang=lang)
     summary = table.summary()
@@ -1722,11 +1800,7 @@ async def export_report(
     export_dir.mkdir(parents=True, exist_ok=True)
 
     source_cmd = getattr(table.state, "source_command", "regulatory_list")
-    source_labels = {
-        "regulatory_list": "法規清單",
-        "regulatory_update": "法規清單更新",
-    }
-    src_label = source_labels.get(source_cmd, source_cmd)
+    src_label = _tx["src_labels"].get(source_cmd, source_cmd)
 
     try:
         if fmt == "word":
@@ -1738,7 +1812,7 @@ async def export_report(
             assessment = _build_export_assessment(flat_rows, summary, lang=lang)
 
             doc = Document()
-            title = doc.add_heading(f"AI-QMS 合規性分析報告（{src_label}）", level=1)
+            title = doc.add_heading(_tx["title"].format(src_label=src_label), level=1)
             title.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
             from datetime import datetime
@@ -1746,13 +1820,13 @@ async def export_report(
             meta = doc.add_paragraph()
             meta.alignment = WD_ALIGN_PARAGRAPH.RIGHT
             run = meta.add_run(
-                f"分析 ID: {run_id}  |  來源指令: {src_label}  |  匯出時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                _tx["meta"].format(run_id=run_id, src_label=src_label, ts=datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
             )
             run.font.size = Pt(9)
             run.font.color.rgb = RGBColor(128, 128, 128)
 
             # Summary section
-            doc.add_heading("摘要", level=2)
+            doc.add_heading(_tx["section_summary"], level=2)
             doc.add_paragraph(assessment)
 
             # Phase progress section
@@ -1761,32 +1835,32 @@ async def export_report(
             _budget_doc = _prog_doc.get("llm_budget", {})
             _phase_dist_doc = _prog_doc.get("phase_distribution", {})
             _skipped_doc = list(table.state.skipped_phases or [])
-            doc.add_heading("Pipeline 執行進度", level=2)
+            doc.add_heading(_tx["section_pipeline"], level=2)
             prog_tbl = doc.add_table(rows=1 + len(_PHASE_ORDER), cols=4)
             prog_tbl.style = "Table Grid"
-            for ci, hdr in enumerate(["階段", "名稱（中文）", "名稱（英文）", "行數"]):
+            for ci, hdr in enumerate(_tx["phase_headers"][:4]):
                 prog_tbl.rows[0].cells[ci].text = hdr
             for pi, ph in enumerate(_PHASE_ORDER, 1):
                 is_skip = ph in _skipped_doc
                 prog_tbl.rows[pi].cells[0].text = _PHASE_LABELS[ph] + (" ↷" if is_skip else "")
                 prog_tbl.rows[pi].cells[1].text = _PHASE_NAMES_ZH.get(ph, ph)
                 prog_tbl.rows[pi].cells[2].text = _PHASE_NAMES_EN.get(ph, ph)
-                prog_tbl.rows[pi].cells[3].text = "↷ 跳過" if is_skip else str(_phase_dist_doc.get(ph, 0))
+                prog_tbl.rows[pi].cells[3].text = _tx["phase_skipped"] if is_skip else str(_phase_dist_doc.get(ph, 0))
             doc.add_paragraph(
-                f"Token 用量: {_budget_doc.get('total_tokens_used', 0):,}  |  "
-                f"LLM 呼叫: {_budget_doc.get('calls_made', 0)}  |  "
-                f"預算: {_budget_doc.get('usage_percent', 0)}%"
+                f"{_tx['token_usage']}: {_budget_doc.get('total_tokens_used', 0):,}  |  "
+                f"{_tx['llm_calls']}: {_budget_doc.get('calls_made', 0)}  |  "
+                f"{_tx['budget_pct']}: {_budget_doc.get('usage_percent', 0)}%"
             )
 
             # Detail table
-            doc.add_heading("詳細分析結果", level=2)
+            doc.add_heading(_tx["section_detail"], level=2)
             if flat_rows:
-                headers = ["條款", "文件", "稽核影響", "判定", "風險", "差距", "RA 標記", "Pipeline 狀態"]
+                headers = _tx["detail_headers"]
                 tbl = doc.add_table(rows=1 + len(flat_rows), cols=len(headers))
                 tbl.style = "Table Grid"
                 for i, h in enumerate(headers):
                     tbl.rows[0].cells[i].text = h
-                _incomplete_label = "（Pipeline 未完成）"
+                _incomplete_label = _tx["incomplete"]
                 for ri, row in enumerate(flat_rows, 1):
                     tbl.rows[ri].cells[0].text = f"{row.get('clause_id', '')} {row.get('clause_title', '')}"
                     tbl.rows[ri].cells[1].text = f"{row.get('doc_id', '')}"
@@ -1803,10 +1877,10 @@ async def export_report(
 
             _qa_sum = getattr(table.state, "qa_audit_summary", None)
             if _qa_sum and not _qa_sum.get("skipped"):
-                doc.add_heading("交叉詰問品質稽核摘要", level=2)
+                doc.add_heading(_tx["section_qa"], level=2)
                 doc.add_paragraph(
-                    f"整體品質分數: {_qa_sum.get('overall_score', 0)}/100\n"
-                    f"稽核條款數: {_qa_sum.get('clause_count', 0)}"
+                    f"{_tx['qa_score']}: {_qa_sum.get('overall_score', 0)}/100\n"
+                    f"{_tx['qa_clauses']}: {_qa_sum.get('clause_count', 0)}"
                 )
                 qa_sum_text = _qa_sum.get("summary", "")
                 if qa_sum_text:
@@ -1827,14 +1901,14 @@ async def export_report(
 
             wb = Workbook()
             ws = wb.active
-            ws.title = "合規分析"
+            ws.title = _tx["xl_sheet_main"]
 
             from datetime import datetime as _dt_xl
 
             title_cell = ws.cell(
                 row=1,
                 column=1,
-                value=f"AI-QMS 合規性分析報告（{src_label}）",
+                value=_tx["title"].format(src_label=src_label),
             )
             title_cell.font = Font(bold=True, size=14)
             ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=14)
@@ -1842,7 +1916,7 @@ async def export_report(
             meta_cell = ws.cell(
                 row=2,
                 column=1,
-                value=f"分析 ID: {run_id}  |  來源指令: {src_label}  |  匯出時間: {_dt_xl.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                value=_tx["meta"].format(run_id=run_id, src_label=src_label, ts=_dt_xl.now().strftime("%Y-%m-%d %H:%M:%S")),
             )
             meta_cell.font = Font(size=9, color="808080")
             ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=14)
@@ -1851,22 +1925,7 @@ async def export_report(
             data_start_row = TITLE_ROWS + 1
 
             # Headers
-            headers = [
-                "條款 ID",
-                "條款名稱",
-                "文件 ID",
-                "文件標題",
-                "稽核影響",
-                "稽核問題",
-                "判定",
-                "風險等級",
-                "差距嚴重度",
-                "證據 (找到/總計)",
-                "RA 標記",
-                "RA 覆寫",
-                "RA 備註",
-                "Pipeline 狀態",
-            ]
+            headers = _tx["xl_detail_headers"]
             header_fill = PatternFill(
                 start_color="4472C4", end_color="4472C4", fill_type="solid"
             )
@@ -1877,7 +1936,7 @@ async def export_report(
                 cell.font = header_font
                 cell.alignment = Alignment(horizontal="center")
 
-            _xl_incomplete = "（Pipeline 未完成）"
+            _xl_incomplete = _tx["incomplete"]
             for ri, row in enumerate(flat_rows, data_start_row + 1):
                 ws.cell(row=ri, column=1, value=row.get("clause_id", ""))
                 ws.cell(row=ri, column=2, value=row.get("clause_title", ""))
@@ -1935,10 +1994,10 @@ async def export_report(
             _budget_xl = _prog_xl.get("llm_budget", {})
             _phase_dist_xl = _prog_xl.get("phase_distribution", {})
             _skipped_xl = list(table.state.skipped_phases or [])
-            ws_prog = wb.create_sheet("Pipeline 進度")
+            ws_prog = wb.create_sheet(_tx["xl_sheet_pipeline"])
             _ph_font = Font(bold=True, color="FFFFFF", size=10)
             _ph_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
-            for ci, hdr in enumerate(["階段", "名稱（中文）", "名稱（英文）", "行數", "狀態"], 1):
+            for ci, hdr in enumerate(_tx["phase_headers"], 1):
                 c = ws_prog.cell(row=1, column=ci, value=hdr)
                 c.font = _ph_font
                 c.fill = _ph_fill
@@ -1948,26 +2007,26 @@ async def export_report(
                 ws_prog.cell(row=pi, column=2, value=_pnzh.get(ph, ph))
                 ws_prog.cell(row=pi, column=3, value=_pnen.get(ph, ph))
                 ws_prog.cell(row=pi, column=4, value=_phase_dist_xl.get(ph, 0))
-                ws_prog.cell(row=pi, column=5, value="↷ 跳過" if is_skip else "✓")
+                ws_prog.cell(row=pi, column=5, value=_tx["phase_skipped"] if is_skip else "✓")
             br = len(_po) + 3
-            ws_prog.cell(row=br, column=1, value="Token 用量").font = Font(bold=True)
+            ws_prog.cell(row=br, column=1, value=_tx["token_usage"]).font = Font(bold=True)
             ws_prog.cell(row=br, column=2, value=_budget_xl.get("total_tokens_used", 0))
-            ws_prog.cell(row=br+1, column=1, value="LLM 呼叫次數").font = Font(bold=True)
+            ws_prog.cell(row=br+1, column=1, value=_tx["llm_calls"]).font = Font(bold=True)
             ws_prog.cell(row=br+1, column=2, value=_budget_xl.get("calls_made", 0))
-            ws_prog.cell(row=br+2, column=1, value="預算使用率").font = Font(bold=True)
+            ws_prog.cell(row=br+2, column=1, value=_tx["budget_pct"]).font = Font(bold=True)
             ws_prog.cell(row=br+2, column=2, value=f"{_budget_xl.get('usage_percent', 0)}%")
 
             _qa_sum_xl = getattr(table.state, "qa_audit_summary", None)
             if _qa_sum_xl and not _qa_sum_xl.get("skipped"):
-                ws_qa = wb.create_sheet("QA 稽核摘要")
+                ws_qa = wb.create_sheet(_tx["xl_sheet_qa"])
                 qa_summary_data = [
-                    ("整體品質分數", f"{_qa_sum_xl.get('overall_score', 0)}/100"),
-                    ("稽核條款數", str(_qa_sum_xl.get("clause_count", 0))),
-                    ("摘要", _qa_sum_xl.get("summary", "")),
+                    (_tx["qa_score"], f"{_qa_sum_xl.get('overall_score', 0)}/100"),
+                    (_tx["qa_clauses"], str(_qa_sum_xl.get("clause_count", 0))),
+                    (_tx["qa_summary"], _qa_sum_xl.get("summary", "")),
                 ]
                 qa_recs_xl = _qa_sum_xl.get("recommendations", [])
                 if qa_recs_xl:
-                    qa_summary_data.append(("建議", "; ".join(qa_recs_xl)))
+                    qa_summary_data.append((_tx["qa_recs"], "; ".join(qa_recs_xl)))
                 for ri_qa, (k, v) in enumerate(qa_summary_data, 1):
                     ws_qa.cell(row=ri_qa, column=1, value=k).font = Font(bold=True)
                     ws_qa.cell(row=ri_qa, column=2, value=str(v))
