@@ -4730,6 +4730,23 @@ async def handle_regulatory_list():
             ).send()
         except Exception:
             pass
+    else:
+        # Inform user which cached crawl snapshot is being used
+        try:
+            _cl_lang = cl.user_session.get("language", DEFAULT_LANG)
+            _cl_ts_raw = last_crawl.get("crawl_timestamp", "")
+            _cl_ts = _cl_ts_raw[:19].replace("T", " ") if _cl_ts_raw else (
+                "未知" if _cl_lang.startswith("zh") else ("不明" if _cl_lang.startswith("ja") else "unknown")
+            )
+            if _cl_lang.startswith("zh"):
+                _cl_notice = f"ℹ️ 本次分析使用快取爬取資料（爬取時間：{_cl_ts}）。若需最新資料，請執行「法規清單更新」。"
+            elif _cl_lang.startswith("ja"):
+                _cl_notice = f"ℹ️ キャッシュされたクロールデータを使用中（クロール日時：{_cl_ts}）。最新データが必要な場合は「法規清單更新」を実行してください。"
+            else:
+                _cl_notice = f"ℹ️ Analysis uses cached crawl data (crawled at: {_cl_ts}). Run 'Regulatory Update' for fresh data."
+            await cl.Message(content=_cl_notice).send()
+        except Exception:
+            pass
 
     # Build online data summary for LLM (enhanced: source labels + PDF info)
     online_parts = []
@@ -6325,6 +6342,7 @@ async def _show_regulatory_update_export_buttons():
 async def handle_regulatory_update_export(format_type: str):
     """Handle regulatory update export to Word/Excel."""
     crawl_results = cl.user_session.get("last_regulatory_update")
+    _export_used_cache = False
     if not crawl_results:
         # Try loading from file
         store = get_regulatory_store()
@@ -6337,6 +6355,7 @@ async def handle_regulatory_update_export(format_type: str):
                 return None, "⚠️ エクスポートできる規制更新結果がありません。「規制一覧更新」を先に実行してください。"
             else:
                 return None, "⚠️ No regulatory update results to export. Please run 'Regulatory Update' first."
+        _export_used_cache = True
 
     results = crawl_results.get("results", [])
     if not results:
@@ -6350,6 +6369,15 @@ async def handle_regulatory_update_export(format_type: str):
 
     total = len(results)
     _dl_lang = cl.user_session.get("language", DEFAULT_LANG)
+    if _export_used_cache:
+        _exp_ts_raw = crawl_results.get("crawl_timestamp", "")
+        _exp_ts = _exp_ts_raw[:19].replace("T", " ") if _exp_ts_raw else "?"
+        if _dl_lang.startswith("zh"):
+            await cl.Message(content=f"ℹ️ 匯出使用快取爬取資料（爬取時間：{_exp_ts}）。").send()
+        elif _dl_lang.startswith("ja"):
+            await cl.Message(content=f"ℹ️ エクスポートはキャッシュデータを使用しています（クロール日時：{_exp_ts}）。").send()
+        else:
+            await cl.Message(content=f"ℹ️ Export uses cached crawl data (crawled at: {_exp_ts}).").send()
     if format_type == "word":
         assessment = cl.user_session.get("last_regulatory_update_assessment")
         filepath = export_regulatory_update_to_word(
