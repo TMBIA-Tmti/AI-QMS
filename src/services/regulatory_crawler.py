@@ -156,12 +156,12 @@ REGION_SITES = {
         },
         {
             "agency": "eCFR-820",
-            "name": "21 CFR Part 820 — Quality Management System Regulation (eCFR full text)",
-            "url": "https://www.ecfr.gov/current/title-21/chapter-I/subchapter-H/part-820",
-            "tier": 3,
+            "name": "Federal Register — FDA QMSR Final Rule (2024-01709, Medical Devices; Quality System Regulation Amendments)",
+            "url": "https://www.federalregister.gov/documents/2024/02/02/2024-01709/medical-devices-quality-system-regulation-amendments",
+            "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "Full regulatory text of 21 CFR Part 820 QMSR on eCFR — current good manufacturing practice (CGMP) for medical devices",
+            "note": "QMSR Final Rule (89 FR 7496, Rule 2024-01709) published Feb 2, 2024, effective Feb 2, 2026 — amends 21 CFR Part 820 to incorporate ISO 13485:2016 by reference; eCFR full text at ecfr.gov/current/title-21/chapter-I/subchapter-H/part-820",
         },
         {
             "agency": "Federal-Register-QMSR",
@@ -176,21 +176,21 @@ REGION_SITES = {
     "歐盟 (EU)": [
         {
             "agency": "EUR-Lex-MDR",
-            "name": "Regulation (EU) 2017/745 — EU MDR (full text incl. Annex IX QMS requirements)",
-            "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32017R0745",
-            "tier": 3,
+            "name": "Regulation (EU) 2017/745 — EU MDR full text (legislation.gov.uk UK retained copy)",
+            "url": "https://www.legislation.gov.uk/eur/2017/745/contents",
+            "tier": 2,
             "strategy": "html",
-            "crawl_delay": 5,
-            "note": "PRIMARY QMS regulation: EU MDR 2017/745 — Annex IX Section 2 specifies QMS requirements for Notified Body audit — EUR-Lex HTML via Jina",
+            "crawl_delay": 3,
+            "note": "PRIMARY QMS regulation: EU MDR 2017/745 — Annex IX Section 2 specifies QMS requirements — UK legislation.gov.uk retained EU law copy, no JS anti-bot; EUR-Lex blocked all crawlers",
         },
         {
             "agency": "EUR-Lex-MDR-Consolidated",
-            "name": "EU MDR 2017/745 — Consolidated version (EUR-Lex PDF)",
-            "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:02017R0745-20230320",
+            "name": "EU MDR 2017/745 — Full text PDF (legislation.gov.uk)",
+            "url": "https://www.legislation.gov.uk/eur/2017/745/data.pdf",
             "tier": 3,
             "strategy": "html",
-            "crawl_delay": 5,
-            "note": "Consolidated EU MDR text as of 2023-03-20 — includes all corrigenda amendments",
+            "crawl_delay": 3,
+            "note": "EU MDR 2017/745 PDF — full text via UK legislation.gov.uk — EUR-Lex consolidated PDF blocked by JS anti-bot",
         },
         {
             "agency": "MDCG",
@@ -207,7 +207,7 @@ REGION_SITES = {
         {
             "agency": "UK-MDR-2002",
             "name": "The Medical Devices Regulations 2002 (SI 2002/618) — UK legislation.gov.uk",
-            "url": "https://www.legislation.gov.uk/uksi/2002/618/contents/made",
+            "url": "https://www.legislation.gov.uk/uksi/2002/618/made",
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
@@ -255,12 +255,12 @@ REGION_SITES = {
     "中國 (China)": [
         {
             "agency": "NMPA-GMP-CN",
-            "name": "医疗器械生产质量管理规范 — NMPA 公告 2025年第107号 (Chinese, effective 2026-11-01)",
-            "url": "https://www.nmpa.gov.cn/xxgk/fgwj/xzhgfxwj/20251104173724174.html",
-            "tier": 3,
+            "name": "医疗器械生产质量管理规范 — NMPA 公告 2025年第107号 全文 (商务部政策法规网, Chinese full text)",
+            "url": "https://policy.mofcom.gov.cn/claw/clawContent.shtml?id=104034",
+            "tier": 2,
             "strategy": "html",
-            "crawl_delay": 5,
-            "note": "PRIMARY (Chinese): NMPA official announcement page for revised GMP (15章132条); actual regulation text is in the Word attachment on this page — anti-bot 412 protection, Jina Reader first",
+            "crawl_delay": 3,
+            "note": "PRIMARY (Chinese full text): Ministry of Commerce policy portal with full inline regulation text (15章132条) — accessible without anti-bot blocking; original NMPA site returns 412",
         },
         {
             "agency": "NMPA-GMP-Announcement",
@@ -284,12 +284,12 @@ REGION_SITES = {
     "韓國 (Korea)": [
         {
             "agency": "MFDS-KGMP",
-            "name": "MFDS — Medical Device GMP Regulations (K-GMP, English compilation)",
+            "name": "MFDS — Medical Device Good Manufacturing Practice (K-GMP, 의료기기 제조 및 품질관리 기준) English compilation",
             "url": "https://www.mfds.go.kr/eng/brd/m_40/view.do?seq=72638",
             "tier": 3,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "PRIMARY QMS regulation: MFDS K-GMP (의료기기 제조 및 품질관리 기준) — Korean GMP based on ISO 13485:2016, updated 2024/2025 — Jina first",
+            "note": "PRIMARY QMS regulation: K-GMP (의료기기 제조 및 품질관리 기준) English compilation on MFDS — MFDS Notification 2023-79 (Dec 2023) — ISO 13485:2016 equivalent — elaw.klri.re.kr hseq=57508 is 약사법 (Pharmaceutical Affairs Act), not K-GMP — Jina first",
         },
         {
             "agency": "MFDS-MD-Regulations",
@@ -354,12 +354,12 @@ REGION_SITES = {
     "澳洲 (Australia)": [
         {
             "agency": "TGA-Legislation",
-            "name": "Therapeutic Goods (Medical Devices) Regulations 2002 — Federal Register of Legislation (current)",
-            "url": "https://www.legislation.gov.au/F2002B00237/latest/text",
+            "name": "Therapeutic Goods (Medical Devices) Regulations 2002 — Schedule 3 Conformity Assessment Procedures (AustLII HTML)",
+            "url": "https://classic.austlii.edu.au/au/legis/cth/consol_reg/tgdr2002400/sch3.html",
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "PRIMARY QMS regulation: TG(MD)R 2002 Schedule 3 requires ISO 13485 QMS for conformity assessment — current consolidated text on legislation.gov.au",
+            "note": "PRIMARY QMS regulation: TG(MD)R 2002 Schedule 3 specifies conformity assessment procedures requiring ISO 13485 QMS — plain HTML via AustLII (legislation.gov.au full text requires JS rendering)",
         },
         {
             "agency": "TGA-ARGMD",
@@ -552,10 +552,10 @@ REGION_SITES = {
             "agency": "SFDA-MDS-REQ10",
             "name": "SFDA — Requirements for Inspections and Quality Management System for Medical Devices (MDS-REQ10)",
             "url": "https://www.sfda.gov.sa/en/regulations/87120",
-            "tier": 2,
+            "tier": 3,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "PRIMARY QMS regulation: SFDA MDS-REQ10 — specifies QMS inspection requirements and ISO 13485 alignment for medical device establishments in KSA",
+            "note": "PRIMARY QMS regulation: SFDA MDS-REQ10 — specifies QMS inspection requirements and ISO 13485 alignment for medical device establishments in KSA — Jina Reader first",
         },
         {
             "agency": "SFDA-ISO13485-Guidance",
@@ -590,12 +590,12 @@ REGION_SITES = {
     "紐西蘭 (New Zealand)": [
         {
             "agency": "Medsafe-MD-Legislation",
-            "name": "Medsafe — Medical Device Legislation",
+            "name": "Medsafe — Medical Device Legislation (Medicines Act 1981 + Therapeutic Products Act 2023)",
             "url": "https://www.medsafe.govt.nz/regulatory/devicesnew/2Legislation.asp",
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "PRIMARY QMS regulation source: Medsafe medical device legislation page — covers Medicines Act 1981, Medicines (Database of Medical Devices) Regulations 2003, GMP Code",
+            "note": "PRIMARY QMS regulation source: Medsafe legislation page — covers current Medicines Act 1981 framework and Therapeutic Products Act 2023 (No. 37, commences by Sep 2026) — legislation.govt.nz HTML/PDF both Cloudflare-blocked",
         },
         {
             "agency": "Medsafe-GMP",
@@ -639,23 +639,23 @@ REGION_SITES = {
         },
         {
             "agency": "ANMAT-Disposicion64-25",
-            "name": "ANMAT — Disposición 64/2025 — Registro de Productos Médicos (MERCOSUR GMC 25/21)",
-            "url": "https://www.argentina.gob.ar/normativa/nacional/disposici%C3%B3n-64-2025-408309/texto",
+            "name": "Disposición ANMAT 64/2025 — Boletín Oficial de la República Argentina (13 Jan 2025)",
+            "url": "https://www.boletinoficial.gov.ar/detalleAviso/primera/319522/20250113",
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "Disposición ANMAT 64/25 (in force Jan 2025) — incorporates MERCOSUR Resolution GMC 25/21, replacing prior registration framework; Class III–IV require BPF certificate — official Argentina.gob.ar full text",
+            "note": "Disposición ANMAT 64/25 (in force Jan 2025) — incorporates MERCOSUR Resolution GMC 25/21, replacing prior registration framework; Class III–IV require BPF certificate — Official Gazette confirmed accessible; argentina.gob.ar returns Jina upstream error",
         },
     ],
     "南非 (South Africa)": [
         {
             "agency": "SAHPRA-ISO13485",
-            "name": "SAHPRA — ISO 13485 Certificate as Prerequisite for Medical Device Establishment Licence",
-            "url": "https://www.sahpra.org.za/wp-content/uploads/2025/04/ISO-13485-Certificate-Communication_Signed19.pdf",
+            "name": "Medicines and Related Substances Act 101 of 1965 — Consolidated text (SAFLII)",
+            "url": "https://www.saflii.org/za/legis/consol_act/marsa1965280/",
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "PRIMARY QMS regulation notice: SAHPRA communication (April 2025) requiring ISO 13485:2016 under Medicines Act 101/1965 s.22C — Regulations 5 & 6 for medical device establishment licence from 1 June 2025",
+            "note": "PRIMARY QMS regulation: Medicines Act 101/1965 (as amended) — s.22C establishes SAHPRA; Regulations 5 & 6 under the Act require ISO 13485:2016 for medical device establishment licence from 1 June 2025 — SAFLII consolidated HTML text",
         },
         {
             "agency": "SAHPRA-MD",
@@ -670,12 +670,12 @@ REGION_SITES = {
     "土耳其 (Turkey)": [
         {
             "agency": "TITCK-MD-Legislation",
-            "name": "TITCK — Tıbbi Cihaz Mevzuatı (Medical Device Legislation, aligned with EU MDR 2017/745)",
-            "url": "https://www.titck.gov.tr/faaliyetalanlari/tibbicihaz/tibbi-cihaz-mevzuati",
+            "name": "Tıbbi Cihaz Yönetmeliği — Resmi Gazete 31499 Mükerrer (2 June 2021) Direct PDF",
+            "url": "https://www.resmigazete.gov.tr/eskiler/2021/06/20210602M1-2.pdf",
             "tier": 3,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "PRIMARY QMS regulation source: TITCK medical device legislation page — Turkey implemented EU MDR 2017/745 aligned regulations in June 2021 including QMS/Annex IX requirements — SSL/CDN protection — Jina Reader first",
+            "note": "PRIMARY QMS regulation: Turkish Medical Devices Regulation (Tıbbi Cihaz Yönetmeliği) — aligned with EU MDR 2017/745 Annex IX QMS — published Resmi Gazete No. 31499 Mükerrer (supplementary), 2 June 2021 — confirmed 4.9MB PDF at this URL; mevzuat.gov.tr dynamically generated PDF failed all tiers — Jina for PDF",
         },
         {
             "agency": "TITCK-New-Regs",
@@ -699,23 +699,23 @@ REGION_SITES = {
         },
         {
             "agency": "BPK-Permenkes20",
-            "name": "Permenkes No. 20 Tahun 2017 — CPAKB Full Text (BPK Official Indonesian Law Database)",
-            "url": "https://peraturan.bpk.go.id/Details/111997/permenkes-no-20-tahun-2017",
-            "tier": 2,
+            "name": "Permenkes No. 20 Tahun 2017 — CPAKB Direct PDF Download (Farmalkes Kemkes wpdmdl=11316)",
+            "url": "https://farmalkes.kemkes.go.id/?wpdmdl=11316",
+            "tier": 3,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "Full text of CPAKB regulation on the official BPK (State Finance Audit Board) law portal — PDF available for download",
+            "note": "Full text of CPAKB regulation — confirmed 3.5MB, 60-page Indonesian-language PDF directly from Farmalkes Kemkes (WordPress WPDM stable download); peraturan.bpk.go.id returns 403 Forbidden — Jina/MarkItDown for PDF",
         },
     ],
     "馬來西亞 (Malaysia)": [
         {
             "agency": "MDA-Legislation",
-            "name": "Medical Device Authority — Legislation Documents (Act 737 & Regulations 2012)",
-            "url": "https://www.mda.gov.my/index.php/doc-list/legislation",
+            "name": "Medical Device Act 2012 (Act 737) — Malaysia AGC Laws of Malaysia (lom.agc.gov.my)",
+            "url": "https://lom.agc.gov.my/act-detail.php?act=737&lang=BI",
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "PRIMARY QMS regulation source: Malaysia Medical Device Act 737 (2012) and Medical Device Regulations 2012 — requires ISO 13485/MDSAP/FDA QSR or MHLW 169 QMS certification",
+            "note": "PRIMARY QMS regulation: Malaysia Medical Device Act 737 (Royal Assent 30 Jan 2012, in force 30 Jun 2013) — official AGC Laws of Malaysia page; Act 737 s.14 requires manufacturer licence; ISO 13485/MDSAP/FDA QSR or MHLW 169 accepted as QMS evidence",
         },
         {
             "agency": "MDA",
@@ -730,12 +730,12 @@ REGION_SITES = {
     "以色列 (Israel)": [
         {
             "agency": "MOH-MD-Division",
-            "name": "Israel MOH — Medical Device Division (AMAR)",
-            "url": "https://www.health.gov.il/English/MinistryUnits/HealthDivision/MedicalTechnologies/MLD/Pages/default.aspx",
+            "name": "Israel MOH — Medical Equipment Division (AMAR) — gov.il portal",
+            "url": "https://www.gov.il/en/pages/medical_equipment_unit_about",
             "tier": 3,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "PRIMARY QMS regulation source: Israel MOH Medical Device Division — requires ISO 13485 compliance statement for registration; Medical Equipment Law 2012 and Medical Devices Regulations 2013 — SSL/CDN issues — Jina Reader first",
+            "note": "PRIMARY QMS regulation source: Israel MOH Medical Equipment Division (AMAR) — requires ISO 13485 compliance statement for registration; Medical Equipment Law 2012 and Medical Devices Regulations 2013 — migrated from health.gov.il to gov.il portal — Jina Reader first",
         },
     ],
     "菲律賓 (Philippines)": [
@@ -761,12 +761,12 @@ REGION_SITES = {
     "越南 (Vietnam)": [
         {
             "agency": "DMEC-MOH",
-            "name": "Vietnam MOH — DMEC Văn bản pháp quy (Legal Documents / Decree 98/2021/ND-CP)",
-            "url": "https://dmec.moh.gov.vn/van-ban-phap-quy",
-            "tier": 3,
+            "name": "Nghị định 98/2021/NĐ-CP — Về quản lý trang thiết bị y tế (vanban.chinhphu.vn, Official Government Portal)",
+            "url": "https://vanban.chinhphu.vn/?pageid=27160&docid=204442",
+            "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "PRIMARY QMS regulation source: DMEC legal documents listing — Vietnam Decree 98/2021/ND-CP (amended by Decree 96/2023) requires ISO 13485 for medical device registration — Jina Reader first",
+            "note": "PRIMARY QMS regulation: Vietnam Decree 98/2021/ND-CP (8 Nov 2021, effective 1 Jan 2022) on management of medical devices — requires ISO 13485 for registration — official vanban.chinhphu.vn page with PDF download link (amended by Decree 07/2023 and Decree 04/2025)",
         },
         {
             "agency": "DAV",
@@ -801,12 +801,12 @@ REGION_SITES = {
     "俄羅斯 (Russia)": [
         {
             "agency": "RZN-MD",
-            "name": "Roszdravnadzor — Medical Devices (Медицинские изделия)",
-            "url": "https://roszdravnadzor.gov.ru/medproducts",
-            "tier": 3,
+            "name": "Постановление Правительства РФ № 1684 — Правила государственной регистрации медицинских изделий (Контур.Норматив, full HTML text)",
+            "url": "https://normativ.kontur.ru/document?moduleId=1&documentId=483928",
+            "tier": 2,
             "strategy": "html",
             "crawl_delay": 5,
-            "note": "PRIMARY QMS regulation source: Roszdravnadzor — Government Decree No. 1684 (effective 2025-03-01, replaces No. 1416) — mandatory ISO 13485 inspection for Class IIa-sterile/IIb/III from Jan 2024 — Geo-blocking possible — Jina Reader fallback",
+            "note": "PRIMARY QMS regulation: Government Decree No. 1684 (30 Nov 2024, effective 1 Mar 2025) — Rules for State Registration of Medical Devices, replaces Decree No. 1416 — full HTML text on Kontur.Normativ; pravo.gov.ru publishes scanned images only — geo-blocking possible — Jina Reader fallback",
         },
         {
             "agency": "Minzdrav-MD",
@@ -841,23 +841,23 @@ REGION_SITES = {
     "智利 (Chile)": [
         {
             "agency": "ISP-Regulations",
-            "name": "ISP Chile — Regulaciones (ANAMED — Dispositivos Médicos)",
-            "url": "https://www.ispch.gob.cl/anamed/regulaciones/",
+            "name": "Decreto Supremo N° 825 de 1998 — Reglamento de Control de Productos y Elementos de Uso Médico (BCN Ley Chile)",
+            "url": "https://www.bcn.cl/leychile/Navegar?idNorma=141005",
             "tier": 3,
             "strategy": "html",
             "crawl_delay": 5,
-            "note": "PRIMARY QMS regulation source: ISP Chile ANAMED regulations page — medical device registration requires GMP/ISO 9001 compliance; ISP Resolution N°8209/1999 GMP Guide — Frequent timeouts from Asia — Jina Reader fallback",
+            "note": "PRIMARY QMS regulation: Chile Decreto 825/1998 (Ministerio de Salud) — Reglamento de Control de Productos y Elementos de Uso Médico — GMP standards reference US 21 CFR Part 820 — BCN Ley Chile full text (requires JS — Jina Reader fallback)",
         },
     ],
     "阿聯酋 (UAE)": [
         {
             "agency": "MOHAP-FDL38-2024",
-            "name": "UAE — Federal Decree-Law No. 38 of 2024 on Medical Products (MOHAP)",
-            "url": "https://mohap.gov.ae/en/w/federal-decree-law-no.-38-of-the-year-2024-concerning-medical-products-the-pharmacy-profession-and-pharmaceutical-establishments",
+            "name": "UAE Federal Decree-Law No. 38 of 2024 — Medical Products (uaelegislation.gov.ae official download)",
+            "url": "https://uaelegislation.gov.ae/en/legislations/2751/download",
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "PRIMARY QMS regulation: Federal Decree-Law No. 38 of 2024 (in force Jan 2025) governs medical products in UAE; ISO 13485:2016 certificate required for manufacturer registration — official MOHAP page",
+            "note": "PRIMARY QMS regulation: Federal Decree-Law No. 38 of 2024 (issued 1 Oct 2024, in force 2 Jan 2025) — Official Gazette No. 785 — governs medical products including devices; ISO 13485:2016 required for manufacturer registration — official uaelegislation.gov.ae PDF download",
         },
         {
             "agency": "MOHAP",
@@ -2175,8 +2175,6 @@ def _html_to_markdown(html: str, url: str = "") -> str:
             )
             md = result.text_content or ""
             if md.strip() and len(md.strip()) > 50:
-                if len(md) > _MAX_CONTENT_SIZE:
-                    md = md[:_MAX_CONTENT_SIZE] + "\n\n... (content truncated)"
                 return md
         except Exception as e:
             logger.debug(f"MarkItDown failed for {url}: {e}, falling back to BS4")
@@ -2256,8 +2254,6 @@ def _html_to_markdown_bs4(html: str, url: str = "") -> str:
                 lines.append("")
 
         markdown = "\n".join(lines)
-        if len(markdown) > _MAX_CONTENT_SIZE:
-            markdown = markdown[:_MAX_CONTENT_SIZE] + "\n\n... (content truncated)"
         return markdown if markdown.strip() else f"(No extractable content from {url})"
 
     except Exception as e:
@@ -2319,8 +2315,6 @@ def _json_to_markdown(data: dict, url: str = "") -> str:
 
         # Generic JSON → Markdown
         formatted = json.dumps(data, indent=2, ensure_ascii=False, default=str)
-        if len(formatted) > _MAX_CONTENT_SIZE:
-            formatted = formatted[:_MAX_CONTENT_SIZE] + "\n... (truncated)"
         return f"# API Response\n\n```json\n{formatted}\n```"
 
     except Exception as e:
@@ -2492,25 +2486,21 @@ async def _crawl_tier1_api(
 
         response = await _fetch_with_retry(client, url, headers=req_headers)
 
-        # 304 Not Modified
+        # 304 Not Modified — if no cached content exists, retry without conditional headers
         if response.status_code == 304:
-            result["crawl_status"] = "success"
-            result["content_source"] = "live"
-            result["title"] = f"{site['agency']} (cached — not modified)"
             previous_content = _retrieve_cached_content(url)
             if previous_content:
+                result["crawl_status"] = "success"
+                result["content_source"] = "live"
+                result["title"] = f"{site['agency']} (cached — not modified)"
                 result["content_markdown"] = previous_content
                 result["note"] = (
                     "HTTP 304 Not Modified — restored content from previous crawl"
                 )
-            else:
-                result["content_markdown"] = (
-                    "HTTP 304 Not Modified but no previous content found in storage — "
-                    "content may be empty until next full crawl"
-                )
-                result["note"] = "HTTP 304 Not Modified — no cached content available"
-            result["crawl_duration_seconds"] = round(time.time() - start, 2)
-            return result
+                result["crawl_duration_seconds"] = round(time.time() - start, 2)
+                return result
+            # No cached content — force fresh request without conditional headers
+            response = await _fetch_with_retry(client, url, headers={})
 
         response.raise_for_status()
 
@@ -2589,25 +2579,21 @@ async def _crawl_tier2_httpx(
 
         response = await _fetch_with_retry(client, url, headers=req_headers)
 
-        # 304 Not Modified
+        # 304 Not Modified — if no cached content exists, retry without conditional headers
         if response.status_code == 304:
-            result["crawl_status"] = "success"
-            result["content_source"] = "live"
-            result["title"] = f"{site['agency']} (cached — not modified)"
             previous_content = _retrieve_cached_content(url)
             if previous_content:
+                result["crawl_status"] = "success"
+                result["content_source"] = "live"
+                result["title"] = f"{site['agency']} (cached — not modified)"
                 result["content_markdown"] = previous_content
                 result["note"] = (
                     "HTTP 304 Not Modified — restored content from previous crawl"
                 )
-            else:
-                result["content_markdown"] = (
-                    "HTTP 304 Not Modified but no previous content found in storage — "
-                    "content may be empty until next full crawl"
-                )
-                result["note"] = "HTTP 304 Not Modified — no cached content available"
-            result["crawl_duration_seconds"] = round(time.time() - start, 2)
-            return result
+                result["crawl_duration_seconds"] = round(time.time() - start, 2)
+                return result
+            # No cached content — force fresh request without conditional headers
+            response = await _fetch_with_retry(client, url, headers={})
 
         response.raise_for_status()
 
@@ -2620,6 +2606,15 @@ async def _crawl_tier2_httpx(
         )
 
         content_type = response.headers.get("content-type", "")
+
+        # PDF content cannot be parsed as HTML — let Jina Reader handle it
+        if "application/pdf" in content_type or url.lower().endswith(".pdf"):
+            result["failure_reason"] = (
+                f"PDF 回應 ({content_type}) — 純 HTML 解析無效，轉至 Jina Reader"
+            )
+            result["crawl_duration_seconds"] = round(time.time() - start, 2)
+            return result
+
         raw_text = response.text
 
         if "application/json" in content_type:
@@ -2689,13 +2684,13 @@ async def _crawl_tier3_jina(
 
         if response.status_code == 200:
             content = response.text.strip()
-            # Detect Jina "Warning" error pages — e.g. "Warning: Target URL
-            # returned error 412" — these are upstream HTTP errors wrapped in
-            # a 200 response; treat them as failures so they don't pollute the
-            # regulatory markdown DB with useless error text.
+            # Detect Jina "Warning" error pages — upstream HTTP errors wrapped
+            # in a 200 response; e.g. "Warning: Target URL returned error 412".
+            # The warning may appear after "Title:" / "URL Source:" preamble
+            # headers so we scan the first 500 chars, not just startswith.
             _jina_error = (
-                content.startswith("Warning:")
-                and "returned error" in content[:200]
+                "Warning:" in content[:500]
+                and "returned error" in content[:500]
             )
             if content and len(content) > 50 and not _jina_error:
                 result["content_markdown"] = content
@@ -2709,10 +2704,7 @@ async def _crawl_tier3_jina(
                     result["title"] = site.get("name", site["agency"])
                 result["crawl_status"] = "success"
                 result["content_source"] = "live"
-                if len(content) > _MAX_CONTENT_SIZE:
-                    result["content_markdown"] = (
-                        content[:_MAX_CONTENT_SIZE] + "\n\n... (content truncated)"
-                    )
+                result["content_markdown"] = content
             elif _jina_error:
                 # Extract the HTTP status from the warning message if possible
                 _warn_line = content.split("\n")[0][:120]
