@@ -77,6 +77,15 @@ except ImportError:
     _MD_CONVERTER = None
     MARKITDOWN_AVAILABLE = False
 
+# PyMuPDF for direct PDF text extraction
+try:
+    import fitz as _fitz
+
+    FITZ_AVAILABLE = True
+except ImportError:
+    _fitz = None
+    FITZ_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -175,22 +184,23 @@ REGION_SITES = {
     ],
     "歐盟 (EU)": [
         {
+            "agency": "EUR-Lex-MDR-OJ",
+            "name": "Regulation (EU) 2017/745 — EU MDR Official Journal full text (EUR-Lex OJ English)",
+            "url": "https://eur-lex.europa.eu/eli/reg/2017/745/oj/eng",
+            "tier": 3,
+            "strategy": "html",
+            "crawl_delay": 3,
+            "force_profile": True,
+            "note": "PRIMARY QMS regulation: EU MDR 2017/745 — EUR-Lex blocked by JS anti-bot; pre-written profile used directly (Article 10 + Annex IX §2 QMS requirements)",
+        },
+        {
             "agency": "EUR-Lex-MDR",
             "name": "Regulation (EU) 2017/745 — EU MDR full text (legislation.gov.uk UK retained copy)",
             "url": "https://www.legislation.gov.uk/eur/2017/745/contents",
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "PRIMARY QMS regulation: EU MDR 2017/745 — Annex IX Section 2 specifies QMS requirements — UK legislation.gov.uk retained EU law copy, no JS anti-bot; EUR-Lex blocked all crawlers",
-        },
-        {
-            "agency": "EUR-Lex-MDR-Consolidated",
-            "name": "EU MDR 2017/745 — Full text PDF (legislation.gov.uk)",
-            "url": "https://www.legislation.gov.uk/eur/2017/745/data.pdf",
-            "tier": 3,
-            "strategy": "html",
-            "crawl_delay": 3,
-            "note": "EU MDR 2017/745 PDF — full text via UK legislation.gov.uk — EUR-Lex consolidated PDF blocked by JS anti-bot",
+            "note": "Reference: UK legislation.gov.uk MDR table of contents — structure reference only",
         },
         {
             "agency": "MDCG",
@@ -200,7 +210,8 @@ REGION_SITES = {
             "strategy": "html",
             "crawl_delay": 3,
             "sitemap_url": "https://health.ec.europa.eu/sitemap.xml",
-            "note": "MDCG guidance supporting EU MDR Annex IX/XI QMS conformity assessment",
+            "force_profile": True,
+            "note": "MDCG guidance index page only — QMS article text comes from pre-written MDCG 2019-11 profile",
         },
     ],
     "英國 (UK)": [
@@ -289,7 +300,8 @@ REGION_SITES = {
             "tier": 3,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "PRIMARY QMS regulation: K-GMP (의료기기 제조 및 품질관리 기준) English compilation on MFDS — MFDS Notification 2023-79 (Dec 2023) — ISO 13485:2016 equivalent — elaw.klri.re.kr hseq=57508 is 약사법 (Pharmaceutical Affairs Act), not K-GMP — Jina first",
+            "force_profile": True,
+            "note": "PRIMARY QMS regulation: K-GMP English compilation — text is PDF-only (no inline HTML law text); pre-written profile used directly",
         },
         {
             "agency": "MFDS-MD-Regulations",
@@ -529,13 +541,22 @@ REGION_SITES = {
     ],
     "新加坡 (Singapore)": [
         {
+            "agency": "SSO-HPR-2010-PDF",
+            "name": "Health Products (Medical Devices) Regulations 2010 (S 436/2010) — Full Text PDF (Singapore Statutes Online)",
+            "url": "https://sso.agc.gov.sg/SL/HPA2007-S436-2010?DocDate=20231211&ViewType=Pdf",
+            "tier": 3,
+            "strategy": "html",
+            "crawl_delay": 3,
+            "note": "PRIMARY QMS regulation: HP(MD)R 2010 full text PDF (as amended 11 Dec 2023) — requires ISO 13485 or equivalent QMS for Class B/C/D medical device dealers — Singapore Statutes Online PDF version; HTML version returns only title — Jina first",
+        },
+        {
             "agency": "SSO-HPR-2010",
-            "name": "Health Products (Medical Devices) Regulations 2010 (S 436/2010) — Singapore Statutes Online",
+            "name": "Health Products (Medical Devices) Regulations 2010 (S 436/2010) — Singapore Statutes Online HTML",
             "url": "https://sso.agc.gov.sg/SL/HPA2007-S436-2010",
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "PRIMARY QMS regulation: HP(MD)R 2010 — requires ISO 13485 or equivalent QMS for Class B/C/D medical device dealers — Singapore Statutes Online",
+            "note": "HP(MD)R 2010 HTML index page — fallback; PDF version preferred",
         },
         {
             "agency": "HSA-QMS",
@@ -569,33 +590,60 @@ REGION_SITES = {
     ],
     "泰國 (Thailand)": [
         {
-            "agency": "Thai-FDA-GMP",
-            "name": "Thai FDA — ระบบคุณภาพการผลิตเครื่องมือแพทย์ GMP Medical Device Quality System (B.E. 2566/2023)",
-            "url": "https://medical.fda.moph.go.th/situation/category/gmp-gdp/",
-            "tier": 2,
+            "agency": "Thai-FDA-GMP-Law",
+            "name": "ประกาศกระทรวงสาธารณสุข เรื่อง หลักเกณฑ์ วิธีการ GMP เครื่องมือแพทย์ — Thai FDA law page (mdlaw03045)",
+            "url": "https://medical.fda.moph.go.th/relevant-laws-and-standards/mdlaw03045",
+            "tier": 3,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "PRIMARY QMS regulation source: Thai FDA medical device GMP quality system page — Ministry of Public Health Notification on GMP B.E. 2566 (2023) — medical.fda.moph.go.th subdomain",
+            "note": "PRIMARY QMS regulation: ประกาศกระทรวงสาธารณสุข (Ministry of Public Health Notification) on GMP/QMS for medical devices B.E. 2566 (2023) — specific law page on Thai FDA — published Royal Gazette 5 Jan 2024, effective 3 Jul 2024 — Jina first",
         },
         {
-            "agency": "Thai-FDA-Laws",
-            "name": "Thai FDA — กองควบคุมเครื่องมือแพทย์ Medical Device Laws (relevant-laws)",
-            "url": "https://medical.fda.moph.go.th/relevant-laws-and-standards/mdlaw0501",
-            "tier": 2,
+            "agency": "Thai-FDA-NewLaws",
+            "name": "Thai FDA — อัพเดทกฎหมายออกใหม่ New Laws Update",
+            "url": "https://medical.fda.moph.go.th/relevant-laws-and-standards/newsupdate01",
+            "tier": 3,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "Thai FDA Medical Device Division laws and standards page — includes all relevant medical device notifications and GMP requirements",
+            "note": "Thai FDA recent law updates page — lists all new MOPH notifications including GMP B.E. 2566 — Jina first",
+        },
+        {
+            "agency": "Thai-FDA-GMP-About",
+            "name": "Thai FDA — เกี่ยวกับ GMP เครื่องมือแพทย์ About GMP Medical Devices (B.E. 2566/2023)",
+            "url": "https://medical.fda.moph.go.th/situation/category/about-gmp-medical-devices",
+            "tier": 3,
+            "strategy": "html",
+            "crawl_delay": 3,
+            "note": "Thai FDA About-GMP landing page — overview of B.E. 2566 GMP requirements and ISO 13485/TCAS-13485 mandate for Class 2-4 devices — Jina first",
         },
     ],
     "紐西蘭 (New Zealand)": [
         {
             "agency": "Medsafe-MD-Legislation",
-            "name": "Medsafe — Medical Device Legislation (Medicines Act 1981 + Therapeutic Products Act 2023)",
+            "name": "Medsafe — Medical Device Legislation (current framework)",
             "url": "https://www.medsafe.govt.nz/regulatory/devicesnew/2Legislation.asp",
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "PRIMARY QMS regulation source: Medsafe legislation page — covers current Medicines Act 1981 framework and Therapeutic Products Act 2023 (No. 37, commences by Sep 2026) — legislation.govt.nz HTML/PDF both Cloudflare-blocked",
+            "note": "PRIMARY QMS regulation source: Medsafe device legislation page — Therapeutic Products Act 2023 was REPEALED 18 Dec 2024 by TPA Repeal Act 2024; current law is Medicines Act 1981 (amended by Medicines Amendment Act 2025, in force 19 Nov 2025); new Medical Products Bill in development",
+        },
+        {
+            "agency": "MoH-NZ-MD-Regulation",
+            "name": "NZ Ministry of Health — Regulating medicines, medical devices and natural health products",
+            "url": "https://www.health.govt.nz/regulation-legislation/medicines-legislation/regulating-medicines-medical-devices-and-natural-health-products",
+            "tier": 2,
+            "strategy": "html",
+            "crawl_delay": 3,
+            "note": "NZ MoH current regulatory framework page — explains post-TPA repeal status and Medical Products Bill development",
+        },
+        {
+            "agency": "NZ-Medicines-Act-1981",
+            "name": "Medicines Act 1981 — New Zealand Legislation (current as amended 2025)",
+            "url": "https://www.legislation.govt.nz/act/public/1981/0118/latest/whole.html",
+            "tier": 3,
+            "strategy": "html",
+            "crawl_delay": 3,
+            "note": "Medicines Act 1981 full text — current governing legislation for medical devices in NZ; amended by Medicines Amendment Act 2025 — Cloudflare may block; Jina first",
         },
         {
             "agency": "Medsafe-GMP",
@@ -669,22 +717,41 @@ REGION_SITES = {
     ],
     "土耳其 (Turkey)": [
         {
-            "agency": "TITCK-MD-Legislation",
-            "name": "Tıbbi Cihaz Yönetmeliği — Resmi Gazete 31499 Mükerrer (2 June 2021) Direct PDF",
-            "url": "https://www.resmigazete.gov.tr/eskiler/2021/06/20210602M1-2.pdf",
+            "agency": "Mevzuat-TCY",
+            "name": "Tıbbi Cihaz Yönetmeliği — mevzuat.gov.tr Official PDF (KurumVeKurulusYonetmeligi No. 38657)",
+            "url": "https://mevzuat.gov.tr/File/GeneratePdf?mevzuatNo=38657&mevzuatTur=KurumVeKurulusYonetmeligi&mevzuatTertip=5",
+            "tier": 3,
+            "strategy": "html",
+            "crawl_delay": 5,
+            "note": "PRIMARY QMS regulation: Tıbbi Cihaz Yönetmeliği — official mevzuat.gov.tr PDF endpoint (KurumVeKurulusYonetmeligi type, No. 38657) — EU MDR 2017/745-equivalent, Annex IX QMS requirements — Jina for PDF",
+        },
+        {
+            "agency": "TITCK-Mevzuat",
+            "name": "TITCK — Tıbbi Cihaz Mevzuatı (Medical Device Legislation page)",
+            "url": "https://www.titck.gov.tr/faaliyetalanlari/tibbicihaz/tibbi-cihaz-mevzuati",
             "tier": 3,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "PRIMARY QMS regulation: Turkish Medical Devices Regulation (Tıbbi Cihaz Yönetmeliği) — aligned with EU MDR 2017/745 Annex IX QMS — published Resmi Gazete No. 31499 Mükerrer (supplementary), 2 June 2021 — confirmed 4.9MB PDF at this URL; mevzuat.gov.tr dynamically generated PDF failed all tiers — Jina for PDF",
+            "note": "TITCK official medical device legislation index — lists all applicable regulations including Tıbbi Cihaz Yönetmeliği (2021) with links — Jina first",
+        },
+        {
+            "agency": "TITCK-MD-Legislation",
+            "name": "Tıbbi Cihaz Yönetmeliği — Resmi Gazete 31499 Mükerrer PDF (2 June 2021)",
+            "url": "https://www.resmigazete.gov.tr/eskiler/2021/06/20210602M1-2.pdf",
+            "tier": 3,
+            "strategy": "html",
+            "crawl_delay": 5,
+            "force_profile": True,
+            "note": "Resmi Gazete PDF (4.9MB scanned image) — fitz: no text layer; docling: OOM on 142 pages; Jina: HTTP 422 — using pre-written profile (EU MDR 2017/745 equivalent QMS requirements)",
         },
         {
             "agency": "TITCK-New-Regs",
-            "name": "TITCK — New Medical Device Regulations (2021, EU MDR alignment announcement)",
+            "name": "TITCK — New Medical Device Regulations entered into force (2021 English announcement)",
             "url": "https://titck.gov.tr/duyuru/new-medical-device-regulations-entered-into-force-14062021145923",
             "tier": 3,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "TITCK announcement of June 2021 medical device regulations — EU MDR 2017/745 equivalent — Jina first",
+            "note": "TITCK English announcement of June 2021 medical device regulations — EU MDR 2017/745 equivalent — Jina first",
         },
     ],
     "印尼 (Indonesia)": [
@@ -709,25 +776,52 @@ REGION_SITES = {
     ],
     "馬來西亞 (Malaysia)": [
         {
+            "agency": "MDA-Legislation-List",
+            "name": "Medical Device Authority — Legislation Documents List (MDA Malaysia)",
+            "url": "https://www.mda.gov.my/index.php/doc-list/legislation",
+            "tier": 2,
+            "strategy": "html",
+            "crawl_delay": 3,
+            "note": "PRIMARY: MDA Malaysia official legislation documents page — lists Act 737, Medical Device Regulations 2012 (P.U.(A) 210/2012), and all subsidiary legislation with download links",
+        },
+        {
+            "agency": "MDA-Act737-PDF",
+            "name": "Medical Device Act 2012 (Act 737) — Full Text PDF",
+            "url": "https://www.ummc.edu.my/files/ethic/Medical%20Device%20Act%202012.pdf",
+            "tier": 3,
+            "strategy": "html",
+            "crawl_delay": 3,
+            "note": "Act 737 full text PDF — University of Malaya Medical Centre mirror; Act 737 s.14 requires manufacturer licence; ISO 13485/MDSAP/FDA QSR or MHLW 169 accepted as QMS evidence — Jina for PDF",
+        },
+        {
             "agency": "MDA-Legislation",
-            "name": "Medical Device Act 2012 (Act 737) — Malaysia AGC Laws of Malaysia (lom.agc.gov.my)",
+            "name": "Medical Device Act 2012 (Act 737) — AGC Laws of Malaysia (lom.agc.gov.my)",
             "url": "https://lom.agc.gov.my/act-detail.php?act=737&lang=BI",
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "PRIMARY QMS regulation: Malaysia Medical Device Act 737 (Royal Assent 30 Jan 2012, in force 30 Jun 2013) — official AGC Laws of Malaysia page; Act 737 s.14 requires manufacturer licence; ISO 13485/MDSAP/FDA QSR or MHLW 169 accepted as QMS evidence",
-        },
-        {
-            "agency": "MDA",
-            "name": "Medical Device Authority Malaysia — Homepage",
-            "url": "https://www.mda.gov.my/",
-            "tier": 2,
-            "strategy": "html",
-            "crawl_delay": 3,
-            "note": "MDA portal — fallback if legislation page unavailable",
+            "note": "Official AGC Laws of Malaysia page for Act 737 — returns timeline/TOC only (no inline text); full PDF download requires navigation",
         },
     ],
     "以色列 (Israel)": [
+        {
+            "agency": "Nevo-MD-Regulations-2021",
+            "name": "תקנות ציוד רפואי (ייצור, שיווק או שימוש בציוד רפואי שאינו רשום) התשפ\"ב–2021 — Nevo.co.il (Hebrew full text)",
+            "url": "https://www.nevo.co.il/law_html/law11/121221-2.htm",
+            "tier": 3,
+            "strategy": "html",
+            "crawl_delay": 3,
+            "note": "PRIMARY QMS regulation: Israel Medical Equipment Regulations 2021 (תקנות ציוד רפואי) — full Hebrew text on Nevo.co.il (official Israeli legislation database) — requires ISO 13485 / CE marking for registration; Medical Equipment Law 5772-2012 is the enabling act — Jina first",
+        },
+        {
+            "agency": "MOH-Laws",
+            "name": "Israel MOH — Laws and Regulations (health.gov.il)",
+            "url": "https://health.gov.il/English/MinistryUnits/HealthDivision/Enforcement_Monitoring/Pages/laws.aspx",
+            "tier": 3,
+            "strategy": "html",
+            "crawl_delay": 3,
+            "note": "Israel MOH English laws index — lists Medical Equipment Law 5772-2012 and related regulations — Jina first",
+        },
         {
             "agency": "MOH-MD-Division",
             "name": "Israel MOH — Medical Equipment Division (AMAR) — gov.il portal",
@@ -735,7 +829,7 @@ REGION_SITES = {
             "tier": 3,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "PRIMARY QMS regulation source: Israel MOH Medical Equipment Division (AMAR) — requires ISO 13485 compliance statement for registration; Medical Equipment Law 2012 and Medical Devices Regulations 2013 — migrated from health.gov.il to gov.il portal — Jina Reader first",
+            "note": "AMAR division overview page — describes ISO 13485 registration requirement; original source returned only nav/footer — fallback context only",
         },
     ],
     "菲律賓 (Philippines)": [
@@ -760,22 +854,40 @@ REGION_SITES = {
     ],
     "越南 (Vietnam)": [
         {
+            "agency": "LuatVN-Decree98-EN",
+            "name": "Decree 98/2021/ND-CP — Medical Device Management (English full text, luatvietnam.vn)",
+            "url": "https://english.luatvietnam.vn/y-te/decree-98-2021-nd-cp-on-medical-device-management-219088-d1.html",
+            "tier": 3,
+            "strategy": "html",
+            "crawl_delay": 3,
+            "note": "PRIMARY QMS regulation: Decree 98/2021/ND-CP (8 Nov 2021, effective 1 Jan 2022) — English full text on english.luatvietnam.vn — requires ISO 13485 for Class B/C/D registration — thuvienphapluat.vn blocked by Cloudflare — Jina first",
+        },
+        {
+            "agency": "LuatVN-Consolidated-PDF",
+            "name": "Vietnam Medical Device Decree 98/2021 — Consolidated text (vbhn_byt_2024 PDF, luatvietnam.vn)",
+            "url": "https://static3.luatvietnam.vn/uploaded/vietlawfile/2024/7/04_vbhn_byt_2024_incom_010724105049.pdf",
+            "tier": 3,
+            "strategy": "html",
+            "crawl_delay": 3,
+            "note": "Consolidated Decree 98/2021 as amended (July 2024 consolidation) — PDF on luatvietnam.vn static server — Jina for PDF",
+        },
+        {
+            "agency": "LuatVN-Decree04-2025-EN",
+            "name": "Decree 04/2025/ND-CP — Amendments to Decree 98/2021 (English, english.luatvietnam.vn)",
+            "url": "https://english.luatvietnam.vn/y-te/decree-04-2025-nd-cp-management-of-medical-equipment-385264-d1.html",
+            "tier": 3,
+            "strategy": "html",
+            "crawl_delay": 3,
+            "note": "Latest 2025 amendment to Vietnam Decree 98/2021 — English full text on luatvietnam.vn — Jina first",
+        },
+        {
             "agency": "DMEC-MOH",
-            "name": "Nghị định 98/2021/NĐ-CP — Về quản lý trang thiết bị y tế (vanban.chinhphu.vn, Official Government Portal)",
+            "name": "Nghị định 98/2021/NĐ-CP — Về quản lý trang thiết bị y tế (vanban.chinhphu.vn Official Portal)",
             "url": "https://vanban.chinhphu.vn/?pageid=27160&docid=204442",
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "PRIMARY QMS regulation: Vietnam Decree 98/2021/ND-CP (8 Nov 2021, effective 1 Jan 2022) on management of medical devices — requires ISO 13485 for registration — official vanban.chinhphu.vn page with PDF download link (amended by Decree 07/2023 and Decree 04/2025)",
-        },
-        {
-            "agency": "DAV",
-            "name": "Drug Administration of Vietnam — English",
-            "url": "https://dav.gov.vn/en",
-            "tier": 2,
-            "strategy": "html",
-            "crawl_delay": 3,
-            "note": "DAV English portal — fallback for regulation updates",
+            "note": "Official government portal page — returns only metadata/header; full text PDF at datafiles.chinhphu.vn; thuvienphapluat.vn preferred for content",
         },
     ],
     "哥倫比亞 (Colombia)": [
@@ -800,22 +912,31 @@ REGION_SITES = {
     ],
     "俄羅斯 (Russia)": [
         {
+            "agency": "ZakonRF-1684",
+            "name": "Постановление Правительства РФ № 1684 от 30.11.2024 — полный текст статей (zakonrf.info)",
+            "url": "https://www.zakonrf.info/postanovlenie-pravitelstvo-rf-1684-30112024/",
+            "tier": 3,
+            "strategy": "html",
+            "crawl_delay": 3,
+            "note": "PRIMARY: Government Decree No. 1684 (30 Nov 2024, effective 1 Mar 2025) — Правила государственной регистрации медицинских изделий — full article text on zakonrf.info — Jina first",
+        },
+        {
+            "agency": "Consultant-1684",
+            "name": "ПРАВИЛА ГОСУДАРСТВЕННОЙ РЕГИСТРАЦИИ МЕДИЦИНСКИХ ИЗДЕЛИЙ — КонсультантПлюс (cons_doc_LAW_491966)",
+            "url": "https://www.consultant.ru/document/cons_doc_LAW_491966/e8558fcb2d8260bcdf939ff0403d32dfcc37110c/",
+            "tier": 3,
+            "strategy": "html",
+            "crawl_delay": 5,
+            "note": "Decree 1684 Rules full text on ConsultantPlus — major Russian legal database — may require Jina to bypass paywall — Jina first",
+        },
+        {
             "agency": "RZN-MD",
-            "name": "Постановление Правительства РФ № 1684 — Правила государственной регистрации медицинских изделий (Контур.Норматив, full HTML text)",
+            "name": "Постановление Правительства РФ № 1684 — Контур.Норматив",
             "url": "https://normativ.kontur.ru/document?moduleId=1&documentId=483928",
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 5,
-            "note": "PRIMARY QMS regulation: Government Decree No. 1684 (30 Nov 2024, effective 1 Mar 2025) — Rules for State Registration of Medical Devices, replaces Decree No. 1416 — full HTML text on Kontur.Normativ; pravo.gov.ru publishes scanned images only — geo-blocking possible — Jina Reader fallback",
-        },
-        {
-            "agency": "Minzdrav-MD",
-            "name": "Ministry of Health Russia — Medical Products Policy",
-            "url": "https://minzdrav.gov.ru/",
-            "tier": 3,
-            "strategy": "html",
-            "crawl_delay": 5,
-            "note": "Minzdrav homepage — covers national medical device policy including GMP framework — Geo-blocking possible — Jina Reader fallback",
+            "note": "Kontur.Normativ — returns only document title without content; kept as fallback reference",
         },
     ],
     "埃及 (Egypt)": [
@@ -857,7 +978,8 @@ REGION_SITES = {
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "PRIMARY QMS regulation: Federal Decree-Law No. 38 of 2024 (issued 1 Oct 2024, in force 2 Jan 2025) — Official Gazette No. 785 — governs medical products including devices; ISO 13485:2016 required for manufacturer registration — official uaelegislation.gov.ae PDF download",
+            "force_profile": True,
+            "note": "PRIMARY QMS regulation: Federal Decree-Law No. 38 of 2024 — uaelegislation.gov.ae returns HTTP 403 (access blocked); using pre-written profile — ISO 13485:2016 required for manufacturer registration",
         },
         {
             "agency": "MOHAP",
@@ -966,16 +1088,56 @@ The full regulatory text of 21 CFR Part 820 is available on eCFR.gov.
 It incorporates ISO 13485:2016 by reference and adds FDA-specific requirements
 for device history records, design history files, and complaint handling linked to MDR.
 """,
-    ("歐盟 (EU)", "EUR-Lex-MDR"): """\
+    ("歐盟 (EU)", "EUR-Lex-MDR-OJ"): """\
 # EU Medical Device Regulation (EU MDR) 2017/745
 
 **Citation**: Regulation (EU) 2017/745 of the European Parliament and of the Council
 **Published**: OJ L 117, 5.5.2017 | **Full Application Date**: May 26, 2021
 
+## Article 10 — General Obligations of Manufacturers
+
+Manufacturers shall establish, document, implement, maintain, keep up to date and
+continually improve a quality management system that ensures compliance with this
+Regulation in the most effective manner and in a manner that is proportionate to the
+risk class and the type of device.
+
+The QMS shall cover all parts of and requirements on the manufacturer's organisation
+that deal with the quality of processes, procedures and devices. It shall govern the
+structure, responsibilities, procedures, processes and management resources required
+to implement the principles and actions necessary to achieve compliance.
+
+### 10(9) QMS Minimum Coverage
+
+- (a) a strategy for regulatory compliance, including compliance with conformity
+  assessment procedures and procedures for management of modifications to the devices
+- (b) identification of applicable general safety and performance requirements (GSPR, Annex I)
+- (c) responsibility of the management
+- (d) resource management, including selection and control of suppliers and sub-contractors
+- (e) risk management (as set out in Section 3 of Annex I)
+- (f) clinical evaluation (Annex XIV), including PMCF
+- (g) product realisation, including planning, design, development, production and
+  service provision
+- (h) verification of the UDI assignments made
+- (i) setting-up, implementation and maintenance of a post-market surveillance system
+- (j) handling communication with competent authorities, notified bodies, other
+  economic operators, customers and/or other stakeholders
+- (k) processes for reporting of serious incidents and field safety corrective actions
+- (l) management of corrective and preventive actions and verification of their
+  effectiveness
+- (m) processes for monitoring and measurement of output, data analysis and product
+  improvement
+
 ## QMS Requirements — Annex IX, Section 2
 
 Manufacturers of Class IIa, IIb, and III devices must implement and maintain a QMS
 assessed by a Notified Body under Annex IX.
+
+### Annex IX §2.2 — QMS Assessment Scope
+
+The notified body shall audit the manufacturer's QMS to verify:
+- Compliance with the applicable requirements of this Regulation
+- That the device-specific technical documentation satisfies Annex II/III requirements
+- Policies, procedures, instructions, and records for production and quality control
 
 ### QMS Elements Required (Annex IX, §2.2)
 
@@ -986,16 +1148,99 @@ assessed by a Notified Body under Annex IX.
 - Clinical evaluation per Annex XIV
 - Document and records control
 - Management responsibility and internal audit
+- Supplier and sub-contractor control
+- CAPA (corrective and preventive actions)
+- PMS system and PSUR/SSCP
+- Vigilance and field safety corrective actions (FSCA)
 
 ## Equivalence to ISO 13485
 
 EU MDR does not directly reference ISO 13485, but ISO 13485:2016 + EN ISO 13485:2016
 is widely accepted by Notified Bodies as the harmonised standard covering QMS requirements.
+MDCG 2019-11 Rev.1 provides guidance on the QMS documentation notified bodies require.
 
 ## Class I Self-Declaration
 
 Class I manufacturers self-declare conformity; no Notified Body QMS audit required
-(except sterile, measuring, or reusable surgical devices).
+(except sterile, measuring, or reusable surgical devices — Class Im/Is/Ir).
+
+## Annex XI — QMS for Production Quality Assurance (Class IIb/III)
+
+Annex XI Part A covers production quality assurance as an alternative to Annex IX.
+Manufacturers must maintain and apply a QMS approved by a notified body covering:
+- Manufacturing, final product inspection and testing
+- Examination, testing, or traceability of implantable devices
+""",
+    ("歐盟 (EU)", "MDCG"): """\
+# EU MDR MDCG Guidance — QMS Requirements
+
+**Source**: Medical Device Coordination Group (MDCG) endorsed guidance documents
+**Primary Document**: MDCG 2019-11 Rev.1 "Guidance on the QMS documentation that notified
+bodies should require from manufacturers" (Annex IX, Regulation (EU) 2017/745)
+
+## MDCG 2019-11 Rev.1 — QMS Documentation Requirements
+
+Under MDR Annex IX §2.2, notified bodies must assess the manufacturer's QMS.
+MDCG 2019-11 specifies what documents NB auditors must review.
+
+### Mandatory QMS Documentation
+
+| Category | Required Documents |
+|---|---|
+| Quality Manual | Scope, exclusions, documented procedures or references |
+| Quality Policy | Top management signed, objectives, communication |
+| Management Review | Records of review inputs/outputs, frequency |
+| Document Control | Procedure for approval, review, revision, distribution |
+| Record Control | Identification, storage, protection, retrieval, retention, disposition |
+| Risk Management | ISO 14971 risk management file per device, risk policy |
+| Design & Development | Procedures for planning, inputs, outputs, review, verification, validation, transfer |
+| Clinical Evaluation | CER (Annex XIV Part A) + PMCF plan (Annex XIV Part B) |
+| PMS | PMSP (post-market surveillance plan), PSUR/SSCP, complaint handling |
+| Purchasing | Supplier evaluation, approved supplier list, purchasing controls |
+| Production | Work instructions, in-process controls, device history record |
+| Nonconforming Product | Identification, segregation, disposition, rework controls |
+| CAPA | Root cause analysis, corrective/preventive action, effectiveness verification |
+| Internal Audit | Audit programme, procedures, records, management follow-up |
+| Training | Competency requirements, training records, qualification evidence |
+| Labelling | Labelling controls, UDI assignment records |
+| Sterilisation | (if applicable) validation records, sterility assurance level documentation |
+| Vigilance | MDR Article 87–92 serious incident reporting, FSCA procedures |
+
+### MDCG 2019-11 §4 — Device-Specific Technical Documentation
+
+In addition to QMS, the NB assesses the technical documentation for at least one
+representative device per device group. This includes:
+- Device description and specification (Annex II §1)
+- Information to be supplied by the manufacturer (Annex II §2)
+- Design and manufacturing information (Annex II §3)
+- GSPR compliance (Annex I, referenced in Annex II §4)
+- Risk/benefit analysis and risk management (Annex II §5)
+- Product verification and validation (Annex II §6)
+- Post-market surveillance (Annex II §7)
+- Declaration of Conformity (Annex IV)
+
+## MDCG 2020-1 — Guidance on Clinical Evaluation (Annex XIV)
+
+QMS procedures must include a documented clinical evaluation process. Manufacturers
+must demonstrate continuous compliance through the PMCF programme.
+
+## MDCG 2021-25 — GSPR Application (Annex I)
+
+The QMS shall document how each applicable General Safety and Performance Requirement
+is met, either by compliance with a harmonised standard (EN ISO 13485:2016, etc.) or
+by an alternative method with equivalent evidence.
+
+## Key MDCG Guidance Documents for QMS
+
+| Document | Topic |
+|---|---|
+| MDCG 2019-11 Rev.1 | QMS documentation for NB assessment |
+| MDCG 2019-13 Rev.1 | Qualification and classification of software |
+| MDCG 2020-1 Rev.1 | Clinical evaluation |
+| MDCG 2020-7 | PSUR (Post-Market Surveillance Report) |
+| MDCG 2021-25 | GSPR application guide |
+| MDCG 2022-21 | Notified body oversight of manufacturers |
+| MDCG 2023-1 | UDI guidance |
 """,
     ("英國 (UK)", "UK-MDR-2002"): """\
 # The Medical Devices Regulations 2002 (SI 2002/618) — UK QMS Requirements
@@ -1267,6 +1512,8 @@ Foreign manufacturers must submit ISO 13485 certificate with import licence appl
     ("新加坡 (Singapore)", "SSO-HPR-2010"): """\
 # Health Products (Medical Devices) Regulations 2010 (S 436/2010) — Singapore QMS
 
+> **⚠️ NO INDEPENDENT QMS LAW** — Singapore has no standalone QMS regulation equivalent to EU MDR Annex IX or FDA 21 CFR Part 820. QMS requirement exists by reference to ISO 13485:2016 in HP(MD)R 2010 Regulation 23 and Third Schedule.
+
 **Citation**: S 436/2010, made under Health Products Act (HPA) Cap 122D
 **Authority**: Health Sciences Authority (HSA)
 **In Force**: November 1, 2010 (amended 2021, 2024)
@@ -1360,6 +1607,8 @@ MDSAP certificates are accepted from MDSAP-recognised organisations.
 """,
     ("紐西蘭 (New Zealand)", "Medsafe-MD-Legislation"): """\
 # New Zealand Medical Device Regulation — Medicines Act 1981 & GMP Code
+
+> **⚠️ NO INDEPENDENT QMS LAW** — New Zealand has no standalone QMS regulation equivalent to EU MDR Annex IX or FDA 21 CFR Part 820. The Therapeutic Products Act 2023 was REPEALED in December 2024; current QMS requirements derive from the NZ Code of GMP (Part 7) referencing ISO 13485:2016, under the Medicines Act 1981 framework. A new Medical Products Bill is in development.
 
 **Authority**: Medsafe (Medicines and Medical Devices Safety Authority)
 **Legislation**: Medicines Act 1981 (Part 5A, as amended)
@@ -1530,6 +1779,8 @@ as part of the product registration (Nomor Izin Edar — NIE) application.
     ("馬來西亞 (Malaysia)", "MDA-Legislation"): """\
 # Malaysia Medical Device Act 737 (2012) — QMS Requirements
 
+> **⚠️ NO INDEPENDENT QMS LAW** — Malaysia has no standalone QMS regulation equivalent to EU MDR Annex IX or FDA 21 CFR Part 820. QMS requirement exists by reference to ISO 13485:2016 under Medical Device Regulations 2012 (P.U.(A) 210/2012), Part III conformity assessment provisions.
+
 **Citation**: Medical Device Act 2012 (Act 737) & Medical Device Regulations 2012
 **Authority**: Medical Device Authority (MDA) Malaysia
 **Effective**: July 1, 2013
@@ -1562,6 +1813,8 @@ QMS certificate must be submitted with initial registration and renewed every 5 
     ("以色列 (Israel)", "MOH-MD-Division"): """\
 # Israel Medical Device QMS — Medical Equipment Law 5772-2012
 
+> **⚠️ NO INDEPENDENT QMS LAW** — Israel has no standalone QMS regulation equivalent to EU MDR Annex IX or FDA 21 CFR Part 820. QMS requirement (ISO 13485:2016) is embedded within the import licence conditions under Medical Equipment Law 5772-2012 and Medical Equipment Regulations 5773-2013; CE marking under EU MDR is accepted as primary equivalent evidence.
+
 **Authority**: Israel Ministry of Health, Medical Technology, Health Informatics & Research Division (AMAR)
 **Legal Basis**: Medical Equipment Law 5772-2012; Medical Devices Regulations 5773-2013
 
@@ -1590,6 +1843,8 @@ Foreign manufacturers must appoint a local Authorised Representative (Israeli ag
 """,
     ("菲律賓 (Philippines)", "FDA-PH-RA9711"): """\
 # Philippines FDA — Medical Device QMS Requirements (RA 9711 / FDA Act 2009)
+
+> **⚠️ NO INDEPENDENT QMS LAW** — Philippines has no standalone QMS regulation equivalent to EU MDR Annex IX or FDA 21 CFR Part 820. QMS requirement (ISO 13485:2016) exists as a registration condition under FDA Circular No. 2020-007 issued pursuant to Republic Act 9711 (FDA Act of 2009); RA 9711 itself is a market access law, not a QMS technical standard.
 
 **Authority**: Food and Drug Administration Philippines (FDA-PH)
 **Center**: Center for Device Regulation, Radiation Health and Research (CDRRHR)
@@ -1762,6 +2017,8 @@ significant changes to QMS or device design.
 """,
     ("智利 (Chile)", "ISP-Regulations"): """\
 # Chile Medical Device QMS — ISP Chile / ANAMED Regulations
+
+> **⚠️ NO INDEPENDENT QMS LAW** — Chile has no standalone QMS regulation equivalent to EU MDR Annex IX or FDA 21 CFR Part 820. GMP requirements are embedded in Decreto Supremo No. 825/1998 (Reglamento de Dispositivos Médicos) with reference to US 21 CFR Part 820 standards; ISO 13485:2016 certificate is accepted as equivalent evidence for Registro Sanitario applications.
 
 **Authority**: Instituto de Salud Pública de Chile (ISP), División de Dispositivos Médicos (ANAMED)
 **Legal Basis**: Decreto Supremo No. 825/1998 (Reglamento de Dispositivos Médicos)
@@ -2556,13 +2813,153 @@ async def _crawl_tier1_api(
     return result
 
 
+def _pdf_bytes_to_markdown(pdf_bytes: bytes, display_name: str, source_url: str) -> str:
+    """Extract text from a PDF using PyMuPDF and return as Markdown.
+
+    Returns an empty string if fitz is unavailable or no text layer exists (scanned PDF).
+    """
+    if not FITZ_AVAILABLE:
+        return ""
+    try:
+        doc = _fitz.open(stream=pdf_bytes, filetype="pdf")
+        n = len(doc)
+        parts = [f"# {display_name}\n\n**Source**: {source_url}  \n**Pages**: {n}\n\n---\n"]
+        for i, page in enumerate(doc):
+            text = page.get_text("text").strip()
+            if text:
+                parts.append(f"\n---\n<!-- Page {i+1}/{n} -->\n\n{text}\n")
+        doc.close()
+        return "\n".join(parts)
+    except Exception:
+        return ""
+
+
+# Max PDF size for real-time docling OCR during live crawl (larger = offline batch only)
+_PDF_DOCLING_MAX_BYTES_REALTIME = 2 * 1024 * 1024  # 2 MB
+_PDF_ATTACHMENT_MAX_BYTES = 5 * 1024 * 1024         # 5 MB per attachment
+_MAX_PDF_ATTACHMENTS_PER_PAGE = 3
+
+
+async def _docling_pdf_bytes_to_markdown_async(
+    pdf_bytes: bytes, display_name: str, source_url: str
+) -> str:
+    """OCR-extract a scanned PDF using Docling (runs in a thread to keep event loop free).
+
+    Returns an empty string if Docling is unavailable or extraction fails.
+    """
+    import os
+    import tempfile
+
+    def _run_sync() -> str:
+        try:
+            from src.ocr.docling_engine import get_engine
+        except ImportError:
+            return ""
+        tmp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
+                f.write(pdf_bytes)
+                tmp_path = f.name
+            res = get_engine().parse(tmp_path, force_engine="docling")
+            if res.success and res.markdown and len(res.markdown.strip()) > 100:
+                header = (
+                    f"# {display_name}\n\n"
+                    f"**Source**: {source_url}  \n"
+                    f"**Pages**: {res.page_count} (OCR via Docling)\n\n---\n\n"
+                )
+                return header + res.markdown
+        except Exception:
+            pass
+        finally:
+            if tmp_path:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+        return ""
+
+    return await asyncio.to_thread(_run_sync)
+
+
+async def _extract_html_pdf_attachments(
+    client: httpx.AsyncClient,
+    html: str,
+    base_url: str,
+) -> str:
+    """Detect PDF links in an HTML page, download each, and extract text as Markdown.
+
+    Returns a Markdown string with all attachment sections, or an empty string.
+    Tries PyMuPDF first; falls back to Docling for scanned/image PDFs (≤5 MB).
+    """
+    from urllib.parse import urljoin, urlparse as _up2
+
+    found: list[tuple[str, str]] = []  # (title, absolute_url)
+    try:
+        soup = BeautifulSoup(html, "lxml")
+        for a in soup.find_all("a", href=True):
+            href = a["href"].strip()
+            if not href.lower().endswith(".pdf"):
+                continue
+            full_url = urljoin(base_url, href)
+            if not _is_safe_url(full_url):
+                continue
+            title = (
+                a.get_text(strip=True)
+                or _up2(full_url).path.split("/")[-1]
+                or "Attachment"
+            )[:120]
+            if full_url not in {u for _, u in found}:
+                found.append((title, full_url))
+            if len(found) >= _MAX_PDF_ATTACHMENTS_PER_PAGE:
+                break
+    except Exception:
+        return ""
+
+    if not found:
+        return ""
+
+    parts: list[str] = []
+    for title, pdf_url in found:
+        try:
+            resp = await _fetch_with_retry(
+                client, pdf_url, timeout=httpx.Timeout(60, connect=10)
+            )
+            resp.raise_for_status()
+            pdf_bytes = resp.content
+            if len(pdf_bytes) < 100:
+                continue
+            if pdf_bytes[:4] != b"%PDF" and b"%PDF" not in pdf_bytes[:1024]:
+                continue
+
+            md = _pdf_bytes_to_markdown(pdf_bytes, title, pdf_url)
+            if md and len(md.strip()) > 200:
+                parts.append(md)
+                continue
+
+            if len(pdf_bytes) <= _PDF_ATTACHMENT_MAX_BYTES:
+                md = await _docling_pdf_bytes_to_markdown_async(pdf_bytes, title, pdf_url)
+                if md and len(md.strip()) > 200:
+                    parts.append(md)
+        except Exception:
+            pass
+
+    if not parts:
+        return ""
+
+    return "\n\n---\n<!-- ATTACHED PDF DOCUMENTS -->\n\n" + "\n\n---\n\n".join(parts)
+
+
 async def _crawl_tier2_httpx(
     client: httpx.AsyncClient,
     site: dict,
     region: str,
     etag_cache: ETagCache,
 ) -> dict:
-    """Tier 2: HTML fetch → BS4 strip → MarkItDown conversion."""
+    """Tier 2: HTML fetch → BS4 strip → MarkItDown conversion.
+
+    For PDF responses, attempts direct text extraction via PyMuPDF before
+    falling back to Jina Reader (handles scanned/image-only PDFs).
+    """
     result = _make_result_template(site, region)
     url = site["url"]
     start = time.time()
@@ -2607,10 +3004,41 @@ async def _crawl_tier2_httpx(
 
         content_type = response.headers.get("content-type", "")
 
-        # PDF content cannot be parsed as HTML — let Jina Reader handle it
+        # PDF — try PyMuPDF → Docling OCR (small PDFs only) → Jina
         if "application/pdf" in content_type or url.lower().endswith(".pdf"):
+            pdf_name = site.get("name", site.get("agency", ""))
+            md = _pdf_bytes_to_markdown(response.content, pdf_name, url)
+            if md and len(md.strip()) > 200:
+                result["content_markdown"] = md
+                result["title"] = pdf_name
+                result["crawl_status"] = "success"
+                result["content_source"] = "live"
+                result["crawl_duration_seconds"] = round(time.time() - start, 2)
+                return result
+            # Scanned PDF — try Docling OCR if file is small enough for real-time use
+            if len(response.content) <= _PDF_DOCLING_MAX_BYTES_REALTIME:
+                md = await _docling_pdf_bytes_to_markdown_async(
+                    response.content, pdf_name, url
+                )
+                if md and len(md.strip()) > 200:
+                    result["content_markdown"] = md
+                    result["title"] = pdf_name
+                    result["crawl_status"] = "success"
+                    result["content_source"] = "live"
+                    result["note"] = (
+                        (site.get("note", "") + " [OCR via Docling]").strip()
+                    )
+                    result["crawl_duration_seconds"] = round(time.time() - start, 2)
+                    return result
+            # Large scanned PDF or Docling unavailable — hand off to Jina Reader
+            size_mb = round(len(response.content) / 1024 / 1024, 1)
+            reason = (
+                f"PyMuPDF 無文字層（掃描版 {size_mb}MB，超過即時 OCR 限制）"
+                if len(response.content) > _PDF_DOCLING_MAX_BYTES_REALTIME
+                else ("PyMuPDF 無文字層（掃描版）" if FITZ_AVAILABLE else "PyMuPDF 未安裝")
+            )
             result["failure_reason"] = (
-                f"PDF 回應 ({content_type}) — 純 HTML 解析無效，轉至 Jina Reader"
+                f"PDF 回應 ({content_type}) — {reason}，轉至 Jina Reader"
             )
             result["crawl_duration_seconds"] = round(time.time() - start, 2)
             return result
@@ -2645,6 +3073,16 @@ async def _crawl_tier2_httpx(
         if result["content_markdown"] and len(result["content_markdown"].strip()) > 50:
             result["crawl_status"] = "success"
             result["content_source"] = "live"
+            # Detect and download any PDF attachments linked from this HTML page
+            if "application/json" not in content_type:
+                try:
+                    attachments = await _extract_html_pdf_attachments(
+                        client, raw_text, url
+                    )
+                    if attachments:
+                        result["content_markdown"] += attachments
+                except Exception:
+                    pass
         else:
             result["failure_reason"] = (
                 "頁面內容為空或需要 JavaScript 渲染 — "
@@ -2780,7 +3218,14 @@ class AsyncRegulatoryUpdateCrawler:
         """Crawl a single site with tier dispatch, fallback chain, and rate limiting.
 
         Fallback chain: Tier2 (httpx) → Tier3 (Jina) → DuckDuckGo → pre-written profile.
+        If force_profile=True on the site entry, skip crawling and use the pre-written profile directly.
         """
+        if site.get("force_profile"):
+            profile = self._fallback_profile(site, region)
+            if profile:
+                profile["note"] = "force_profile=True — 使用預設法規摘要（網頁版無法條全文）"
+                return profile
+
         tier = site.get("tier", 2)
         url = site.get("url", "")
         sem = self._get_domain_semaphore(url)
