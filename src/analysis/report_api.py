@@ -1890,6 +1890,11 @@ async def export_report(
                     for qr in qa_recs:
                         doc.add_paragraph(f"• {qr}")
 
+            try:
+                from src.utils.crossexam_export import _append_crawl_status_word, _load_crawl_results
+                _append_crawl_status_word(doc, _load_crawl_results(), lang)
+            except Exception:
+                pass
             safe_save_binary(filepath, doc.save)
 
         else:  # excel
@@ -2033,6 +2038,11 @@ async def export_report(
                 ws_qa.column_dimensions["A"].width = 20
                 ws_qa.column_dimensions["B"].width = 80
 
+            try:
+                from src.utils.crossexam_export import _append_crawl_status_excel, _load_crawl_results
+                _append_crawl_status_excel(wb, _load_crawl_results(), lang)
+            except Exception:
+                pass
             safe_save_binary(filepath, wb.save)
     except ImportError:
         raise HTTPException(
