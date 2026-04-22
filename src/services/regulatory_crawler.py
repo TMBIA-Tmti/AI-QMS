@@ -116,33 +116,31 @@ def _is_safe_url(url: str) -> bool:
 REGION_SITES = {
     "台灣 (Taiwan)": [
         {
-            "agency": "TFDA",
-            "name": "衛生福利部食品藥物管理署",
-            "url": "https://www.fda.gov.tw/TC/siteList.aspx?sid=11652&scid=791",
+            "agency": "MDA-Law",
+            "name": "醫療器材管理法（全文）— 全國法規資料庫",
+            "url": "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=L0030116",
             "tier": 3,
             "strategy": "html",
             "crawl_delay": 3,
-            "sitemap_url": "https://www.fda.gov.tw/sitemap.xml",
-            "note": "SSL cert issue from overseas — Jina Reader first",
+            "note": "Primary law: Medical Devices Act 2021 — Jina Reader for dynamic content",
         },
         {
-            "agency": "TFDA-Regulations",
-            "name": "TFDA 法規專區",
-            "url": "https://www.fda.gov.tw/TC/siteList.aspx?sid=310",
+            "agency": "TFDA-GMP",
+            "name": "醫療器材優良製造規範（GMP）",
+            "url": "https://www.fda.gov.tw/tc/includes/GetFile.ashx?id=f638545019697377963&type=1",
             "tier": 3,
             "strategy": "html",
             "crawl_delay": 3,
-            "sitemap_url": "https://www.fda.gov.tw/sitemap.xml",
-            "note": "SSL cert issue from overseas — Jina Reader first",
+            "note": "TFDA GMP regulation document — Jina Reader first",
         },
         {
-            "agency": "TFDA-EN",
-            "name": "TFDA English Portal",
-            "url": "https://www.fda.gov.tw/EN/",
+            "agency": "TFDA-QSR",
+            "name": "醫療器材品質管理系統基準（QSR）",
+            "url": "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=L0030130",
             "tier": 3,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "English landing page — Jina Reader first",
+            "note": "QMS standard order under Medical Devices Act",
         },
         {
             "agency": "CDE",
@@ -1533,7 +1531,15 @@ async def _crawl_tier3_jina(
 
         if response.status_code == 200:
             content = response.text.strip()
-            if content and len(content) > 50:
+            # Detect Jina "Warning" error pages — e.g. "Warning: Target URL
+            # returned error 412" — these are upstream HTTP errors wrapped in
+            # a 200 response; treat them as failures so they don't pollute the
+            # regulatory markdown DB with useless error text.
+            _jina_error = (
+                content.startswith("Warning:")
+                and "returned error" in content[:200]
+            )
+            if content and len(content) > 50 and not _jina_error:
                 result["content_markdown"] = content
                 # Extract title from first heading
                 for line in content.split("\n"):
@@ -1548,6 +1554,12 @@ async def _crawl_tier3_jina(
                     result["content_markdown"] = (
                         content[:_MAX_CONTENT_SIZE] + "\n\n... (content truncated)"
                     )
+            elif _jina_error:
+                # Extract the HTTP status from the warning message if possible
+                _warn_line = content.split("\n")[0][:120]
+                result["failure_reason"] = (
+                    f"Jina Reader 回傳上游錯誤 — {_warn_line}"
+                )
             else:
                 result["failure_reason"] = (
                     "Jina Reader 回傳內容為空 — 網站可能完全封鎖爬取"
