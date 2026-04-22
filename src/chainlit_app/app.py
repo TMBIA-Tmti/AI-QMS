@@ -5656,6 +5656,22 @@ async def handle_regulatory_update():
         if region in region_status and region_status[region].get("failed"):
             partial_regions.add(region)
 
+    # Build historical status for regions not covered in this crawl
+    hist_region_status = {}
+    _hist_ts = ""
+    if last_crawl and last_crawl.get("results"):
+        _hist_ts_raw = last_crawl.get("crawl_timestamp", "")
+        _hist_ts = _hist_ts_raw[:10] if _hist_ts_raw else ""
+        for _hr in last_crawl.get("results", []):
+            _hreg = _hr.get("region", "")
+            if _hreg and _hreg not in region_status:
+                if _hreg not in hist_region_status:
+                    hist_region_status[_hreg] = {"success": [], "failed": []}
+                if _hr.get("crawl_status") == "success":
+                    hist_region_status[_hreg]["success"].append(_hr)
+                else:
+                    hist_region_status[_hreg]["failed"].append(_hr)
+
     for i, region in enumerate(available_regions, 1):
         _rdisp = _display_region(region, lang)
         if region in partial_regions:
@@ -5673,6 +5689,23 @@ async def handle_regulatory_update():
         elif region in failed_regions:
             _fail_lbl = "(爬取失敗)" if lang.startswith("zh") else "(クロール失敗)" if lang.startswith("ja") else "(crawl failed)"
             lines.append(f"{i}. ❌ {_rdisp} {_fail_lbl}")
+        elif region in hist_region_status:
+            _hs = hist_region_status[region]
+            _h_ok = len(_hs["success"])
+            _h_fail = len(_hs["failed"])
+            _h_total = _h_ok + _h_fail
+            if lang.startswith("zh"):
+                _cached_note = f"(快取 {_hist_ts})" if _hist_ts else "(快取)"
+            elif lang.startswith("ja"):
+                _cached_note = f"(キャッシュ {_hist_ts})" if _hist_ts else "(キャッシュ)"
+            else:
+                _cached_note = f"(cached {_hist_ts})" if _hist_ts else "(cached)"
+            if _h_fail == 0:
+                lines.append(f"{i}. ✅ {_rdisp} {_cached_note}")
+            elif _h_ok == 0:
+                lines.append(f"{i}. ❌ {_rdisp} {_cached_note}")
+            else:
+                lines.append(f"{i}. ⚠️ {_rdisp} ({_h_fail}/{_h_total} failed) {_cached_note}")
         else:
             lines.append(f"{i}. ⬜ {_rdisp}")
 
