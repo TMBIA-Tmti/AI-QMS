@@ -5945,6 +5945,7 @@ async def handle_regulatory_update_rescan(selected_regions: list):
                             llm_completion_fn=_manager.completion,
                             model=_model_name,
                             send_progress_fn=_profile_progress,
+                            lang=cl.user_session.get("language", DEFAULT_LANG),
                         )
                         if _profile:
                             await cl.Message(

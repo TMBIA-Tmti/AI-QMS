@@ -53,6 +53,7 @@ async def analyze_regulation_with_llm(
     llm_completion_fn: Callable,
     model: str = "default",
     send_progress_fn: Optional[Callable] = None,
+    lang: str = "zh-TW",
 ) -> Optional[RegulationProfile]:
     """Analyze crawled regulatory text and generate a RegulationProfile.
 
@@ -90,9 +91,13 @@ async def analyze_regulation_with_llm(
             break
 
     if send_progress_fn:
-        await send_progress_fn(
-            f"🔍 開始分析 {zh_name} ({en_name}) 法規與 ISO 13485 的重疊度..."
-        )
+        if lang.startswith("ja"):
+            _msg_start = f"🔍 {zh_name} ({en_name}) の規制と ISO 13485 の重複度を分析中..."
+        elif lang.startswith("zh"):
+            _msg_start = f"🔍 開始分析 {zh_name} ({en_name}) 法規與 ISO 13485 的重疊度..."
+        else:
+            _msg_start = f"🔍 Analyzing {en_name} regulations vs ISO 13485 clause coverage..."
+        await send_progress_fn(_msg_start)
 
     # ── Step 1: Batch clause mapping ──
     clause_ids = list(ISO_13485_CHECKLIST.keys())
@@ -105,10 +110,22 @@ async def analyze_regulation_with_llm(
     total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
 
     if send_progress_fn:
-        await send_progress_fn(
-            f"🔍 並行分析 {total_batches} 批 ISO 13485 條款 "
-            f"(每批 {_BATCH_SIZE} 條，共 {len(clause_ids)} 條)..."
-        )
+        if lang.startswith("ja"):
+            _msg_batch = (
+                f"🔍 ISO 13485 条項を {total_batches} バッチで並行分析中 "
+                f"(各 {_BATCH_SIZE} 条、計 {len(clause_ids)} 条)..."
+            )
+        elif lang.startswith("zh"):
+            _msg_batch = (
+                f"🔍 並行分析 {total_batches} 批 ISO 13485 條款 "
+                f"(每批 {_BATCH_SIZE} 條，共 {len(clause_ids)} 條)..."
+            )
+        else:
+            _msg_batch = (
+                f"🔍 Running {total_batches} parallel batches across "
+                f"{len(clause_ids)} ISO 13485 clauses ({_BATCH_SIZE} per batch)..."
+            )
+        await send_progress_fn(_msg_batch)
 
     semaphore = asyncio.Semaphore(_MAX_CONCURRENT_BATCHES)
 
