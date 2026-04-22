@@ -185,20 +185,64 @@ class RegulatoryResultStore:
         self.updates_dir.mkdir(parents=True, exist_ok=True)
 
     def save_crawl_results(self, crawl_data: dict) -> str:
-        """Save full crawl results to JSON.
+        """Save crawl results to JSON, merging with existing accumulated data.
+
+        Partial crawls (selected regions only) are merged with the previous
+        full picture so load_last_results() always returns all known entries.
+        Each entry is keyed by (agency, url); newer entries override older ones.
 
         Args:
-            crawl_data: dict with 'results' and 'summary' keys
+            crawl_data: dict with 'results', 'summary', and optional
+                        'selected_regions' keys
 
         Returns:
             filepath string
         """
         self.results_path.parent.mkdir(parents=True, exist_ok=True)
 
+        new_ts = datetime.now(timezone.utc).isoformat()
+        new_results = crawl_data.get("results", [])
+        selected_regions = crawl_data.get("selected_regions") or []
+
+        # Build merge index from new results (agency+url as key)
+        new_index = {
+            (r.get("agency", ""), r.get("url", "")): r
+            for r in new_results
+        }
+
+        # Load existing accumulated results and keep entries not in new crawl
+        merged = []
+        if self.results_path.exists():
+            try:
+                existing = json.loads(self.results_path.read_text(encoding="utf-8"))
+                for r in existing.get("results", []):
+                    key = (r.get("agency", ""), r.get("url", ""))
+                    if key not in new_index:
+                        merged.append(r)
+            except Exception:
+                pass
+
+        # Append new results (with current timestamp)
+        for r in new_results:
+            r_stamped = dict(r)
+            r_stamped.setdefault("crawl_timestamp", new_ts)
+            merged.append(r_stamped)
+
+        # Recompute summary from merged set
+        total = len(merged)
+        success = sum(1 for r in merged if r.get("crawl_status") == "success")
+        merged_summary = {
+            "total_sites": total,
+            "success_count": success,
+            "failed_count": total - success,
+            "crawl_duration_seconds": crawl_data.get("summary", {}).get("crawl_duration_seconds", 0),
+        }
+
         record = {
-            "crawl_timestamp": datetime.now(timezone.utc).isoformat(),
-            "results": crawl_data.get("results", []),
-            "summary": crawl_data.get("summary", {}),
+            "crawl_timestamp": new_ts,
+            "selected_regions": selected_regions,
+            "results": merged,
+            "summary": merged_summary,
         }
 
         self.results_path.write_text(

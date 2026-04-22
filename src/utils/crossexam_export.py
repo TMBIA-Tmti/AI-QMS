@@ -181,7 +181,9 @@ _EXPORT_HEADERS: dict[str, dict[str, str]] = {
         "deep_s05_headers": ["條款 ID", "條款名稱", "文件 ID", "判定", "風險等級", "差距嚴重度", "改善建議 (摘要)"],
         # Crawl status appendix
         "crawl_appendix_heading": "附錄：法規資料來源爬取狀態",
-        "crawl_appendix_headers": ["狀態", "機構", "地區", "URL", "HTTP 狀態", "錯誤訊息"],
+        "crawl_appendix_headers": ["狀態", "機構", "地區", "URL", "爬取時間", "HTTP 狀態", "錯誤訊息"],
+        "crawl_appendix_selected": "本次爬取地區",
+        "crawl_appendix_all_ts": "資料更新時間",
         "crawl_xl_sheet": "法規爬取狀態",
     },
     "en": {
@@ -320,7 +322,9 @@ _EXPORT_HEADERS: dict[str, dict[str, str]] = {
         "deep_s05_headers": ["Clause ID", "Clause Title", "Document ID", "Verdict", "Risk Level", "Gap Severity", "Remediation (Summary)"],
         # Crawl status appendix
         "crawl_appendix_heading": "Appendix: Regulatory Source Crawl Status",
-        "crawl_appendix_headers": ["Status", "Agency", "Region", "URL", "HTTP Status", "Error"],
+        "crawl_appendix_headers": ["Status", "Agency", "Region", "URL", "Crawled At", "HTTP Status", "Error"],
+        "crawl_appendix_selected": "Regions crawled this session",
+        "crawl_appendix_all_ts": "Data last updated",
         "crawl_xl_sheet": "Crawl Status",
     },
     "ja": {
@@ -459,7 +463,9 @@ _EXPORT_HEADERS: dict[str, dict[str, str]] = {
         "deep_s05_headers": ["条項 ID", "条項名", "文書 ID", "判定", "リスクレベル", "ギャップ重大度", "是正提案 (概要)"],
         # Crawl status appendix
         "crawl_appendix_heading": "付録：規制データソースクロール状態",
-        "crawl_appendix_headers": ["状態", "機関", "地域", "URL", "HTTPステータス", "エラー"],
+        "crawl_appendix_headers": ["状態", "機関", "地域", "URL", "クロール日時", "HTTPステータス", "エラー"],
+        "crawl_appendix_selected": "今回クロールした地域",
+        "crawl_appendix_all_ts": "データ最終更新",
         "crawl_xl_sheet": "クロール状態",
     },
 }
@@ -693,30 +699,36 @@ def _append_crawl_status_word(doc, crawl_results: Optional[dict], lang: str = "z
     dh = _EXPORT_HEADERS[lk]
 
     doc.add_heading(dh["crawl_appendix_heading"], level=2)
-    headers = dh["crawl_appendix_headers"]
 
-    tbl = doc.add_table(rows=1 + len(results), cols=6)
+    # Show selected regions and global timestamp
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    overall_ts = (crawl_results.get("crawl_timestamp") or "")[:19].replace("T", " ")
+    selected = crawl_results.get("selected_regions") or []
+    meta_lines = []
+    if overall_ts:
+        meta_lines.append(f"{dh['crawl_appendix_all_ts']}: {overall_ts}")
+    if selected:
+        meta_lines.append(f"{dh['crawl_appendix_selected']}: {', '.join(selected)}")
+    if meta_lines:
+        p = doc.add_paragraph("\n".join(meta_lines))
+        p.runs[0].font.size = Pt(8)
+
+    headers = dh["crawl_appendix_headers"]
+    tbl = doc.add_table(rows=1 + len(results), cols=7)
     tbl.style = "Table Grid"
     for ci, hdr in enumerate(headers):
         _bold_cell(tbl.rows[0].cells[ci], hdr, fill_hex="1F3864", font_color="FFFFFF", font_size=8)
 
-    try:
-        timestamp = crawl_results.get("crawl_timestamp", "")
-        if timestamp:
-            from docx.enum.text import WD_ALIGN_PARAGRAPH
-            p = doc.add_paragraph(f"Crawl timestamp: {timestamp}")
-            p.runs[0].font.size = Pt(8)
-    except Exception:
-        pass
-
     for ri, r in enumerate(results, 1):
         status_ok = r.get("crawl_status") == "success"
         cells = tbl.rows[ri].cells
+        r_ts = (r.get("crawl_timestamp") or "")[:16].replace("T", " ")
         vals = [
             "✓" if status_ok else "✗",
             r.get("agency", ""),
             r.get("region", ""),
             (r.get("url") or "")[:80],
+            r_ts,
             str(r.get("http_status") or ""),
             (r.get("failure_reason") or "")[:80],
         ]
@@ -742,11 +754,24 @@ def _append_crawl_status_excel(wb, crawl_results: Optional[dict], lang: str = "z
     try:
         from openpyxl.styles import PatternFill, Font, Alignment
         ws = wb.create_sheet(title=dh["crawl_xl_sheet"][:31])
+
+        # Meta rows: timestamp and selected regions
+        overall_ts = (crawl_results.get("crawl_timestamp") or "")[:19].replace("T", " ")
+        selected = crawl_results.get("selected_regions") or []
+        if overall_ts:
+            ws.append([dh["crawl_appendix_all_ts"], overall_ts])
+            ws.cell(row=ws.max_row, column=1).font = Font(bold=True, size=9)
+        if selected:
+            ws.append([dh["crawl_appendix_selected"], ", ".join(selected)])
+            ws.cell(row=ws.max_row, column=1).font = Font(bold=True, size=9)
+        if overall_ts or selected:
+            ws.append([])  # blank spacer row
+
         headers = dh["crawl_appendix_headers"]
         ws.append(headers)
         hdr_fill = PatternFill("solid", fgColor="1F3864")
         hdr_font = Font(bold=True, color="FFFFFF", size=9)
-        for cell in ws[1]:
+        for cell in ws[ws.max_row]:
             cell.fill = hdr_fill
             cell.font = hdr_font
 
@@ -754,11 +779,13 @@ def _append_crawl_status_excel(wb, crawl_results: Optional[dict], lang: str = "z
         err_fill = PatternFill("solid", fgColor="FFE0E0")
         for r in results:
             status_ok = r.get("crawl_status") == "success"
+            r_ts = (r.get("crawl_timestamp") or "")[:16].replace("T", " ")
             row = [
                 "✓" if status_ok else "✗",
                 r.get("agency", ""),
                 r.get("region", ""),
                 r.get("url") or "",
+                r_ts,
                 r.get("http_status") or "",
                 r.get("failure_reason") or "",
             ]
@@ -772,9 +799,10 @@ def _append_crawl_status_excel(wb, crawl_results: Optional[dict], lang: str = "z
         ws.column_dimensions["A"].width = 6
         ws.column_dimensions["B"].width = 16
         ws.column_dimensions["C"].width = 16
-        ws.column_dimensions["D"].width = 50
-        ws.column_dimensions["E"].width = 12
-        ws.column_dimensions["F"].width = 40
+        ws.column_dimensions["D"].width = 46
+        ws.column_dimensions["E"].width = 17
+        ws.column_dimensions["F"].width = 12
+        ws.column_dimensions["G"].width = 38
     except Exception:
         pass
 
