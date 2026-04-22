@@ -515,6 +515,12 @@ def export_regulatory_to_word(
     run.font.italic = True
     run.font.color.rgb = RGBColor(128, 128, 128)
 
+    try:
+        from src.utils.crossexam_export import _append_crawl_status_word, _load_crawl_results
+        _append_crawl_status_word(doc, _load_crawl_results(), lang)
+    except Exception:
+        pass
+
     # Save
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     cmd_tag = "list" if source_command == "regulatory_list" else "update"
@@ -658,6 +664,12 @@ def export_regulatory_to_excel(
     if verification_report and verification_report.get("has_data"):
         _render_verification_to_excel(wb, verification_report, lang)
 
+    try:
+        from src.utils.crossexam_export import _append_crawl_status_excel, _load_crawl_results
+        _append_crawl_status_excel(wb, _load_crawl_results(), lang)
+    except Exception:
+        pass
+
     # Save
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     cmd_tag = "list" if source_command == "regulatory_list" else "update"
@@ -796,6 +808,12 @@ def export_reference_to_word(
     run.font.italic = True
     run.font.color.rgb = RGBColor(128, 128, 128)
 
+    try:
+        from src.utils.crossexam_export import _append_crawl_status_word, _load_crawl_results
+        _append_crawl_status_word(doc, _load_crawl_results(), lang)
+    except Exception:
+        pass
+
     # Save
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"reference_list_{doc_id}_{timestamp}.docx"
@@ -882,6 +900,12 @@ def export_reference_to_excel(
     note_cell.font = Font(
         name="Microsoft JhengHei", size=8, italic=True, color="808080"
     )
+
+    try:
+        from src.utils.crossexam_export import _append_crawl_status_excel, _load_crawl_results
+        _append_crawl_status_excel(wb, _load_crawl_results(), lang)
+    except Exception:
+        pass
 
     # Save
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

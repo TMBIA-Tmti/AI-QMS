@@ -5633,9 +5633,25 @@ async def handle_regulatory_update():
         lines.append("- Or click the buttons below\n")
 
     available_regions = get_available_regions()
+    # Build set of partially-crawled regions (some sites OK, some failed)
+    partial_regions = set()
+    for region in success_regions:
+        if region in region_status and region_status[region].get("failed"):
+            partial_regions.add(region)
+
     for i, region in enumerate(available_regions, 1):
         _rdisp = _display_region(region, lang)
-        if region in success_regions:
+        if region in partial_regions:
+            _n_fail = len(region_status[region]["failed"])
+            _n_total = len(region_status[region]["success"]) + _n_fail
+            if lang.startswith("zh"):
+                _partial_lbl = f"({_n_fail}/{_n_total} 個網站爬取失敗)"
+            elif lang.startswith("ja"):
+                _partial_lbl = f"({_n_fail}/{_n_total} サイト失敗)"
+            else:
+                _partial_lbl = f"({_n_fail}/{_n_total} sites failed)"
+            lines.append(f"{i}. ⚠️ {_rdisp} {_partial_lbl}")
+        elif region in success_regions:
             lines.append(f"{i}. ✅ {_rdisp}")
         elif region in failed_regions:
             _fail_lbl = "(爬取失敗)" if lang.startswith("zh") else "(クロール失敗)" if lang.startswith("ja") else "(crawl failed)"
@@ -5646,6 +5662,7 @@ async def handle_regulatory_update():
     # Store region mapping in session for later use
     cl.user_session.set("regulatory_available_regions", available_regions)
     cl.user_session.set("regulatory_success_regions", success_regions)
+    cl.user_session.set("regulatory_partial_regions", list(partial_regions))
     cl.user_session.set("awaiting_region_selection", True)
 
     region_display = "\n".join(lines)

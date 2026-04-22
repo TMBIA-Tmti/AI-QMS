@@ -175,6 +175,14 @@ _EXPORT_HEADERS: dict[str, dict[str, str]] = {
         "deep_s0_none": "（無資料）",
         "xl_llm_headers": ["Phase","文件 ID","條款 ID","角色","Round","LLM 回應 (摘要)","Token 用量","模型","時間"],
         "xl_xe_headers": ["條款 ID","條款名稱","文件 ID","判定","同意","RA 標記","輪次數","R1 分析者立場","R1 分析者信心","R1 驗證者評估","R1 Agreement","QA 分數","問題品質","回答準確","幻覺偵測"],
+        # Section 0.5
+        "deep_s05_heading": "第 0.5 章 風險優先項目摘要",
+        "deep_s05_body": "以下 {n} 個條款-文件對照項目屬於高風險／嚴重不符合，需優先處理。",
+        "deep_s05_headers": ["條款 ID", "條款名稱", "文件 ID", "判定", "風險等級", "差距嚴重度", "改善建議 (摘要)"],
+        # Crawl status appendix
+        "crawl_appendix_heading": "附錄：法規資料來源爬取狀態",
+        "crawl_appendix_headers": ["狀態", "機構", "地區", "URL", "HTTP 狀態", "錯誤訊息"],
+        "crawl_xl_sheet": "法規爬取狀態",
     },
     "en": {
         "title_crossexam": "AI-QMS Cross-Examination Record",
@@ -306,6 +314,14 @@ _EXPORT_HEADERS: dict[str, dict[str, str]] = {
         "deep_s0_none": "(No data)",
         "xl_llm_headers": ["Phase","Doc ID","Clause ID","Role","Round","LLM Response (excerpt)","Token Usage","Model","Timestamp"],
         "xl_xe_headers": ["Clause ID","Clause Title","Doc ID","Verdict","Agreed","RA Flag","Rounds","R1 Analyzer Position","R1 Analyzer Confidence","R1 Verifier Assessment","R1 Agreement","QA Score","Question Quality","Answer Accuracy","Hallucination"],
+        # Section 0.5
+        "deep_s05_heading": "Chapter 0.5: Risk Priority Summary",
+        "deep_s05_body": "The following {n} clause-document pairs are high/critical risk or non-compliant — require priority action.",
+        "deep_s05_headers": ["Clause ID", "Clause Title", "Document ID", "Verdict", "Risk Level", "Gap Severity", "Remediation (Summary)"],
+        # Crawl status appendix
+        "crawl_appendix_heading": "Appendix: Regulatory Source Crawl Status",
+        "crawl_appendix_headers": ["Status", "Agency", "Region", "URL", "HTTP Status", "Error"],
+        "crawl_xl_sheet": "Crawl Status",
     },
     "ja": {
         "title_crossexam": "AI-QMS 相互尋問記録",
@@ -437,6 +453,14 @@ _EXPORT_HEADERS: dict[str, dict[str, str]] = {
         "deep_s0_none": "（データなし）",
         "xl_llm_headers": ["Phase","文書ID","条項ID","役割","Round","LLM回答（抜粋）","トークン使用量","モデル","タイムスタンプ"],
         "xl_xe_headers": ["条項ID","条項名","文書ID","判定","同意","RAフラグ","ラウンド数","R1分析者立場","R1分析者信頼度","R1検証者評価","R1 Agreement","QAスコア","質問品質","回答精度","ハルシネーション"],
+        # Section 0.5
+        "deep_s05_heading": "第0.5章 リスク優先事項サマリー",
+        "deep_s05_body": "以下の {n} 件の条項-文書ペアは高リスク／重大な不適合であり、優先的に対処が必要です。",
+        "deep_s05_headers": ["条項 ID", "条項名", "文書 ID", "判定", "リスクレベル", "ギャップ重大度", "是正提案 (概要)"],
+        # Crawl status appendix
+        "crawl_appendix_heading": "付録：規制データソースクロール状態",
+        "crawl_appendix_headers": ["状態", "機関", "地域", "URL", "HTTPステータス", "エラー"],
+        "crawl_xl_sheet": "クロール状態",
     },
 }
 
@@ -642,6 +666,118 @@ def _add_ai_roles_legend(doc, lang: str = "zh-TW") -> None:
         )
 
 
+# ============================================================
+# Crawl Status Helpers (Word + Excel)
+# ============================================================
+
+
+def _load_crawl_results() -> Optional[dict]:
+    """Load most recent crawl results from storage. Returns None if unavailable."""
+    try:
+        from src.storage.regulatory_storage import RegulatoryStorage
+        return RegulatoryStorage().load_last_results()
+    except Exception:
+        return None
+
+
+def _append_crawl_status_word(doc, crawl_results: Optional[dict], lang: str = "zh-TW") -> None:
+    """Append a crawl status appendix section to a Word document."""
+    if not crawl_results:
+        return
+    results = crawl_results.get("results", [])
+    if not results:
+        return
+
+    from docx.shared import Pt, RGBColor
+    lk = _lang_key(lang)
+    dh = _EXPORT_HEADERS[lk]
+
+    doc.add_heading(dh["crawl_appendix_heading"], level=2)
+    headers = dh["crawl_appendix_headers"]
+
+    tbl = doc.add_table(rows=1 + len(results), cols=6)
+    tbl.style = "Table Grid"
+    for ci, hdr in enumerate(headers):
+        _bold_cell(tbl.rows[0].cells[ci], hdr, fill_hex="1F3864", font_color="FFFFFF", font_size=8)
+
+    try:
+        timestamp = crawl_results.get("crawl_timestamp", "")
+        if timestamp:
+            from docx.enum.text import WD_ALIGN_PARAGRAPH
+            p = doc.add_paragraph(f"Crawl timestamp: {timestamp}")
+            p.runs[0].font.size = Pt(8)
+    except Exception:
+        pass
+
+    for ri, r in enumerate(results, 1):
+        status_ok = r.get("crawl_status") == "success"
+        cells = tbl.rows[ri].cells
+        vals = [
+            "✓" if status_ok else "✗",
+            r.get("agency", ""),
+            r.get("region", ""),
+            (r.get("url") or "")[:80],
+            str(r.get("http_status") or ""),
+            (r.get("failure_reason") or "")[:80],
+        ]
+        bg = "E8F5E9" if status_ok else "FFE0E0"
+        for ci, val in enumerate(vals):
+            cells[ci].text = val
+            _shade_cell(cells[ci], bg)
+            for run in cells[ci].paragraphs[0].runs:
+                run.font.size = Pt(7)
+
+
+def _append_crawl_status_excel(wb, crawl_results: Optional[dict], lang: str = "zh-TW") -> None:
+    """Append a crawl status sheet to an openpyxl workbook."""
+    if not crawl_results:
+        return
+    results = crawl_results.get("results", [])
+    if not results:
+        return
+
+    lk = _lang_key(lang)
+    dh = _EXPORT_HEADERS[lk]
+
+    try:
+        from openpyxl.styles import PatternFill, Font, Alignment
+        ws = wb.create_sheet(title=dh["crawl_xl_sheet"][:31])
+        headers = dh["crawl_appendix_headers"]
+        ws.append(headers)
+        hdr_fill = PatternFill("solid", fgColor="1F3864")
+        hdr_font = Font(bold=True, color="FFFFFF", size=9)
+        for cell in ws[1]:
+            cell.fill = hdr_fill
+            cell.font = hdr_font
+
+        ok_fill = PatternFill("solid", fgColor="E8F5E9")
+        err_fill = PatternFill("solid", fgColor="FFE0E0")
+        for r in results:
+            status_ok = r.get("crawl_status") == "success"
+            row = [
+                "✓" if status_ok else "✗",
+                r.get("agency", ""),
+                r.get("region", ""),
+                r.get("url") or "",
+                r.get("http_status") or "",
+                r.get("failure_reason") or "",
+            ]
+            ws.append(row)
+            row_fill = ok_fill if status_ok else err_fill
+            for cell in ws[ws.max_row]:
+                cell.fill = row_fill
+                cell.font = Font(size=8)
+                cell.alignment = Alignment(wrap_text=True)
+
+        ws.column_dimensions["A"].width = 6
+        ws.column_dimensions["B"].width = 16
+        ws.column_dimensions["C"].width = 16
+        ws.column_dimensions["D"].width = 50
+        ws.column_dimensions["E"].width = 12
+        ws.column_dimensions["F"].width = 40
+    except Exception:
+        pass
+
 
 # ============================================================
 # Cross-Exam Record Export (individual records)
@@ -789,6 +925,11 @@ def export_crossexam_record_word(record_dict: dict, lang: str = "zh-TW") -> Path
             if issues:
                 for iss in issues:
                     doc.add_paragraph(f"  • {iss}")
+
+    try:
+        _append_crawl_status_word(doc, _load_crawl_results(), lang)
+    except Exception:
+        pass
 
     safe_save_binary(filepath, doc.save)
     return filepath
@@ -947,6 +1088,11 @@ def export_crossexam_record_excel(record_dict: dict, lang: str = "zh-TW") -> Pat
     for col in ws_detail.columns:
         max_len = max((len(str(c.value or "")) for c in col), default=8)
         ws_detail.column_dimensions[col[0].column_letter].width = min(max_len + 2, 60)
+
+    try:
+        _append_crawl_status_excel(wb, _load_crawl_results(), lang)
+    except Exception:
+        pass
 
     safe_save_binary(filepath, wb.save)
     return filepath
@@ -1134,16 +1280,13 @@ def export_deep_report_word(
     _risk_rows = [r for r in flat_rows if r.get("risk_level", "") in ("immediate_correction", "deadline_correction")
                   or r.get("verdict", "") in ("non_compliance", "partial_compliance")]
     if _risk_rows:
-        doc.add_heading("第 0.5 章 風險優先項目摘要 / Risk Priority Summary", level=2)
-        doc.add_paragraph(
-            f"以下 {len(_risk_rows)} 個條款-文件對照項目屬於高風險／嚴重不符合，需優先處理。\n"
-            f"Below {len(_risk_rows)} clause-document pairs are high/critical risk or non-compliant — require priority action."
-        )
+        doc.add_heading(dh["deep_s05_heading"], level=2)
+        doc.add_paragraph(dh["deep_s05_body"].format(n=len(_risk_rows)))
         _risk_sort_order = {"immediate_correction": 0, "deadline_correction": 1, "improvement_plan": 2, "compliant": 9}
         _risk_rows_sorted = sorted(_risk_rows, key=lambda r: (_risk_sort_order.get(r.get("risk_level",""), 9), r.get("clause_id","")))
         risk_tbl = doc.add_table(rows=1 + len(_risk_rows_sorted), cols=7)
         risk_tbl.style = "Table Grid"
-        _risk_hdr_labels = ["條款 ID", "條款名稱", "文件 ID", "判定", "風險等級", "差距嚴重度", "改善建議 (摘要)"]
+        _risk_hdr_labels = dh["deep_s05_headers"]
         for ci, h in enumerate(_risk_hdr_labels):
             cell = risk_tbl.rows[0].cells[ci]
             _bold_cell(cell, h, fill_hex="1F3864", font_color="FFFFFF", font_size=9)
@@ -1505,6 +1648,11 @@ def export_deep_report_word(
             doc.add_paragraph(
                 f"• {phase}: {stats['count']} {dh['deep_s8_calls']}, {stats['tokens']:,} tokens"
             )
+
+    try:
+        _append_crawl_status_word(doc, _load_crawl_results(), lang)
+    except Exception:
+        pass
 
     safe_save_binary(filepath, doc.save)
     return filepath
@@ -2070,6 +2218,10 @@ def export_deep_report_excel(
     ws_risk.column_dimensions["J"].width = 50
     ws_risk.column_dimensions["K"].width = 30
 
+    try:
+        _append_crawl_status_excel(wb, _load_crawl_results(), lang)
+    except Exception:
+        pass
 
     safe_save_binary(filepath, wb.save)
     return filepath
