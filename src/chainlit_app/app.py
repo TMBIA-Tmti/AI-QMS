@@ -5880,11 +5880,8 @@ async def handle_regulatory_update_rescan(selected_regions: list):
             get_regions_without_profile,
             get_profile_ids_for_regions,
             load_all_crawled_regulations,
-            _REGION_TO_PROFILE_STATIC,
         )
         from src.analysis.regulation_analyzer import analyze_regulation_with_llm
-
-        _predefined_regions = set(_REGION_TO_PROFILE_STATIC.keys())
 
         # Regions where crawl returned at least one successful result
         _crawl_success_regions = {
@@ -5893,11 +5890,11 @@ async def handle_regulatory_update_rescan(selected_regions: list):
             if r.get("crawl_status") == "success" and r.get("content_markdown")
         }
 
-        # Regenerate for non-predefined regions that crawled successfully
-        # (includes first-time + subsequent re-crawls)
+        # Regenerate profile for ALL regions that crawled successfully —
+        # including predefined 7. If crawl fails, existing profile is kept.
         regions_needing_profile = [
             r for r in selected_regions
-            if r not in _predefined_regions and r in _crawl_success_regions
+            if r in _crawl_success_regions
         ]
         if regions_needing_profile:
             await cl.Message(
