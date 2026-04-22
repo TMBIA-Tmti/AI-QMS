@@ -5437,6 +5437,7 @@ async def handle_regulatory_update():
 
     config_mgr = get_regulatory_config()
     store = get_regulatory_store()
+    selected_regions: list = []
 
     # Check if config already exists (non-first run)
     if config_mgr.has_config():
@@ -5515,6 +5516,7 @@ async def handle_regulatory_update():
                 )
 
     # Store results in session
+    crawl_results["selected_regions"] = selected_regions
     cl.user_session.set("last_regulatory_update", crawl_results)
 
     # Save crawl results to JSON
@@ -5804,6 +5806,7 @@ async def handle_regulatory_update_rescan(selected_regions: list):
             )
 
     # Store results
+    crawl_results["selected_regions"] = selected_regions
     cl.user_session.set("last_regulatory_update", crawl_results)
     store.save_crawl_results(crawl_results)
 
