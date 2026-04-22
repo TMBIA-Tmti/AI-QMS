@@ -131,6 +131,7 @@ def generate_crossref_validation_report(
                         "english_translation": mapping.get("english_translation", ""),
                         "semantic_note": mapping.get("semantic_note", ""),
                         "method": mapping.get("method", ""),
+                        "within_clause_deltas": mapping.get("within_clause_deltas", []),
                     }
                 )
                 # Update stats
@@ -390,6 +391,95 @@ def format_crossref_report_markdown(
                 cell += f" ({conf:.0%})"
             row += f" {cell} |"
         lines.append(row)
+
+        # Render within-clause deltas for exceeds clauses
+        for reg_id in reg_ids:
+            country_data = clause.get("countries", {}).get(reg_id, {})
+            wcd_list = country_data.get("within_clause_deltas", [])
+            if country_data.get("status") == "exceeds" and wcd_list:
+                stats = country_stats.get(reg_id, {})
+                if _show_zh:
+                    c_name = stats.get("country_name_zh", reg_id)
+                    if _show_en:
+                        c_name += f" ({stats.get('country_name_en', '')})"
+                else:
+                    c_name = stats.get("country_name_en", reg_id)
+                delta_count = len(wcd_list)
+                lines.append("")
+                lines.append(
+                    f"> **{c_name}** — "
+                    f"{'⬆️ EXCEEDS' if _show_en else '⬆️ 超出 ISO'} — "
+                    f"{delta_count} within-clause delta{'s' if delta_count != 1 else ''}:"
+                )
+                for didx, wcd in enumerate(wcd_list, 1):
+                    impact_icon = _IMPACT_LABELS.get(wcd.get("audit_impact", ""), "")
+                    # Trilingual title
+                    if _show_zh and _show_en:
+                        title_line = (
+                            f"{wcd.get('title_zh', '')} / "
+                            f"{wcd.get('title_en', '')} / "
+                            f"{wcd.get('title_ja', '')}"
+                        )
+                    elif _show_zh:
+                        title_line = wcd.get("title_zh", "")
+                    else:
+                        # English or Japanese mode
+                        if lang.startswith("ja"):
+                            title_line = (
+                                f"{wcd.get('title_ja', '')} / "
+                                f"{wcd.get('title_en', '')}"
+                            )
+                        else:
+                            title_line = wcd.get("title_en", "")
+                    lines.append(f">   {didx}. {impact_icon} {title_line}")
+
+                    # ISO baseline vs country-specific
+                    if _show_zh and _show_en:
+                        iso_line = (
+                            f"{wcd.get('iso_baseline_zh', '')} / "
+                            f"{wcd.get('iso_baseline_en', '')} / "
+                            f"{wcd.get('iso_baseline_ja', '')}"
+                        )
+                        country_line = (
+                            f"{wcd.get('country_specific_zh', '')} / "
+                            f"{wcd.get('country_specific_en', '')} / "
+                            f"{wcd.get('country_specific_ja', '')}"
+                        )
+                    elif _show_zh:
+                        iso_line = wcd.get("iso_baseline_zh", "")
+                        country_line = wcd.get("country_specific_zh", "")
+                    else:
+                        if lang.startswith("ja"):
+                            iso_line = (
+                                f"{wcd.get('iso_baseline_ja', '')} / "
+                                f"{wcd.get('iso_baseline_en', '')}"
+                            )
+                            country_line = (
+                                f"{wcd.get('country_specific_ja', '')} / "
+                                f"{wcd.get('country_specific_en', '')}"
+                            )
+                        else:
+                            iso_line = wcd.get("iso_baseline_en", "")
+                            country_line = wcd.get("country_specific_en", "")
+
+                    _iso_label = "ISO" if _show_en else "ISO"
+                    _country_label = "Country" if _show_en else "該國"
+                    lines.append(f">      {_iso_label}: {iso_line}")
+                    lines.append(f">      {_country_label}: {country_line}")
+
+                    # Ref and evidence
+                    ref = wcd.get("regulation_ref", "")
+                    evidence = wcd.get("expected_evidence", [])
+                    if ref or evidence:
+                        evidence_str = ", ".join(evidence) if evidence else ""
+                        parts = []
+                        if ref:
+                            parts.append(f"Ref: {ref}")
+                        if evidence_str:
+                            parts.append(f"Evidence: [{evidence_str}]")
+                        lines.append(f">      {' | '.join(parts)}")
+                lines.append("")
+
     lines.append("")
 
     # Delta items (country-unique requirements)

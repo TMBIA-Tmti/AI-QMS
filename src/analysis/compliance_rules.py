@@ -60,6 +60,7 @@ __all__ = [
     "get_regions_without_profile",
     "generate_profile_id_from_region",
     "cleanup_non_selected_crawled_profiles",
+    "WithinClauseDelta",
     # Supplemental Standards API
     "StandardCategory",
     "SupplementalStandardProfile",
@@ -4346,6 +4347,37 @@ class MappingMethod(str, Enum):
 
 
 @dataclass
+class WithinClauseDelta:
+    """A country-specific strictness variation WITHIN an ISO 13485 clause.
+
+    Unlike UniqueRequirement (which is entirely outside ISO 13485 scope),
+    this captures cases where ISO 13485 already requires something but the
+    country imposes stricter timelines, specific forms, local authority steps,
+    or scope extensions within the same clause area.
+    """
+    delta_id: str               # e.g., "TFDA-WITHIN-8.2.3-001"
+    iso_clause: str             # e.g., "8.2.3"
+    title_en: str
+    title_zh: str               # Chinese title
+    title_ja: str               # Japanese title
+    iso_baseline_en: str        # What ISO 13485 requires (brief)
+    iso_baseline_zh: str
+    iso_baseline_ja: str
+    country_specific_en: str    # What this country requires (stricter/additional)
+    country_specific_zh: str
+    country_specific_ja: str
+    regulation_ref: str         # "Article 46(2)" / "第46條第2項"
+    original_text: str          # Raw regulatory text in native language
+    original_lang: str          # "zh-TW", "en", "ko", etc.
+    english_translation: str    # English translation if not English
+    delta_type: str             # "stricter_timeline" | "additional_form" |
+                                # "local_authority_specific" | "scope_extension" | "other"
+    audit_impact: str           # "critical" | "major" | "minor"
+    expected_evidence: list[str]
+    confidence: float           # 0.0-1.0
+
+
+@dataclass
 class ClauseMapping:
     """How one ISO 13485 clause is covered by a specific country's regulation.
 
@@ -4367,6 +4399,8 @@ class ClauseMapping:
     original_lang: str = ""  # Language code: "en", "zh-TW", "de", "fr", etc.
     english_translation: str = ""  # English translation (if original is NOT English)
     semantic_note: str = ""  # Interpretation: what this clause means in practice
+    within_clause_deltas: list["WithinClauseDelta"] = field(default_factory=list)
+    # Populated when status == EXCEEDS: specific ways this country is stricter than ISO 13485
 
 
 @dataclass
@@ -4398,6 +4432,8 @@ class UniqueRequirement:
     original_lang: str = ""  # Language code: "en", "zh-TW", "de", "fr", etc.
     english_translation: str = ""  # English translation (if original is NOT English)
     semantic_note: str = ""  # Interpretation: what this means in practice, and how it differs across countries
+    is_within_clause_delta: bool = False  # True if this is a within-clause delta (TYPE 2), False if fully outside ISO 13485 (TYPE 1)
+    within_clause_delta_vs_iso: str = ""  # Brief statement: "ISO says X, this country says Y"
 
 
 @dataclass
@@ -9651,6 +9687,26 @@ def get_overlap_analysis(
             "original_lang": mapping.original_lang,
             "english_translation": mapping.english_translation,
             "semantic_note": mapping.semantic_note,
+            "within_clause_deltas": [
+                {
+                    "delta_id": d.delta_id,
+                    "title_en": d.title_en,
+                    "title_zh": d.title_zh,
+                    "title_ja": d.title_ja,
+                    "iso_baseline_en": d.iso_baseline_en,
+                    "iso_baseline_zh": d.iso_baseline_zh,
+                    "iso_baseline_ja": d.iso_baseline_ja,
+                    "country_specific_en": d.country_specific_en,
+                    "country_specific_zh": d.country_specific_zh,
+                    "country_specific_ja": d.country_specific_ja,
+                    "delta_type": d.delta_type,
+                    "audit_impact": d.audit_impact,
+                    "regulation_ref": d.regulation_ref,
+                    "expected_evidence": d.expected_evidence,
+                    "confidence": d.confidence,
+                }
+                for d in mapping.within_clause_deltas
+            ],
         }
 
     # Check if there are delta items that relate to this clause
@@ -9837,6 +9893,30 @@ def save_crawled_regulation(profile: RegulationProfile) -> str:
                 "original_lang": m.original_lang,
                 "english_translation": m.english_translation,
                 "semantic_note": m.semantic_note,
+                "within_clause_deltas": [
+                    {
+                        "delta_id": d.delta_id,
+                        "iso_clause": d.iso_clause,
+                        "title_en": d.title_en,
+                        "title_zh": d.title_zh,
+                        "title_ja": d.title_ja,
+                        "iso_baseline_en": d.iso_baseline_en,
+                        "iso_baseline_zh": d.iso_baseline_zh,
+                        "iso_baseline_ja": d.iso_baseline_ja,
+                        "country_specific_en": d.country_specific_en,
+                        "country_specific_zh": d.country_specific_zh,
+                        "country_specific_ja": d.country_specific_ja,
+                        "regulation_ref": d.regulation_ref,
+                        "original_text": d.original_text,
+                        "original_lang": d.original_lang,
+                        "english_translation": d.english_translation,
+                        "delta_type": d.delta_type,
+                        "audit_impact": d.audit_impact,
+                        "expected_evidence": d.expected_evidence,
+                        "confidence": d.confidence,
+                    }
+                    for d in m.within_clause_deltas
+                ],
             }
             for clause_id, m in profile.iso_mapped.items()
         },
@@ -9861,6 +9941,8 @@ def save_crawled_regulation(profile: RegulationProfile) -> str:
                 "original_lang": r.original_lang,
                 "english_translation": r.english_translation,
                 "semantic_note": r.semantic_note,
+                "is_within_clause_delta": r.is_within_clause_delta,
+                "within_clause_delta_vs_iso": r.within_clause_delta_vs_iso,
             }
             for r in profile.unique_requirements
         ],
@@ -9897,6 +9979,30 @@ def load_crawled_regulation(filepath: str) -> RegulationProfile:
             original_lang=m.get("original_lang", ""),
             english_translation=m.get("english_translation", ""),
             semantic_note=m.get("semantic_note", ""),
+            within_clause_deltas=[
+                WithinClauseDelta(
+                    delta_id=d.get("delta_id", ""),
+                    iso_clause=d.get("iso_clause", ""),
+                    title_en=d.get("title_en", ""),
+                    title_zh=d.get("title_zh", ""),
+                    title_ja=d.get("title_ja", ""),
+                    iso_baseline_en=d.get("iso_baseline_en", ""),
+                    iso_baseline_zh=d.get("iso_baseline_zh", ""),
+                    iso_baseline_ja=d.get("iso_baseline_ja", ""),
+                    country_specific_en=d.get("country_specific_en", ""),
+                    country_specific_zh=d.get("country_specific_zh", ""),
+                    country_specific_ja=d.get("country_specific_ja", ""),
+                    regulation_ref=d.get("regulation_ref", ""),
+                    original_text=d.get("original_text", ""),
+                    original_lang=d.get("original_lang", ""),
+                    english_translation=d.get("english_translation", ""),
+                    delta_type=d.get("delta_type", "other"),
+                    audit_impact=d.get("audit_impact", "major"),
+                    expected_evidence=d.get("expected_evidence", []),
+                    confidence=d.get("confidence", 0.5),
+                )
+                for d in m.get("within_clause_deltas", [])
+            ],
         )
 
     unique_reqs = []
@@ -9922,6 +10028,8 @@ def load_crawled_regulation(filepath: str) -> RegulationProfile:
                 original_lang=r.get("original_lang", ""),
                 english_translation=r.get("english_translation", ""),
                 semantic_note=r.get("semantic_note", ""),
+                is_within_clause_delta=r.get("is_within_clause_delta", False),
+                within_clause_delta_vs_iso=r.get("within_clause_delta_vs_iso", ""),
             )
         )
 

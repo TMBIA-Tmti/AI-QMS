@@ -28,6 +28,7 @@ from src.analysis.compliance_rules import (
     RegulationProfile,
     ClauseMapping,
     UniqueRequirement,
+    WithinClauseDelta,
     MappingStatus,
     MappingMethod,
     save_crawled_regulation,
@@ -177,6 +178,34 @@ async def analyze_regulation_with_llm(
                 for item in parsed:
                     cid = item.get("clause_id", "")
                     if cid and cid in ISO_13485_CHECKLIST:
+                        # Parse within_clause_deltas if present
+                        raw_deltas = item.get("within_clause_deltas", [])
+                        deltas = []
+                        if isinstance(raw_deltas, list):
+                            for didx, dd in enumerate(raw_deltas, 1):
+                                if isinstance(dd, dict):
+                                    deltas.append(WithinClauseDelta(
+                                        delta_id=dd.get("delta_id", f"{profile_id}-WITHIN-{cid}-{didx:03d}"),
+                                        iso_clause=cid,
+                                        title_en=dd.get("title_en", ""),
+                                        title_zh=dd.get("title_zh", ""),
+                                        title_ja=dd.get("title_ja", ""),
+                                        iso_baseline_en=dd.get("iso_baseline_en", ""),
+                                        iso_baseline_zh=dd.get("iso_baseline_zh", ""),
+                                        iso_baseline_ja=dd.get("iso_baseline_ja", ""),
+                                        country_specific_en=dd.get("country_specific_en", ""),
+                                        country_specific_zh=dd.get("country_specific_zh", ""),
+                                        country_specific_ja=dd.get("country_specific_ja", ""),
+                                        regulation_ref=dd.get("regulation_ref", ""),
+                                        original_text=dd.get("original_text", ""),
+                                        original_lang=dd.get("original_lang", ""),
+                                        english_translation=dd.get("english_translation", ""),
+                                        delta_type=dd.get("delta_type", "other"),
+                                        audit_impact=dd.get("audit_impact", "major"),
+                                        expected_evidence=dd.get("expected_evidence", []),
+                                        confidence=min(1.0, max(0.0, float(dd.get("confidence", 0.5)))),
+                                    ))
+
                         iso_mapped[cid] = ClauseMapping(
                             iso_clause=cid,
                             status=_parse_status(item.get("status", "na")),
@@ -192,6 +221,7 @@ async def analyze_regulation_with_llm(
                             original_lang=item.get("original_lang", ""),
                             english_translation=item.get("english_translation", ""),
                             semantic_note=item.get("semantic_note", ""),
+                            within_clause_deltas=deltas,
                         )
             else:
                 logger.warning(
@@ -227,7 +257,13 @@ async def analyze_regulation_with_llm(
 
     # ── Step 2: Identify unique requirements ──
     if send_progress_fn:
-        await send_progress_fn(f"🔍 識別 {zh_name} ({en_name}) 獨有的法規要求...")
+        if lang.startswith("ja"):
+            _msg_unique = f"🔍 {zh_name} ({en_name}) の条款内デルタ要件と独自要件を識別中..."
+        elif lang.startswith("zh"):
+            _msg_unique = f"🔍 識別 {zh_name} ({en_name}) 的條款內差異與獨有法規要求..."
+        else:
+            _msg_unique = f"🔍 Identifying within-clause deltas and unique requirements for {en_name}..."
+        await send_progress_fn(_msg_unique)
 
     unique_reqs: list[UniqueRequirement] = []
     try:
@@ -278,6 +314,8 @@ async def analyze_regulation_with_llm(
                             original_lang=item.get("original_lang", ""),
                             english_translation=item.get("english_translation", ""),
                             semantic_note=item.get("semantic_note", ""),
+                            is_within_clause_delta=item.get("is_within_clause_delta", False),
+                            within_clause_delta_vs_iso=item.get("within_clause_delta_vs_iso", ""),
                         )
                     )
     except Exception as e:
@@ -378,8 +416,33 @@ def _build_clause_batch_prompt(
         "  \"original_lang\": \"Language code (e.g., 'en', 'zh', 'ko', 'ms', 'th')\",\n"
         '  "english_translation": "English translation if original is not English",\n'
         '  "semantic_note": "Terminology differences, scope nuances, implementation gaps",\n'
-        '  "confidence": 0.8\n'
+        '  "confidence": 0.8,\n'
+        '  "within_clause_deltas": [\n'
+        '    {\n'
+        '      "delta_id": "{profile_id}-WITHIN-{clause_id}-001",\n'
+        '      "title_en": "Short English title of the specific difference",\n'
+        '      "title_zh": "中文簡短標題",\n'
+        '      "title_ja": "日本語の短いタイトル",\n'
+        '      "iso_baseline_en": "What ISO 13485 requires (one sentence)",\n'
+        '      "iso_baseline_zh": "ISO 13485 的要求（一句話）",\n'
+        '      "iso_baseline_ja": "ISO 13485 が要求する内容（一文）",\n'
+        '      "country_specific_en": "What this country requires instead/additionally",\n'
+        '      "country_specific_zh": "該國的特殊要求",\n'
+        '      "country_specific_ja": "この国固有の要件",\n'
+        '      "regulation_ref": "Specific article/section",\n'
+        '      "original_text": "Verbatim regulatory text",\n'
+        '      "original_lang": "language code",\n'
+        '      "english_translation": "English translation if needed",\n'
+        '      "delta_type": "stricter_timeline|additional_form|local_authority_specific|scope_extension|other",\n'
+        '      "audit_impact": "critical|major|minor",\n'
+        '      "expected_evidence": ["list of auditable documents"],\n'
+        '      "confidence": 0.8\n'
+        '    }\n'
+        '  ]\n'
         "}\n\n"
+        "IMPORTANT: Populate `within_clause_deltas` ONLY when `status == \"exceeds\"` AND you can "
+        "identify the specific way the country is stricter. Leave as empty array `[]` for "
+        "full/partial/na. Do NOT infer — base strictly on provided text.\n\n"
         "Example output:\n"
         "[\n"
         "  {\n"
@@ -440,7 +503,27 @@ def _build_unique_requirements_prompt(
         "what ISO 13485:2016 requires. These are the DELTA items — country-specific "
         "requirements that a manufacturer fully certified to ISO 13485 would STILL need "
         "to satisfy separately for market access in this country.\n\n"
-        "CRITICAL ANALYSIS RULES:\n"
+        "REQUIREMENT CATEGORIES — output ALL three types as separate JSON objects:\n\n"
+        "TYPE 1 — FULLY OUTSIDE ISO 13485 (is_within_clause_delta: false):\n"
+        "   Requirements the country imposes that have NO equivalent in ISO 13485 at all.\n"
+        "   Examples: device registration/listing with a government authority, local authorized\n"
+        "   representative mandate, import permits, country-specific UDI registry enrollment.\n"
+        "   -> Set is_within_clause_delta: false\n\n"
+        "TYPE 2 — WITHIN-CLAUSE DELTA (is_within_clause_delta: true):\n"
+        "   ISO 13485 already requires something in this area, but this country imposes\n"
+        "   a STRICTER or MORE SPECIFIC version: a numeric deadline, a mandatory government\n"
+        "   form, a local authority notification step, or an extended scope threshold.\n"
+        "   Examples: \"adverse event reporting within 7 working days\" (ISO just says promptly),\n"
+        "   \"PMS summary report every 2 years\" (ISO does not specify frequency),\n"
+        "   \"labeling must include local registration number\" (ISO only requires general labeling).\n"
+        "   -> Set is_within_clause_delta: true, and populate related_iso_clauses with the\n"
+        "     overlapping ISO clause(s).\n\n"
+        "TYPE 3 — LANGUAGE PLAUSIBILITY ONLY (do NOT output):\n"
+        "   Regulation uses similar terminology but imposes no substantive additional obligation.\n"
+        "   -> Do NOT output these.\n\n"
+        "CRITICAL: Do NOT skip TYPE 2 items because they overlap with ISO 13485 clauses.\n"
+        "Both TYPE 1 and TYPE 2 must be captured — they represent different compliance risks.\n\n"
+        "ADDITIONAL ANALYSIS RULES:\n"
         "1. Language plausibility ≠ legal obligation: a country's regulation may "
         "   MENTION a concept (e.g., UDI, PSUR) without imposing a substantive, "
         "   enforceable requirement. Do NOT flag a mention as a unique requirement.\n"
@@ -492,7 +575,9 @@ def _build_unique_requirements_prompt(
         '  "original_lang": "Language code",\n'
         '  "english_translation": "English translation if not English",\n'
         '  "semantic_note": "Practical impact on manufacturers",\n'
-        '  "confidence": 0.75\n'
+        '  "confidence": 0.75,\n'
+        '  "is_within_clause_delta": false,\n'
+        '  "within_clause_delta_vs_iso": "Brief statement: ISO says X, this country says Y (only for TYPE 2)"\n'
         "}\n\n"
         "If no unique requirements are found, output an empty array: []\n"
         "Typically, most countries have 3-10 unique requirements beyond ISO 13485.\n"
