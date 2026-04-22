@@ -254,22 +254,22 @@ REGION_SITES = {
     ],
     "中國 (China)": [
         {
-            "agency": "NMPA-GMP-EN",
-            "name": "NMPA — Good Manufacturing Practice for Medical Devices (Revised 2025, effective 2026-11-01)",
-            "url": "https://english.nmpa.gov.cn/2025-11/07/c_1138710.htm",
+            "agency": "NMPA-GMP-CN",
+            "name": "医疗器械生产质量管理规范 — NMPA 公告 2025年第107号 (Chinese, effective 2026-11-01)",
+            "url": "https://www.nmpa.gov.cn/xxgk/fgwj/xzhgfxwj/20251104173724174.html",
             "tier": 3,
             "strategy": "html",
             "crawl_delay": 5,
-            "note": "PRIMARY QMS regulation: NMPA Announcement on Revised GMP for Medical Devices (15 chapters, 132 articles) — Jina Reader first",
+            "note": "PRIMARY (Chinese): NMPA official announcement page for revised GMP (15章132条); actual regulation text is in the Word attachment on this page — anti-bot 412 protection, Jina Reader first",
         },
         {
             "agency": "NMPA-GMP-Announcement",
-            "name": "NMPA — GMP Announcement [2025] No. 107 (English)",
+            "name": "NMPA — GMP Announcement [2025] No. 107 (English, effective 2026-11-01)",
             "url": "https://english.nmpa.gov.cn/2025-12/24/c_1156627.htm",
             "tier": 3,
             "strategy": "html",
             "crawl_delay": 5,
-            "note": "Official NMPA English announcement releasing the revised Good Manufacturing Practice for Medical Devices — Jina Reader first",
+            "note": "Official NMPA English announcement releasing the revised Good Manufacturing Practice for Medical Devices (15 chapters, 132 articles) — Jina Reader first",
         },
         {
             "agency": "NMPA-Regulations",
@@ -403,12 +403,12 @@ REGION_SITES = {
     "巴西 (Brazil)": [
         {
             "agency": "ANVISA-RDC665",
-            "name": "RDC nº 665/2022 — ANVISA Good Manufacturing Practices for Medical Devices (BPF/GMP) — English version",
-            "url": "https://www.gov.br/anvisa/en/regulation-of-companies/arquivos/rdc-665-2022-english-version.pdf/view",
-            "tier": 3,
+            "name": "RDC nº 665/2022 — ANVISA Good Manufacturing Practices for Medical Devices (BPF/GMP) — English version (PDF)",
+            "url": "https://www.gov.br/anvisa/en/regulation-of-companies/arquivos/rdc-665-2022-english-version.pdf",
+            "tier": 2,
             "strategy": "html",
             "crawl_delay": 5,
-            "note": "PRIMARY QMS regulation: ANVISA RDC 665/2022 (effective 2022-05-02) — Brazilian Good Manufacturing Practices (BGMP) for medical devices and IVDs, replaces RDC 16/2013 — mirrors FDA QSR & ISO 13485 — Jina Reader first",
+            "note": "PRIMARY QMS regulation: ANVISA RDC 665/2022 (effective 2022-05-02) — Brazilian Good Manufacturing Practices (BGMP) for medical devices and IVDs, replaces RDC 16/2013 — direct ANVISA PDF (confirmed 309KB)",
         },
         {
             "agency": "ANVISA-RDC665-News",
@@ -569,22 +569,22 @@ REGION_SITES = {
     ],
     "泰國 (Thailand)": [
         {
-            "agency": "Thai-FDA-MD-Laws",
-            "name": "Thai FDA — Medical Devices Laws & Regulations",
-            "url": "https://www.fda.moph.go.th/sites/fda_en/SitePages/Medical.aspx?IDitem=LawsAndRegulations",
+            "agency": "Thai-FDA-GMP",
+            "name": "Thai FDA — ระบบคุณภาพการผลิตเครื่องมือแพทย์ GMP Medical Device Quality System (B.E. 2566/2023)",
+            "url": "https://medical.fda.moph.go.th/situation/category/gmp-gdp/",
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "PRIMARY QMS regulation source: Thai FDA laws/regulations index for medical devices — includes GMP Notification B.E. 2566 (2023)",
+            "note": "PRIMARY QMS regulation source: Thai FDA medical device GMP quality system page — Ministry of Public Health Notification on GMP B.E. 2566 (2023) — medical.fda.moph.go.th subdomain",
         },
         {
-            "agency": "Thai-FDA",
-            "name": "Thai FDA English Homepage",
-            "url": "https://en.fda.moph.go.th/",
+            "agency": "Thai-FDA-Laws",
+            "name": "Thai FDA — กองควบคุมเครื่องมือแพทย์ Medical Device Laws (relevant-laws)",
+            "url": "https://medical.fda.moph.go.th/relevant-laws-and-standards/mdlaw0501",
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "Thai FDA English portal — fallback if laws page unavailable",
+            "note": "Thai FDA Medical Device Division laws and standards page — includes all relevant medical device notifications and GMP requirements",
         },
     ],
     "紐西蘭 (New Zealand)": [
@@ -609,42 +609,42 @@ REGION_SITES = {
     ],
     "墨西哥 (Mexico)": [
         {
-            "agency": "COFEPRIS-NOM241",
-            "name": "NOM-241-SSA1-2021 — Buenas Prácticas de Fabricación para Dispositivos Médicos (GMP for Medical Devices)",
-            "url": "https://www.cofepris.gob.mx/Paginas/Temas/Dispositivos%20M%C3%A9dicos/Dispositivos.aspx",
-            "tier": 3,
+            "agency": "DOF-NOM241-2025",
+            "name": "NOM-241-SSA1-2025 — Buenas Prácticas de Fabricación para Dispositivos Médicos (DOF, 11 Nov 2025)",
+            "url": "https://dof.gob.mx/nota_detalle.php?codigo=5772517&fecha=11/11/2025",
+            "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "PRIMARY QMS regulation: NOM-241-SSA1-2021 — Mexico GMP/QMS standard for medical devices (ISO 13485 equivalent) — Cloudflare challenge — Jina Reader first",
+            "note": "PRIMARY QMS regulation: NOM-241-SSA1-2025 (supersedes 2021 version) — Mexico official GMP standard for medical devices, ISO 13485 equivalent — published DOF 11/11/2025 — MDSAP recognized as equivalent QMS",
         },
         {
             "agency": "NOM241-EN-PDF",
-            "name": "NOM-241-SSA1-2021 (English translation — InterAmerican Coalition MedTech)",
+            "name": "NOM-241-SSA1-2021 (English translation — InterAmerican Coalition MedTech, superseded by 2025 version)",
             "url": "https://www.interamericancoalition-medtech.org/regulatory-convergence/wp-content/uploads/sites/4/2022/03/Norma-Oficial-Mexicana-NOM-241-SSA1-2021-ENG-REV.pdf",
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "English version of NOM-241-SSA1-2021 GMP regulation for medical devices (published 2021-12-20) — good for content extraction",
+            "note": "English version of NOM-241-SSA1-2021 (2021 version, now superseded by 2025 revision) — retained for reference on prior requirements",
         },
     ],
     "阿根廷 (Argentina)": [
         {
             "agency": "ANMAT-MD",
-            "name": "ANMAT — Medical Devices (argentina.gob.ar)",
-            "url": "https://www.argentina.gob.ar/anmat/dispositivos-medicos",
+            "name": "ANMAT — Productos Médicos (Medical Products portal, argentina.gob.ar)",
+            "url": "https://www.argentina.gob.ar/anmat/regulados/productos-medicos",
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "PRIMARY QMS regulation source: ANMAT medical devices portal — Disposición 2318/2002 and Disposición 191/99 (BPF/GMP aligned with ISO 13485) — homepage fallback",
+            "note": "PRIMARY QMS regulation source: ANMAT medical products portal — Disposición 64/25 (Jan 2025) replaced Disposición 2318/2002 for MERCOSUR device registration; BPF (GMP/QMS) certification required for Class II–IV manufacturers",
         },
         {
-            "agency": "ANMAT-BPF",
-            "name": "ANMAT — Disposición 2318/2002 (MERCOSUR GMP/QMS for medical devices)",
-            "url": "https://www.argentina.gob.ar/anmat",
+            "agency": "ANMAT-Disposicion64-25",
+            "name": "ANMAT — Disposición 64/2025 — Registro de Productos Médicos (MERCOSUR GMC 25/21)",
+            "url": "https://www.argentina.gob.ar/normativa/nacional/disposici%C3%B3n-64-2025-408309/texto",
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "ANMAT portal — disposiciones on BPF (GMP/QMS) for medical devices; Disposición 2318/2002 is the primary QMS instrument",
+            "note": "Disposición ANMAT 64/25 (in force Jan 2025) — incorporates MERCOSUR Resolution GMC 25/21, replacing prior registration framework; Class III–IV require BPF certificate — official Argentina.gob.ar full text",
         },
     ],
     "南非 (South Africa)": [
@@ -689,22 +689,22 @@ REGION_SITES = {
     ],
     "印尼 (Indonesia)": [
         {
-            "agency": "Kemenkes-Regalkes",
-            "name": "Ministry of Health — Medical Device Registration (Regalkes portal)",
-            "url": "https://regalkes.kemkes.go.id/",
+            "agency": "Kemkes-CPAKB",
+            "name": "Permenkes No. 20 Tahun 2017 — Cara Pembuatan Alat Kesehatan yang Baik (CPAKB) — Farmalkes Kemkes",
+            "url": "https://farmalkes.kemkes.go.id/en/unduh/permenkes-20-2017/",
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "PRIMARY QMS regulation portal: Regalkes — registration requires ISO 13485 QMS under Decree No. 98/2021/ND-CP equivalent Indonesian regulations (Permenkes)",
+            "note": "PRIMARY QMS regulation: Permenkes No. 20/2017 on Good Manufacturing Practices for Medical Devices (CPAKB) — issued 8 March 2017, effective 18 April 2017 — official Directorate General of Pharmaceutical and Medical Devices (Farmalkes) page",
         },
         {
-            "agency": "BPOM",
-            "name": "BPOM — Badan Pengawas Obat dan Makanan (Food & Drug Control)",
-            "url": "https://www.pom.go.id/",
-            "tier": 3,
+            "agency": "BPK-Permenkes20",
+            "name": "Permenkes No. 20 Tahun 2017 — CPAKB Full Text (BPK Official Indonesian Law Database)",
+            "url": "https://peraturan.bpk.go.id/Details/111997/permenkes-no-20-tahun-2017",
+            "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "BPOM GMP oversight — SSL certificate chain incomplete — Jina Reader fallback",
+            "note": "Full text of CPAKB regulation on the official BPK (State Finance Audit Board) law portal — PDF available for download",
         },
     ],
     "馬來西亞 (Malaysia)": [
@@ -740,24 +740,33 @@ REGION_SITES = {
     ],
     "菲律賓 (Philippines)": [
         {
+            "agency": "FDA-PH-RA9711",
+            "name": "Republic Act No. 9711 — FDA Act of 2009 (Philippines QMS legal basis)",
+            "url": "https://www.fda.gov.ph/wp-content/uploads/2021/04/Republic-Act-No.-9711.pdf",
+            "tier": 2,
+            "strategy": "html",
+            "crawl_delay": 3,
+            "note": "PRIMARY QMS regulation: RA 9711 (FDA Act 2009) mandates FDA Philippines to regulate medical devices; ISO 13485 QMS compliance required for CDRRHR registration — official FDA PH PDF",
+        },
+        {
             "agency": "FDA-PH-MD",
-            "name": "Philippines FDA — Medical Devices (Center for Device Regulation, Radiation Health and Research — CDRRHR)",
+            "name": "Philippines FDA — Medical Devices Homepage (CDRRHR)",
             "url": "https://www.fda.gov.ph/",
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "PRIMARY QMS regulation source: Philippines FDA — requires ISO 13485 QMS compliance for medical device registration through CDRRHR; RA 9711 (FDA Act 2009) framework",
+            "note": "Philippines FDA portal — fallback for regulation updates and guidance",
         },
     ],
     "越南 (Vietnam)": [
         {
             "agency": "DMEC-MOH",
-            "name": "Vietnam MOH — Department of Medical Equipment and Construction (DMEC)",
-            "url": "https://dmec.moh.gov.vn/trangchu",
+            "name": "Vietnam MOH — DMEC Văn bản pháp quy (Legal Documents / Decree 98/2021/ND-CP)",
+            "url": "https://dmec.moh.gov.vn/van-ban-phap-quy",
             "tier": 3,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "PRIMARY QMS regulation source: Vietnam Decree 98/2021/ND-CP and Circular 10/2023/TT-BYT — requires ISO 13485 for medical device registration — DMEC portal — Jina Reader first",
+            "note": "PRIMARY QMS regulation source: DMEC legal documents listing — Vietnam Decree 98/2021/ND-CP (amended by Decree 96/2023) requires ISO 13485 for medical device registration — Jina Reader first",
         },
         {
             "agency": "DAV",
@@ -771,13 +780,22 @@ REGION_SITES = {
     ],
     "哥倫比亞 (Colombia)": [
         {
+            "agency": "INVIMA-Decreto4725",
+            "name": "Decreto 4725 de 2005 — Régimen de registros sanitarios de dispositivos médicos (INVIMA Normograma)",
+            "url": "https://normograma.invima.gov.co/normograma/compilacion/docs/decreto_4725_2005.htm",
+            "tier": 2,
+            "strategy": "html",
+            "crawl_delay": 3,
+            "note": "PRIMARY QMS regulation: Decreto 4725/2005 governs medical device registration and GMP (BPM) in Colombia; Article 8 requires BPM compliance; ISO 13485 certificate accepted as QMS evidence — official INVIMA Normograma text",
+        },
+        {
             "agency": "INVIMA-MD",
-            "name": "INVIMA — Dispositivos Médicos y Equipos Biomédicos (Medical Devices)",
-            "url": "https://www.invima.gov.co/dispositivos-medicos-y-equipos-biomedicos",
+            "name": "INVIMA — Dispositivos Médicos y Equipos Biomédicos (Medical Devices portal)",
+            "url": "https://www.invima.gov.co/productos-vigilados/dispositivos-medicos/dispositivos-medicos-equipos-biomedicos",
             "tier": 3,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "PRIMARY QMS regulation source: INVIMA — Decreto 4725/2005 governs medical device registration in Colombia; ISO 13485 QMS evidence required — SSL/TLS errors — Jina Reader fallback",
+            "note": "INVIMA medical device portal — fallback for regulatory updates — SSL/TLS issues — Jina Reader fallback",
         },
     ],
     "俄羅斯 (Russia)": [
@@ -804,11 +822,11 @@ REGION_SITES = {
         {
             "agency": "EDA-MD-Guide",
             "name": "EDA — Regulatory Guideline for Registering Medical Devices (ISO 13485 requirement)",
-            "url": "https://www.edaegypt.gov.eg/media/i3wb2tdn/5_regulatory-guideline-for-procedures-of-registraing-imported-and-local-medical-devices-holding-international-quality-certificates.pdf",
+            "url": "https://edaegypt.gov.eg/media/j3hdl0l2/5_regulatory-guideline-for-procedures-of-registering-imported-and-local-medical-devices-holding-international-quali.pdf",
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "PRIMARY QMS regulation guideline: EDA Egypt regulatory procedures for medical devices holding international quality certificates (ISO 13485) — official EDA PDF",
+            "note": "PRIMARY QMS regulation guideline: EDA Egypt regulatory procedures for medical devices holding international quality certificates (ISO 13485) — official EDA PDF (515KB confirmed)",
         },
         {
             "agency": "EDA",
@@ -833,13 +851,13 @@ REGION_SITES = {
     ],
     "阿聯酋 (UAE)": [
         {
-            "agency": "MOHAP-MD-Reg",
-            "name": "UAE MOHAP — Medical Device Registration (Federal Decree-Law No. 38 of 2024)",
-            "url": "https://mohap.gov.ae/en/services/medical-devices-registration",
+            "agency": "MOHAP-FDL38-2024",
+            "name": "UAE — Federal Decree-Law No. 38 of 2024 on Medical Products (MOHAP)",
+            "url": "https://mohap.gov.ae/en/w/federal-decree-law-no.-38-of-the-year-2024-concerning-medical-products-the-pharmacy-profession-and-pharmaceutical-establishments",
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "PRIMARY QMS regulation source: UAE MOHAP — Federal Decree-Law No. 38 of 2024 (in force Jan 2025) — ISO 13485:2016 certificate required for manufacturing site registration",
+            "note": "PRIMARY QMS regulation: Federal Decree-Law No. 38 of 2024 (in force Jan 2025) governs medical products in UAE; ISO 13485:2016 certificate required for manufacturer registration — official MOHAP page",
         },
         {
             "agency": "MOHAP",
@@ -1034,7 +1052,7 @@ of QMS compliance for UKCA marking.
 
 薬機法に基づく医療機器製造販売業・製造業の許可要件として適用。
 """,
-    ("中國 (China)", "NMPA-GMP-EN"): """\
+    ("中國 (China)", "NMPA-GMP-CN"): """\
 # Good Manufacturing Practice for Medical Devices — China (Revised 2025)
 
 **Authority**: National Medical Products Administration (NMPA)
@@ -1308,7 +1326,7 @@ must implement a QMS compliant with ISO 13485:2016 as a condition of SFDA establ
 2. Device Licence (product registration via GHAD online system)
 3. Periodic inspection by SFDA QMS inspectors
 """,
-    ("泰國 (Thailand)", "Thai-FDA-MD-Laws"): """\
+    ("泰國 (Thailand)", "Thai-FDA-GMP"): """\
 # Thailand Medical Device QMS — GMP Notification B.E. 2566 (2023)
 
 **Authority**: Thai Food and Drug Administration (Thai FDA), Ministry of Public Health
@@ -1375,7 +1393,7 @@ which references ISO 13485:2016 as the applicable standard for medical devices.
 Medsafe accepts CE marking (EU MDR) or MDSAP certificates as evidence of QMS compliance.
 NZ participates in the IMDRF to align with international regulatory frameworks.
 """,
-    ("墨西哥 (Mexico)", "COFEPRIS-NOM241"): """\
+    ("墨西哥 (Mexico)", "DOF-NOM241-2025"): """\
 # NOM-241-SSA1-2021 — Buenas Prácticas de Fabricación para Dispositivos Médicos
 
 **Citation**: NOM-241-SSA1-2021
@@ -1478,12 +1496,12 @@ a separate QMS audit.
 - From June 14, 2021: New MDR-aligned regulation in force
 - Transition period for existing CE MDD certificates as agreed with EU Commission
 """,
-    ("印尼 (Indonesia)", "Kemenkes-Regalkes"): """\
-# Indonesia Medical Device Registration — QMS Requirements (Regalkes / Permenkes)
+    ("印尼 (Indonesia)", "Kemkes-CPAKB"): """\
+# Indonesia Medical Device QMS — CPAKB (Permenkes No. 20 Tahun 2017)
 
-**Authority**: Ministry of Health (Kemenkes), Directorate General of Pharmaceutical Affairs
-**Portal**: Regalkes (regalkes.kemkes.go.id)
-**Legal Basis**: Permenkes No. 62 Tahun 2017 (amended); Permenkes No. 10 Tahun 2023
+**Authority**: Ministry of Health (Kemenkes), Directorate General of Pharmaceutical and Medical Devices (Farmalkes)
+**Legal Basis**: Permenkes No. 20 Tahun 2017 — Cara Pembuatan Alat Kesehatan yang Baik (CPAKB)
+**Issued**: 8 March 2017 | **Effective**: 18 April 2017 | BN.2017/No.590
 
 ## QMS Requirements
 
@@ -1570,7 +1588,7 @@ Israel Ministry of Health accepts:
 Manufacturers submit registration applications to AMAR through the MOH Medical Device Registration System.
 Foreign manufacturers must appoint a local Authorised Representative (Israeli agent).
 """,
-    ("菲律賓 (Philippines)", "FDA-PH-MD"): """\
+    ("菲律賓 (Philippines)", "FDA-PH-RA9711"): """\
 # Philippines FDA — Medical Device QMS Requirements (RA 9711 / FDA Act 2009)
 
 **Authority**: Food and Drug Administration Philippines (FDA-PH)
@@ -1635,7 +1653,7 @@ manufacturers as a mandatory condition for product registration (number/declarat
 3. Submit Declaration of Conformity or Registration Application to MOH/DMEC
 4. DMEC issues Registration Number (Số lưu hành)
 """,
-    ("哥倫比亞 (Colombia)", "INVIMA-MD"): """\
+    ("哥倫比亞 (Colombia)", "INVIMA-Decreto4725"): """\
 # Colombia Medical Device QMS — Decreto 4725/2005 (INVIMA)
 
 **Authority**: Instituto Nacional de Vigilancia de Medicamentos y Alimentos (INVIMA)
@@ -1780,7 +1798,7 @@ ISP Chile accepts:
 Chile participates in PAHO/PANDRH harmonization initiatives and is working towards
 adoption of IMDRF-aligned regulatory framework for medical devices.
 """,
-    ("阿聯酋 (UAE)", "MOHAP-MD-Reg"): """\
+    ("阿聯酋 (UAE)", "MOHAP-FDL38-2024"): """\
 # UAE Medical Device QMS — Federal Decree-Law No. 38 of 2024
 
 **Authority**: Ministry of Health and Prevention (MOHAP) & Emirates Health Authority (EHA)
@@ -1819,11 +1837,12 @@ Dubai (DHA) and Abu Dhabi (DOH) may have additional emirate-level requirements
 that supplement the federal MOHAP framework.
 """,
     ("阿根廷 (Argentina)", "ANMAT-MD"): """\
-# Argentina Medical Device QMS — ANMAT Disposición 2318/2002
+# Argentina Medical Device QMS — ANMAT Disposición 64/2025 (replaces 2318/2002)
 
 **Authority**: Administración Nacional de Medicamentos, Alimentos y Tecnología Médica (ANMAT)
-**Primary Regulation**: Disposición ANMAT 2318/2002 (MERCOSUR GMC/RES 72/98 equivalent)
-**Additional**: Disposición ANMAT 191/1999 (GMP requirements)
+**Current Regulation**: Disposición ANMAT 64/2025 (in force Jan 2025, incorporates MERCOSUR GMC 25/21)
+**Previous**: Disposición ANMAT 2318/2002 (superseded)
+**GMP Reference**: Disposición ANMAT 2319/2002 — BPF (Buenas Prácticas de Fabricación) for manufacturers
 
 ## QMS Requirements
 
