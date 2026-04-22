@@ -382,15 +382,6 @@ REGION_SITES = {
             "crawl_delay": 5,
             "note": "TGA ARGMD — explains Schedule 3 conformity assessment procedures including QMS requirements — Jina Reader fallback",
         },
-        {
-            "agency": "TGA-MD-Reg",
-            "name": "TGA — How We Regulate Medical Devices",
-            "url": "https://www.tga.gov.au/how-we-regulate/medical-devices",
-            "tier": 3,
-            "strategy": "html",
-            "crawl_delay": 5,
-            "note": "Jina Reader first",
-        },
     ],
     "瑞士 (Switzerland)": [
         {
@@ -1512,7 +1503,7 @@ Foreign manufacturers must submit ISO 13485 certificate with import licence appl
     ("新加坡 (Singapore)", "SSO-HPR-2010"): """\
 # Health Products (Medical Devices) Regulations 2010 (S 436/2010) — Singapore QMS
 
-> **⚠️ NO INDEPENDENT QMS LAW** — Singapore has no standalone QMS regulation equivalent to EU MDR Annex IX or FDA 21 CFR Part 820. QMS requirement exists by reference to ISO 13485:2016 in HP(MD)R 2010 Regulation 23 and Third Schedule.
+> **⚠️ 無獨立 QMS 法規 / 独立QMS法令なし / NO INDEPENDENT QMS LAW** — Singapore has no standalone QMS regulation equivalent to EU MDR Annex IX or FDA 21 CFR Part 820. QMS requirement exists by reference to ISO 13485:2016 in HP(MD)R 2010 Regulation 23 and Third Schedule.
 
 **Citation**: S 436/2010, made under Health Products Act (HPA) Cap 122D
 **Authority**: Health Sciences Authority (HSA)
@@ -1608,7 +1599,7 @@ MDSAP certificates are accepted from MDSAP-recognised organisations.
     ("紐西蘭 (New Zealand)", "Medsafe-MD-Legislation"): """\
 # New Zealand Medical Device Regulation — Medicines Act 1981 & GMP Code
 
-> **⚠️ NO INDEPENDENT QMS LAW** — New Zealand has no standalone QMS regulation equivalent to EU MDR Annex IX or FDA 21 CFR Part 820. The Therapeutic Products Act 2023 was REPEALED in December 2024; current QMS requirements derive from the NZ Code of GMP (Part 7) referencing ISO 13485:2016, under the Medicines Act 1981 framework. A new Medical Products Bill is in development.
+> **⚠️ 無獨立 QMS 法規 / 独立QMS法令なし / NO INDEPENDENT QMS LAW** — New Zealand has no standalone QMS regulation equivalent to EU MDR Annex IX or FDA 21 CFR Part 820. The Therapeutic Products Act 2023 was REPEALED in December 2024; current QMS requirements derive from the NZ Code of GMP (Part 7) referencing ISO 13485:2016, under the Medicines Act 1981 framework. A new Medical Products Bill is in development.
 
 **Authority**: Medsafe (Medicines and Medical Devices Safety Authority)
 **Legislation**: Medicines Act 1981 (Part 5A, as amended)
@@ -1779,7 +1770,7 @@ as part of the product registration (Nomor Izin Edar — NIE) application.
     ("馬來西亞 (Malaysia)", "MDA-Legislation"): """\
 # Malaysia Medical Device Act 737 (2012) — QMS Requirements
 
-> **⚠️ NO INDEPENDENT QMS LAW** — Malaysia has no standalone QMS regulation equivalent to EU MDR Annex IX or FDA 21 CFR Part 820. QMS requirement exists by reference to ISO 13485:2016 under Medical Device Regulations 2012 (P.U.(A) 210/2012), Part III conformity assessment provisions.
+> **⚠️ 無獨立 QMS 法規 / 独立QMS法令なし / NO INDEPENDENT QMS LAW** — Malaysia has no standalone QMS regulation equivalent to EU MDR Annex IX or FDA 21 CFR Part 820. QMS requirement exists by reference to ISO 13485:2016 under Medical Device Regulations 2012 (P.U.(A) 210/2012), Part III conformity assessment provisions.
 
 **Citation**: Medical Device Act 2012 (Act 737) & Medical Device Regulations 2012
 **Authority**: Medical Device Authority (MDA) Malaysia
@@ -1813,7 +1804,7 @@ QMS certificate must be submitted with initial registration and renewed every 5 
     ("以色列 (Israel)", "MOH-MD-Division"): """\
 # Israel Medical Device QMS — Medical Equipment Law 5772-2012
 
-> **⚠️ NO INDEPENDENT QMS LAW** — Israel has no standalone QMS regulation equivalent to EU MDR Annex IX or FDA 21 CFR Part 820. QMS requirement (ISO 13485:2016) is embedded within the import licence conditions under Medical Equipment Law 5772-2012 and Medical Equipment Regulations 5773-2013; CE marking under EU MDR is accepted as primary equivalent evidence.
+> **⚠️ 無獨立 QMS 法規 / 独立QMS法令なし / NO INDEPENDENT QMS LAW** — Israel has no standalone QMS regulation equivalent to EU MDR Annex IX or FDA 21 CFR Part 820. QMS requirement (ISO 13485:2016) is embedded within the import licence conditions under Medical Equipment Law 5772-2012 and Medical Equipment Regulations 5773-2013; CE marking under EU MDR is accepted as primary equivalent evidence.
 
 **Authority**: Israel Ministry of Health, Medical Technology, Health Informatics & Research Division (AMAR)
 **Legal Basis**: Medical Equipment Law 5772-2012; Medical Devices Regulations 5773-2013
@@ -1844,7 +1835,7 @@ Foreign manufacturers must appoint a local Authorised Representative (Israeli ag
     ("菲律賓 (Philippines)", "FDA-PH-RA9711"): """\
 # Philippines FDA — Medical Device QMS Requirements (RA 9711 / FDA Act 2009)
 
-> **⚠️ NO INDEPENDENT QMS LAW** — Philippines has no standalone QMS regulation equivalent to EU MDR Annex IX or FDA 21 CFR Part 820. QMS requirement (ISO 13485:2016) exists as a registration condition under FDA Circular No. 2020-007 issued pursuant to Republic Act 9711 (FDA Act of 2009); RA 9711 itself is a market access law, not a QMS technical standard.
+> **⚠️ 無獨立 QMS 法規 / 独立QMS法令なし / NO INDEPENDENT QMS LAW** — Philippines has no standalone QMS regulation equivalent to EU MDR Annex IX or FDA 21 CFR Part 820. QMS requirement (ISO 13485:2016) exists as a registration condition under FDA Circular No. 2020-007 issued pursuant to Republic Act 9711 (FDA Act of 2009); RA 9711 itself is a market access law, not a QMS technical standard.
 
 **Authority**: Food and Drug Administration Philippines (FDA-PH)
 **Center**: Center for Device Regulation, Radiation Health and Research (CDRRHR)
@@ -2018,7 +2009,7 @@ significant changes to QMS or device design.
     ("智利 (Chile)", "ISP-Regulations"): """\
 # Chile Medical Device QMS — ISP Chile / ANAMED Regulations
 
-> **⚠️ NO INDEPENDENT QMS LAW** — Chile has no standalone QMS regulation equivalent to EU MDR Annex IX or FDA 21 CFR Part 820. GMP requirements are embedded in Decreto Supremo No. 825/1998 (Reglamento de Dispositivos Médicos) with reference to US 21 CFR Part 820 standards; ISO 13485:2016 certificate is accepted as equivalent evidence for Registro Sanitario applications.
+> **⚠️ 無獨立 QMS 法規 / 独立QMS法令なし / NO INDEPENDENT QMS LAW** — Chile has no standalone QMS regulation equivalent to EU MDR Annex IX or FDA 21 CFR Part 820. GMP requirements are embedded in Decreto Supremo No. 825/1998 (Reglamento de Dispositivos Médicos) with reference to US 21 CFR Part 820 standards; ISO 13485:2016 certificate is accepted as equivalent evidence for Registro Sanitario applications.
 
 **Authority**: Instituto de Salud Pública de Chile (ISP), División de Dispositivos Médicos (ANAMED)
 **Legal Basis**: Decreto Supremo No. 825/1998 (Reglamento de Dispositivos Médicos)
