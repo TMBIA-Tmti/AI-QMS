@@ -3042,6 +3042,12 @@ def export_daily_audit_word(result: DailyAuditResult, lang: str = "zh-TW") -> Pa
     for rec in dynamic_recs:
         doc.add_paragraph(f"• {rec}")
 
+    try:
+        from src.utils.crossref_export import append_crossref_table_word
+        append_crossref_table_word(doc, lang=lang)
+    except Exception:
+        pass
+
     from src.utils.safe_io import safe_save_binary
 
     safe_save_binary(filepath, doc.save)
@@ -3364,6 +3370,12 @@ def export_daily_audit_excel(result: DailyAuditResult, lang: str = "zh-TW") -> P
     ws_guide.column_dimensions["A"].width = 15
     ws_guide.column_dimensions["B"].width = 80
 
+    try:
+        from src.utils.crossref_export import append_crossref_table_excel
+        append_crossref_table_excel(wb, lang=lang)
+    except Exception:
+        pass
+
     from src.utils.safe_io import safe_save_binary
 
     safe_save_binary(filepath, wb.save)
@@ -3481,6 +3493,12 @@ def export_meta_review_word(result: MetaReviewResult, lang: str = "zh-TW") -> Pa
             row[3].text = f"{dr.get('overall_score', 0):.0f}"
             row[4].text = "⚠️" if dr.get("deviation_detected") else "✅"
 
+    try:
+        from src.utils.crossref_export import append_crossref_table_word
+        append_crossref_table_word(doc, lang=lang)
+    except Exception:
+        pass
+
     from src.utils.safe_io import safe_save_binary
 
     safe_save_binary(filepath, doc.save)
@@ -3571,6 +3589,12 @@ def export_meta_review_excel(result: MetaReviewResult, lang: str = "zh-TW") -> P
             ws_ct.cell(row=row_idx, column=1, value=country)
             ws_ct.cell(row=row_idx, column=2, value=trend)
         ws_ct.column_dimensions["B"].width = 60
+
+    try:
+        from src.utils.crossref_export import append_crossref_table_excel
+        append_crossref_table_excel(wb, lang=lang)
+    except Exception:
+        pass
 
     from src.utils.safe_io import safe_save_binary
 

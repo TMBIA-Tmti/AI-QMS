@@ -1895,6 +1895,11 @@ async def export_report(
                 _append_crawl_status_word(doc, _load_crawl_results(), lang)
             except Exception:
                 pass
+            try:
+                from src.utils.crossref_export import append_crossref_table_word
+                append_crossref_table_word(doc, lang=lang)
+            except Exception:
+                pass
             safe_save_binary(filepath, doc.save)
 
         else:  # excel
@@ -2041,6 +2046,11 @@ async def export_report(
             try:
                 from src.utils.crossexam_export import _append_crawl_status_excel, _load_crawl_results
                 _append_crawl_status_excel(wb, _load_crawl_results(), lang)
+            except Exception:
+                pass
+            try:
+                from src.utils.crossref_export import append_crossref_table_excel
+                append_crossref_table_excel(wb, lang=lang)
             except Exception:
                 pass
             safe_save_binary(filepath, wb.save)
@@ -3536,6 +3546,11 @@ async def export_feedback_records(fmt: str):
                     doc.add_paragraph(f"重新評估 ID: {fb.re_evaluation_id}")
                 doc.add_paragraph("")
 
+            try:
+                from src.utils.crossref_export import append_crossref_table_word
+                append_crossref_table_word(doc, lang="zh-TW")
+            except Exception:
+                pass
             filepath = EXPORT_DIR / f"feedback_records_{ts}.docx"
             doc.save(str(filepath))
             content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -3583,6 +3598,11 @@ async def export_feedback_records(fmt: str):
                         max_len = max(max_len, len(str(cell.value)))
                 ws.column_dimensions[_get_col_letter_fb(idx)].width = min(max_len + 2, 60)
 
+            try:
+                from src.utils.crossref_export import append_crossref_table_excel
+                append_crossref_table_excel(wb, lang="zh-TW")
+            except Exception:
+                pass
             filepath = EXPORT_DIR / f"feedback_records_{ts}.xlsx"
             wb.save(str(filepath))
             content_type = (

@@ -520,6 +520,11 @@ def export_regulatory_to_word(
         _append_crawl_status_word(doc, _load_crawl_results(), lang)
     except Exception:
         pass
+    try:
+        from src.utils.crossref_export import append_crossref_table_word
+        append_crossref_table_word(doc, lang=lang)
+    except Exception:
+        pass
 
     # Save
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -669,6 +674,11 @@ def export_regulatory_to_excel(
         _append_crawl_status_excel(wb, _load_crawl_results(), lang)
     except Exception:
         pass
+    try:
+        from src.utils.crossref_export import append_crossref_table_excel
+        append_crossref_table_excel(wb, lang=lang)
+    except Exception:
+        pass
 
     # Save
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -813,6 +823,11 @@ def export_reference_to_word(
         _append_crawl_status_word(doc, _load_crawl_results(), lang)
     except Exception:
         pass
+    try:
+        from src.utils.crossref_export import append_crossref_table_word
+        append_crossref_table_word(doc, lang=lang)
+    except Exception:
+        pass
 
     # Save
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -904,6 +919,11 @@ def export_reference_to_excel(
     try:
         from src.utils.crossexam_export import _append_crawl_status_excel, _load_crawl_results
         _append_crawl_status_excel(wb, _load_crawl_results(), lang)
+    except Exception:
+        pass
+    try:
+        from src.utils.crossref_export import append_crossref_table_excel
+        append_crossref_table_excel(wb, lang=lang)
     except Exception:
         pass
 

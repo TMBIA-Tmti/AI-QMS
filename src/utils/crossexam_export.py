@@ -958,6 +958,11 @@ def export_crossexam_record_word(record_dict: dict, lang: str = "zh-TW") -> Path
         _append_crawl_status_word(doc, _load_crawl_results(), lang)
     except Exception:
         pass
+    try:
+        from src.utils.crossref_export import append_crossref_table_word
+        append_crossref_table_word(doc, lang=lang)
+    except Exception:
+        pass
 
     safe_save_binary(filepath, doc.save)
     return filepath
@@ -1119,6 +1124,11 @@ def export_crossexam_record_excel(record_dict: dict, lang: str = "zh-TW") -> Pat
 
     try:
         _append_crawl_status_excel(wb, _load_crawl_results(), lang)
+    except Exception:
+        pass
+    try:
+        from src.utils.crossref_export import append_crossref_table_excel
+        append_crossref_table_excel(wb, lang=lang)
     except Exception:
         pass
 
@@ -1679,6 +1689,11 @@ def export_deep_report_word(
 
     try:
         _append_crawl_status_word(doc, _load_crawl_results(), lang)
+    except Exception:
+        pass
+    try:
+        from src.utils.crossref_export import append_crossref_table_word
+        append_crossref_table_word(doc, lang=lang)
     except Exception:
         pass
 
@@ -2248,6 +2263,11 @@ def export_deep_report_excel(
 
     try:
         _append_crawl_status_excel(wb, _load_crawl_results(), lang)
+    except Exception:
+        pass
+    try:
+        from src.utils.crossref_export import append_crossref_table_excel
+        append_crossref_table_excel(wb, lang=lang)
     except Exception:
         pass
 
