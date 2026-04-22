@@ -2872,15 +2872,59 @@ async def _docling_pdf_bytes_to_markdown_async(
     return await asyncio.to_thread(_run_sync)
 
 
+_WORD_EXTS = frozenset({".doc", ".docx"})
+_WORD_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024  # 10 MB
+
+
+async def _word_bytes_to_markdown_async(
+    word_bytes: bytes, display_name: str, source_url: str
+) -> str:
+    """Convert a Word (.doc/.docx) file to Markdown using MarkItDown in a thread."""
+    import os
+    import tempfile
+
+    suffix = ".docx" if word_bytes[:4] in (b"PK\x03\x04",) else ".doc"
+
+    def _run_sync() -> str:
+        if not MARKITDOWN_AVAILABLE or _MD_CONVERTER is None:
+            return ""
+        tmp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as f:
+                f.write(word_bytes)
+                tmp_path = f.name
+            result = _MD_CONVERTER.convert(tmp_path)
+            md = result.text_content if hasattr(result, "text_content") else str(result)
+            if md and len(md.strip()) > 100:
+                header = (
+                    f"# {display_name}\n\n"
+                    f"**Source**: {source_url}  \n"
+                    f"**Format**: Word document\n\n---\n\n"
+                )
+                return header + md.strip()
+        except Exception:
+            pass
+        finally:
+            if tmp_path:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+        return ""
+
+    return await asyncio.to_thread(_run_sync)
+
+
 async def _extract_html_pdf_attachments(
     client: httpx.AsyncClient,
     html: str,
     base_url: str,
 ) -> str:
-    """Detect PDF links in an HTML page, download each, and extract text as Markdown.
+    """Detect PDF and Word attachment links in an HTML page, download each, and extract text as Markdown.
 
     Returns a Markdown string with all attachment sections, or an empty string.
-    Tries PyMuPDF first; falls back to Docling for scanned/image PDFs (≤5 MB).
+    PDF: tries PyMuPDF first, falls back to Docling for scanned/image PDFs (≤5 MB).
+    Word (.doc/.docx): converted via MarkItDown (≤10 MB).
     """
     from urllib.parse import urljoin, urlparse as _up2
 
@@ -2889,7 +2933,8 @@ async def _extract_html_pdf_attachments(
         soup = BeautifulSoup(html, "lxml")
         for a in soup.find_all("a", href=True):
             href = a["href"].strip()
-            if not href.lower().endswith(".pdf"):
+            href_lower = href.lower()
+            if not (href_lower.endswith(".pdf") or any(href_lower.endswith(ext) for ext in _WORD_EXTS)):
                 continue
             full_url = urljoin(base_url, href)
             if not _is_safe_url(full_url):
@@ -2910,34 +2955,44 @@ async def _extract_html_pdf_attachments(
         return ""
 
     parts: list[str] = []
-    for title, pdf_url in found:
+    for title, att_url in found:
+        att_lower = att_url.lower()
         try:
             resp = await _fetch_with_retry(
-                client, pdf_url, timeout=httpx.Timeout(60, connect=10)
+                client, att_url, timeout=httpx.Timeout(60, connect=10)
             )
             resp.raise_for_status()
-            pdf_bytes = resp.content
-            if len(pdf_bytes) < 100:
-                continue
-            if pdf_bytes[:4] != b"%PDF" and b"%PDF" not in pdf_bytes[:1024]:
+            att_bytes = resp.content
+            if len(att_bytes) < 100:
                 continue
 
-            md = _pdf_bytes_to_markdown(pdf_bytes, title, pdf_url)
-            if md and len(md.strip()) > 200:
-                parts.append(md)
+            # ── Word attachment ──
+            if any(att_lower.endswith(ext) for ext in _WORD_EXTS):
+                if len(att_bytes) <= _WORD_ATTACHMENT_MAX_BYTES:
+                    md = await _word_bytes_to_markdown_async(att_bytes, title, att_url)
+                    if md and len(md.strip()) > 200:
+                        parts.append(md)
                 continue
 
-            if len(pdf_bytes) <= _PDF_ATTACHMENT_MAX_BYTES:
-                md = await _docling_pdf_bytes_to_markdown_async(pdf_bytes, title, pdf_url)
+            # ── PDF attachment ──
+            if pdf_bytes := att_bytes:
+                if pdf_bytes[:4] != b"%PDF" and b"%PDF" not in pdf_bytes[:1024]:
+                    continue
+                md = _pdf_bytes_to_markdown(pdf_bytes, title, att_url)
                 if md and len(md.strip()) > 200:
                     parts.append(md)
+                    continue
+                if len(pdf_bytes) <= _PDF_ATTACHMENT_MAX_BYTES:
+                    md = await _docling_pdf_bytes_to_markdown_async(pdf_bytes, title, att_url)
+                    if md and len(md.strip()) > 200:
+                        parts.append(md)
         except Exception:
             pass
 
     if not parts:
         return ""
 
-    return "\n\n---\n<!-- ATTACHED PDF DOCUMENTS -->\n\n" + "\n\n---\n\n".join(parts)
+    return "\n\n---\n<!-- ATTACHED DOCUMENTS -->\n\n" + "\n\n---\n\n".join(parts)
 
 
 async def _crawl_tier2_httpx(

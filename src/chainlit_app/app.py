@@ -5870,18 +5870,35 @@ async def handle_regulatory_update_rescan(selected_regions: list):
             )
     await cl.Message(content="\n".join(_summary_lines)).send()
 
-    # ── Step 0.5: Generate RegulationProfile for countries without one ──
-    # For predefined 7 countries, profiles already exist.
-    # For any other selected country, use LLM to auto-generate a profile.
+    # ── Step 0.5: Generate/refresh RegulationProfile for non-predefined countries ──
+    # Predefined 7 (USA/QMSR, EU/MDR, Taiwan/TFDA, Canada/HC, Japan/PMDA,
+    # Brazil/ANVISA, Australia/TGA) use hand-crafted profiles — never auto-replaced.
+    # All other countries: regenerate profile if this crawl succeeded for them;
+    # keep existing profile (or skip) if the crawl failed.
     try:
         from src.analysis.compliance_rules import (
             get_regions_without_profile,
             get_profile_ids_for_regions,
             load_all_crawled_regulations,
+            _REGION_TO_PROFILE_STATIC,
         )
         from src.analysis.regulation_analyzer import analyze_regulation_with_llm
 
-        regions_needing_profile = get_regions_without_profile(selected_regions)
+        _predefined_regions = set(_REGION_TO_PROFILE_STATIC.keys())
+
+        # Regions where crawl returned at least one successful result
+        _crawl_success_regions = {
+            r.get("region", "")
+            for r in crawl_results.get("results", [])
+            if r.get("crawl_status") == "success" and r.get("content_markdown")
+        }
+
+        # Regenerate for non-predefined regions that crawled successfully
+        # (includes first-time + subsequent re-crawls)
+        regions_needing_profile = [
+            r for r in selected_regions
+            if r not in _predefined_regions and r in _crawl_success_regions
+        ]
         if regions_needing_profile:
             await cl.Message(
                 content=t("ui.profile_generating", count=len(regions_needing_profile), regions=", ".join(regions_needing_profile))
