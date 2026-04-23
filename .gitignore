@@ -54,8 +54,8 @@ generate_phoenix_report.py
 *.tmp
 *.bak
 %TEMP%/
-# Tests
-tests/
+# Tests (tracked — do not ignore)
+# tests/
 chainlit_repo/
 
 # ── All documentation files (except README.md) ──
