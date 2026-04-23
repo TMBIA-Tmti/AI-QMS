@@ -42,6 +42,197 @@ _MAX_CONCURRENT_BATCHES = 3
 _MAX_REGULATORY_TEXT_CHARS = 6000  # truncate crawled text per LLM call
 _MAX_UNIQUE_REQ_TEXT_CHARS = 8000  # more context for unique requirements
 
+# Local model providers — smaller context windows, conservative defaults
+_LOCAL_PROVIDERS = {"ollama", "lmstudio"}
+
+_CLOUD_PARAMS: dict = {
+    "batch_size": _BATCH_SIZE,
+    "max_regulatory_chars": _MAX_REGULATORY_TEXT_CHARS,
+    "max_unique_req_chars": _MAX_UNIQUE_REQ_TEXT_CHARS,
+    "max_tokens_clause": 16384,
+    "max_tokens_unique": 8192,
+}
+
+# batch_size 8: 8 clauses × ~200 token/clause ≈ 1,600 token output → fits in 8k
+# max_regulatory_chars 2500: distributed evenly across sites for richer coverage
+_LOCAL_PARAMS: dict = {
+    "batch_size": 8,
+    "max_regulatory_chars": 2500,
+    "max_unique_req_chars": 3000,
+    "max_tokens_clause": 8000,
+    "max_tokens_unique": 8000,
+}
+
+# Broad keywords for unique-requirement pass (market-access signals)
+_UNIQUE_REQ_KEYWORDS: list[str] = [
+    "registration", "listing", "notif", "import", "export",
+    "authorized representative", "local agent", "label",
+    "adverse event", "vigilance", "report", "deadline",
+    "UDI", "unique device", "post-market", "PSUR",
+    "clinical", "conformity", "approval", "license", "permit", "certif",
+]
+
+# Per-clause keyword index for focused text pre-filtering (Direction C)
+_CLAUSE_KEYWORDS: dict[str, list[str]] = {
+    "4.1":    ["quality management system", "QMS", "quality system", "process", "outsourc"],
+    "4.2.1":  ["document", "record", "quality manual", "procedure"],
+    "4.2.2":  ["quality manual"],
+    "4.2.3":  ["document control", "document approval", "document review", "master list"],
+    "4.2.4":  ["record control", "record retention", "records"],
+    "4.2.5":  ["technical file", "device master record", "DHF", "device history"],
+    "5.1":    ["management commitment", "top management", "quality policy", "resource"],
+    "5.2":    ["customer focus", "customer requirement", "customer satisfaction"],
+    "5.3":    ["quality policy"],
+    "5.4.1":  ["quality objective"],
+    "5.4.2":  ["QMS planning", "quality planning"],
+    "5.5.1":  ["responsibility", "authority", "organiz"],
+    "5.5.2":  ["management representative"],
+    "5.5.3":  ["internal communication"],
+    "5.6.1":  ["management review"],
+    "5.6.2":  ["management review input", "review input"],
+    "5.6.3":  ["management review output", "review output"],
+    "6.1":    ["resource", "provision of resource"],
+    "6.2":    ["human resource", "competence", "training", "awareness", "qualification"],
+    "6.3":    ["infrastructure", "facility", "equipment", "maintenance"],
+    "6.4.1":  ["work environment", "contamination", "environment control"],
+    "6.4.2":  ["contamination control", "sterile", "cleanroom"],
+    "7.1":    ["product realization", "planning", "risk management"],
+    "7.2.1":  ["customer requirement", "product requirement", "applicable regulation"],
+    "7.2.2":  ["review of requirement", "contract review"],
+    "7.2.3":  ["customer communication", "complaint", "feedback"],
+    "7.3.1":  ["design", "development planning"],
+    "7.3.2":  ["design input", "design requirement"],
+    "7.3.3":  ["design output"],
+    "7.3.4":  ["design review"],
+    "7.3.5":  ["design verification"],
+    "7.3.6":  ["design validation", "clinical evaluation"],
+    "7.3.7":  ["design transfer"],
+    "7.3.8":  ["design change", "design control change"],
+    "7.3.9":  ["design history file", "DHF"],
+    "7.3.10": ["software", "software lifecycle"],
+    "7.4.1":  ["purchasing", "supplier", "procurement", "approved supplier"],
+    "7.4.2":  ["purchasing information", "purchase order"],
+    "7.4.3":  ["incoming inspection", "verification of purchased product"],
+    "7.5.1":  ["production", "service provision", "manufacturing control"],
+    "7.5.2":  ["cleanliness", "contamination", "sterile product"],
+    "7.5.3":  ["identification", "traceability", "lot number", "UDI", "unique device"],
+    "7.5.4":  ["customer property", "customer-supplied"],
+    "7.5.5":  ["preservation", "storage", "handling"],
+    "7.5.6":  ["process validation", "special process"],
+    "7.5.7":  ["sterile medical device"],
+    "7.5.8":  ["implantable device"],
+    "7.5.9":  ["traceability"],
+    "7.5.9.1":["active implantable", "implantable device", "traceability"],
+    "7.5.9.2":["particular requirement for traceability"],
+    "7.5.10": ["customer property"],
+    "7.5.11": ["preservation of product"],
+    "7.6":    ["monitoring equipment", "measuring equipment", "calibrat", "measurement"],
+    "8.1":    ["measurement", "analysis", "improvement"],
+    "8.2.1":  ["feedback", "customer feedback", "post-market"],
+    "8.2.2":  ["complaint", "complaint handling", "adverse event", "vigilance"],
+    "8.2.3":  ["regulatory reporting", "adverse event report", "competent authority"],
+    "8.2.4":  ["internal audit"],
+    "8.2.4.1":["internal audit"],
+    "8.2.4.2":["audit"],
+    "8.2.5":  ["monitoring", "measurement of process"],
+    "8.2.6":  ["monitoring of product", "acceptance criteria"],
+    "8.3":    ["nonconforming product", "nonconformance", "non-conforming"],
+    "8.3.1":  ["nonconforming product general"],
+    "8.3.2":  ["response to nonconforming product"],
+    "8.3.3":  ["rework"],
+    "8.3.4":  ["returned product"],
+    "8.4":    ["data analysis", "analysis of data"],
+    "8.5.1":  ["improvement", "continual improvement"],
+    "8.5.2":  ["corrective action", "CAPA", "root cause"],
+    "8.5.3":  ["preventive action", "CAPA"],
+}
+
+
+# ============================================================
+# Provider & Parameter Helpers
+# ============================================================
+
+
+def _is_local_provider(provider_id: str) -> bool:
+    return provider_id.lower() in _LOCAL_PROVIDERS
+
+
+def _get_model_params(is_local: bool) -> dict:
+    return _LOCAL_PARAMS if is_local else _CLOUD_PARAMS
+
+
+def _get_batch_keywords(clause_ids: list[str]) -> list[str]:
+    """Collect keywords for a batch of ISO 13485 clause IDs (with parent fallback)."""
+    keywords: set[str] = set()
+    for cid in clause_ids:
+        if cid in _CLAUSE_KEYWORDS:
+            keywords.update(_CLAUSE_KEYWORDS[cid])
+        parts = cid.split(".")
+        for i in range(1, len(parts)):
+            parent = ".".join(parts[:i])
+            if parent in _CLAUSE_KEYWORDS:
+                keywords.update(_CLAUSE_KEYWORDS[parent])
+    return list(keywords)
+
+
+def _filter_relevant_paragraphs(text: str, keywords: list[str], max_chars: int) -> str:
+    """Return up to max_chars of text, prioritising keyword-matching paragraphs."""
+    paragraphs = [p.strip() for p in re.split(r"\n{2,}", text) if p.strip()]
+    if not paragraphs:
+        return text[:max_chars]
+
+    kw_lower = [kw.lower() for kw in keywords]
+    scored: list[tuple[int, str]] = [
+        (sum(1 for kw in kw_lower if kw in p.lower()), p)
+        for p in paragraphs
+    ]
+    scored.sort(key=lambda x: -x[0])
+
+    result: list[str] = []
+    total = 0
+    for _score, para in scored:
+        if total + len(para) + 2 > max_chars:
+            break
+        result.append(para)
+        total += len(para) + 2
+
+    if not result:
+        result = [paragraphs[0][:max_chars]]
+
+    return "\n\n".join(result)
+
+
+def _build_focused_regulatory_text(
+    crawled_texts: list[dict],
+    clause_keywords: list[str],
+    max_chars: int,
+) -> str:
+    """Build a focused regulatory text excerpt.
+
+    Direction B: distribute max_chars evenly across sites so each site
+    contributes rather than the first site monopolising the budget.
+    Direction C: within each site's budget, prioritise keyword-matching
+    paragraphs so the LLM sees the most relevant content.
+    """
+    valid = [ct for ct in crawled_texts if ct.get("content_markdown", "").strip()]
+    if not valid:
+        return ""
+
+    chars_per_site = max(max_chars // len(valid), 500)
+    parts: list[str] = []
+    for ct in valid:
+        agency = ct.get("agency", "")
+        raw = ct["content_markdown"]
+        excerpt = (
+            _filter_relevant_paragraphs(raw, clause_keywords, chars_per_site)
+            if clause_keywords
+            else raw[:chars_per_site]
+        )
+        header = f"[{agency}]" if agency else "[Source]"
+        parts.append(f"{header}\n{excerpt}")
+
+    return "\n---\n".join(parts)[:max_chars]
+
 
 # ============================================================
 # Public API
@@ -55,6 +246,7 @@ async def analyze_regulation_with_llm(
     model: str = "default",
     send_progress_fn: Optional[Callable] = None,
     lang: str = "zh-TW",
+    provider_id: str = "ollama",
 ) -> Optional[RegulationProfile]:
     """Analyze crawled regulatory text and generate a RegulationProfile.
 
@@ -77,9 +269,16 @@ async def analyze_regulation_with_llm(
     profile_id = generate_profile_id_from_region(region_name)
     country_code = profile_id.split("_")[0] if "_" in profile_id else profile_id[:2]
 
-    # Combine all crawled texts
-    combined_text = _combine_crawled_texts(crawled_texts)
-    if not combined_text.strip():
+    is_local = _is_local_provider(provider_id)
+    _params = _get_model_params(is_local)
+    _batch_size = _params["batch_size"]
+    logger.info(
+        f"analyze_regulation_with_llm: provider={provider_id} is_local={is_local} "
+        f"batch_size={_batch_size} max_tokens_clause={_params['max_tokens_clause']}"
+    )
+
+    # Quick emptiness check (Direction B: don't combine yet — text is built per batch)
+    if not any(ct.get("content_markdown", "").strip() for ct in crawled_texts):
         logger.warning(
             f"No crawled text available for {region_name}, skipping analysis"
         )
@@ -103,7 +302,7 @@ async def analyze_regulation_with_llm(
     # ── Step 1: Batch clause mapping ──
     clause_ids = list(ISO_13485_CHECKLIST.keys())
     batches = [
-        clause_ids[i : i + _BATCH_SIZE] for i in range(0, len(clause_ids), _BATCH_SIZE)
+        clause_ids[i : i + _batch_size] for i in range(0, len(clause_ids), _batch_size)
     ]
     total_batches = len(batches)
 
@@ -114,17 +313,17 @@ async def analyze_regulation_with_llm(
         if lang.startswith("ja"):
             _msg_batch = (
                 f"🔍 ISO 13485 条項を {total_batches} バッチで並行分析中 "
-                f"(各 {_BATCH_SIZE} 条、計 {len(clause_ids)} 条)..."
+                f"(各 {_batch_size} 条、計 {len(clause_ids)} 条)..."
             )
         elif lang.startswith("zh"):
             _msg_batch = (
                 f"🔍 並行分析 {total_batches} 批 ISO 13485 條款 "
-                f"(每批 {_BATCH_SIZE} 條，共 {len(clause_ids)} 條)..."
+                f"(每批 {_batch_size} 條，共 {len(clause_ids)} 條)..."
             )
         else:
             _msg_batch = (
                 f"🔍 Running {total_batches} parallel batches across "
-                f"{len(clause_ids)} ISO 13485 clauses ({_BATCH_SIZE} per batch)..."
+                f"{len(clause_ids)} ISO 13485 clauses ({_batch_size} per batch)..."
             )
         await send_progress_fn(_msg_batch)
 
@@ -142,9 +341,19 @@ async def analyze_regulation_with_llm(
             for cid in batch
         ]
 
-        messages = _build_clause_batch_prompt(
-            batch_clauses, combined_text[:_MAX_REGULATORY_TEXT_CHARS], zh_name, en_name
+        # Direction B+C: per-batch focused text with clause-specific keywords
+        batch_kw = _get_batch_keywords([c["clause_id"] for c in batch_clauses])
+        focused_text = _build_focused_regulatory_text(
+            crawled_texts, batch_kw, _params["max_regulatory_chars"]
         )
+        if is_local:
+            messages = _build_clause_batch_prompt_compact(
+                batch_clauses, focused_text, zh_name, en_name
+            )
+        else:
+            messages = _build_clause_batch_prompt(
+                batch_clauses, focused_text, zh_name, en_name
+            )
 
         try:
             async with semaphore:
@@ -153,7 +362,7 @@ async def analyze_regulation_with_llm(
                     messages=messages,
                     model=model,
                     temperature=0.1,
-                    max_tokens=16384,
+                    max_tokens=_params["max_tokens_clause"],
                     stream=False,
                 )
 
@@ -267,15 +476,23 @@ async def analyze_regulation_with_llm(
 
     unique_reqs: list[UniqueRequirement] = []
     try:
-        messages = _build_unique_requirements_prompt(
-            combined_text[:_MAX_UNIQUE_REQ_TEXT_CHARS], zh_name, en_name, profile_id
+        focused_unique = _build_focused_regulatory_text(
+            crawled_texts, _UNIQUE_REQ_KEYWORDS, _params["max_unique_req_chars"]
         )
+        if is_local:
+            messages = _build_unique_requirements_prompt_compact(
+                focused_unique, zh_name, en_name, profile_id
+            )
+        else:
+            messages = _build_unique_requirements_prompt(
+                focused_unique, zh_name, en_name, profile_id
+            )
         response = await asyncio.to_thread(
             llm_completion_fn,
             messages=messages,
             model=model,
             temperature=0.1,
-            max_tokens=8192,
+            max_tokens=_params["max_tokens_unique"],
             stream=False,
         )
         response_text = response.get("content", "")
@@ -361,7 +578,126 @@ async def analyze_regulation_with_llm(
 
 
 # ============================================================
-# Prompt Builders
+# Prompt Builders — Compact (local models: smaller context, lower token budget)
+# ============================================================
+
+
+def _build_clause_batch_prompt_compact(
+    clauses: list[dict],
+    regulatory_text: str,
+    country_zh: str,
+    country_en: str,
+) -> list[dict]:
+    """Compact clause-batch prompt for local models (~200 token system prompt vs ~900)."""
+    clause_list = "\n".join(f"- {c['clause_id']}: {c['title']}" for c in clauses)
+    clause_ids_str = ", ".join(c["clause_id"] for c in clauses)
+
+    system_prompt = (
+        "You are a medical device QMS regulatory specialist.\n"
+        "Analyze how a country's medical device regulation maps to ISO 13485:2016 clauses.\n\n"
+        "Status values:\n"
+        '- "full": covers ALL requirements of the ISO clause\n'
+        '- "partial": covers main intent but misses sub-requirements\n'
+        '- "exceeds": stricter or additional requirements beyond ISO 13485\n'
+        '- "na": no evidence in the provided text\n\n'
+        "Rules:\n"
+        "1. Base ALL analysis ONLY on the provided regulatory text.\n"
+        "2. Cite the specific article/section for each finding.\n"
+        "3. Set confidence < 0.4 when text evidence is insufficient.\n"
+        "4. Populate within_clause_deltas ONLY for \"exceeds\" status; leave [] otherwise.\n\n"
+        "Output ONLY a valid JSON array. Each element:\n"
+        "{\n"
+        '  "clause_id": "4.1",\n'
+        '  "status": "full|partial|na|exceeds",\n'
+        '  "regulation_ref": "Article/Section reference",\n'
+        '  "rationale_en": "Evidence-based explanation citing specific text",\n'
+        '  "rationale_zh": "中文說明，引用具體法規條文",\n'
+        '  "original_text": "Direct quote from regulatory text",\n'
+        '  "original_lang": "language code",\n'
+        '  "english_translation": "English translation if not English",\n'
+        '  "semantic_note": "Terminology or scope notes",\n'
+        '  "confidence": 0.8,\n'
+        '  "within_clause_deltas": []\n'
+        "}"
+    )
+
+    user_prompt = (
+        f"Country: {country_zh} ({country_en})\n\n"
+        f"Clauses to analyze ({len(clauses)}): {clause_ids_str}\n"
+        f"{clause_list}\n\n"
+        f"Regulatory text:\n```\n{regulatory_text}\n```\n\n"
+        f"Output JSON array for all {len(clauses)} clauses. "
+        f'If evidence is absent set status "na" and confidence 0.25.'
+    )
+
+    return [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
+
+
+def _build_unique_requirements_prompt_compact(
+    regulatory_text: str,
+    country_zh: str,
+    country_en: str,
+    profile_id: str,
+) -> list[dict]:
+    """Compact unique-requirements prompt for local models."""
+    system_prompt = (
+        "You are a medical device QMS specialist.\n"
+        "Identify requirements in a country's medical device regulation that go "
+        "BEYOND ISO 13485:2016 — items a manufacturer already certified to ISO 13485 "
+        "would STILL need to address separately for market access.\n\n"
+        "Two types:\n"
+        "TYPE 1 (is_within_clause_delta: false): No equivalent in ISO 13485 at all.\n"
+        "TYPE 2 (is_within_clause_delta: true): ISO covers the area but this country "
+        "is stricter or more specific (e.g. numeric deadlines, mandatory forms).\n\n"
+        "Rules:\n"
+        "1. Base ALL analysis STRICTLY on the provided text.\n"
+        "2. Set confidence < 0.4 when text evidence is insufficient.\n"
+        "3. Output at most 8 requirements; prioritise critical then major audit_impact.\n\n"
+        "Output ONLY a valid JSON array. Each element:\n"
+        "{\n"
+        f'  "req_id": "{profile_id}-001",\n'
+        '  "regulation_ref": "Article/Section",\n'
+        '  "title_en": "Short English title",\n'
+        '  "title_zh": "中文標題",\n'
+        '  "requirement_en": "Full requirement description in English",\n'
+        '  "requirement_zh": "完整中文需求描述",\n'
+        '  "related_iso_clauses": ["8.2.3"],\n'
+        '  "audit_impact": "critical|major|minor",\n'
+        '  "audit_question_en": "Audit verification question",\n'
+        '  "audit_question_zh": "稽核驗證問題",\n'
+        '  "expected_evidence": ["Document or record"],\n'
+        '  "rationale_en": "Why unique to this country",\n'
+        '  "rationale_zh": "為何獨有",\n'
+        '  "original_text": "Verbatim regulatory text",\n'
+        '  "original_lang": "language code",\n'
+        '  "english_translation": "Translation if needed",\n'
+        '  "semantic_note": "Practical impact on manufacturers",\n'
+        '  "confidence": 0.75,\n'
+        '  "is_within_clause_delta": false,\n'
+        '  "within_clause_delta_vs_iso": "ISO says X, this country says Y (TYPE 2 only)"\n'
+        "}\n\n"
+        "Output [] if no unique requirements found."
+    )
+
+    user_prompt = (
+        f"Country: {country_zh} ({country_en})\n\n"
+        f"Regulatory text:\n```\n{regulatory_text}\n```\n\n"
+        f"Identify all requirements beyond ISO 13485 for {country_en} market access.\n"
+        f'Use "{profile_id}-NNN" format for req_id (e.g. {profile_id}-001).\n'
+        f"Output JSON array now:"
+    )
+
+    return [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
+
+
+# ============================================================
+# Prompt Builders — Full (cloud models: large context, high token budget)
 # ============================================================
 
 
