@@ -3130,6 +3130,31 @@ async def _run_and_display_daily_audit(
             await cl.Message(content=t("daily_audit.no_llm"), author="Eira").send()
             return
 
+        # Ask user: run or skip daily cross-examination
+        try:
+            _skip_res = await cl.AskActionMessage(
+                content=t("daily_audit.skip_prompt"),
+                actions=[
+                    cl.Action(
+                        name="daily_audit_run",
+                        payload={"value": "run"},
+                        label=t("daily_audit.btn_run"),
+                    ),
+                    cl.Action(
+                        name="daily_audit_skip",
+                        payload={"value": "skip"},
+                        label=t("daily_audit.btn_skip"),
+                    ),
+                ],
+                timeout=30,
+            ).send()
+        except Exception:
+            _skip_res = None
+
+        if _skip_res and _skip_res.get("name") == "daily_audit_skip":
+            await cl.Message(content=t("daily_audit.skipped"), author="Eira").send()
+            return
+
         audit_progress = cl.Message(content=t("daily_audit.running"), author="Eira")
         await audit_progress.send()
 

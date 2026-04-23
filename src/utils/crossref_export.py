@@ -158,6 +158,8 @@ def _req_title(req: dict, lang: str) -> str:
     lk = _lang_key(lang)
     if lk == "zh":
         return req.get("title_zh", req.get("title_en", ""))
+    if lk == "ja":
+        return req.get("title_ja", req.get("title_en", req.get("title_zh", "")))
     return req.get("title_en", req.get("title_zh", ""))
 
 
@@ -165,6 +167,8 @@ def _req_text(req: dict, lang: str) -> str:
     lk = _lang_key(lang)
     if lk == "zh":
         return req.get("requirement_zh", req.get("requirement_en", ""))
+    if lk == "ja":
+        return req.get("requirement_ja", req.get("requirement_en", req.get("requirement_zh", "")))
     return req.get("requirement_en", req.get("requirement_zh", ""))
 
 
@@ -383,6 +387,8 @@ def append_crossref_table_word(
             # Audit question
             if lk == "zh":
                 row.cells[6].text = req.get("audit_question_zh", req.get("audit_question_en", ""))
+            elif lk == "ja":
+                row.cells[6].text = req.get("audit_question_ja", req.get("audit_question_en", req.get("audit_question_zh", "")))
             else:
                 row.cells[6].text = req.get("audit_question_en", req.get("audit_question_zh", ""))
 
@@ -531,11 +537,12 @@ def append_crossref_table_excel(
     }
     ws2 = wb.create_sheet(_sheet2_name.get(lk, _sheet2_name["en"]))
 
-    uq_headers = [
-        "Country", "Reg ID", "ISO Clauses", "Title", "Impact",
-        "Requirement", "Audit Question", "Expected Evidence",
-        "Type", "Original Text", "Language", "English Translation",
-    ]
+    _uq_header_map = {
+        "zh": ["國家", "法規 ID", "ISO 條款", "標題", "影響等級", "要求說明", "稽核問題", "預期佐證", "類型", "法規原文", "語言", "英文翻譯"],
+        "ja": ["国", "規制 ID", "ISO 条項", "タイトル", "影響レベル", "要件説明", "監査質問", "期待される証拠", "タイプ", "原文", "言語", "英語翻訳"],
+        "en": ["Country", "Reg ID", "ISO Clauses", "Title", "Impact", "Requirement", "Audit Question", "Expected Evidence", "Type", "Original Text", "Language", "English Translation"],
+    }
+    uq_headers = _uq_header_map.get(lk, _uq_header_map["en"])
     for ci, h in enumerate(uq_headers, 1):
         cell = ws2.cell(row=1, column=ci, value=h)
         cell.fill = header_fill
@@ -569,6 +576,8 @@ def append_crossref_table_excel(
             # Audit question
             if lk == "zh":
                 ws2.cell(row=row_idx, column=7, value=req.get("audit_question_zh", req.get("audit_question_en", "")))
+            elif lk == "ja":
+                ws2.cell(row=row_idx, column=7, value=req.get("audit_question_ja", req.get("audit_question_en", req.get("audit_question_zh", ""))))
             else:
                 ws2.cell(row=row_idx, column=7, value=req.get("audit_question_en", req.get("audit_question_zh", "")))
 
