@@ -91,8 +91,14 @@ openinference-instrumentation-litellm>=0.1.18
 # Phase 2A new dependencies
 # ============================================================
 
-# Document parsing engine (PDF table structure, layout analysis)
+# Document parsing engine (PDF table structure, layout analysis) — Tier 3 last resort
 docling>=2.0.0
+
+# OCR Tier 0: PDF native text layer extraction (no ML, no GPU)
+pymupdf>=1.24.0
+
+# OCR Tier 1: Multi-language OCR, 32 countries, CPU-only (no CUDA dependency)
+easyocr>=1.7.0
 
 # Knowledge graph RAG (cross-document semantic search + entity relations)
 lightrag-hku>=1.4.8

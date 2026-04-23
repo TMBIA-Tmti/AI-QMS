@@ -95,6 +95,36 @@ def _check_and_install_dependencies():
 _check_and_install_dependencies()
 
 # ============================================================
+# GPU Diagnostic + OCR Model Guard
+# ============================================================
+# GPU check: prints warning if PyTorch CUDA ≠ driver CUDA, or if GPU is
+# Blackwell (sm_120) which is not yet supported by PyTorch stable.
+# Non-blocking — only prints warnings, never raises.
+#
+# Model guard: if EasyOCR models have never been downloaded, starts a
+# background thread to download them. Main startup continues immediately.
+# First scanned document waits for models; text-layer PDFs and Word files
+# are unaffected. Run `python scripts/setup_models.py` to pre-download.
+# ============================================================
+
+
+def _startup_gpu_and_ocr_check() -> None:
+    try:
+        from src.ocr.gpu_check import run_startup_check
+        run_startup_check()
+    except Exception as e:
+        print(f"[WARN] GPU 診斷略過（非致命）: {e}")
+
+    try:
+        from src.ocr.model_setup import ensure_ocr_models_ready
+        ensure_ocr_models_ready()
+    except Exception as e:
+        print(f"[WARN] OCR 模型守衛略過（非致命）: {e}")
+
+
+_startup_gpu_and_ocr_check()
+
+# ============================================================
 # Arize Phoenix - LLM Observability (v3.5.1)
 # ============================================================
 # IMPORTANT: This block MUST execute BEFORE any `from src.*` imports
