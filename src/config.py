@@ -236,7 +236,7 @@ LIGHTRAG_WORKING_DIR = os.getenv("LIGHTRAG_WORKING_DIR", "./data/lightrag")
 
 
 # ============================================================
-# Phase 2A Docling Settings
+# Phase 2A Docling Settings（Tier 3 最後手段）
 # ============================================================
 
 import multiprocessing as _mp
@@ -255,3 +255,81 @@ DOCLING_TABLE_MODE: str = os.getenv("DOCLING_TABLE_MODE", "fast")
 DOCLING_SIZE_THRESHOLD_BYTES: int = int(
     os.getenv("DOCLING_SIZE_THRESHOLD_BYTES", str(100 * 1024))  # Default 100KB
 )
+
+
+# ============================================================
+# GPU / CPU 模式
+# ============================================================
+
+# 強制所有 ML 引擎使用 CPU（適用於：CUDA 不匹配、Blackwell 新 GPU、記憶體不足）
+# 設定方式：python scripts/setup_models.py --cpu  → 自動寫入此值
+FORCE_CPU: bool = os.getenv("FORCE_CPU", "false").lower() == "true"
+
+
+# ============================================================
+# OCR 引擎設定
+# ============================================================
+
+# EasyOCR（Tier 1）
+EASYOCR_ENABLED: bool = os.getenv("EASYOCR_ENABLED", "true").lower() == "true"
+
+# EasyOCR 語系分組（用於 setup_models.py 預下載）
+# 注意：CJK 語言不能混合在同一個 Reader，各自與 English 配對
+EASYOCR_LANGUAGE_GROUPS: list[list[str]] = [
+    ["ch_tra", "en"],   # 繁體中文（台灣/香港）
+    ["ch_sim", "en"],   # 簡體中文（中國/新加坡）
+    ["ja", "en"],       # 日文
+    ["ko", "en"],       # 韓文
+    ["en", "de", "fr", "it", "es", "pt", "nl", "pl", "vi", "id", "ms", "cs", "tr"],  # 拉丁系
+    ["ar", "en"],       # 阿拉伯文
+    ["hi", "en"],       # 天城文（印地文）
+    ["th", "en"],       # 泰文
+    ["ru", "en"],       # 西里爾（俄文）
+]
+
+# 國家代碼 → EasyOCR 語系清單
+# 調度引擎根據文件來源國選擇最適合的語系
+COUNTRY_TO_EASYOCR_LANGS: dict[str, list[str]] = {
+    # CJK
+    "tw": ["ch_tra", "en"],
+    "cn": ["ch_sim", "en"],
+    "hk": ["ch_tra", "en"],
+    "mo": ["ch_tra", "en"],
+    "jp": ["ja", "en"],
+    "kr": ["ko", "en"],
+    "sg": ["ch_sim", "en"],
+    # 特殊文字
+    "in": ["hi", "en"],
+    "sa": ["ar", "en"],
+    "ae": ["ar", "en"],
+    "eg": ["ar", "en"],
+    "th": ["th", "en"],
+    "ru": ["ru", "en"],
+    # 拉丁系
+    "us": ["en"],
+    "gb": ["en"],
+    "uk": ["en"],
+    "au": ["en"],
+    "ca": ["fr", "en"],
+    "de": ["de", "en"],
+    "fr": ["fr", "en"],
+    "it": ["it", "en"],
+    "es": ["es", "en"],
+    "pt": ["pt", "en"],
+    "br": ["pt", "en"],
+    "nl": ["nl", "en"],
+    "be": ["fr", "nl", "en"],
+    "ch": ["de", "fr", "it", "en"],
+    "at": ["de", "en"],
+    "pl": ["pl", "en"],
+    "cz": ["cs", "en"],
+    "se": ["en"],
+    "dk": ["en"],
+    "no": ["en"],
+    "tr": ["tr", "en"],
+    "vn": ["vi", "en"],
+    "id": ["id", "en"],
+    "my": ["ms", "en"],
+    "mx": ["es", "en"],
+    "co": ["es", "en"],
+}
