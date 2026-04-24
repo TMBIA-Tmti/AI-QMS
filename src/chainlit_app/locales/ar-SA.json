@@ -299,5 +299,17 @@
   "_commands.cmd.verify": [
     "verify",
     "التحقق من السلامة"
+  ],
+  "_commands.cmd.download_reference": [
+    "تحميل قائمة المراجع",
+    "تصدير قائمة المراجع"
+  ],
+  "_commands.cmd.download_regulatory_update": [
+    "تحميل التحديث التنظيمي",
+    "تصدير التحديث التنظيمي"
+  ],
+  "_commands.cmd.reset_level_range": [
+    "إعادة تعيين نطاق المستوى",
+    "تغيير نطاق التحكم"
   ]
 }

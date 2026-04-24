@@ -299,5 +299,17 @@
   "_commands.cmd.verify": [
     "verify",
     "kiểm tra toàn vẹn"
+  ],
+  "_commands.cmd.download_reference": [
+    "tải danh sách tài liệu tham khảo",
+    "xuất tài liệu tham khảo"
+  ],
+  "_commands.cmd.download_regulatory_update": [
+    "tải báo cáo cập nhật quy định",
+    "xuất cập nhật quy định"
+  ],
+  "_commands.cmd.reset_level_range": [
+    "đặt lại phạm vi cấp độ",
+    "thay đổi phạm vi kiểm soát"
   ]
 }

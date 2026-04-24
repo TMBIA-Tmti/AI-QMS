@@ -297,5 +297,17 @@
   "_commands.cmd.verify": [
     "verify",
     "ตรวจสอบความสมบูรณ์"
+  ],
+  "_commands.cmd.download_reference": [
+    "ดาวน์โหลดรายการอ้างอิง",
+    "ส่งออกรายการอ้างอิง"
+  ],
+  "_commands.cmd.download_regulatory_update": [
+    "ดาวน์โหลดรายงานการอัปเดตกฎระเบียบ",
+    "ส่งออกการอัปเดตกฎระเบียบ"
+  ],
+  "_commands.cmd.reset_level_range": [
+    "รีเซ็ตช่วงระดับ",
+    "เปลี่ยนช่วงการควบคุม"
   ]
 }

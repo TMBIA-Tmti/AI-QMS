@@ -919,6 +919,10 @@ class LLMProviderManager:
             if api_key:
                 api_params["api_key"] = api_key
 
+            # Default timeout: local providers need more time (model inference is slow)
+            if "timeout" not in api_params:
+                api_params["timeout"] = 600 if provider["is_local"] else 180
+
             # Merge additional kwargs (but don't override stream)
             for k, v in kwargs.items():
                 if k != "stream":

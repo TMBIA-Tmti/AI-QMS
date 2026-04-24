@@ -302,5 +302,17 @@
   "_commands.cmd.verify": [
     "verify",
     "проверка целостности"
+  ],
+  "_commands.cmd.download_reference": [
+    "скачать список ссылок",
+    "экспорт ссылок"
+  ],
+  "_commands.cmd.download_regulatory_update": [
+    "скачать нормативное обновление",
+    "экспорт нормативного обновления"
+  ],
+  "_commands.cmd.reset_level_range": [
+    "сбросить диапазон уровней",
+    "изменить диапазон контроля"
   ]
 }

@@ -299,5 +299,17 @@
     "verify",
     "verifikasi integritas",
     "periksa rantai"
+  ],
+  "_commands.cmd.download_reference": [
+    "unduh daftar referensi",
+    "ekspor referensi"
+  ],
+  "_commands.cmd.download_regulatory_update": [
+    "unduh pembaruan regulasi",
+    "ekspor pembaruan regulasi"
+  ],
+  "_commands.cmd.reset_level_range": [
+    "atur ulang rentang level",
+    "ubah rentang kontrol"
   ]
 }

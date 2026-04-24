@@ -299,5 +299,17 @@
     "verify",
     "semak integriti",
     "audit semak"
+  ],
+  "_commands.cmd.download_reference": [
+    "muat turun senarai rujukan",
+    "eksport rujukan"
+  ],
+  "_commands.cmd.download_regulatory_update": [
+    "muat turun kemas kini regulatori",
+    "eksport kemas kini regulatori"
+  ],
+  "_commands.cmd.reset_level_range": [
+    "tetapkan semula julat tahap",
+    "tukar julat kawalan"
   ]
 }

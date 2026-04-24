@@ -312,5 +312,22 @@
     "完整性验证",
     "数据验证",
     "verify"
+  ],
+  "_commands.cmd.download_reference": [
+    "下载引用清单",
+    "导出引用清单",
+    "下载进版引用",
+    "导出进版引用"
+  ],
+  "_commands.cmd.download_regulatory_update": [
+    "下载法规更新报告",
+    "导出法规更新报告",
+    "下载法规更新",
+    "导出法规更新"
+  ],
+  "_commands.cmd.reset_level_range": [
+    "重置管控范围",
+    "管控范围重置",
+    "更换管控范围"
   ]
 }

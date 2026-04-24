@@ -301,5 +301,18 @@
   "_commands.cmd.verify": [
     "verify",
     "verifica integrità"
+  ],
+  "_commands.cmd.download_reference": [
+    "scarica riferimenti",
+    "esporta riferimenti",
+    "scarica lista riferimenti"
+  ],
+  "_commands.cmd.download_regulatory_update": [
+    "scarica aggiornamento normativo",
+    "esporta aggiornamento normativo"
+  ],
+  "_commands.cmd.reset_level_range": [
+    "reimposta intervallo livelli",
+    "cambia intervallo di controllo"
   ]
 }

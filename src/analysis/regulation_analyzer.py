@@ -39,6 +39,7 @@ logger = logging.getLogger(__name__)
 
 _BATCH_SIZE = 24  # clauses per LLM call (71 clauses → 3 batches)
 _MAX_CONCURRENT_BATCHES = 3
+_MAX_RETRIES_BATCH = 2  # retry on timeout (3 total attempts)
 _MAX_REGULATORY_TEXT_CHARS = 6000  # truncate crawled text per LLM call
 _MAX_UNIQUE_REQ_TEXT_CHARS = 8000  # more context for unique requirements
 
@@ -355,97 +356,121 @@ async def analyze_regulation_with_llm(
                 batch_clauses, focused_text, zh_name, en_name
             )
 
-        try:
-            async with semaphore:
-                response = await asyncio.to_thread(
-                    llm_completion_fn,
-                    messages=messages,
-                    model=model,
-                    temperature=0.1,
-                    max_tokens=_params["max_tokens_clause"],
-                    stream=False,
-                )
+        for _attempt in range(1 + _MAX_RETRIES_BATCH):
+            try:
+                async with semaphore:
+                    response = await asyncio.to_thread(
+                        llm_completion_fn,
+                        messages=messages,
+                        model=model,
+                        temperature=0.1,
+                        max_tokens=_params["max_tokens_clause"],
+                        stream=False,
+                    )
 
-            response_text = response.get("content", "")
-            usage = response.get("usage", {})
-            _accumulate_usage(total_usage, usage)
+                response_text = response.get("content", "")
+                usage = response.get("usage", {})
+                _accumulate_usage(total_usage, usage)
 
-            if (
-                not response_text
-                or response_text.startswith("[ERROR]")
-                or response.get("all_failed")
-            ):
-                logger.warning(
-                    f"LLM call failed for batch {batch_idx}: "
-                    f"{response_text[:200] if response_text else 'empty'}"
-                )
-                _fill_batch_fallback(iso_mapped, batch)
+                if (
+                    not response_text
+                    or response_text.startswith("[ERROR]")
+                    or response.get("all_failed")
+                ):
+                    logger.warning(
+                        f"LLM call failed for batch {batch_idx}: "
+                        f"{response_text[:200] if response_text else 'empty'}"
+                    )
+                    _fill_batch_fallback(iso_mapped, batch)
+                    return
+
+                parsed = _parse_json_from_response(response_text)
+                if parsed and isinstance(parsed, list):
+                    for item in parsed:
+                        cid = item.get("clause_id", "")
+                        if cid and cid in ISO_13485_CHECKLIST:
+                            # Parse within_clause_deltas if present
+                            raw_deltas = item.get("within_clause_deltas", [])
+                            deltas = []
+                            if isinstance(raw_deltas, list):
+                                for didx, dd in enumerate(raw_deltas, 1):
+                                    if isinstance(dd, dict):
+                                        deltas.append(WithinClauseDelta(
+                                            delta_id=dd.get("delta_id", f"{profile_id}-WITHIN-{cid}-{didx:03d}"),
+                                            iso_clause=cid,
+                                            title_en=dd.get("title_en", ""),
+                                            title_zh=dd.get("title_zh", ""),
+                                            title_ja=dd.get("title_ja", ""),
+                                            iso_baseline_en=dd.get("iso_baseline_en", ""),
+                                            iso_baseline_zh=dd.get("iso_baseline_zh", ""),
+                                            iso_baseline_ja=dd.get("iso_baseline_ja", ""),
+                                            country_specific_en=dd.get("country_specific_en", ""),
+                                            country_specific_zh=dd.get("country_specific_zh", ""),
+                                            country_specific_ja=dd.get("country_specific_ja", ""),
+                                            regulation_ref=dd.get("regulation_ref", ""),
+                                            original_text=dd.get("original_text", ""),
+                                            original_lang=dd.get("original_lang", ""),
+                                            english_translation=dd.get("english_translation", ""),
+                                            delta_type=dd.get("delta_type", "other"),
+                                            audit_impact=dd.get("audit_impact", "major"),
+                                            expected_evidence=dd.get("expected_evidence", []),
+                                            confidence=min(1.0, max(0.0, float(dd.get("confidence", 0.5)))),
+                                        ))
+
+                            iso_mapped[cid] = ClauseMapping(
+                                iso_clause=cid,
+                                status=_parse_status(item.get("status", "na")),
+                                regulation_ref=item.get("regulation_ref", ""),
+                                rationale_en=item.get("rationale_en", ""),
+                                rationale_zh=item.get("rationale_zh", ""),
+                                method=MappingMethod.LLM_ANALYSIS,
+                                confidence=min(
+                                    1.0, max(0.0, float(item.get("confidence", 0.5)))
+                                ),
+                                notes=item.get("notes", ""),
+                                original_text=item.get("original_text", ""),
+                                original_lang=item.get("original_lang", ""),
+                                english_translation=item.get("english_translation", ""),
+                                semantic_note=item.get("semantic_note", ""),
+                                within_clause_deltas=deltas,
+                            )
+                else:
+                    logger.warning(
+                        f"Failed to parse JSON for batch {batch_idx}, using fallback"
+                    )
+                    _fill_batch_fallback(iso_mapped, batch)
+
+                if send_progress_fn:
+                    if lang.startswith("ja"):
+                        _batch_done_msg = f"✅ バッチ {batch_idx}/{total_batches} 完了 ({batch[0]}–{batch[-1]})"
+                    elif lang.startswith("zh"):
+                        _batch_done_msg = f"✅ 批次 {batch_idx}/{total_batches} 完成 ({batch[0]}–{batch[-1]})"
+                    else:
+                        _batch_done_msg = f"✅ Batch {batch_idx}/{total_batches} done ({batch[0]}–{batch[-1]})"
+                    await send_progress_fn(_batch_done_msg)
                 return
 
-            parsed = _parse_json_from_response(response_text)
-            if parsed and isinstance(parsed, list):
-                for item in parsed:
-                    cid = item.get("clause_id", "")
-                    if cid and cid in ISO_13485_CHECKLIST:
-                        # Parse within_clause_deltas if present
-                        raw_deltas = item.get("within_clause_deltas", [])
-                        deltas = []
-                        if isinstance(raw_deltas, list):
-                            for didx, dd in enumerate(raw_deltas, 1):
-                                if isinstance(dd, dict):
-                                    deltas.append(WithinClauseDelta(
-                                        delta_id=dd.get("delta_id", f"{profile_id}-WITHIN-{cid}-{didx:03d}"),
-                                        iso_clause=cid,
-                                        title_en=dd.get("title_en", ""),
-                                        title_zh=dd.get("title_zh", ""),
-                                        title_ja=dd.get("title_ja", ""),
-                                        iso_baseline_en=dd.get("iso_baseline_en", ""),
-                                        iso_baseline_zh=dd.get("iso_baseline_zh", ""),
-                                        iso_baseline_ja=dd.get("iso_baseline_ja", ""),
-                                        country_specific_en=dd.get("country_specific_en", ""),
-                                        country_specific_zh=dd.get("country_specific_zh", ""),
-                                        country_specific_ja=dd.get("country_specific_ja", ""),
-                                        regulation_ref=dd.get("regulation_ref", ""),
-                                        original_text=dd.get("original_text", ""),
-                                        original_lang=dd.get("original_lang", ""),
-                                        english_translation=dd.get("english_translation", ""),
-                                        delta_type=dd.get("delta_type", "other"),
-                                        audit_impact=dd.get("audit_impact", "major"),
-                                        expected_evidence=dd.get("expected_evidence", []),
-                                        confidence=min(1.0, max(0.0, float(dd.get("confidence", 0.5)))),
-                                    ))
-
-                        iso_mapped[cid] = ClauseMapping(
-                            iso_clause=cid,
-                            status=_parse_status(item.get("status", "na")),
-                            regulation_ref=item.get("regulation_ref", ""),
-                            rationale_en=item.get("rationale_en", ""),
-                            rationale_zh=item.get("rationale_zh", ""),
-                            method=MappingMethod.LLM_ANALYSIS,
-                            confidence=min(
-                                1.0, max(0.0, float(item.get("confidence", 0.5)))
-                            ),
-                            notes=item.get("notes", ""),
-                            original_text=item.get("original_text", ""),
-                            original_lang=item.get("original_lang", ""),
-                            english_translation=item.get("english_translation", ""),
-                            semantic_note=item.get("semantic_note", ""),
-                            within_clause_deltas=deltas,
-                        )
-            else:
-                logger.warning(
-                    f"Failed to parse JSON for batch {batch_idx}, using fallback"
-                )
+            except Exception as e:
+                _e_str = str(e).lower()
+                _is_timeout = "timeout" in _e_str or "timed out" in _e_str
+                if _is_timeout and _attempt < _MAX_RETRIES_BATCH:
+                    _delay = 2 * (2 ** _attempt)  # 2s, 4s
+                    logger.warning(
+                        f"Timeout in batch {batch_idx}, retry {_attempt + 1}/{_MAX_RETRIES_BATCH} in {_delay}s"
+                    )
+                    if send_progress_fn:
+                        if lang.startswith("ja"):
+                            _retry_msg = f"⏳ バッチ {batch_idx} タイムアウト、{_delay}秒後に再試行 ({_attempt + 1}/{_MAX_RETRIES_BATCH})..."
+                        elif lang.startswith("zh"):
+                            _retry_msg = f"⏳ 批次 {batch_idx} 逾時，{_delay} 秒後重試 ({_attempt + 1}/{_MAX_RETRIES_BATCH})..."
+                        else:
+                            _retry_msg = f"⏳ Batch {batch_idx} timed out, retrying in {_delay}s ({_attempt + 1}/{_MAX_RETRIES_BATCH})..."
+                        await send_progress_fn(_retry_msg)
+                    await asyncio.sleep(_delay)
+                    continue
+                logger.error(f"Exception during clause batch {batch_idx} (attempt {_attempt + 1}): {e}")
                 _fill_batch_fallback(iso_mapped, batch)
-
-            if send_progress_fn:
-                await send_progress_fn(
-                    f"✅ 批次 {batch_idx}/{total_batches} 完成 ({batch[0]}–{batch[-1]})"
-                )
-
-        except Exception as e:
-            logger.error(f"Exception during clause batch {batch_idx}: {e}")
-            _fill_batch_fallback(iso_mapped, batch)
+                return
 
     await asyncio.gather(
         *[_run_batch(idx, batch) for idx, batch in enumerate(batches, 1)]
@@ -475,68 +500,93 @@ async def analyze_regulation_with_llm(
         await send_progress_fn(_msg_unique)
 
     unique_reqs: list[UniqueRequirement] = []
+    _unique_messages: list[dict] = []
     try:
         focused_unique = _build_focused_regulatory_text(
             crawled_texts, _UNIQUE_REQ_KEYWORDS, _params["max_unique_req_chars"]
         )
         if is_local:
-            messages = _build_unique_requirements_prompt_compact(
+            _unique_messages = _build_unique_requirements_prompt_compact(
                 focused_unique, zh_name, en_name, profile_id
             )
         else:
-            messages = _build_unique_requirements_prompt(
+            _unique_messages = _build_unique_requirements_prompt(
                 focused_unique, zh_name, en_name, profile_id
             )
-        response = await asyncio.to_thread(
-            llm_completion_fn,
-            messages=messages,
-            model=model,
-            temperature=0.1,
-            max_tokens=_params["max_tokens_unique"],
-            stream=False,
-        )
-        response_text = response.get("content", "")
-        usage = response.get("usage", {})
-        _accumulate_usage(total_usage, usage)
-
-        if (
-            response_text
-            and not response_text.startswith("[ERROR]")
-            and not response.get("all_failed")
-        ):
-            parsed = _parse_json_from_response(response_text)
-            if parsed and isinstance(parsed, list):
-                for idx, item in enumerate(parsed, 1):
-                    req_id = item.get("req_id", f"{profile_id}-{idx:03d}")
-                    unique_reqs.append(
-                        UniqueRequirement(
-                            req_id=req_id,
-                            regulation_ref=item.get("regulation_ref", ""),
-                            title_en=item.get("title_en", ""),
-                            title_zh=item.get("title_zh", ""),
-                            requirement_en=item.get("requirement_en", ""),
-                            requirement_zh=item.get("requirement_zh", ""),
-                            related_iso_clauses=item.get("related_iso_clauses", []),
-                            audit_impact=item.get("audit_impact", "major"),
-                            audit_question_en=item.get("audit_question_en", ""),
-                            audit_question_zh=item.get("audit_question_zh", ""),
-                            expected_evidence=item.get("expected_evidence", []),
-                            rationale_en=item.get("rationale_en", ""),
-                            rationale_zh=item.get("rationale_zh", ""),
-                            method=MappingMethod.LLM_ANALYSIS,
-                            confidence=min(
-                                1.0, max(0.0, float(item.get("confidence", 0.5)))
-                            ),
-                            original_text=item.get("original_text", ""),
-                            original_lang=item.get("original_lang", ""),
-                            english_translation=item.get("english_translation", ""),
-                            semantic_note=item.get("semantic_note", ""),
-                            is_within_clause_delta=item.get("is_within_clause_delta", False),
-                            within_clause_delta_vs_iso=item.get("within_clause_delta_vs_iso", ""),
-                        )
-                    )
     except Exception as e:
-        logger.error(f"Exception during unique requirements analysis: {e}")
+        logger.error(f"Failed to build unique requirements prompt: {e}")
+
+    if _unique_messages:
+        for _uq_attempt in range(1 + _MAX_RETRIES_BATCH):
+            try:
+                response = await asyncio.to_thread(
+                    llm_completion_fn,
+                    messages=_unique_messages,
+                    model=model,
+                    temperature=0.1,
+                    max_tokens=_params["max_tokens_unique"],
+                    stream=False,
+                )
+                response_text = response.get("content", "")
+                usage = response.get("usage", {})
+                _accumulate_usage(total_usage, usage)
+
+                if (
+                    response_text
+                    and not response_text.startswith("[ERROR]")
+                    and not response.get("all_failed")
+                ):
+                    parsed = _parse_json_from_response(response_text)
+                    if parsed and isinstance(parsed, list):
+                        for idx, item in enumerate(parsed, 1):
+                            req_id = item.get("req_id", f"{profile_id}-{idx:03d}")
+                            unique_reqs.append(
+                                UniqueRequirement(
+                                    req_id=req_id,
+                                    regulation_ref=item.get("regulation_ref", ""),
+                                    title_en=item.get("title_en", ""),
+                                    title_zh=item.get("title_zh", ""),
+                                    requirement_en=item.get("requirement_en", ""),
+                                    requirement_zh=item.get("requirement_zh", ""),
+                                    related_iso_clauses=item.get("related_iso_clauses", []),
+                                    audit_impact=item.get("audit_impact", "major"),
+                                    audit_question_en=item.get("audit_question_en", ""),
+                                    audit_question_zh=item.get("audit_question_zh", ""),
+                                    expected_evidence=item.get("expected_evidence", []),
+                                    rationale_en=item.get("rationale_en", ""),
+                                    rationale_zh=item.get("rationale_zh", ""),
+                                    method=MappingMethod.LLM_ANALYSIS,
+                                    confidence=min(
+                                        1.0, max(0.0, float(item.get("confidence", 0.5)))
+                                    ),
+                                    original_text=item.get("original_text", ""),
+                                    original_lang=item.get("original_lang", ""),
+                                    english_translation=item.get("english_translation", ""),
+                                    semantic_note=item.get("semantic_note", ""),
+                                    is_within_clause_delta=item.get("is_within_clause_delta", False),
+                                    within_clause_delta_vs_iso=item.get("within_clause_delta_vs_iso", ""),
+                                )
+                            )
+                break
+
+            except Exception as e:
+                _e_str = str(e).lower()
+                _is_timeout = "timeout" in _e_str or "timed out" in _e_str
+                if _is_timeout and _uq_attempt < _MAX_RETRIES_BATCH:
+                    _delay = 2 * (2 ** _uq_attempt)
+                    logger.warning(f"Timeout during unique requirements analysis, retry {_uq_attempt + 1} in {_delay}s")
+                    if send_progress_fn:
+                        if lang.startswith("ja"):
+                            _uq_retry = f"⏳ 固有要件分析タイムアウト、{_delay}秒後に再試行 ({_uq_attempt + 1}/{_MAX_RETRIES_BATCH})..."
+                        elif lang.startswith("zh"):
+                            _uq_retry = f"⏳ 獨有要求分析逾時，{_delay} 秒後重試 ({_uq_attempt + 1}/{_MAX_RETRIES_BATCH})..."
+                        else:
+                            _uq_retry = f"⏳ Unique requirements analysis timed out, retrying in {_delay}s ({_uq_attempt + 1}/{_MAX_RETRIES_BATCH})..."
+                        await send_progress_fn(_uq_retry)
+                    await asyncio.sleep(_delay)
+                    continue
+                logger.error(f"Exception during unique requirements analysis (attempt {_uq_attempt + 1}): {e}")
+                break
 
     # ── Step 3: Build and save profile ──
     profile = RegulationProfile(
@@ -567,12 +617,104 @@ async def analyze_regulation_with_llm(
         mapped_count = sum(
             1 for m in iso_mapped.values() if m.status != MappingStatus.NOT_APPLICABLE
         )
-        await send_progress_fn(
-            f"✅ {zh_name} ({en_name}) 法規分析完成：\n"
-            f"  • ISO 13485 對應：{mapped_count}/{len(clause_ids)} 條\n"
-            f"  • 獨有要求：{len(unique_reqs)} 項\n"
-            f"  • Token 用量：{total_usage.get('total_tokens', 0):,}"
-        )
+        _type1_reqs = [r for r in unique_reqs if not r.is_within_clause_delta]
+        _type2_reqs = [r for r in unique_reqs if r.is_within_clause_delta]
+
+        # ── TYPE 2 detail lines (two sources) ───────────────────────────────
+        # Source A: WithinClauseDelta inside ClauseMapping (status=exceeds)
+        _t2_lines: list[str] = []
+        for _cid in sorted(iso_mapped.keys()):
+            for _wd in iso_mapped[_cid].within_clause_deltas:
+                if lang.startswith("ja"):
+                    _t = _wd.title_ja or _wd.title_en or _wd.title_zh
+                    _spec = (_wd.country_specific_ja or _wd.country_specific_en or "")
+                elif lang.startswith("zh"):
+                    _t = _wd.title_zh or _wd.title_en
+                    _spec = (_wd.country_specific_zh or _wd.country_specific_en or "")
+                else:
+                    _t = _wd.title_en or _wd.title_zh
+                    _spec = _wd.country_specific_en or ""
+                _spec_s = (_spec[:65] + "…") if len(_spec) > 65 else _spec
+                _t2_lines.append(f"    - {_cid} ── {_t}" + (f"（{_spec_s}）" if _spec_s else ""))
+        # Source B: UniqueRequirement with is_within_clause_delta=True
+        for _r in _type2_reqs:
+            if lang.startswith("zh"):
+                _t = _r.title_zh or _r.title_en
+            else:
+                _t = _r.title_en or _r.title_zh
+            _clauses = ", ".join(_r.related_iso_clauses[:4]) if _r.related_iso_clauses else "?"
+            _delta = _r.within_clause_delta_vs_iso or ""
+            _delta_s = (_delta[:65] + "…") if len(_delta) > 65 else _delta
+            _t2_lines.append(f"    - [{_clauses}] {_t}" + (f"：{_delta_s}" if _delta_s else ""))
+
+        _t2_total = len(_t2_lines)
+        _t2_show = _t2_lines  # show all items, no cap
+
+        # ── TYPE 1 detail lines ─────────────────────────────────────────────
+        _impact_icon = {"critical": "🔴", "major": "🟡", "minor": "🟢"}
+        _t1_lines: list[str] = []
+        for _r in _type1_reqs:
+            if lang.startswith("zh"):
+                _t = _r.title_zh or _r.title_en
+            else:
+                _t = _r.title_en or _r.title_zh
+            _icon = _impact_icon.get(_r.audit_impact, "⚪")
+            _ref = f" ({_r.regulation_ref})" if _r.regulation_ref else ""
+            _t1_lines.append(f"    {_icon} {_t}{_ref}")
+        _t1_total = len(_t1_lines)
+        _t1_show = _t1_lines  # show all items, no cap
+
+        # ── Assemble final message ───────────────────────────────────────────
+        if lang.startswith("ja"):
+            _msg_lines = [
+                f"✅ {zh_name} ({en_name}) 分析完了：",
+                f"  • ISO 13485 マッピング：{mapped_count}/{len(clause_ids)} 条",
+            ]
+            if _t2_show:
+                _msg_lines.append(f"  • TYPE 2 ── ISO より厳格・追加要件（{_t2_total} 件）、対象条項：")
+                _msg_lines.extend(_t2_show)
+            else:
+                _msg_lines.append(f"  • TYPE 2 ── ISO より厳格・追加要件：0 件")
+            if _t1_show:
+                _msg_lines.append(f"  • TYPE 1 ── ISO 13485 以外の独自要件（{_t1_total} 件）：")
+                _msg_lines.extend(_t1_show)
+            else:
+                _msg_lines.append(f"  • TYPE 1 ── ISO 13485 以外の独自要件：0 件")
+            _msg_lines.append(f"  • トークン使用量：{total_usage.get('total_tokens', 0):,}")
+        elif lang.startswith("zh"):
+            _msg_lines = [
+                f"✅ {zh_name} ({en_name}) 法規分析完成：",
+                f"  • ISO 13485 對應：{mapped_count}/{len(clause_ids)} 條",
+            ]
+            if _t2_show:
+                _msg_lines.append(f"  • TYPE 2 ── 比 ISO 13485 更嚴格的特殊要求（{_t2_total} 項），涉及條款：")
+                _msg_lines.extend(_t2_show)
+            else:
+                _msg_lines.append(f"  • TYPE 2 ── 比 ISO 13485 更嚴格的特殊要求：0 項")
+            if _t1_show:
+                _msg_lines.append(f"  • TYPE 1 ── 獨立於 ISO 13485 以外的要求（{_t1_total} 項）：")
+                _msg_lines.extend(_t1_show)
+            else:
+                _msg_lines.append(f"  • TYPE 1 ── 獨立於 ISO 13485 以外的要求：0 項")
+            _msg_lines.append(f"  • Token 用量：{total_usage.get('total_tokens', 0):,}")
+        else:
+            _msg_lines = [
+                f"✅ {en_name} analysis complete:",
+                f"  • ISO 13485 mappings: {mapped_count}/{len(clause_ids)} clauses",
+            ]
+            if _t2_show:
+                _msg_lines.append(f"  • TYPE 2 — stricter/additional vs ISO 13485 ({_t2_total} items), affecting clauses:")
+                _msg_lines.extend(_t2_show)
+            else:
+                _msg_lines.append(f"  • TYPE 2 — stricter/additional vs ISO 13485: 0 items")
+            if _t1_show:
+                _msg_lines.append(f"  • TYPE 1 — independent of ISO 13485 ({_t1_total} items):")
+                _msg_lines.extend(_t1_show)
+            else:
+                _msg_lines.append(f"  • TYPE 1 — independent of ISO 13485: 0 items")
+            _msg_lines.append(f"  • Tokens used: {total_usage.get('total_tokens', 0):,}")
+
+        await send_progress_fn("\n".join(_msg_lines))
 
     return profile
 

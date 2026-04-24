@@ -302,5 +302,18 @@
     "verify",
     "vérification intégrité",
     "audit vérifier"
+  ],
+  "_commands.cmd.download_reference": [
+    "télécharger références",
+    "exporter références",
+    "télécharger liste références"
+  ],
+  "_commands.cmd.download_regulatory_update": [
+    "télécharger mise à jour réglementaire",
+    "exporter mise à jour réglementaire"
+  ],
+  "_commands.cmd.reset_level_range": [
+    "réinitialiser plage de niveaux",
+    "changer plage de contrôle"
   ]
 }

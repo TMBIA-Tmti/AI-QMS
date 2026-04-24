@@ -301,5 +301,17 @@
     "verify",
     "integritätsprüfung",
     "audit verifizieren"
+  ],
+  "_commands.cmd.download_reference": [
+    "referenzliste herunterladen",
+    "referenzen exportieren"
+  ],
+  "_commands.cmd.download_regulatory_update": [
+    "regulatorisches update herunterladen",
+    "regulatorisches update exportieren"
+  ],
+  "_commands.cmd.reset_level_range": [
+    "steuerungsbereich zurücksetzen",
+    "steuerungsbereich ändern"
   ]
 }

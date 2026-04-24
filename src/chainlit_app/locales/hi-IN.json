@@ -298,5 +298,17 @@
   "_commands.cmd.verify": [
     "verify",
     "अखंडता जांच"
+  ],
+  "_commands.cmd.download_reference": [
+    "संदर्भ सूची डाउनलोड",
+    "संदर्भ सूची निर्यात"
+  ],
+  "_commands.cmd.download_regulatory_update": [
+    "नियामक अद्यतन रिपोर्ट डाउनलोड",
+    "नियामक अद्यतन निर्यात"
+  ],
+  "_commands.cmd.reset_level_range": [
+    "स्तर श्रेणी रीसेट",
+    "नियंत्रण श्रेणी बदलें"
   ]
 }

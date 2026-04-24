@@ -301,5 +301,17 @@
   "_commands.cmd.verify": [
     "verify",
     "integriteitscontrole"
+  ],
+  "_commands.cmd.download_reference": [
+    "referentielijst downloaden",
+    "referenties exporteren"
+  ],
+  "_commands.cmd.download_regulatory_update": [
+    "regelgevingsupdate downloaden",
+    "regelgevingsupdate exporteren"
+  ],
+  "_commands.cmd.reset_level_range": [
+    "niveaubereik herstellen",
+    "controlbereik wijzigen"
   ]
 }

@@ -479,7 +479,7 @@ REGION_SITES = {
             "sitemap_url": "https://www.fda.gov/sitemap.xml",
         },
     ],
-    "國際標準 (International)": [
+    "國際標準 (International Standard)": [
         {
             "agency": "ISO",
             "name": "ISO Medical Equipment Standards (ICS 11.040)",

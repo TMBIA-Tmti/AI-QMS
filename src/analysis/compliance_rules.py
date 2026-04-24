@@ -8664,7 +8664,7 @@ def generate_profile_id_from_region(region_name: str) -> str:
         "中國 (China)": "CN_NMPA",
         "韓國 (Korea)": "KR_MFDS",
         "瑞士 (Switzerland)": "CH_SWISSMEDIC",
-        "國際標準 (International)": "INTL_STD",
+        "國際標準 (International Standard)": "INTL_STD",
         "印度 (India)": "IN_CDSCO",
         "新加坡 (Singapore)": "SG_HSA",
         "沙烏地阿拉伯 (Saudi Arabia)": "SA_SFDA",

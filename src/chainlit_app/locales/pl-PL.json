@@ -300,5 +300,17 @@
   "_commands.cmd.verify": [
     "verify",
     "weryfikacja integralności"
+  ],
+  "_commands.cmd.download_reference": [
+    "pobierz listę referencji",
+    "eksportuj referencje"
+  ],
+  "_commands.cmd.download_regulatory_update": [
+    "pobierz aktualizację regulacyjną",
+    "eksportuj aktualizację regulacyjną"
+  ],
+  "_commands.cmd.reset_level_range": [
+    "zresetuj zakres poziomów",
+    "zmień zakres kontroli"
   ]
 }

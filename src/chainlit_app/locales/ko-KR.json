@@ -308,5 +308,20 @@
     "감사 검증",
     "무결성 확인",
     "verify"
+  ],
+  "_commands.cmd.download_reference": [
+    "참조 목록 다운로드",
+    "참조 목록 내보내기",
+    "인용 다운로드"
+  ],
+  "_commands.cmd.download_regulatory_update": [
+    "규제 업데이트 보고서 다운로드",
+    "규제 업데이트 내보내기",
+    "법규 업데이트 다운로드"
+  ],
+  "_commands.cmd.reset_level_range": [
+    "레벨 범위 재설정",
+    "관리 범위 재설정",
+    "제어 범위 변경"
   ]
 }
