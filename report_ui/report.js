@@ -1756,8 +1756,13 @@
         }
     }
 
+    function getExportLang() {
+        const sel = document.getElementById("exportLangSelect");
+        return (sel && sel.value) || "en-US";
+    }
+
     function exportReport(format) {
-        const _lang = (window.__i18n && window.__i18n.lang) || "en-US";
+        const _lang = getExportLang();
         const url = `${API_BASE}/${RUN_ID}/export/${format}?lang=${encodeURIComponent(_lang)}`;
         showToast(t('toast.exporting', {fmt: format.toUpperCase()}), "info");
         downloadFileFetch(url);
@@ -3653,7 +3658,7 @@
     // ============================================================
 
     function exportDeepReport(format) {
-        const _lang = (window.__i18n && window.__i18n.lang) || "en-US";
+        const _lang = getExportLang();
         const url = `${API_BASE}/${RUN_ID}/export/deep_${format}?lang=${encodeURIComponent(_lang)}`;
         showToast(t('toast.exportingDeep', {fmt: format.toUpperCase()}), "info");
         downloadFileFetch(url);
@@ -3736,7 +3741,7 @@
     }
 
     function exportHistoryRecord(recordId, format) {
-        const _lang = (window.__i18n && window.__i18n.lang) || "en-US";
+        const _lang = getExportLang();
         const url = `${API_BASE}/crossexam/history/${recordId}/export/${format}?lang=${encodeURIComponent(_lang)}`;
         showToast(t('toast.exportingCrossexam', {fmt: format.toUpperCase()}), "info");
         downloadFileFetch(url);
@@ -3793,7 +3798,7 @@
     }
 
     function exportMetaAnalysis(format) {
-        const _lang = (window.__i18n && window.__i18n.lang) || "en-US";
+        const _lang = getExportLang();
         const url = `${API_BASE}/crossexam/meta-analysis/export/${format}?lang=${encodeURIComponent(_lang)}`;
         showToast(t('toast.exportingQuality', {fmt: format.toUpperCase()}), "info");
         downloadFileFetch(url);
@@ -3979,21 +3984,21 @@
     }
 
     function exportDailyAudit(format) {
-        const _lang = (window.__i18n && window.__i18n.lang) || "en-US";
+        const _lang = getExportLang();
         const url = `${API_BASE}/daily-audit/export/${format}?lang=${encodeURIComponent(_lang)}`;
         showToast(t('toast.exportingAudit', {fmt: format.toUpperCase()}), 'info');
         downloadFileFetch(url);
     }
 
     function exportMetaReviewReport(format) {
-        const _lang = (window.__i18n && window.__i18n.lang) || "en-US";
+        const _lang = getExportLang();
         const url = `${API_BASE}/daily-audit/meta-review/export/${format}?lang=${encodeURIComponent(_lang)}`;
         showToast(t('toast.exportingMetaReview', {fmt: format.toUpperCase()}), 'info');
         downloadFileFetch(url);
     }
 
     function exportAuditRecord(auditId, format) {
-        const _lang = (window.__i18n && window.__i18n.lang) || "en-US";
+        const _lang = getExportLang();
         const url = `${API_BASE}/daily-audit/history/${auditId}/export/${format}?lang=${encodeURIComponent(_lang)}`;
         showToast(t('toast.exportingAuditRecord', {fmt: format.toUpperCase()}), 'info');
         downloadFileFetch(url);
@@ -4383,6 +4388,14 @@
     async function init() {
         if (window.__i18n) {
             await window.__i18n.init();
+        }
+        // Set export language selector default based on UI language (zh/ja/en only)
+        const _sel = document.getElementById("exportLangSelect");
+        if (_sel) {
+            const _uiLang = (window.__i18n && window.__i18n.lang) || "en-US";
+            _sel.value = _uiLang.startsWith("zh") ? "zh-TW"
+                       : _uiLang.startsWith("ja") ? "ja-JP"
+                       : "en-US";
         }
         bindEvents();
         initPhaseConfig();

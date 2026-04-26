@@ -185,6 +185,15 @@ _EXPORT_HEADERS: dict[str, dict[str, str]] = {
         "crawl_appendix_selected": "本次爬取地區",
         "crawl_appendix_all_ts": "資料更新時間",
         "crawl_xl_sheet": "法規爬取狀態",
+        "xl_phase_labels": {
+            "gap_scan": "P1 差距掃描",
+            "checklist_verify": "P2 查核表驗證",
+            "remediation": "P4 改善建議",
+            "verification": "P5 交叉詰問",
+        },
+        "xl_role_labels": {"analyzer": "分析者", "verifier": "驗證者"},
+        "xl_batch_label": "—（文件層級）",
+        "xl_xe_ext_headers": ["條款 ID","條款名稱","文件 ID","判定","同意","RA 標記","輪次數","R1 分析者立場","R1 分析者信心","R1 關鍵證據","R1 驗證者質疑","R1 Agreement","QA 分數","問題品質","回答準確","幻覺偵測"],
     },
     "en": {
         "title_crossexam": "AI-QMS Cross-Examination Record",
@@ -326,6 +335,15 @@ _EXPORT_HEADERS: dict[str, dict[str, str]] = {
         "crawl_appendix_selected": "Regions crawled this session",
         "crawl_appendix_all_ts": "Data last updated",
         "crawl_xl_sheet": "Crawl Status",
+        "xl_phase_labels": {
+            "gap_scan": "P1 Gap Scan",
+            "checklist_verify": "P2 Checklist Verify",
+            "remediation": "P4 Remediation",
+            "verification": "P5 Cross-Exam",
+        },
+        "xl_role_labels": {"analyzer": "Analyzer", "verifier": "Verifier"},
+        "xl_batch_label": "— (Batch/Doc level)",
+        "xl_xe_ext_headers": ["Clause ID","Clause Title","Doc ID","Verdict","Agreed","RA Flag","Rounds","R1 Analyzer Position","R1 Analyzer Confidence","R1 Key Evidence","R1 Verifier Challenges","R1 Agreement","QA Score","Question Quality","Answer Accuracy","Hallucination"],
     },
     "ja": {
         "title_crossexam": "AI-QMS 相互尋問記録",
@@ -467,6 +485,15 @@ _EXPORT_HEADERS: dict[str, dict[str, str]] = {
         "crawl_appendix_selected": "今回クロールした地域",
         "crawl_appendix_all_ts": "データ最終更新",
         "crawl_xl_sheet": "クロール状態",
+        "xl_phase_labels": {
+            "gap_scan": "P1 差距スキャン",
+            "checklist_verify": "P2 チェックリスト検証",
+            "remediation": "P4 改善提案",
+            "verification": "P5 相互尋問",
+        },
+        "xl_role_labels": {"analyzer": "分析者", "verifier": "検証者"},
+        "xl_batch_label": "—（バッチ）",
+        "xl_xe_ext_headers": ["条項ID","条項名","文書ID","判定","同意","RAフラグ","ラウンド数","R1分析者立場","R1分析者信頼度","R1主要証拠","R1検証者指摘","R1 Agreement","QAスコア","質問品質","回答精度","ハルシネーション"],
     },
 }
 
@@ -1971,16 +1998,9 @@ def export_deep_report_excel(
     dq_row = cur
 
     # ── Sheet 3: LLM Interactions ──
-    _PHASE_LABEL_MAP = {
-        "gap_scan":          "P1 差距掃描 / Gap Scan",
-        "checklist_verify":  "P2 查核表驗證 / Checklist Verify",
-        "remediation":       "P4 改善建議 / Remediation",
-        "verification":      "P5 交叉詰問 / Cross-Exam",
-    }
-    _ROLE_LABEL_MAP = {
-        "analyzer": "分析者 / Analyzer",
-        "verifier": "驗證者 / Verifier",
-    }
+    _PHASE_LABEL_MAP = dh["xl_phase_labels"]
+    _ROLE_LABEL_MAP = dh["xl_role_labels"]
+    _batch_label = dh["xl_batch_label"]
     # Phase-based alternating fill colors for LLM sheet
     _LLM_PHASE_FILL = {
         "gap_scan":         PatternFill(start_color="DDEEFF", end_color="DDEEFF", fill_type="solid"),
@@ -2000,9 +2020,9 @@ def export_deep_report_excel(
             phase_label = interaction.get("phase_label") or _PHASE_LABEL_MAP.get(phase, phase)
             clause_id = interaction.get("clause_id") or ""
             role = interaction.get("role") or ""
-            role_label = _ROLE_LABEL_MAP.get(role, role) if role else "批次 / Batch"
+            role_label = _ROLE_LABEL_MAP.get(role, role) if role else _batch_label
             # For non-P5 phases (gap_scan/checklist_verify/remediation), clause_id is per-doc
-            clause_display = clause_id if clause_id else ("—（文件層級）" if phase != "verification" else "")
+            clause_display = clause_id if clause_id else (_batch_label if phase != "verification" else "")
             row_fill = _LLM_PHASE_FILL.get(phase)
             ws_llm.cell(row=ri, column=1, value=phase_label)
             ws_llm.cell(row=ri, column=2, value=interaction.get("doc_id", ""))
@@ -2013,6 +2033,7 @@ def export_deep_report_excel(
                 interaction.get("llm_response", "") or "",
                 phase,
                 interaction.get("parsed_response"),
+                lang_key=_lk,
             )
             ws_llm.cell(row=ri, column=6, value=resp_text[:1200])
             ws_llm.cell(row=ri, column=7, value=interaction.get("usage", {}).get("total_tokens", 0))
@@ -2037,13 +2058,7 @@ def export_deep_report_excel(
     # ── Sheet 4: Cross-Exam Details ──
     # Build cross-exam rows from crossexam_record (preferred) or flat_rows (fallback)
     ws_xe = wb.create_sheet(dh["xl_sheet_crossexam"])
-    # Extended headers to include all round details
-    _xe_ext_headers = [
-        "條款 ID", "條款名稱", "文件 ID", "判定", "同意", "RA 標記", "輪次數",
-        "R1 分析者立場", "R1 分析者信心", "R1 關鍵證據",
-        "R1 驗證者質疑", "R1 Agreement",
-        "QA 分數", "問題品質", "回答準確", "幻覺偵測",
-    ]
+    _xe_ext_headers = dh["xl_xe_ext_headers"]
     for ci, h in enumerate(_xe_ext_headers, 1):
         c = ws_xe.cell(row=1, column=ci, value=h)
         c.fill = header_fill
@@ -2287,7 +2302,7 @@ def _strip_md_fence(s: str) -> str:
     return m.group(1) if m else s
 
 
-def _format_llm_response_for_excel(raw_resp: str, phase: str, parsed_response=None) -> str:
+def _format_llm_response_for_excel(raw_resp: str, phase: str, parsed_response=None, lang_key: str = "zh") -> str:
     """Convert LLM response to human-readable single-line summary for Excel cell.
 
     Each phase has a different JSON structure:
@@ -2296,6 +2311,25 @@ def _format_llm_response_for_excel(raw_resp: str, phase: str, parsed_response=No
       remediation     → clause_results[cid].remediation{}
       verification    → [{round, analyzer{position,key_evidence}, verifier{challenges,agreement_level}}]
     """
+    _LABELS: dict[str, dict[str, str]] = {
+        "zh": {
+            "analyzer": "分析者", "evidence": "證據", "challenge": "質疑",
+            "found": "找到 {found}/{total}", "missing": "缺",
+            "full": "完整", "partial": "部分", "priority": "優先",
+        },
+        "en": {
+            "analyzer": "Analyzer", "evidence": "Evidence", "challenge": "Challenge",
+            "found": "{found}/{total} found", "missing": "Missing",
+            "full": "Full", "partial": "Partial", "priority": "Priority",
+        },
+        "ja": {
+            "analyzer": "分析者", "evidence": "証拠", "challenge": "指摘",
+            "found": "{found}/{total}確認", "missing": "欠落",
+            "full": "完全", "partial": "部分", "priority": "優先",
+        },
+    }
+    lb = _LABELS.get(lang_key, _LABELS["en"])
+
     if not raw_resp:
         return ""
 
@@ -2317,9 +2351,9 @@ def _format_llm_response_for_excel(raw_resp: str, phase: str, parsed_response=No
                         for c in (v.get("challenges") or [])[:2]
                     )
                     v_ag = v.get("agreement_level", "")
-                    summary = f"[R{rn}] 分析者: {a_pos}"
-                    if a_ev: summary += f" ▸證據: {a_ev}"
-                    if v_chals: summary += f" ⚠質疑: {v_chals}"
+                    summary = f"[R{rn}] {lb['analyzer']}: {a_pos}"
+                    if a_ev: summary += f" ▸{lb['evidence']}: {a_ev}"
+                    if v_chals: summary += f" ⚠{lb['challenge']}: {v_chals}"
                     if v_ag: summary += f" → {v_ag}"
                     parts.append(summary)
                 return " ‖ ".join(parts)
@@ -2341,10 +2375,8 @@ def _format_llm_response_for_excel(raw_resp: str, phase: str, parsed_response=No
 
     clause_results = parsed.get("clause_results", {})
     if not clause_results:
-        # Flat dict (older format)
         return _format_flat_dict_summary(parsed)
 
-    # Summarise each clause's results
     out_parts = []
     for cid, data in clause_results.items():
         if not isinstance(data, dict):
@@ -2356,9 +2388,10 @@ def _format_llm_response_for_excel(raw_resp: str, phase: str, parsed_response=No
             found_count = sum(1 for e in ev_results if e.get("found"))
             total = len(ev_results)
             missing = [e.get("evidence_name", "") for e in ev_results if not e.get("found")]
-            s = f"[{cid}] 找到 {found_count}/{total}"
+            found_str = lb["found"].format(found=found_count, total=total)
+            s = f"[{cid}] {found_str}"
             if missing:
-                s += f" ✗缺: {'; '.join(missing[:3])}"
+                s += f" ✗{lb['missing']}: {'; '.join(missing[:3])}"
             out_parts.append(s)
             continue
 
@@ -2368,9 +2401,9 @@ def _format_llm_response_for_excel(raw_resp: str, phase: str, parsed_response=No
             full = sum(1 for e in ver_results if e.get("adequacy") == "full")
             partial = sum(1 for e in ver_results if e.get("adequacy") == "partial")
             missing_v = [e.get("evidence_name","") for e in ver_results if e.get("adequacy") in ("missing","none","")]
-            s = f"[{cid}] 完整:{full} 部分:{partial}"
+            s = f"[{cid}] {lb['full']}:{full} {lb['partial']}:{partial}"
             if missing_v:
-                s += f" ✗缺: {'; '.join(missing_v[:3])}"
+                s += f" ✗{lb['missing']}: {'; '.join(missing_v[:3])}"
             out_parts.append(s)
             continue
 
@@ -2385,13 +2418,12 @@ def _format_llm_response_for_excel(raw_resp: str, phase: str, parsed_response=No
                 for sg in suggestions[:2]
             )
             s = f"[{cid}]"
-            if priority: s += f" 優先:{priority}"
+            if priority: s += f" {lb['priority']}:{priority}"
             if summary: s += f" {summary}"
             if actions: s += f" ▶{actions}"
             out_parts.append(s)
             continue
 
-        # Unknown sub-structure
         out_parts.append(f"[{cid}] {str(data)[:120]}")
 
     return " | ".join(out_parts) if out_parts else raw_resp[:400].replace("\n", " ")

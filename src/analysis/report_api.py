@@ -99,7 +99,7 @@ def _phoenix_report_span(name: str, attributes: dict = None):
     try:
         from src.chainlit_app.app import phoenix_span
 
-        return phoenix_span(name, profile="主系統 (Main Agent)", attributes=attributes)
+        return phoenix_span(name, profile="Main Agent", attributes=attributes)
     except (ImportError, Exception):
         from contextlib import nullcontext
 

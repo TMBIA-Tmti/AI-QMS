@@ -147,9 +147,9 @@ _phoenix_tracer = None  # Will hold OTel tracer for custom (non-LLM) spans
 
 # Agent profile → Phoenix project name mapping (extensible for future agents)
 PHOENIX_PROJECT_MAP = {
-    "主系統 (Main Agent)": "ai-qms-main",
-    "文件管制 (Doc Control)": "ai-qms-doc-control",
-    # Phase 2: "稽核 (Audit)": "ai-qms-audit",
+    "Main Agent": "ai-qms-main",
+    "Doc Control": "ai-qms-doc-control",
+    # Phase 2: "Audit": "ai-qms-audit",
 }
 PHOENIX_DEFAULT_PROJECT = "ai-qms-main"
 
@@ -827,7 +827,7 @@ def get_system_prompt(profile: str, lang: str = None) -> str:
             lang = DEFAULT_LANG
 
     if lang == "zh-TW":
-        if profile == "文件管制 (Doc Control)":
+        if profile == "Doc Control":
             return """你是 AI-QMS 文件管制子系統的 AI 助理 (v3.3.0)。
 
 你的職責是協助使用者進行文件管制操作：
@@ -883,7 +883,7 @@ def get_system_prompt(profile: str, lang: str = None) -> str:
 請根據文件資料庫內容回答問題。使用者可用 /web 指令搜尋網路取得最新資訊。如果資料庫中沒有相關資訊，請明確告知，不要編造答案。"""
 
     elif lang == "ja-JP":
-        if profile == "文件管制 (Doc Control)":
+        if profile == "Doc Control":
             return """あなたは AI-QMS 文書管理サブシステムの AI アシスタントです (v3.3.0)。
 
 あなたの責務：
@@ -936,7 +936,7 @@ def get_system_prompt(profile: str, lang: str = None) -> str:
 文書データベースの内容に基づいて質問に回答してください。ユーザーは /web コマンドでウェブ検索ができます。関連情報がない場合は明確にその旨を伝え、回答を捏造しないでください。"""
 
     else:  # en-US (default for all other languages)
-        if profile == "文件管制 (Doc Control)":
+        if profile == "Doc Control":
             return """You are the AI assistant for the AI-QMS Document Control Sub-System (v3.3.0).
 
 Your responsibilities include:
@@ -2336,19 +2336,19 @@ async def chat_profile():
     # inline descriptions as a workaround (zh-TW / EN / ja-JP).
     return [
         cl.ChatProfile(
-            name="主系統 (Main Agent)",
+            name="Main Agent",
             markdown_description=(
-                "AI-QMS 品質管理系統主控台。文件列表、搜尋、作廢、稽核紀錄、LLM 對話。\n\n"
                 "Quality Management Console. Document list, search, obsolete, audit trail, LLM chat.\n\n"
+                "AI-QMS 品質管理系統主控台。文件列表、搜尋、作廢、稽核紀錄、LLM 對話。\n\n"
                 "品質管理コンソール。文書一覧、検索、廃止、監査証跡、LLM チャット。"
             ),
             icon="/public/avatars/eira.svg",
         ),
         cl.ChatProfile(
-            name="文件管制 (Doc Control)",
+            name="Doc Control",
             markdown_description=(
-                "文件上傳、OCR 處理、版本控制、簽章確認。拖放文件即可開始。\n\n"
                 "File upload, OCR processing, version control, stamp confirmation. Drag & drop to start.\n\n"
+                "文件上傳、OCR 處理、版本控制、簽章確認。拖放文件即可開始。\n\n"
                 "ファイルアップロード、OCR 処理、版管理、印鑑確認。ドラッグ＆ドロップで開始。"
             ),
             icon="/public/avatars/eira.svg",
@@ -2554,7 +2554,7 @@ async def on_settings_update(settings):
             # Re-send welcome/instructions in the new language
             profile = cl.user_session.get("chat_profile")
             doc_count, doc_limit = get_document_count()
-            if profile == "文件管制 (Doc Control)":
+            if profile == "Doc Control":
                 welcome = (
                     f"{t('welcome.doc_control.title')}\n\n"
                     f"{t('welcome.doc_control.greeting')}\n\n"
@@ -2755,7 +2755,7 @@ async def _regulatory_background_scheduler():
             crawler = get_regulatory_crawler()
             with phoenix_span(
                 "regulatory_crawl_scheduled",
-                profile="文件管制 (Doc Control)",
+                profile="Doc Control",
                 attributes={"crawl.type": "scheduled_all_regions"},
             ):
                 crawl_results = await crawler.crawl_all_regions()
@@ -3616,7 +3616,7 @@ async def on_chat_start():
     doc_count, doc_limit = get_document_count()
 
     # Always show profile-specific welcome + instructions (shown only once at session start)
-    if profile == "\u6587\u4ef6\u7ba1\u5236 (Doc Control)":
+    if profile == "Doc Control":
         welcome = (
             f"{t('welcome.doc_control.title')}\n\n"
             f"{t('welcome.doc_control.greeting')}\n\n"
@@ -3801,7 +3801,7 @@ async def _send_eira_introduction(
     await cl.Message(content=intro, author="Eira").send()
 
     # Only run Doc Control-specific steps for Doc Control profile
-    if profile == "文件管制 (Doc Control)":
+    if profile == "Doc Control":
         # Steps 2-4: Freshness check → daily audit → meta review
         await _auto_trigger_crossexam()
 
@@ -3860,7 +3860,7 @@ async def on_chat_end():
 
 async def handle_help(profile: str) -> str:
     """Handle help command"""
-    if profile == "文件管制 (Doc Control)":
+    if profile == "Doc Control":
         return t("help.doc_control")
     else:
         return t("help.main")
@@ -5065,7 +5065,7 @@ async def handle_regulatory_list():
         # Run the structured analysis pipeline
         with phoenix_span(
             "analysis_pipeline",
-            profile="文件管制 (Doc Control)",
+            profile="Doc Control",
             attributes={
                 "pipeline.command": "regulatory_list",
                 "pipeline.model": model_name,
@@ -5505,7 +5505,7 @@ async def handle_regulatory_update():
             crawler = get_regulatory_crawler()
             with phoenix_span(
                 "regulatory_crawl",
-                profile="文件管制 (Doc Control)",
+                profile="Doc Control",
                 attributes={
                     "crawl.type": "selected_regions",
                     "crawl.regions": ", ".join(selected_regions),
@@ -5531,7 +5531,7 @@ async def handle_regulatory_update():
             crawler = get_regulatory_crawler()
             with phoenix_span(
                 "regulatory_crawl",
-                profile="文件管制 (Doc Control)",
+                profile="Doc Control",
                 attributes={"crawl.type": "all_regions_no_config"},
             ) as span:
                 crawl_results = await crawler.crawl_all_regions()
@@ -5554,7 +5554,7 @@ async def handle_regulatory_update():
         crawler = get_regulatory_crawler()
         with phoenix_span(
             "regulatory_crawl",
-            profile="文件管制 (Doc Control)",
+            profile="Doc Control",
             attributes={"crawl.type": "first_run_all_regions"},
         ) as span:
             crawl_results = await crawler.crawl_all_regions()
@@ -5837,7 +5837,7 @@ async def handle_regulatory_update_rescan(selected_regions: list):
     crawler = get_regulatory_crawler()
     with phoenix_span(
         "regulatory_crawl_rescan",
-        profile="文件管制 (Doc Control)",
+        profile="Doc Control",
         attributes={
             "crawl.type": "rescan_selected",
             "crawl.regions": ", ".join(selected_regions),
@@ -6141,7 +6141,7 @@ async def handle_regulatory_update_rescan(selected_regions: list):
             # Run the structured analysis pipeline
             with phoenix_span(
                 "analysis_pipeline",
-                profile="文件管制 (Doc Control)",
+                profile="Doc Control",
                 attributes={
                     "pipeline.command": "regulatory_update",
                     "pipeline.model": model_name,
@@ -7860,7 +7860,7 @@ async def handle_file_upload(files):
 
                 def _run_version_diff():
                     with phoenix_trace(
-                        profile="文件管制 (Doc Control)", command="version_diff"
+                        profile="Doc Control", command="version_diff"
                     ):
                         return manager.completion(
                             messages=[{"role": "user", "content": diff_prompt}],
@@ -8027,7 +8027,7 @@ def process_uploaded_file_sync(
             "error": _t("upload.llm_init_error", error=str(e)),
         }
 
-    with phoenix_trace(profile="文件管制 (Doc Control)", command="ocr_upload"):
+    with phoenix_trace(profile="Doc Control", command="ocr_upload"):
         ocr_result = process_document(
             str(dest_path), llm_manager, model_name=model_name
         )
@@ -8066,7 +8066,7 @@ def process_uploaded_file_sync(
         from src.services.doc_hierarchy import classify_document_hierarchy_llm
 
         with phoenix_trace(
-            profile="文件管制 (Doc Control)", command="hierarchy_classify"
+            profile="Doc Control", command="hierarchy_classify"
         ):
             hierarchy_result = classify_document_hierarchy_llm(
                 content=ocr_text_for_detection,
@@ -9578,7 +9578,7 @@ async def on_message(message: cl.Message):
         return
 
     # Check for file uploads (Doc Control profile)
-    if message.elements and profile == "文件管制 (Doc Control)":
+    if message.elements and profile == "Doc Control":
         file_elements = [el for el in message.elements if hasattr(el, "path")]
         if file_elements:
             # Only block upload if sig detection hasn't been asked yet
@@ -10202,7 +10202,7 @@ async def on_message(message: cl.Message):
     # ============================================================
     # Doc Control specific commands
     # ============================================================
-    if profile == "文件管制 (Doc Control)":
+    if profile == "Doc Control":
         # Download original file by doc_id (exclude audit/regulatory/reference)
         is_file_request = _match_cmd(text, "cmd.download_file")
         if (
@@ -10291,7 +10291,7 @@ async def on_message(message: cl.Message):
     # ============================================================
     # Main Agent specific commands
     # ============================================================
-    if profile == "主系統 (Main Agent)":
+    if profile == "Main Agent":
         # Document management shortcut
         is_doc_command = (
             text.strip() in ["文件", "文件管制", "開啟文件", "上傳"]
