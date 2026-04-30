@@ -238,6 +238,13 @@ class RegulatoryMarkdownStorage:
         replaced_count = 0
         doc_ids = []
 
+        # Load QMS annotator once (graceful no-op if unavailable)
+        try:
+            from src.analysis.qms_annotator import annotate_qms_sections as _annotate_qms
+            _annotator_ok = True
+        except Exception:
+            _annotator_ok = False
+
         # Collect regions from successful crawl results
         crawled_regions = set()
         for r in results:
@@ -272,6 +279,13 @@ class RegulatoryMarkdownStorage:
                     "reason": r.get("failure_reason", "內容為空" if not content else "爬取失敗"),
                 })
                 continue
+
+            # QMS section annotation — runs before save, failure never blocks save
+            if _annotator_ok:
+                try:
+                    content = _annotate_qms(content)
+                except Exception:
+                    pass
 
             result = self.save_regulatory_document(
                 region=r.get("region", "Unknown"),

@@ -184,14 +184,22 @@ REGION_SITES = {
     ],
     "歐盟 (EU)": [
         {
+            "agency": "EUR-Lex-MDR-HTML",
+            "name": "Regulation (EU) 2017/745 — EU MDR Full Text HTML (EUR-Lex CELEX direct, all 120 articles + Annexes I-XVII)",
+            "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32017R0745",
+            "tier": 3,
+            "strategy": "html",
+            "crawl_delay": 5,
+            "note": "PRIMARY: EU MDR 2017/745 full HTML via EUR-Lex CELEX endpoint — 120 articles + all Annexes — Jina Reader; pre-written profile is last-resort fallback",
+        },
+        {
             "agency": "EUR-Lex-MDR-OJ",
             "name": "Regulation (EU) 2017/745 — EU MDR Official Journal full text (EUR-Lex OJ English)",
             "url": "https://eur-lex.europa.eu/eli/reg/2017/745/oj/eng",
             "tier": 3,
             "strategy": "html",
-            "crawl_delay": 3,
-            "force_profile": True,
-            "note": "PRIMARY QMS regulation: EU MDR 2017/745 — EUR-Lex blocked by JS anti-bot; pre-written profile used directly (Article 10 + Annex IX §2 QMS requirements)",
+            "crawl_delay": 5,
+            "note": "EU MDR 2017/745 OJ English — Jina Reader fallback; pre-written profile (Article 10 + Annex IX) used if all live tiers fail",
         },
         {
             "agency": "EUR-Lex-MDR",
@@ -200,18 +208,18 @@ REGION_SITES = {
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "Reference: UK legislation.gov.uk MDR table of contents — structure reference only",
+            "note": "UK retained copy of EU MDR — table of contents with sub-page links; sub-pages followed for article text",
         },
         {
             "agency": "MDCG",
-            "name": "MDCG Guidance Documents (QMS, Annex IX, notified body guidance)",
+            "name": "MDCG Guidance Documents (QMS, Annex IX, notified body guidance) — document index page",
             "url": "https://health.ec.europa.eu/medical-devices-sector/new-regulations/guidance-mdcg-endorsed-documents-and-other-guidance_en",
-            "tier": 2,
+            "tier": 3,
             "strategy": "html",
-            "crawl_delay": 3,
+            "crawl_delay": 5,
             "sitemap_url": "https://health.ec.europa.eu/sitemap.xml",
-            "force_profile": True,
-            "note": "MDCG guidance index page only — QMS article text comes from pre-written MDCG 2019-11 profile",
+            "index_page": True,
+            "note": "MDCG guidance index page — ~70 PDF guidance documents to be downloaded; index_page=True raises attachment limit to 50; pre-written profile is last-resort fallback",
         },
     ],
     "英國 (UK)": [
@@ -300,8 +308,16 @@ REGION_SITES = {
             "tier": 3,
             "strategy": "html",
             "crawl_delay": 3,
-            "force_profile": True,
-            "note": "PRIMARY QMS regulation: K-GMP English compilation — text is PDF-only (no inline HTML law text); pre-written profile used directly",
+            "note": "K-GMP English compilation page — Jina Reader; pre-written profile is last-resort fallback",
+        },
+        {
+            "agency": "MFDS-KGMP-PDF",
+            "name": "K-GMP — Medical Device Good Manufacturing Practice Full Text PDF (MFDS English, all articles)",
+            "url": "https://www.mfds.go.kr/brd/m_218/down.do?brd_id=data0011&seq=14629&data_tp=A&file_seq=1",
+            "tier": 2,
+            "strategy": "html",
+            "crawl_delay": 3,
+            "note": "K-GMP English PDF direct download from MFDS — full GMP Ordinance text — PyMuPDF primary, Docling OCR fallback",
         },
         {
             "agency": "MFDS-MD-Regulations",
@@ -431,7 +447,8 @@ REGION_SITES = {
             "tier": 3,
             "strategy": "html",
             "crawl_delay": 5,
-            "note": "Akamai protection — Jina Reader first",
+            "index_page": True,
+            "note": "Akamai protection — Jina Reader first; index_page=True to capture all linked documents",
         },
         {
             "agency": "MDSAP-Global-QMS",
@@ -440,7 +457,8 @@ REGION_SITES = {
             "tier": 3,
             "strategy": "html",
             "crawl_delay": 5,
-            "note": "Akamai protection — Jina Reader first",
+            "index_page": True,
+            "note": "Akamai protection — Jina Reader first; index_page=True",
         },
         {
             "agency": "MDSAP-Global-General",
@@ -449,7 +467,8 @@ REGION_SITES = {
             "tier": 3,
             "strategy": "html",
             "crawl_delay": 5,
-            "note": "Akamai protection — frequent timeouts, Jina Reader fallback",
+            "index_page": True,
+            "note": "Akamai protection — frequent timeouts, Jina Reader fallback; index_page=True",
         },
         {
             "agency": "MDSAP-Global-Assessment",
@@ -458,7 +477,8 @@ REGION_SITES = {
             "tier": 3,
             "strategy": "html",
             "crawl_delay": 5,
-            "note": "Akamai protection — frequent timeouts, Jina Reader fallback",
+            "index_page": True,
+            "note": "Akamai protection — frequent timeouts, Jina Reader fallback; index_page=True",
         },
         {
             "agency": "FDA-MDSAP-Audit",
@@ -969,8 +989,7 @@ REGION_SITES = {
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "force_profile": True,
-            "note": "PRIMARY QMS regulation: Federal Decree-Law No. 38 of 2024 — uaelegislation.gov.ae returns HTTP 403 (access blocked); using pre-written profile — ISO 13485:2016 required for manufacturer registration",
+            "note": "PRIMARY QMS regulation: Federal Decree-Law No. 38 of 2024 — uaelegislation.gov.ae returns HTTP 403; Jina Reader attempted; pre-written profile is last-resort fallback — ISO 13485:2016 required for manufacturer registration",
         },
         {
             "agency": "MOHAP",
@@ -2828,7 +2847,12 @@ def _pdf_bytes_to_markdown(pdf_bytes: bytes, display_name: str, source_url: str)
 # Max PDF size for real-time docling OCR during live crawl (larger = offline batch only)
 _PDF_DOCLING_MAX_BYTES_REALTIME = 2 * 1024 * 1024  # 2 MB
 _PDF_ATTACHMENT_MAX_BYTES = 5 * 1024 * 1024         # 5 MB per attachment
-_MAX_PDF_ATTACHMENTS_PER_PAGE = 3
+_MAX_PDF_ATTACHMENTS_PER_PAGE = 3  # legacy — superseded by _MAX_FILE_ATTACHMENTS_PER_PAGE
+
+# Deep-crawl limits
+_MAX_FILE_ATTACHMENTS_PER_PAGE = 10       # PDF + Word + Excel + PPT combined
+_MAX_FILE_ATTACHMENTS_INDEX_PAGE = 50     # for document index/listing pages (index_page=True)
+_MAX_SUBPAGES_PER_PAGE = 5                # same-domain HTML sub-pages to follow
 
 
 async def _docling_pdf_bytes_to_markdown_async(
@@ -2875,6 +2899,14 @@ async def _docling_pdf_bytes_to_markdown_async(
 _WORD_EXTS = frozenset({".doc", ".docx"})
 _WORD_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024  # 10 MB
 
+_EXCEL_EXTS = frozenset({".xlsx", ".xls", ".ods", ".csv"})
+_EXCEL_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024  # 10 MB
+
+_PPT_EXTS = frozenset({".pptx", ".ppt"})
+_PPT_ATTACHMENT_MAX_BYTES = 20 * 1024 * 1024  # 20 MB
+
+_ALL_FILE_EXTS = frozenset({".pdf"}) | _WORD_EXTS | _EXCEL_EXTS | _PPT_EXTS
+
 
 async def _word_bytes_to_markdown_async(
     word_bytes: bytes, display_name: str, source_url: str
@@ -2915,48 +2947,187 @@ async def _word_bytes_to_markdown_async(
     return await asyncio.to_thread(_run_sync)
 
 
+async def _excel_bytes_to_markdown_async(
+    excel_bytes: bytes, display_name: str, source_url: str, ext: str = ".xlsx"
+) -> str:
+    """Convert an Excel/ODS/CSV file to Markdown tables using openpyxl/pandas fallback."""
+    import os
+    import tempfile
+
+    def _run_sync() -> str:
+        tmp_path = None
+        try:
+            # Try MarkItDown first (handles xlsx natively)
+            if MARKITDOWN_AVAILABLE and _MD_CONVERTER is not None and ext in {".xlsx", ".xls"}:
+                with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as f:
+                    f.write(excel_bytes)
+                    tmp_path = f.name
+                result = _MD_CONVERTER.convert(tmp_path)
+                md = result.text_content if hasattr(result, "text_content") else str(result)
+                if md and len(md.strip()) > 50:
+                    header = (
+                        f"# {display_name}\n\n"
+                        f"**Source**: {source_url}  \n"
+                        f"**Format**: Excel spreadsheet\n\n---\n\n"
+                    )
+                    return header + md.strip()
+        except Exception:
+            pass
+        finally:
+            if tmp_path:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+
+        # Fallback: openpyxl for xlsx
+        if ext == ".xlsx":
+            try:
+                import openpyxl
+                import io as _io
+                wb = openpyxl.load_workbook(_io.BytesIO(excel_bytes), read_only=True, data_only=True)
+                parts = [f"# {display_name}\n\n**Source**: {source_url}  \n**Format**: Excel spreadsheet\n\n---\n"]
+                for sheet_name in wb.sheetnames:
+                    ws = wb[sheet_name]
+                    rows = list(ws.iter_rows(values_only=True))
+                    if not rows:
+                        continue
+                    parts.append(f"\n## Sheet: {sheet_name}\n")
+                    header_row = [str(c) if c is not None else "" for c in rows[0]]
+                    parts.append("| " + " | ".join(header_row) + " |")
+                    parts.append("| " + " | ".join(["---"] * len(header_row)) + " |")
+                    for row in rows[1:50]:  # cap at 50 rows to avoid token explosion
+                        parts.append("| " + " | ".join(str(c) if c is not None else "" for c in row) + " |")
+                wb.close()
+                result = "\n".join(parts)
+                if len(result.strip()) > 50:
+                    return result
+            except Exception:
+                pass
+
+        # CSV fallback
+        if ext == ".csv":
+            try:
+                import csv
+                import io as _io
+                text = excel_bytes.decode("utf-8-sig", errors="replace")
+                reader = csv.reader(_io.StringIO(text))
+                rows = list(reader)
+                if rows:
+                    parts = [
+                        f"# {display_name}\n\n**Source**: {source_url}  \n**Format**: CSV\n\n---\n",
+                        "| " + " | ".join(rows[0]) + " |",
+                        "| " + " | ".join(["---"] * len(rows[0])) + " |",
+                    ]
+                    for row in rows[1:50]:
+                        parts.append("| " + " | ".join(row) + " |")
+                    return "\n".join(parts)
+            except Exception:
+                pass
+
+        return ""
+
+    return await asyncio.to_thread(_run_sync)
+
+
+async def _ppt_bytes_to_markdown_async(
+    ppt_bytes: bytes, display_name: str, source_url: str, ext: str = ".pptx"
+) -> str:
+    """Convert a PowerPoint file to Markdown using MarkItDown."""
+    import os
+    import tempfile
+
+    def _run_sync() -> str:
+        if not MARKITDOWN_AVAILABLE or _MD_CONVERTER is None:
+            return ""
+        tmp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as f:
+                f.write(ppt_bytes)
+                tmp_path = f.name
+            result = _MD_CONVERTER.convert(tmp_path)
+            md = result.text_content if hasattr(result, "text_content") else str(result)
+            if md and len(md.strip()) > 100:
+                header = (
+                    f"# {display_name}\n\n"
+                    f"**Source**: {source_url}  \n"
+                    f"**Format**: PowerPoint presentation\n\n---\n\n"
+                )
+                return header + md.strip()
+        except Exception:
+            pass
+        finally:
+            if tmp_path:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+        return ""
+
+    return await asyncio.to_thread(_run_sync)
+
+
 async def _extract_html_pdf_attachments(
     client: httpx.AsyncClient,
     html: str,
     base_url: str,
+    max_attachments: int = _MAX_FILE_ATTACHMENTS_PER_PAGE,
 ) -> str:
-    """Detect PDF and Word attachment links in an HTML page, download each, and extract text as Markdown.
+    """Deep-crawl all linked documents and same-domain sub-pages found in an HTML page.
 
-    Returns a Markdown string with all attachment sections, or an empty string.
-    PDF: tries PyMuPDF first, falls back to Docling for scanned/image PDFs (≤5 MB).
-    Word (.doc/.docx): converted via MarkItDown (≤10 MB).
+    Scans every <a href> tag and classifies links into:
+      - File attachments: PDF, Word (.doc/.docx), Excel (.xlsx/.xls/.ods/.csv), PPT (.pptx/.ppt)
+      - Same-domain HTML sub-pages (depth=1, capped at _MAX_SUBPAGES_PER_PAGE)
+
+    All content is downloaded, converted to Markdown, and appended to the result.
     """
     from urllib.parse import urljoin, urlparse as _up2
 
-    found: list[tuple[str, str]] = []  # (title, absolute_url)
+    # (title, absolute_url, extension_lowercase)
+    file_links: list[tuple[str, str, str]] = []
+    subpage_links: list[tuple[str, str]] = []
+    seen_urls: set[str] = set()
+
+    base_domain = _up2(base_url).netloc
+
     try:
         soup = BeautifulSoup(html, "lxml")
         for a in soup.find_all("a", href=True):
             href = a["href"].strip()
-            href_lower = href.lower()
-            if not (href_lower.endswith(".pdf") or any(href_lower.endswith(ext) for ext in _WORD_EXTS)):
+            if not href or href.startswith("#") or href.lower().startswith("javascript:"):
                 continue
             full_url = urljoin(base_url, href)
-            if not _is_safe_url(full_url):
+            if not _is_safe_url(full_url) or full_url in seen_urls:
                 continue
+            seen_urls.add(full_url)
+
             title = (
                 a.get_text(strip=True)
-                or _up2(full_url).path.split("/")[-1]
-                or "Attachment"
+                or _up2(full_url).path.rstrip("/").split("/")[-1]
+                or "Document"
             )[:120]
-            if full_url not in {u for _, u in found}:
-                found.append((title, full_url))
-            if len(found) >= _MAX_PDF_ATTACHMENTS_PER_PAGE:
-                break
+
+            # Determine extension (strip query string first)
+            path_lower = _up2(full_url).path.lower()
+            matched_ext = next(
+                (ext for ext in sorted(_ALL_FILE_EXTS, key=len, reverse=True) if path_lower.endswith(ext)),
+                None,
+            )
+
+            if matched_ext:
+                if len(file_links) < max_attachments:
+                    file_links.append((title, full_url, matched_ext))
+            else:
+                # Same-domain HTML sub-page
+                if _up2(full_url).netloc == base_domain and len(subpage_links) < _MAX_SUBPAGES_PER_PAGE:
+                    subpage_links.append((title, full_url))
     except Exception:
         return ""
 
-    if not found:
-        return ""
-
     parts: list[str] = []
-    for title, att_url in found:
-        att_lower = att_url.lower()
+
+    # ── File attachments ──
+    for title, att_url, ext in file_links:
         try:
             resp = await _fetch_with_retry(
                 client, att_url, timeout=httpx.Timeout(60, connect=10)
@@ -2966,33 +3137,54 @@ async def _extract_html_pdf_attachments(
             if len(att_bytes) < 100:
                 continue
 
-            # ── Word attachment ──
-            if any(att_lower.endswith(ext) for ext in _WORD_EXTS):
+            md = ""
+            if ext == ".pdf":
+                if att_bytes[:4] != b"%PDF" and b"%PDF" not in att_bytes[:1024]:
+                    continue
+                md = _pdf_bytes_to_markdown(att_bytes, title, att_url)
+                if not md and len(att_bytes) <= _PDF_ATTACHMENT_MAX_BYTES:
+                    md = await _docling_pdf_bytes_to_markdown_async(att_bytes, title, att_url)
+            elif ext in _WORD_EXTS:
                 if len(att_bytes) <= _WORD_ATTACHMENT_MAX_BYTES:
                     md = await _word_bytes_to_markdown_async(att_bytes, title, att_url)
-                    if md and len(md.strip()) > 200:
-                        parts.append(md)
-                continue
+            elif ext in _EXCEL_EXTS:
+                if len(att_bytes) <= _EXCEL_ATTACHMENT_MAX_BYTES:
+                    md = await _excel_bytes_to_markdown_async(att_bytes, title, att_url, ext)
+            elif ext in _PPT_EXTS:
+                if len(att_bytes) <= _PPT_ATTACHMENT_MAX_BYTES:
+                    md = await _ppt_bytes_to_markdown_async(att_bytes, title, att_url, ext)
 
-            # ── PDF attachment ──
-            if pdf_bytes := att_bytes:
-                if pdf_bytes[:4] != b"%PDF" and b"%PDF" not in pdf_bytes[:1024]:
-                    continue
-                md = _pdf_bytes_to_markdown(pdf_bytes, title, att_url)
-                if md and len(md.strip()) > 200:
-                    parts.append(md)
-                    continue
-                if len(pdf_bytes) <= _PDF_ATTACHMENT_MAX_BYTES:
-                    md = await _docling_pdf_bytes_to_markdown_async(pdf_bytes, title, att_url)
-                    if md and len(md.strip()) > 200:
-                        parts.append(md)
+            if md and len(md.strip()) > 200:
+                parts.append(md)
+        except Exception:
+            pass
+
+    # ── Same-domain sub-page links (depth = 1) ──
+    for title, sub_url in subpage_links:
+        try:
+            resp = await _fetch_with_retry(
+                client, sub_url, timeout=httpx.Timeout(30, connect=10)
+            )
+            resp.raise_for_status()
+            sub_html = resp.text
+            md = _html_to_markdown(sub_html, sub_url)
+            if md and len(md.strip()) > 100:
+                try:
+                    sub_soup = BeautifulSoup(sub_html, "lxml")
+                    t = sub_soup.find("title")
+                    page_title = (t.string.strip() if t and t.string else title)
+                except Exception:
+                    page_title = title
+                parts.append(
+                    f"# {page_title}\n\n**Source**: {sub_url}\n\n---\n\n{md.strip()}"
+                )
         except Exception:
             pass
 
     if not parts:
         return ""
 
-    return "\n\n---\n<!-- ATTACHED DOCUMENTS -->\n\n" + "\n\n---\n\n".join(parts)
+    return "\n\n---\n<!-- ATTACHED DOCUMENTS & LINKED PAGES -->\n\n" + "\n\n---\n\n".join(parts)
 
 
 async def _crawl_tier2_httpx(
@@ -3122,8 +3314,13 @@ async def _crawl_tier2_httpx(
             # Detect and download any PDF attachments linked from this HTML page
             if "application/json" not in content_type:
                 try:
+                    _attach_limit = (
+                        _MAX_FILE_ATTACHMENTS_INDEX_PAGE
+                        if site.get("index_page")
+                        else _MAX_FILE_ATTACHMENTS_PER_PAGE
+                    )
                     attachments = await _extract_html_pdf_attachments(
-                        client, raw_text, url
+                        client, raw_text, url, max_attachments=_attach_limit
                     )
                     if attachments:
                         result["content_markdown"] += attachments
@@ -3264,14 +3461,9 @@ class AsyncRegulatoryUpdateCrawler:
         """Crawl a single site with tier dispatch, fallback chain, and rate limiting.
 
         Fallback chain: Tier2 (httpx) → Tier3 (Jina) → DuckDuckGo → pre-written profile.
-        If force_profile=True on the site entry, skip crawling and use the pre-written profile directly.
+        force_profile=True sites still attempt real crawl first; the pre-written profile
+        is used only as absolute last resort after all live tiers fail.
         """
-        if site.get("force_profile"):
-            profile = self._fallback_profile(site, region)
-            if profile:
-                profile["note"] = "force_profile=True — 使用預設法規摘要（網頁版無法條全文）"
-                return profile
-
         tier = site.get("tier", 2)
         url = site.get("url", "")
         sem = self._get_domain_semaphore(url)
