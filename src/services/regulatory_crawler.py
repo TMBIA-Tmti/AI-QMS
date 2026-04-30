@@ -203,12 +203,13 @@ REGION_SITES = {
         },
         {
             "agency": "EUR-Lex-MDR",
-            "name": "Regulation (EU) 2017/745 — EU MDR full text (legislation.gov.uk UK retained copy)",
+            "name": "Regulation (EU) 2017/745 — EU MDR full text all articles (legislation.gov.uk UK retained copy)",
             "url": "https://www.legislation.gov.uk/eur/2017/745/contents",
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "UK retained copy of EU MDR — table of contents with sub-page links; sub-pages followed for article text",
+            "max_subpages": 150,
+            "note": "PRIMARY working EU MDR source: UK legislation.gov.uk retained copy — TOC page; max_subpages=150 follows all 120 articles + Annexes I-XVII; EUR-Lex direct endpoints blocked by Cloudflare CAPTCHA",
         },
         {
             "agency": "MDCG",
@@ -303,21 +304,23 @@ REGION_SITES = {
     "韓國 (Korea)": [
         {
             "agency": "MFDS-KGMP",
-            "name": "MFDS — Medical Device Good Manufacturing Practice (K-GMP, 의료기기 제조 및 품질관리 기준) English compilation",
+            "name": "MFDS — Medical Device Good Manufacturing Practice (K-GMP) English compilation",
             "url": "https://www.mfds.go.kr/eng/brd/m_40/view.do?seq=72638",
             "tier": 3,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "K-GMP English compilation page — Jina Reader; pre-written profile is last-resort fallback",
+            "force_profile": True,
+            "note": "K-GMP — MFDS blocks all non-Korean IP (ConnectError); force_profile=True as hardcoded fallback; pre-written profile contains full K-GMP article list",
         },
         {
             "agency": "MFDS-KGMP-PDF",
-            "name": "K-GMP — Medical Device Good Manufacturing Practice Full Text PDF (MFDS English, all articles)",
+            "name": "K-GMP Full Text PDF (MFDS English) — blocked from non-Korean IPs",
             "url": "https://www.mfds.go.kr/brd/m_218/down.do?brd_id=data0011&seq=14629&data_tp=A&file_seq=1",
-            "tier": 2,
+            "tier": 3,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "K-GMP English PDF direct download from MFDS — full GMP Ordinance text — PyMuPDF primary, Docling OCR fallback",
+            "force_profile": True,
+            "note": "K-GMP PDF — also blocked from non-Korean IPs; force_profile fallback ensures content availability",
         },
         {
             "agency": "MFDS-MD-Regulations",
@@ -382,12 +385,21 @@ REGION_SITES = {
     "澳洲 (Australia)": [
         {
             "agency": "TGA-Legislation",
-            "name": "Therapeutic Goods (Medical Devices) Regulations 2002 — Schedule 3 Conformity Assessment Procedures (AustLII HTML)",
-            "url": "https://classic.austlii.edu.au/au/legis/cth/consol_reg/tgdr2002400/sch3.html",
-            "tier": 2,
+            "name": "Therapeutic Goods (Medical Devices) Regulations 2002 — Full Text (legislation.gov.au)",
+            "url": "https://www.legislation.gov.au/current/F2022C00567",
+            "tier": 3,
             "strategy": "html",
-            "crawl_delay": 3,
-            "note": "PRIMARY QMS regulation: TG(MD)R 2002 Schedule 3 specifies conformity assessment procedures requiring ISO 13485 QMS — plain HTML via AustLII (legislation.gov.au full text requires JS rendering)",
+            "crawl_delay": 5,
+            "note": "PRIMARY QMS regulation: TG(MD)R 2002 full text — Schedule 3 specifies conformity assessment procedures requiring ISO 13485 QMS — legislation.gov.au via Jina (AustLII blocked bots)",
+        },
+        {
+            "agency": "TGA-Legislation-Schedule3",
+            "name": "Therapeutic Goods (Medical Devices) Regulations 2002 — Schedule 3 only (AustLII fallback)",
+            "url": "https://classic.austlii.edu.au/au/legis/cth/consol_reg/tgdr2002400/sch3.html",
+            "tier": 3,
+            "strategy": "html",
+            "crawl_delay": 5,
+            "note": "Schedule 3 conformity assessment text — AustLII via Jina Reader fallback",
         },
         {
             "agency": "TGA-ARGMD",
@@ -422,12 +434,12 @@ REGION_SITES = {
     "巴西 (Brazil)": [
         {
             "agency": "ANVISA-RDC665",
-            "name": "RDC nº 665/2022 — ANVISA Good Manufacturing Practices for Medical Devices (BPF/GMP) — English version (PDF)",
+            "name": "RDC nº 665/2022 — ANVISA Good Manufacturing Practices for Medical Devices (BPF/GMP) — English PDF",
             "url": "https://www.gov.br/anvisa/en/regulation-of-companies/arquivos/rdc-665-2022-english-version.pdf",
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 5,
-            "note": "PRIMARY QMS regulation: ANVISA RDC 665/2022 (effective 2022-05-02) — Brazilian Good Manufacturing Practices (BGMP) for medical devices and IVDs, replaces RDC 16/2013 — direct ANVISA PDF (confirmed 309KB)",
+            "note": "PRIMARY QMS regulation: ANVISA RDC 665/2022 English PDF (309KB) — tier 2 httpx direct download; Jina fallback if 403; pre-written profile last resort",
         },
         {
             "agency": "ANVISA-RDC665-News",
@@ -642,10 +654,10 @@ REGION_SITES = {
             "agency": "MoH-NZ-MD-Regulation",
             "name": "NZ Ministry of Health — Regulating medicines, medical devices and natural health products",
             "url": "https://www.health.govt.nz/regulation-legislation/medicines-legislation/regulating-medicines-medical-devices-and-natural-health-products",
-            "tier": 2,
+            "tier": 3,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "NZ MoH current regulatory framework page — explains post-TPA repeal status and Medical Products Bill development",
+            "note": "NZ MoH regulatory framework page — health.govt.nz blocks direct httpx (403); Jina Reader first",
         },
         {
             "agency": "NZ-Medicines-Act-1981",
@@ -709,12 +721,12 @@ REGION_SITES = {
     "南非 (South Africa)": [
         {
             "agency": "SAHPRA-ISO13485",
-            "name": "Medicines and Related Substances Act 101 of 1965 — Consolidated text (SAFLII)",
+            "name": "Medicines and Related Substances Act 101 of 1965 — Consolidated text (SAFLII via Jina)",
             "url": "https://www.saflii.org/za/legis/consol_act/marsa1965280/",
-            "tier": 2,
+            "tier": 3,
             "strategy": "html",
-            "crawl_delay": 3,
-            "note": "PRIMARY QMS regulation: Medicines Act 101/1965 (as amended) — s.22C establishes SAHPRA; Regulations 5 & 6 under the Act require ISO 13485:2016 for medical device establishment licence from 1 June 2025 — SAFLII consolidated HTML text",
+            "crawl_delay": 5,
+            "note": "PRIMARY QMS regulation: Medicines Act 101/1965 — SAFLII blocks HEAD (403) but full HTML text accessible via Jina Reader GET; s.22C + Regulations 5&6 require ISO 13485:2016",
         },
         {
             "agency": "SAHPRA-MD",
@@ -817,12 +829,21 @@ REGION_SITES = {
     "以色列 (Israel)": [
         {
             "agency": "Nevo-MD-Regulations-2021",
-            "name": "תקנות ציוד רפואי (ייצור, שיווק או שימוש בציוד רפואי שאינו רשום) התשפ\"ב–2021 — Nevo.co.il (Hebrew full text)",
-            "url": "https://www.nevo.co.il/law_html/law11/121221-2.htm",
+            "name": "תקנות ציוד רפואי התשפ\"ב–2021 — Israeli Medical Equipment Regulations (Nevo.co.il)",
+            "url": "https://www.nevo.co.il/law_html/law01/999_1304.htm",
             "tier": 3,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "PRIMARY QMS regulation: Israel Medical Equipment Regulations 2021 (תקנות ציוד רפואי) — full Hebrew text on Nevo.co.il (official Israeli legislation database) — requires ISO 13485 / CE marking for registration; Medical Equipment Law 5772-2012 is the enabling act — Jina first",
+            "note": "PRIMARY QMS regulation: Israel Medical Equipment Regulations 2021 — Nevo.co.il; updated URL (previous /law11/121221-2.htm returned 404); requires ISO 13485 / CE marking for registration — Jina first",
+        },
+        {
+            "agency": "Nevo-MD-Law-2012",
+            "name": "Medical Equipment Law 5772-2012 — Israel enabling act (gov.il legislation portal)",
+            "url": "https://www.nevo.co.il/law_html/law01/P1221-2021-1.htm",
+            "tier": 3,
+            "strategy": "html",
+            "crawl_delay": 3,
+            "note": "Israel Medical Equipment Law 5772-2012 — Nevo.co.il alternative path — Jina first",
         },
         {
             "agency": "MOH-Laws",
@@ -904,12 +925,21 @@ REGION_SITES = {
     "哥倫比亞 (Colombia)": [
         {
             "agency": "INVIMA-Decreto4725",
-            "name": "Decreto 4725 de 2005 — Régimen de registros sanitarios de dispositivos médicos (INVIMA Normograma)",
+            "name": "Decreto 4725 de 2005 — Régimen de registros sanitarios de dispositivos médicos (INVIMA Normograma via Jina)",
             "url": "https://normograma.invima.gov.co/normograma/compilacion/docs/decreto_4725_2005.htm",
-            "tier": 2,
+            "tier": 3,
+            "strategy": "html",
+            "crawl_delay": 5,
+            "note": "PRIMARY QMS regulation: Decreto 4725/2005 — normograma.invima.gov.co times out on direct httpx; Jina Reader bypasses slow server; Article 8 requires BPM/ISO 13485 compliance",
+        },
+        {
+            "agency": "INVIMA-Decreto4725-PDF",
+            "name": "Decreto 4725 de 2005 — PDF via Función Pública Colombia (gov.co)",
+            "url": "https://www.funcionpublica.gov.co/eva/gestornormativo/norma.php?i=18841",
+            "tier": 3,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "PRIMARY QMS regulation: Decreto 4725/2005 governs medical device registration and GMP (BPM) in Colombia; Article 8 requires BPM compliance; ISO 13485 certificate accepted as QMS evidence — official INVIMA Normograma text",
+            "note": "Decreto 4725/2005 alternative source — Función Pública normativa database — Jina first",
         },
         {
             "agency": "INVIMA-MD",
@@ -3072,6 +3102,7 @@ async def _extract_html_pdf_attachments(
     html: str,
     base_url: str,
     max_attachments: int = _MAX_FILE_ATTACHMENTS_PER_PAGE,
+    max_subpages: int = _MAX_SUBPAGES_PER_PAGE,
 ) -> str:
     """Deep-crawl all linked documents and same-domain sub-pages found in an HTML page.
 
@@ -3119,7 +3150,7 @@ async def _extract_html_pdf_attachments(
                     file_links.append((title, full_url, matched_ext))
             else:
                 # Same-domain HTML sub-page
-                if _up2(full_url).netloc == base_domain and len(subpage_links) < _MAX_SUBPAGES_PER_PAGE:
+                if _up2(full_url).netloc == base_domain and len(subpage_links) < max_subpages:
                     subpage_links.append((title, full_url))
     except Exception:
         return ""
@@ -3185,6 +3216,92 @@ async def _extract_html_pdf_attachments(
         return ""
 
     return "\n\n---\n<!-- ATTACHED DOCUMENTS & LINKED PAGES -->\n\n" + "\n\n---\n\n".join(parts)
+
+
+async def _extract_markdown_attachments(
+    client: httpx.AsyncClient,
+    markdown: str,
+    base_url: str,
+    max_attachments: int = _MAX_FILE_ATTACHMENTS_PER_PAGE,
+) -> str:
+    """Download file attachments linked inside Jina-returned Markdown text.
+
+    Jina Reader converts pages to Markdown directly, so `_extract_html_pdf_attachments`
+    (which parses HTML with BeautifulSoup) cannot be used.  This function finds
+    all Markdown-syntax links `[text](url)` and `<url>` whose URL paths end with
+    a known file extension, then downloads and converts each to Markdown.
+
+    Supports: PDF, Word (.doc/.docx), Excel (.xlsx/.xls/.ods/.csv), PPT (.pptx/.ppt).
+    """
+    from urllib.parse import urljoin, urlparse as _up2
+
+    # Match both [text](url) and bare <url> patterns
+    _link_re = re.compile(r'\[(?:[^\]]*)\]\(([^)\s]+)\)|<(https?://[^>]+)>')
+
+    file_links: list[tuple[str, str, str]] = []
+    seen: set[str] = set()
+
+    for m in _link_re.finditer(markdown):
+        href = (m.group(1) or m.group(2) or "").strip().rstrip(")")
+        if not href:
+            continue
+        full_url = urljoin(base_url, href) if not href.startswith("http") else href
+        if not _is_safe_url(full_url) or full_url in seen:
+            continue
+        seen.add(full_url)
+
+        path_lower = _up2(full_url).path.lower()
+        matched_ext = next(
+            (ext for ext in sorted(_ALL_FILE_EXTS, key=len, reverse=True)
+             if path_lower.endswith(ext)),
+            None,
+        )
+        if matched_ext and len(file_links) < max_attachments:
+            # Use surrounding text as title (the link label from markdown)
+            raw_label = m.group(0)
+            title_part = re.sub(r'[\[\]<>()]', '', raw_label).strip()[:120] or path_lower.split("/")[-1] or "Document"
+            file_links.append((title_part, full_url, matched_ext))
+
+    if not file_links:
+        return ""
+
+    parts: list[str] = []
+    for title, att_url, ext in file_links:
+        try:
+            resp = await _fetch_with_retry(
+                client, att_url, timeout=httpx.Timeout(60, connect=10)
+            )
+            resp.raise_for_status()
+            att_bytes = resp.content
+            if len(att_bytes) < 100:
+                continue
+
+            md = ""
+            if ext == ".pdf":
+                if att_bytes[:4] != b"%PDF" and b"%PDF" not in att_bytes[:1024]:
+                    continue
+                md = _pdf_bytes_to_markdown(att_bytes, title, att_url)
+                if not md and len(att_bytes) <= _PDF_ATTACHMENT_MAX_BYTES:
+                    md = await _docling_pdf_bytes_to_markdown_async(att_bytes, title, att_url)
+            elif ext in _WORD_EXTS:
+                if len(att_bytes) <= _WORD_ATTACHMENT_MAX_BYTES:
+                    md = await _word_bytes_to_markdown_async(att_bytes, title, att_url)
+            elif ext in _EXCEL_EXTS:
+                if len(att_bytes) <= _EXCEL_ATTACHMENT_MAX_BYTES:
+                    md = await _excel_bytes_to_markdown_async(att_bytes, title, att_url, ext)
+            elif ext in _PPT_EXTS:
+                if len(att_bytes) <= _PPT_ATTACHMENT_MAX_BYTES:
+                    md = await _ppt_bytes_to_markdown_async(att_bytes, title, att_url, ext)
+
+            if md and len(md.strip()) > 200:
+                parts.append(md)
+        except Exception:
+            pass
+
+    if not parts:
+        return ""
+
+    return "\n\n---\n<!-- ATTACHED DOCUMENTS (Jina Markdown links) -->\n\n" + "\n\n---\n\n".join(parts)
 
 
 async def _crawl_tier2_httpx(
@@ -3319,8 +3436,11 @@ async def _crawl_tier2_httpx(
                         if site.get("index_page")
                         else _MAX_FILE_ATTACHMENTS_PER_PAGE
                     )
+                    _subpage_limit = site.get("max_subpages", _MAX_SUBPAGES_PER_PAGE)
                     attachments = await _extract_html_pdf_attachments(
-                        client, raw_text, url, max_attachments=_attach_limit
+                        client, raw_text, url,
+                        max_attachments=_attach_limit,
+                        max_subpages=_subpage_limit,
                     )
                     if attachments:
                         result["content_markdown"] += attachments
@@ -3365,14 +3485,21 @@ async def _crawl_tier3_jina(
 
         if response.status_code == 200:
             content = response.text.strip()
-            # Detect Jina "Warning" error pages — upstream HTTP errors wrapped
-            # in a 200 response; e.g. "Warning: Target URL returned error 412".
-            # The warning may appear after "Title:" / "URL Source:" preamble
-            # headers so we scan the first 500 chars, not just startswith.
+
+            # Detect Jina error/bot-block pages (all wrapped in HTTP 200).
+            # Patterns: upstream errors, CAPTCHA challenges, JS-required, bot detection.
+            _head500 = content[:600]
             _jina_error = (
-                "Warning:" in content[:500]
-                and "returned error" in content[:500]
+                ("Warning:" in _head500 and "returned error" in _head500)
+                or "Max challenge attempts exceeded" in _head500
+                or "JavaScript is disabled" in _head500
+                or "Please enable JavaScript" in _head500
+                or "cf-challenge" in _head500
+                or "Cloudflare" in _head500
+                or ("Bot" in _head500 and "detect" in _head500.lower())
+                or ("Access denied" in _head500)
             )
+
             if content and len(content) > 50 and not _jina_error:
                 result["content_markdown"] = content
                 # Extract title from first heading
@@ -3385,12 +3512,27 @@ async def _crawl_tier3_jina(
                     result["title"] = site.get("name", site["agency"])
                 result["crawl_status"] = "success"
                 result["content_source"] = "live"
-                result["content_markdown"] = content
+
+                # Download file attachments found as Markdown links in Jina output
+                try:
+                    _attach_limit = (
+                        _MAX_FILE_ATTACHMENTS_INDEX_PAGE
+                        if site.get("index_page")
+                        else _MAX_FILE_ATTACHMENTS_PER_PAGE
+                    )
+                    attachments = await _extract_markdown_attachments(
+                        client, content, url, max_attachments=_attach_limit
+                    )
+                    if attachments:
+                        result["content_markdown"] += attachments
+                except Exception:
+                    pass
+
+
             elif _jina_error:
-                # Extract the HTTP status from the warning message if possible
                 _warn_line = content.split("\n")[0][:120]
                 result["failure_reason"] = (
-                    f"Jina Reader 回傳上游錯誤 — {_warn_line}"
+                    f"Jina Reader 回傳 bot-block/challenge — {_warn_line}"
                 )
             else:
                 result["failure_reason"] = (
