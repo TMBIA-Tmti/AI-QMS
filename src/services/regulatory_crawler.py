@@ -174,12 +174,12 @@ REGION_SITES = {
         },
         {
             "agency": "Federal-Register-QMSR",
-            "name": "Federal Register — FDA QMSR Final Rule (2024)",
-            "url": "https://www.federalregister.gov/api/v1/documents?conditions[agencies][]=food-and-drug-administration&conditions[type][]=RULE&per_page=20&order=newest",
-            "tier": 1,
-            "strategy": "api_json",
+            "name": "Federal Register — FDA QMSR Final Rule 2024-01709 (full text)",
+            "url": "https://www.federalregister.gov/documents/2024/02/02/2024-01709/medical-devices-quality-system-regulation-amendments",
+            "tier": 2,
+            "strategy": "html",
             "crawl_delay": 3,
-            "note": "Federal Register API for most-recent FDA rules — monitors QMSR/Part 820 amendments",
+            "note": "Federal Register full text of FDA QMSR Final Rule 89 FR 7496 — tier 2 HTML (API URL caused ProtocolError with unencoded brackets); direct page URL is stable",
         },
     ],
     "歐盟 (EU)": [
@@ -209,7 +209,8 @@ REGION_SITES = {
             "strategy": "html",
             "crawl_delay": 3,
             "max_subpages": 150,
-            "note": "PRIMARY working EU MDR source: UK legislation.gov.uk retained copy — TOC page; max_subpages=150 follows all 120 articles + Annexes I-XVII; EUR-Lex direct endpoints blocked by Cloudflare CAPTCHA",
+            "jina_subpage_fallback": True,
+            "note": "PRIMARY EU MDR source: legislation.gov.uk TOC — direct httpx blocked (437); jina_subpage_fallback=True uses Jina for each article/annex sub-page (20K+ chars each); max_subpages=150 covers all 120 articles + 17 Annexes",
         },
         {
             "agency": "MDCG",
@@ -220,7 +221,43 @@ REGION_SITES = {
             "crawl_delay": 5,
             "sitemap_url": "https://health.ec.europa.eu/sitemap.xml",
             "index_page": True,
-            "note": "MDCG guidance index page — ~70 PDF guidance documents to be downloaded; index_page=True raises attachment limit to 50; pre-written profile is last-resort fallback",
+            "note": "MDCG guidance index page — ~70 PDF guidance documents; index_page=True raises attachment limit to 50; pre-written profile is last-resort fallback",
+        },
+        {
+            "agency": "MDCG-2019-11",
+            "name": "MDCG 2019-11 Rev.2 — QMS documentation for notified body assessment (EU Commission)",
+            "url": "https://health.ec.europa.eu/document/download/037023ad-5f9a-4849-be4e-4de9bbd2a8e4_en?filename=mdcg_2019-11_rev2_en.pdf",
+            "tier": 2,
+            "strategy": "html",
+            "crawl_delay": 3,
+            "note": "MDCG 2019-11 Rev.2 — NB QMS documentation requirements under EU MDR Annex IX §2.2 — updated URL (old /system/files/ path returns 404)",
+        },
+        {
+            "agency": "MDCG-2021-25",
+            "name": "MDCG 2021-25 — GSPR Checklist (EU Commission)",
+            "url": "https://health.ec.europa.eu/document/download/b4c97e7c-a5ee-4d73-99b1-45d0f6f8e32e_en?filename=mdcg_2021-25_en.pdf",
+            "tier": 2,
+            "strategy": "html",
+            "crawl_delay": 3,
+            "note": "MDCG 2021-25 — GSPR compliance documentation in QMS — updated URL format",
+        },
+        {
+            "agency": "MDCG-2020-7",
+            "name": "MDCG 2020-7 — Post-Market Surveillance Report guidance (EU Commission)",
+            "url": "https://health.ec.europa.eu/document/download/cd84d03a-e2ee-4831-8c8b-2571e94de6a7_en?filename=md_mdcg_2020_7_guidance_pmsr_en.pdf",
+            "tier": 2,
+            "strategy": "html",
+            "crawl_delay": 3,
+            "note": "MDCG 2020-7 — PSUR/PMS requirements in QMS — updated URL format",
+        },
+        {
+            "agency": "EUR-Lex-MDR-XML",
+            "name": "Regulation (EU) 2017/745 — EU MDR via legislation.gov.uk XML data API (full structured text)",
+            "url": "https://www.legislation.gov.uk/eur/2017/745/data.xml",
+            "tier": 2,
+            "strategy": "html",
+            "crawl_delay": 3,
+            "note": "legislation.gov.uk programmatic XML endpoint — bypasses bot detection; full EU MDR 2017/745 text including all articles",
         },
     ],
     "英國 (UK)": [
@@ -370,7 +407,9 @@ REGION_SITES = {
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 5,
+            "index_page": True,
             "sitemap_url": "https://www.fda.gov/sitemap.xml",
+            "note": "FDA MDSAP audit forms index — index_page=True extracts all linked PDFs (up to 50)",
         },
         {
             "agency": "FDA-MDSAP-Assessment",
@@ -379,27 +418,38 @@ REGION_SITES = {
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 5,
+            "index_page": True,
             "sitemap_url": "https://www.fda.gov/sitemap.xml",
+            "note": "FDA MDSAP assessment forms index — index_page=True extracts all linked PDFs",
+        },
+        {
+            "agency": "MDSAP-Companion-ISO13485",
+            "name": "MDSAP Companion Document to ISO 13485:2016 (FDA PDF)",
+            "url": "https://www.fda.gov/media/102395/download",
+            "tier": 2,
+            "strategy": "html",
+            "crawl_delay": 3,
+            "note": "FDA MDSAP Companion Document — maps MDSAP audit requirements clause-by-clause to ISO 13485:2016 — PyMuPDF direct PDF",
         },
     ],
     "澳洲 (Australia)": [
         {
             "agency": "TGA-Legislation",
-            "name": "Therapeutic Goods (Medical Devices) Regulations 2002 — Full Text (legislation.gov.au)",
-            "url": "https://www.legislation.gov.au/current/F2022C00567",
-            "tier": 3,
+            "name": "Therapeutic Goods (Medical Devices) Regulations 2002 — Schedule 3 (AustLII plain HTML, no JS)",
+            "url": "https://classic.austlii.edu.au/au/legis/cth/consol_reg/tgdr2002400/sch3.html",
+            "tier": 2,
             "strategy": "html",
-            "crawl_delay": 5,
-            "note": "PRIMARY QMS regulation: TG(MD)R 2002 full text — Schedule 3 specifies conformity assessment procedures requiring ISO 13485 QMS — legislation.gov.au via Jina (AustLII blocked bots)",
+            "crawl_delay": 3,
+            "note": "PRIMARY QMS: TG(MD)R 2002 Schedule 3 conformity assessment requiring ISO 13485 — AustLII classic.austlii.edu.au serves plain HTML; tier 2 httpx (no Jina needed)",
         },
         {
-            "agency": "TGA-Legislation-Schedule3",
-            "name": "Therapeutic Goods (Medical Devices) Regulations 2002 — Schedule 3 only (AustLII fallback)",
-            "url": "https://classic.austlii.edu.au/au/legis/cth/consol_reg/tgdr2002400/sch3.html",
-            "tier": 3,
+            "agency": "TGA-Legislation-PDF",
+            "name": "Therapeutic Goods (Medical Devices) Regulations 2002 — Compiled PDF (Federal Register)",
+            "url": "https://www.legislation.gov.au/Details/F2022C00567/Download",
+            "tier": 2,
             "strategy": "html",
             "crawl_delay": 5,
-            "note": "Schedule 3 conformity assessment text — AustLII via Jina Reader fallback",
+            "note": "TG(MD)R 2002 compiled PDF — full Schedule 3 QMS conformity assessment text; PyMuPDF direct",
         },
         {
             "agency": "TGA-ARGMD",
@@ -408,7 +458,7 @@ REGION_SITES = {
             "tier": 3,
             "strategy": "html",
             "crawl_delay": 5,
-            "note": "TGA ARGMD — explains Schedule 3 conformity assessment procedures including QMS requirements — Jina Reader fallback",
+            "note": "TGA ARGMD — explains Schedule 3 conformity assessment including QMS requirements — Jina Reader",
         },
     ],
     "瑞士 (Switzerland)": [
@@ -499,7 +549,9 @@ REGION_SITES = {
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 5,
+            "index_page": True,
             "sitemap_url": "https://www.fda.gov/sitemap.xml",
+            "note": "FDA MDSAP audit forms index — index_page=True downloads all linked PDFs (up to 50)",
         },
         {
             "agency": "FDA-MDSAP-Assessment",
@@ -508,7 +560,18 @@ REGION_SITES = {
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 5,
+            "index_page": True,
             "sitemap_url": "https://www.fda.gov/sitemap.xml",
+            "note": "FDA MDSAP assessment forms index — index_page=True downloads all linked PDFs",
+        },
+        {
+            "agency": "MDSAP-Companion-ISO13485",
+            "name": "MDSAP Companion Document to ISO 13485:2016 (FDA PDF)",
+            "url": "https://www.fda.gov/media/102395/download",
+            "tier": 2,
+            "strategy": "html",
+            "crawl_delay": 3,
+            "note": "FDA MDSAP Companion Document — maps MDSAP audit requirements clause-by-clause to ISO 13485:2016 — PyMuPDF direct PDF",
         },
     ],
     "國際標準 (International Standard)": [
@@ -829,39 +892,39 @@ REGION_SITES = {
     "以色列 (Israel)": [
         {
             "agency": "Nevo-MD-Regulations-2021",
-            "name": "תקנות ציוד רפואי התשפ\"ב–2021 — Israeli Medical Equipment Regulations (Nevo.co.il)",
-            "url": "https://www.nevo.co.il/law_html/law01/999_1304.htm",
+            "name": "תקנות ציוד רפואי (Medical Equipment Regulations) — Israel MOH regulations portal",
+            "url": "https://www.health.gov.il/Subjects/MedicalEquipment/Pages/Regulations.aspx",
             "tier": 3,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "PRIMARY QMS regulation: Israel Medical Equipment Regulations 2021 — Nevo.co.il; updated URL (previous /law11/121221-2.htm returned 404); requires ISO 13485 / CE marking for registration — Jina first",
+            "note": "PRIMARY QMS regulation: Israel Medical Equipment Regulations 2021 — Israeli MOH portal; Nevo.co.il URLs returned 404/thin; Jina first",
         },
         {
             "agency": "Nevo-MD-Law-2012",
-            "name": "Medical Equipment Law 5772-2012 — Israel enabling act (gov.il legislation portal)",
-            "url": "https://www.nevo.co.il/law_html/law01/P1221-2021-1.htm",
-            "tier": 3,
+            "name": "Medical Equipment Law 5772-2012 — Israeli Parliament (Knesset) PDF",
+            "url": "https://main.knesset.gov.il/EN/activity/Documents/LawsAndReg/MedicalEquipment_5772.pdf",
+            "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "Israel Medical Equipment Law 5772-2012 — Nevo.co.il alternative path — Jina first",
+            "note": "Medical Equipment Law 5772-2012 enabling act — Knesset official PDF; PyMuPDF primary",
         },
         {
             "agency": "MOH-Laws",
-            "name": "Israel MOH — Laws and Regulations (health.gov.il)",
-            "url": "https://health.gov.il/English/MinistryUnits/HealthDivision/Enforcement_Monitoring/Pages/laws.aspx",
+            "name": "Israel MOH — Medical Equipment Division (English)",
+            "url": "https://www.health.gov.il/English/Topics/MedicalEquipment/Pages/default.aspx",
             "tier": 3,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "Israel MOH English laws index — lists Medical Equipment Law 5772-2012 and related regulations — Jina first",
+            "note": "Israel MOH English medical equipment portal — ISO 13485 registration requirements — Jina first",
         },
         {
             "agency": "MOH-MD-Division",
-            "name": "Israel MOH — Medical Equipment Division (AMAR) — gov.il portal",
-            "url": "https://www.gov.il/en/pages/medical_equipment_unit_about",
+            "name": "Israel MOH — Medical Equipment Registration Requirements",
+            "url": "https://www.health.gov.il/English/Topics/MedicalEquipment/Reg_MD/Pages/default.aspx",
             "tier": 3,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "AMAR division overview page — describes ISO 13485 registration requirement; original source returned only nav/footer — fallback context only",
+            "note": "Israel MOH medical device registration page — Jina first",
         },
     ],
     "菲律賓 (Philippines)": [
@@ -888,7 +951,7 @@ REGION_SITES = {
         {
             "agency": "LuatVN-Decree98-EN",
             "name": "Decree 98/2021/ND-CP — Medical Device Management (English full text, luatvietnam.vn)",
-            "url": "https://english.luatvietnam.vn/y-te/decree-98-2021-nd-cp-on-medical-device-management-219088-d1.html",
+            "url": "https://english.luatvietnam.vn/decree-98-2021-nd-cp-on-medical-device-management-219088-d1.html",
             "tier": 3,
             "strategy": "html",
             "crawl_delay": 3,
@@ -3103,6 +3166,8 @@ async def _extract_html_pdf_attachments(
     base_url: str,
     max_attachments: int = _MAX_FILE_ATTACHMENTS_PER_PAGE,
     max_subpages: int = _MAX_SUBPAGES_PER_PAGE,
+    jina_subpage_fallback: bool = False,
+    jina_semaphore: asyncio.Semaphore | None = None,
 ) -> str:
     """Deep-crawl all linked documents and same-domain sub-pages found in an HTML page.
 
@@ -3191,7 +3256,11 @@ async def _extract_html_pdf_attachments(
             pass
 
     # ── Same-domain sub-page links (depth = 1) ──
+    _jina_sem = jina_semaphore or asyncio.Semaphore(2)
     for title, sub_url in subpage_links:
+        md = ""
+        page_title = title
+        # Try direct httpx first
         try:
             resp = await _fetch_with_retry(
                 client, sub_url, timeout=httpx.Timeout(30, connect=10)
@@ -3199,23 +3268,138 @@ async def _extract_html_pdf_attachments(
             resp.raise_for_status()
             sub_html = resp.text
             md = _html_to_markdown(sub_html, sub_url)
-            if md and len(md.strip()) > 100:
+            try:
+                sub_soup = BeautifulSoup(sub_html, "lxml")
+                t = sub_soup.find("title")
+                page_title = t.string.strip() if t and t.string else title
+            except Exception:
+                pass
+        except Exception:
+            # Fallback: try Jina Reader for this sub-page
+            if jina_subpage_fallback:
                 try:
-                    sub_soup = BeautifulSoup(sub_html, "lxml")
-                    t = sub_soup.find("title")
-                    page_title = (t.string.strip() if t and t.string else title)
+                    async with _jina_sem:
+                        jina_url = f"{_JINA_READER_BASE}{sub_url}"
+                        jresp = await _fetch_with_retry(
+                            client, jina_url,
+                            headers={"Accept": "text/markdown"},
+                            timeout=httpx.Timeout(_JINA_TIMEOUT, connect=15.0),
+                        )
+                        await asyncio.sleep(max(_JINA_DELAY - 1.0, 1.0))
+                    if jresp.status_code == 200:
+                        jcontent = jresp.text.strip()
+                        _head = jcontent[:600]
+                        _blocked = (
+                            ("Warning:" in _head and "returned error" in _head)
+                            or "JavaScript is disabled" in _head
+                            or "Max challenge" in _head
+                        )
+                        if jcontent and len(jcontent) > 100 and not _blocked:
+                            md = jcontent
+                            for line in jcontent.split("\n"):
+                                if line.strip().startswith("# "):
+                                    page_title = line.strip()[2:]
+                                    break
                 except Exception:
-                    page_title = title
-                parts.append(
-                    f"# {page_title}\n\n**Source**: {sub_url}\n\n---\n\n{md.strip()}"
+                    pass
+
+        if md and len(md.strip()) > 100:
+            parts.append(
+                f"# {page_title}\n\n**Source**: {sub_url}\n\n---\n\n{md.strip()}"
+            )
+
+    if not parts:
+        return ""
+
+    return "\n\n---\n<!-- ATTACHED DOCUMENTS & LINKED PAGES -->\n\n" + "\n\n---\n\n".join(parts)
+
+
+async def _extract_jina_subpages(
+    client: httpx.AsyncClient,
+    markdown: str,
+    base_url: str,
+    max_subpages: int = _MAX_SUBPAGES_PER_PAGE,
+    jina_semaphore: asyncio.Semaphore | None = None,
+) -> str:
+    """Follow same-domain HTML sub-page links found in Jina-returned Markdown.
+
+    Used when the main page (e.g. legislation.gov.uk TOC) is fetched via Jina and
+    the article sub-pages also need Jina to bypass bot protection.
+    Finds [text](url) links pointing to same domain, fetches each via Jina, and
+    returns combined Markdown of all successfully retrieved sub-pages.
+    """
+    from urllib.parse import urljoin, urlparse as _up2
+
+    _link_re = re.compile(r'\[(?:[^\]]*)\]\((https?://[^)\s]+)\)')
+    base_domain = _up2(base_url).netloc
+    _jina_sem = jina_semaphore or asyncio.Semaphore(2)
+
+    seen: set[str] = set()
+    subpage_urls: list[str] = []
+
+    for m in _link_re.finditer(markdown):
+        href = m.group(1).strip()
+        if not href or not _is_safe_url(href):
+            continue
+        parsed = _up2(href)
+        if parsed.netloc != base_domain:
+            continue
+        # Skip file attachments (those are handled by _extract_markdown_attachments)
+        path_lower = parsed.path.lower()
+        if any(path_lower.endswith(ext) for ext in _ALL_FILE_EXTS):
+            continue
+        # Skip anchors and query-only links
+        if not parsed.path or parsed.path == _up2(base_url).path:
+            continue
+        if href not in seen:
+            seen.add(href)
+            subpage_urls.append(href)
+        if len(subpage_urls) >= max_subpages:
+            break
+
+    if not subpage_urls:
+        return ""
+
+    parts: list[str] = []
+    for sub_url in subpage_urls:
+        try:
+            async with _jina_sem:
+                jresp = await _fetch_with_retry(
+                    client,
+                    f"{_JINA_READER_BASE}{sub_url}",
+                    headers={"Accept": "text/markdown"},
+                    timeout=httpx.Timeout(_JINA_TIMEOUT, connect=15.0),
                 )
+                await asyncio.sleep(max(_JINA_DELAY - 1.5, 0.5))
+
+            if jresp.status_code != 200:
+                continue
+            sub_content = jresp.text.strip()
+            _head = sub_content[:600]
+            _blocked = (
+                ("Warning:" in _head and "returned error" in _head)
+                or "JavaScript is disabled" in _head
+                or "Max challenge" in _head
+            )
+            if not sub_content or len(sub_content) < 100 or _blocked:
+                continue
+
+            page_title = sub_url
+            for line in sub_content.split("\n"):
+                if line.strip().startswith("# "):
+                    page_title = line.strip()[2:]
+                    break
+
+            parts.append(
+                f"# {page_title}\n\n**Source**: {sub_url}\n\n---\n\n{sub_content}"
+            )
         except Exception:
             pass
 
     if not parts:
         return ""
 
-    return "\n\n---\n<!-- ATTACHED DOCUMENTS & LINKED PAGES -->\n\n" + "\n\n---\n\n".join(parts)
+    return "\n\n---\n<!-- SUB-PAGES (via Jina) -->\n\n" + "\n\n---\n\n".join(parts)
 
 
 async def _extract_markdown_attachments(
@@ -3309,6 +3493,7 @@ async def _crawl_tier2_httpx(
     site: dict,
     region: str,
     etag_cache: ETagCache,
+    jina_semaphore: asyncio.Semaphore | None = None,
 ) -> dict:
     """Tier 2: HTML fetch → BS4 strip → MarkItDown conversion.
 
@@ -3437,10 +3622,14 @@ async def _crawl_tier2_httpx(
                         else _MAX_FILE_ATTACHMENTS_PER_PAGE
                     )
                     _subpage_limit = site.get("max_subpages", _MAX_SUBPAGES_PER_PAGE)
+                    # Enable Jina sub-page fallback when explicitly configured
+                    _jina_subpages = site.get("jina_subpage_fallback", False)
                     attachments = await _extract_html_pdf_attachments(
                         client, raw_text, url,
                         max_attachments=_attach_limit,
                         max_subpages=_subpage_limit,
+                        jina_subpage_fallback=_jina_subpages,
+                        jina_semaphore=jina_semaphore,
                     )
                     if attachments:
                         result["content_markdown"] += attachments
@@ -3528,6 +3717,21 @@ async def _crawl_tier3_jina(
                 except Exception:
                     pass
 
+                # Follow same-domain HTML sub-page links via Jina (for pages like
+                # legislation.gov.uk TOC where articles live on individual sub-pages)
+                if site.get("jina_subpage_fallback"):
+                    try:
+                        subpages_md = await _extract_jina_subpages(
+                            client,
+                            content,
+                            url,
+                            max_subpages=site.get("max_subpages", _MAX_SUBPAGES_PER_PAGE),
+                            jina_semaphore=jina_semaphore,
+                        )
+                        if subpages_md:
+                            result["content_markdown"] += subpages_md
+                    except Exception:
+                        pass
 
             elif _jina_error:
                 _warn_line = content.split("\n")[0][:120]
@@ -3645,7 +3849,8 @@ class AsyncRegulatoryUpdateCrawler:
                 return result
             else:
                 result = await _crawl_tier2_httpx(
-                    self._client, site, region, self._etag_cache
+                    self._client, site, region, self._etag_cache,
+                    jina_semaphore=self._jina_semaphore,
                 )
                 if result.get("crawl_status") != "success":
                     original_reason = result.get("failure_reason", "未知")
