@@ -212,14 +212,12 @@ REGION_SITES = {
         },
         {
             "agency": "EUR-Lex-MDR",
-            "name": "Regulation (EU) 2017/745 — EU MDR full text all articles (legislation.gov.uk UK retained copy)",
+            "name": "Regulation (EU) 2017/745 — UK legislation.gov.uk (reference only — revoked 2020-12-31)",
             "url": "https://www.legislation.gov.uk/eur/2017/745/contents",
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "max_subpages": 150,
-            "jina_subpage_fallback": True,
-            "note": "PRIMARY EU MDR source: legislation.gov.uk TOC — direct httpx blocked (437); jina_subpage_fallback=True uses Jina for each article/annex sub-page (20K+ chars each); max_subpages=150 covers all 120 articles + 17 Annexes",
+            "note": "REFERENCE ONLY: UK retained copy was revoked on 31.12.2020 (Brexit); article pages show 'revoked' with no article text. Real MDR full text is in EU-MDR-2017-745-PDF. No sub-page following needed.",
         },
         {
             "agency": "MDCG",
@@ -232,40 +230,40 @@ REGION_SITES = {
             "note": "MDCG guidance index — direct httpx 200 OK (159K HTML, 142 PDF links); tier 2 + index_page=True downloads up to 50 PDFs via _extract_html_pdf_attachments; PDF URLs use /document/download/UUID format",
         },
         {
-            "agency": "MDCG-2021-25",
-            "name": "MDCG 2021-25 Rev.1 — GSPR Application Guide (Annex I compliance) PDF",
-            "url": "https://health.ec.europa.eu/document/download/cbb11a6e-f0f3-4e30-af5e-990f9ef68b72_en?filename=mdcg_2021-25_rev1_en.pdf",
+            "agency": "MDCG-2019-11",
+            "name": "MDCG 2019-11 Rev.1 — QMS documentation requirements for notified body assessment (Annex IX §2.2)",
+            "url": "https://health.ec.europa.eu/document/download/b45335c5-1679-4c71-a91c-fc7a4d37f12b_en?filename=mdcg_2019_11_en.pdf",
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "MDCG 2021-25 Rev.1 — QMS must document GSPR compliance; verified UUID from live MDCG index",
+            "note": "MDCG 2019-11 Rev.1 — specifies QMS docs NB auditors require under MDR Annex IX §2.2; verified UUID from live MDCG index page",
+        },
+        {
+            "agency": "MDCG-2021-25",
+            "name": "MDCG 2021-25 Rev.1 — GSPR Application Guide (Annex I compliance in QMS)",
+            "url": "https://health.ec.europa.eu/document/download/cbb11a6e-f0f3-4e30-af5e-990f9ef68bc1_en?filename=md_mdcg_2021_25_en.pdf",
+            "tier": 2,
+            "strategy": "html",
+            "crawl_delay": 3,
+            "note": "MDCG 2021-25 Rev.1 — QMS must document GSPR compliance; verified UUID + HEAD 200 application/pdf",
         },
         {
             "agency": "MDCG-2020-7",
-            "name": "MDCG 2020-7 — Post-Market Surveillance Report (PSUR) guidance PDF",
-            "url": "https://health.ec.europa.eu/document/download/a5cdb303-c782-4010-8723-7d389af678c6_en?filename=mdcg_2020-7_en.pdf",
+            "name": "MDCG 2020-7 — PMCF Plan Template (Post-Market Clinical Follow-up, Annex XIV Part B)",
+            "url": "https://health.ec.europa.eu/document/download/a5cdb303-c782-4010-8723-7d389af678f7_en?filename=md_mdcg_2020_7_guidance_pmcf_plan_template_en.pdf",
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "MDCG 2020-7 — PSUR/PMS requirements within QMS; verified UUID from live MDCG index",
+            "note": "MDCG 2020-7 — PMCF Plan template; verified UUID + HEAD 200 application/pdf",
         },
         {
             "agency": "MDCG-2022-14",
-            "name": "MDCG 2022-14 — Transition to MDR and IVDR (legacy device provisions) PDF",
-            "url": "https://health.ec.europa.eu/document/download/2db053bc-283c-4d2e-93f4-c3e8032e6605_en?filename=mdcg_2022-14_en.pdf",
+            "name": "MDCG 2022-14 — Transition to MDR/IVDR (legacy device QMS implications)",
+            "url": "https://health.ec.europa.eu/document/download/2db053bc-283c-4d2e-93f4-c3e8032e66da_en?filename=mdcg_2022-14_en.pdf",
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "MDCG 2022-14 — QMS implications for legacy device transition; verified UUID from live MDCG index",
-        },
-        {
-            "agency": "EUR-Lex-MDR-XML",
-            "name": "Regulation (EU) 2017/745 — EU MDR via legislation.gov.uk XML data API (full structured text)",
-            "url": "https://www.legislation.gov.uk/eur/2017/745/data.xml",
-            "tier": 2,
-            "strategy": "html",
-            "crawl_delay": 3,
-            "note": "legislation.gov.uk programmatic XML endpoint — bypasses bot detection; full EU MDR 2017/745 text including all articles",
+            "note": "MDCG 2022-14 — legacy device transition QMS impact; verified UUID + HEAD 200 application/pdf",
         },
     ],
     "英國 (UK)": [
@@ -3211,12 +3209,27 @@ async def _extract_html_pdf_attachments(
                 or "Document"
             )[:120]
 
-            # Determine extension (strip query string first)
-            path_lower = _up2(full_url).path.lower()
+            # Determine extension: check path first, then filename= query parameter
+            # (e.g. /document/download/UUID_en?filename=mdcg.pdf — ext is in query)
+            parsed_url = _up2(full_url)
+            path_lower = parsed_url.path.lower()
             matched_ext = next(
                 (ext for ext in sorted(_ALL_FILE_EXTS, key=len, reverse=True) if path_lower.endswith(ext)),
                 None,
             )
+            if not matched_ext:
+                # Check filename= query parameter (EC document portal, MDCG PDFs, etc.)
+                qs = parsed_url.query.lower()
+                fn_match = re.search(r'filename=([^&]+)', qs)
+                if fn_match:
+                    fname = fn_match.group(1)
+                    matched_ext = next(
+                        (ext for ext in sorted(_ALL_FILE_EXTS, key=len, reverse=True) if fname.endswith(ext)),
+                        None,
+                    )
+                    if matched_ext and not title.strip():
+                        # Use filename as title when link text is empty
+                        title = fname[:120]
 
             if matched_ext:
                 if len(file_links) < max_attachments:
@@ -3442,14 +3455,24 @@ async def _extract_markdown_attachments(
             continue
         seen.add(full_url)
 
-        path_lower = _up2(full_url).path.lower()
+        parsed_url = _up2(full_url)
+        path_lower = parsed_url.path.lower()
         matched_ext = next(
             (ext for ext in sorted(_ALL_FILE_EXTS, key=len, reverse=True)
              if path_lower.endswith(ext)),
             None,
         )
+        # Also check filename= query parameter for portals like health.ec.europa.eu
+        if not matched_ext:
+            qs = parsed_url.query.lower()
+            fn_match = re.search(r'filename=([^&]+)', qs)
+            if fn_match:
+                fname = fn_match.group(1)
+                matched_ext = next(
+                    (ext for ext in sorted(_ALL_FILE_EXTS, key=len, reverse=True) if fname.endswith(ext)),
+                    None,
+                )
         if matched_ext and len(file_links) < max_attachments:
-            # Use surrounding text as title (the link label from markdown)
             raw_label = m.group(0)
             title_part = re.sub(r'[\[\]<>()]', '', raw_label).strip()[:120] or path_lower.split("/")[-1] or "Document"
             file_links.append((title_part, full_url, matched_ext))
