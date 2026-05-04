@@ -263,7 +263,61 @@ REGION_SITES = {
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "MDCG 2022-14 — legacy device transition QMS impact; verified UUID + HEAD 200 application/pdf",
+            "note": "MDCG 2022-14 — legacy device transition QMS impact; verified UUID",
+        },
+        {
+            "agency": "MDCG-2021-27",
+            "name": "MDCG 2021-27 Rev.1 — Guidance on Unique Device Identification (UDI) for medical devices",
+            "url": "https://health.ec.europa.eu/document/download/82d9adbc-dbf0-40d4-93ed-ade673c8232a_en?filename=mdcg_2021-27_en.pdf",
+            "tier": 2,
+            "strategy": "html",
+            "crawl_delay": 3,
+            "note": "MDCG 2021-27 Rev.1 — primary UDI guidance for MDR/IVDR; UDI assignment and traceability in QMS; verified UUID",
+        },
+        {
+            "agency": "MDCG-2022-21",
+            "name": "MDCG 2022-21 — Notified body oversight of manufacturers' post-market surveillance",
+            "url": "https://health.ec.europa.eu/document/download/a7df24c3-d4a3-4218-a8e0-726febfa01c2_en?filename=mdcg_2022-21_en.pdf",
+            "tier": 2,
+            "strategy": "html",
+            "crawl_delay": 3,
+            "note": "MDCG 2022-21 — NB oversight of manufacturer QMS PMS activities; directly relevant to QMS audit scope; verified UUID",
+        },
+        {
+            "agency": "MDCG-2019-6",
+            "name": "MDCG 2019-6 Rev.5 — Questions and Answers on notified body requirements (QMS audit criteria)",
+            "url": "https://health.ec.europa.eu/document/download/9c9c532f-013a-477c-9378-0a9e714e5549_en?filename=md_mdcg_qa_requirements_notified_bodies_en.pdf",
+            "tier": 2,
+            "strategy": "html",
+            "crawl_delay": 3,
+            "note": "MDCG 2019-6 Rev.5 — Q&A on NB requirements incl. QMS assessment criteria; verified UUID",
+        },
+        {
+            "agency": "MDCG-2018-1",
+            "name": "MDCG 2018-1 Rev.4 — Guidance on UDI-DI assignment for medical devices",
+            "url": "https://health.ec.europa.eu/document/download/cb1bf6e5-3972-4b3a-82d9-c5946738b2a5_en?filename=md_mdcg_2018-1_guidance_udi-di_en.pdf",
+            "tier": 2,
+            "strategy": "html",
+            "crawl_delay": 3,
+            "note": "MDCG 2018-1 Rev.4 — UDI-DI assignment rules; traceability requirements in QMS; verified UUID",
+        },
+        {
+            "agency": "MDCG-2020-14",
+            "name": "MDCG 2020-14 — Guidance on MDSAP audits and their relationship to MDR/IVDR",
+            "url": "https://health.ec.europa.eu/document/download/44dc96aa-e517-4af1-855b-f7fcb4b699c9_en?filename=md_2020-14-guidance-mdsap_en.pdf",
+            "tier": 2,
+            "strategy": "html",
+            "crawl_delay": 3,
+            "note": "MDCG 2020-14 — MDSAP audit recognition and QMS equivalence under EU MDR; verified UUID",
+        },
+        {
+            "agency": "MDCG-2023-1",
+            "name": "MDCG 2023-1 — Guidance on UDI for implantable devices (updated UDI requirements)",
+            "url": "https://health.ec.europa.eu/document/download/05b15d55-1bcf-4e17-99c4-15c706325847_en?filename=mdcg_2023-1_en.pdf",
+            "tier": 2,
+            "strategy": "html",
+            "crawl_delay": 3,
+            "note": "MDCG 2023-1 — UDI implantable devices guidance; updated traceability requirements in QMS; verified UUID",
         },
     ],
     "英國 (UK)": [
@@ -2949,8 +3003,8 @@ _PDF_ATTACHMENT_MAX_BYTES = 5 * 1024 * 1024         # 5 MB per attachment
 _MAX_PDF_ATTACHMENTS_PER_PAGE = 3  # legacy — superseded by _MAX_FILE_ATTACHMENTS_PER_PAGE
 
 # Deep-crawl limits
-_MAX_FILE_ATTACHMENTS_PER_PAGE = 10       # PDF + Word + Excel + PPT combined
-_MAX_FILE_ATTACHMENTS_INDEX_PAGE = 50     # for document index/listing pages (index_page=True)
+_MAX_FILE_ATTACHMENTS_PER_PAGE = 50       # PDF + Word + Excel + PPT combined per page
+_MAX_FILE_ATTACHMENTS_INDEX_PAGE = 200   # for document index/listing pages (index_page=True)
 _MAX_SUBPAGES_PER_PAGE = 5                # same-domain HTML sub-pages to follow
 
 
