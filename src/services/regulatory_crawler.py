@@ -221,13 +221,14 @@ REGION_SITES = {
         },
         {
             "agency": "MDCG",
-            "name": "MDCG Guidance Documents (QMS, Annex IX, notified body guidance) — 142 PDFs index",
+            "name": "MDCG Guidance Documents (QMS, Annex IX, notified body guidance) — all PDFs as separate files",
             "url": "https://health.ec.europa.eu/medical-devices-sector/new-regulations/guidance-mdcg-endorsed-documents-and-other-guidance_en",
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
             "index_page": True,
-            "note": "MDCG guidance index — direct httpx 200 OK (159K HTML, 142 PDF links); tier 2 + index_page=True downloads up to 50 PDFs via _extract_html_pdf_attachments; PDF URLs use /document/download/UUID format",
+            "save_attachments_separately": True,
+            "note": "MDCG guidance index — 131 PDFs each saved as an individual markdown file; save_attachments_separately=True; no attachment count limit (uses _MAX_FILE_ATTACHMENTS_INDEX_PAGE=200)",
         },
         {
             "agency": "MDCG-2019-11",
@@ -3573,6 +3574,77 @@ async def _extract_markdown_attachments(
     return "\n\n---\n<!-- ATTACHED DOCUMENTS (Jina Markdown links) -->\n\n" + "\n\n---\n\n".join(parts)
 
 
+def _split_attachment_sections(
+    attachments: str,
+    site: dict,
+    region: str,
+) -> list[dict]:
+    """Split a combined attachment string into individual result dicts.
+
+    Used when site has save_attachments_separately=True (e.g. MDCG index).
+    Each PDF/Word/Excel section becomes its own crawl result with a
+    unique agency name derived from the document title or filename.
+    """
+    from urllib.parse import urlparse as _up3
+
+    # Sections are joined by "\n\n---\n\n"; skip the block header line
+    raw_block = attachments
+    # Strip the opening header comment
+    for marker in ["<!-- ATTACHED DOCUMENTS & LINKED PAGES -->",
+                   "<!-- ATTACHED DOCUMENTS (Jina Markdown links) -->",
+                   "<!-- ATTACHED DOCUMENTS -->"]:
+        if marker in raw_block:
+            raw_block = raw_block[raw_block.index(marker) + len(marker):]
+            break
+
+    # Split into individual sections
+    sections = re.split(r"\n\n---\n\n", raw_block)
+    results: list[dict] = []
+    parent_agency = site.get("agency", "DOC")
+
+    for sec in sections:
+        sec = sec.strip()
+        if not sec or len(sec) < 100:
+            continue
+
+        # Extract title (first # heading)
+        title = ""
+        for line in sec.split("\n"):
+            line = line.strip()
+            if line.startswith("# "):
+                title = line[2:].strip()
+                break
+
+        # Extract source URL
+        src_url = ""
+        src_match = re.search(r'\*\*Source\*\*:\s*(https?://\S+)', sec)
+        if src_match:
+            src_url = src_match.group(1)
+
+        # Build a short unique agency name from filename or title
+        if src_url:
+            fn_match = re.search(r'filename=([^&\s]+)', src_url)
+            if fn_match:
+                slug = fn_match.group(1).replace('.pdf', '').replace('.docx', '').replace('_', '-')[:50]
+            else:
+                slug = _up3(src_url).path.rstrip('/').split('/')[-1][:40]
+        else:
+            slug = re.sub(r'[^\w\-]', '-', title[:40])
+        slug = slug.strip('-')
+
+        sub_result = _make_result_template(
+            {**site, "agency": f"{parent_agency}:{slug}", "name": title or slug, "url": src_url or site.get("url", "")},
+            region,
+        )
+        sub_result["crawl_status"] = "success"
+        sub_result["content_source"] = "live"
+        sub_result["content_markdown"] = sec
+        sub_result["title"] = title or slug
+        results.append(sub_result)
+
+    return results
+
+
 async def _crawl_tier2_httpx(
     client: httpx.AsyncClient,
     site: dict,
@@ -3717,7 +3789,13 @@ async def _crawl_tier2_httpx(
                         jina_semaphore=jina_semaphore,
                     )
                     if attachments:
-                        result["content_markdown"] += attachments
+                        if site.get("save_attachments_separately"):
+                            # Each PDF becomes a separate crawl result
+                            result["_attachment_splits"] = _split_attachment_sections(
+                                attachments, site, region
+                            )
+                        else:
+                            result["content_markdown"] += attachments
                 except Exception:
                     pass
         else:
@@ -4111,6 +4189,9 @@ class AsyncRegulatoryUpdateCrawler:
                     all_results.append(alias_result)
             elif isinstance(r, dict):
                 all_results.append(r)
+                # Expand attachment splits into separate results (save_attachments_separately)
+                for split_result in r.pop("_attachment_splits", []):
+                    all_results.append(split_result)
                 # Clone success for aliases
                 for alias_region, alias_site in url_to_aliases.get(url, []):
                     import copy
