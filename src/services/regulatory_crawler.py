@@ -2978,22 +2978,56 @@ async def _crawl_tier1_api(
 
 
 def _pdf_bytes_to_markdown(pdf_bytes: bytes, display_name: str, source_url: str) -> str:
-    """Extract text from a PDF using PyMuPDF and return as Markdown.
+    """Extract text from a PDF, returning Markdown.
 
-    Returns an empty string if fitz is unavailable or no text layer exists (scanned PDF).
+    Pipeline:
+    1. MarkItDown (primary) — unified conversion engine, handles most PDFs
+    2. PyMuPDF (fallback)   — direct text layer extraction
+    Returns "" if no text found → triggers Docling OCR fallback in caller.
     """
+    import os, tempfile
+
+    # 1. Try MarkItDown first (same engine used for Word/Excel/PPT)
+    if MARKITDOWN_AVAILABLE and _MD_CONVERTER is not None:
+        tmp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
+                f.write(pdf_bytes)
+                tmp_path = f.name
+            result = _MD_CONVERTER.convert(tmp_path)
+            md = result.text_content if hasattr(result, "text_content") else str(result)
+            if md and len(md.strip()) > 100:
+                header = (
+                    f"# {display_name}\n\n"
+                    f"**Source**: {source_url}  \n"
+                    f"**Format**: PDF (MarkItDown)\n\n---\n\n"
+                )
+                return header + md.strip()
+        except Exception:
+            pass
+        finally:
+            if tmp_path:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+
+    # 2. PyMuPDF fallback — direct text layer extraction
     if not FITZ_AVAILABLE:
         return ""
     try:
         doc = _fitz.open(stream=pdf_bytes, filetype="pdf")
         n = len(doc)
-        parts = [f"# {display_name}\n\n**Source**: {source_url}  \n**Pages**: {n}\n\n---\n"]
+        text_parts = []
         for i, page in enumerate(doc):
             text = page.get_text("text").strip()
             if text:
-                parts.append(f"\n---\n<!-- Page {i+1}/{n} -->\n\n{text}\n")
+                text_parts.append(f"\n---\n<!-- Page {i+1}/{n} -->\n\n{text}\n")
         doc.close()
-        return "\n".join(parts)
+        if not text_parts:
+            return ""  # No text layer — triggers Docling OCR fallback
+        header = f"# {display_name}\n\n**Source**: {source_url}  \n**Pages**: {n}\n\n---\n"
+        return header + "\n".join(text_parts)
     except Exception:
         return ""
 
@@ -3387,7 +3421,8 @@ async def _extract_html_pdf_attachments(
     if not parts:
         return ""
 
-    return "\n\n---\n<!-- ATTACHED DOCUMENTS & LINKED PAGES -->\n\n" + "\n\n---\n\n".join(parts)
+    _SEP = "\n\n<!-- PDF_DOC_BREAK -->\n\n"
+    return "\n\n---\n<!-- ATTACHED DOCUMENTS & LINKED PAGES -->\n\n" + _SEP.join(parts)
 
 
 async def _extract_jina_subpages(
@@ -3571,7 +3606,8 @@ async def _extract_markdown_attachments(
     if not parts:
         return ""
 
-    return "\n\n---\n<!-- ATTACHED DOCUMENTS (Jina Markdown links) -->\n\n" + "\n\n---\n\n".join(parts)
+    _SEP = "\n\n<!-- PDF_DOC_BREAK -->\n\n"
+    return "\n\n---\n<!-- ATTACHED DOCUMENTS (Jina Markdown links) -->\n\n" + _SEP.join(parts)
 
 
 def _split_attachment_sections(
@@ -3598,7 +3634,7 @@ def _split_attachment_sections(
             break
 
     # Split into individual sections
-    sections = re.split(r"\n\n---\n\n", raw_block)
+    sections = re.split(r"\n\n<!-- PDF_DOC_BREAK -->\n\n", raw_block)
     results: list[dict] = []
     parent_agency = site.get("agency", "DOC")
 
