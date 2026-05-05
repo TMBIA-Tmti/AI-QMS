@@ -442,7 +442,22 @@ def _build_docling_converter():
         TableFormerMode.ACCURATE if table_mode_str == "accurate" else TableFormerMode.FAST
     )
 
-    device = AcceleratorDevice.CPU if force_cpu else AcceleratorDevice.AUTO
+    if force_cpu:
+        device = AcceleratorDevice.CPU
+    else:
+        # Test CUDA before committing — avoids "no kernel image" errors
+        # when PyTorch CUDA build version mismatches the installed driver
+        _cuda_ok = False
+        try:
+            import torch
+            if torch.cuda.is_available():
+                torch.zeros(1, device="cuda")  # quick smoke test
+                _cuda_ok = True
+        except Exception:
+            pass
+        device = AcceleratorDevice.AUTO if _cuda_ok else AcceleratorDevice.CPU
+        if not _cuda_ok:
+            logger.info("Docling: CUDA 不可用或版本不符，改用 CPU")
 
     pipeline_options = PdfPipelineOptions()
     pipeline_options.do_ocr = True
