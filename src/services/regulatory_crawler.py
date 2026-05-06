@@ -3964,7 +3964,7 @@ class AsyncRegulatoryUpdateCrawler:
     async def _ensure_client(self) -> None:
         """Lazy-init shared AsyncClient with HTTP/2 and connection pool."""
         if self._client is None or self._client.is_closed:
-            self._client = httpx.AsyncClient(
+            _kwargs = dict(
                 headers=_DEFAULT_HEADERS,
                 timeout=httpx.Timeout(_REQUEST_TIMEOUT, connect=10.0),
                 limits=httpx.Limits(
@@ -3973,8 +3973,11 @@ class AsyncRegulatoryUpdateCrawler:
                 ),
                 follow_redirects=True,
                 verify=True,
-                http2=True,
             )
+            try:
+                self._client = httpx.AsyncClient(**_kwargs, http2=True)
+            except ImportError:
+                self._client = httpx.AsyncClient(**_kwargs, http2=False)
 
     def _get_domain_semaphore(self, url: str) -> asyncio.Semaphore:
         """Get or create a per-domain rate-limiting semaphore."""

@@ -153,9 +153,8 @@ if errorlevel 1 (
     netstat -an 2>nul | findstr ":%PHOENIX_PORT% .*LISTENING" >nul 2>&1
     if errorlevel 1 (
         echo [INFO] Starting Phoenix server on port %PHOENIX_PORT% (gRPC: %PHOENIX_GRPC_PORT%^)...
-        start "Phoenix Server" /min "%QMS_PYTHON%" -m phoenix.server.main --port %PHOENIX_PORT% serve --grpc-port %PHOENIX_GRPC_PORT%
-        timeout /t 3 >nul
-        echo [OK] Phoenix started at http://localhost:%PHOENIX_PORT%
+        start "Phoenix Server" /min "%QMS_PYTHON%" -m phoenix.server.main serve --grpc-port %PHOENIX_GRPC_PORT%
+        call :wait_for_phoenix
     ) else (
         echo [OK] Phoenix already running on port %PHOENIX_PORT%
     )
@@ -329,3 +328,24 @@ if errorlevel 1 (
     exit /b 0
 )
 exit /b 1
+
+:: ============================================================
+:: Subroutine: Poll port until Phoenix is listening (max 15s)
+:: ============================================================
+:wait_for_phoenix
+set "PHOENIX_WAIT_COUNT=0"
+:phoenix_wait_loop
+netstat -ano 2>nul | findstr ":%PHOENIX_PORT% .*LISTENING" >nul
+if not errorlevel 1 (
+    echo [OK] Phoenix ready on port %PHOENIX_PORT%
+    set "PHOENIX_LAUNCHED=1"
+    exit /b 0
+)
+set /a PHOENIX_WAIT_COUNT+=1
+if %PHOENIX_WAIT_COUNT% GEQ 15 (
+    echo [WARN] Phoenix did not start within 15 seconds. Traces will not be collected.
+    echo [WARN] Check the "Phoenix Server" window for errors.
+    exit /b 1
+)
+timeout /t 1 /nobreak >nul
+goto :phoenix_wait_loop
