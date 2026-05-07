@@ -2994,78 +2994,104 @@ async def _auto_trigger_crossexam():
             )
             await _show_pipeline_progress()
         else:
-            # Step 1: Show progress message, then crawl with live % updates
-            from src.services.regulatory_crawler import check_regulation_freshness
-
-            progress_msg = cl.Message(
-                content=t("crossexam.freshness_crawling", percent=0, country="..."),
-                author="Eira",
-            )
-            await progress_msg.send()
-
-            async def _on_country_progress(completed: int, total: int, country_zh: str):
-                pct = round((completed / total) * 100) if total > 0 else 0
-                _lang = cl.user_session.get("language", DEFAULT_LANG)
-                progress_msg.content = t(
-                    "crossexam.freshness_crawling",
-                    percent=pct,
-                    country=_display_region(country_zh, _lang),
-                )
-                await progress_msg.update()
-
-            freshness = await check_regulation_freshness(
-                progress_callback=_on_country_progress,
-            )
-            _record_freshness_check()
-
-            progress_msg.content = t("crossexam.freshness_crawl_done")
-            await progress_msg.update()
-            if freshness.get("announcement_needed"):
-                lang = cl.user_session.get("language", DEFAULT_LANG)
-                if lang.startswith("zh"):
-                    announcement = freshness.get("announcement_text_zh", "")
-                else:
-                    announcement = freshness.get("announcement_text", "")
-                if announcement:
-                    await cl.Message(content=announcement, author="Eira").send()
-            else:
-                await cl.Message(
-                    content=t("crossexam.freshness_confirmed"),
-                    author="Eira",
+            # Ask user: run freshness check or skip for today
+            try:
+                _freshness_skip_res = await cl.AskActionMessage(
+                    content=t("freshness_check.skip_prompt"),
+                    actions=[
+                        cl.Action(
+                            name="freshness_check_run",
+                            payload={"value": "run"},
+                            label=t("freshness_check.btn_run"),
+                        ),
+                        cl.Action(
+                            name="freshness_check_skip",
+                            payload={"value": "skip"},
+                            label=t("freshness_check.btn_skip"),
+                        ),
+                    ],
+                    timeout=30,
                 ).send()
+            except Exception:
+                _freshness_skip_res = None
 
-            # Step 1b: Show per-country upload reminders if incomplete data
-            country_data = freshness.get("country_completeness", {})
-            incomplete_countries = country_data.get("incomplete_countries", [])
-            if incomplete_countries:
-                lang = cl.user_session.get("language", DEFAULT_LANG)
-                countries_info = country_data.get("countries", {})
-                lines = []
-                for pid in incomplete_countries:
-                    info = countries_info.get(pid, {})
-                    if lang.startswith("zh"):
-                        lines.append(f"  • {info.get('message_zh', pid)}")
-                    else:
-                        lines.append(f"  • {info.get('message', pid)}")
-                upload_msg = (
-                    t("crossexam.upload_reminder_title")
-                    + "\n"
-                    + "\n".join(lines)
-                    + "\n\n"
-                    + t("crossexam.upload_reminder_instruction")
+            if _freshness_skip_res and _freshness_skip_res.get("name") == "freshness_check_skip":
+                _record_freshness_check()
+                await cl.Message(content=t("freshness_check.skipped"), author="Eira").send()
+                await _show_pipeline_progress()
+            else:
+                # Step 1: Show progress message, then crawl with live % updates
+                from src.services.regulatory_crawler import check_regulation_freshness
+
+                progress_msg = cl.Message(
+                    content=t("crossexam.freshness_crawling", percent=0, country="..."),
+                    author="Eira",
                 )
-                await cl.Message(content=upload_msg, author="Eira").send()
+                await progress_msg.send()
 
-            # Step 2: Check MDSAP toggle
-            from src.utils.app_settings import get_app_setting
+                async def _on_country_progress(completed: int, total: int, country_zh: str):
+                    pct = round((completed / total) * 100) if total > 0 else 0
+                    _lang = cl.user_session.get("language", DEFAULT_LANG)
+                    progress_msg.content = t(
+                        "crossexam.freshness_crawling",
+                        percent=pct,
+                        country=_display_region(country_zh, _lang),
+                    )
+                    await progress_msg.update()
 
-            mdsap_enabled = get_app_setting("mdsap_verify_enabled", False)
-            if mdsap_enabled:
-                mdsap_msg = t("crossexam.mdsap_enabled_notice")
-                await cl.Message(content=mdsap_msg, author="Eira").send()
+                freshness = await check_regulation_freshness(
+                    progress_callback=_on_country_progress,
+                )
+                _record_freshness_check()
 
-            # Step 3: Show pipeline progress indicator
-            await _show_pipeline_progress()
+                progress_msg.content = t("crossexam.freshness_crawl_done")
+                await progress_msg.update()
+                if freshness.get("announcement_needed"):
+                    lang = cl.user_session.get("language", DEFAULT_LANG)
+                    if lang.startswith("zh"):
+                        announcement = freshness.get("announcement_text_zh", "")
+                    else:
+                        announcement = freshness.get("announcement_text", "")
+                    if announcement:
+                        await cl.Message(content=announcement, author="Eira").send()
+                else:
+                    await cl.Message(
+                        content=t("crossexam.freshness_confirmed"),
+                        author="Eira",
+                    ).send()
+
+                # Step 1b: Show per-country upload reminders if incomplete data
+                country_data = freshness.get("country_completeness", {})
+                incomplete_countries = country_data.get("incomplete_countries", [])
+                if incomplete_countries:
+                    lang = cl.user_session.get("language", DEFAULT_LANG)
+                    countries_info = country_data.get("countries", {})
+                    lines = []
+                    for pid in incomplete_countries:
+                        info = countries_info.get(pid, {})
+                        if lang.startswith("zh"):
+                            lines.append(f"  • {info.get('message_zh', pid)}")
+                        else:
+                            lines.append(f"  • {info.get('message', pid)}")
+                    upload_msg = (
+                        t("crossexam.upload_reminder_title")
+                        + "\n"
+                        + "\n".join(lines)
+                        + "\n\n"
+                        + t("crossexam.upload_reminder_instruction")
+                    )
+                    await cl.Message(content=upload_msg, author="Eira").send()
+
+                # Step 2: Check MDSAP toggle
+                from src.utils.app_settings import get_app_setting
+
+                mdsap_enabled = get_app_setting("mdsap_verify_enabled", False)
+                if mdsap_enabled:
+                    mdsap_msg = t("crossexam.mdsap_enabled_notice")
+                    await cl.Message(content=mdsap_msg, author="Eira").send()
+
+                # Step 3: Show pipeline progress indicator
+                await _show_pipeline_progress()
 
     except Exception as e:
         logging.getLogger(__name__).error(
