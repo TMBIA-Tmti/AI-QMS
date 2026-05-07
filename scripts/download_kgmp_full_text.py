@@ -21,7 +21,11 @@ HEADERS = {
 
 def download_pdf():
     print("[download] Downloading K-GMP PDF from MFDS ...")
-    r = requests.get(PDF_URL, headers=HEADERS, verify=False, timeout=60, stream=True)
+    try:
+        r = requests.get(PDF_URL, headers=HEADERS, verify=True, timeout=60, stream=True)
+    except requests.exceptions.SSLError:
+        print("[warn] TLS verification failed for MFDS, retrying without verify")
+        r = requests.get(PDF_URL, headers=HEADERS, verify=False, timeout=60, stream=True)
     r.raise_for_status()
     with open(TEMP_PDF, "wb") as f:
         for chunk in r.iter_content(65536):

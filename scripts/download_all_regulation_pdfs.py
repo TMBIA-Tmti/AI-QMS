@@ -98,7 +98,11 @@ def download_bytes(url: str, extra_headers: dict = None, timeout: int = 60) -> b
     if extra_headers:
         headers.update(extra_headers)
     try:
-        r = SESSION.get(url, headers=headers, verify=False, timeout=timeout, stream=True)
+        try:
+            r = SESSION.get(url, headers=headers, verify=True, timeout=timeout, stream=True)
+        except requests.exceptions.SSLError:
+            print(f"  [warn] TLS verification failed, retrying without verify: {url[:80]}")
+            r = SESSION.get(url, headers=headers, verify=False, timeout=timeout, stream=True)
         r.raise_for_status()
         ct = r.headers.get("Content-Type", "")
         data = r.content
@@ -249,7 +253,10 @@ def _get_mdcg_pdf_links() -> list[tuple[str, str]]:
     """Scrape the MDCG guidance index page and return [(title, pdf_url)] pairs."""
     print(f"\n[MDCG] Fetching guidance index: {MDCG_INDEX_URL}")
     try:
-        r = SESSION.get(MDCG_INDEX_URL, verify=False, timeout=30)
+        try:
+            r = SESSION.get(MDCG_INDEX_URL, verify=True, timeout=30)
+        except requests.exceptions.SSLError:
+            r = SESSION.get(MDCG_INDEX_URL, verify=False, timeout=30)
         r.raise_for_status()
         html = r.text
     except Exception as e:

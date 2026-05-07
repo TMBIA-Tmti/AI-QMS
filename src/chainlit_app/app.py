@@ -1987,7 +1987,7 @@ def _docx_has_stamp_images(file_path: str) -> Optional[bool]:
             try:
                 from PIL import Image as PILImage
                 import io
-
+                PILImage.MAX_IMAGE_PIXELS = 500_000_000  # 500 MP — supports A3@600DPI scans
                 image_data = rel.target_part.blob
                 img = PILImage.open(io.BytesIO(image_data))
                 w, h = img.size

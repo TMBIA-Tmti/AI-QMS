@@ -31,6 +31,7 @@ import time
 import hashlib
 import asyncio
 import logging
+import zipfile
 import ipaddress as _ipaddress
 from datetime import datetime, timezone
 from pathlib import Path
@@ -2297,6 +2298,8 @@ _DEFAULT_HEADERS = {
 }
 
 _REQUEST_TIMEOUT = 30  # seconds
+_DOWNLOAD_MAX_BYTES = 200 * 1024 * 1024     # 200 MB hard cap — no regulatory PDF exceeds this
+_OFFICE_ZIP_BOMB_LIMIT = 500 * 1024 * 1024  # 500 MB uncompressed — blocks ZIP-bomb docx/xlsx
 _JINA_READER_BASE = "https://r.jina.ai/"
 _JINA_TIMEOUT = 60  # Jina Reader may be slow
 _JINA_DELAY = 3.0  # seconds between Jina requests (20 req/min limit)
@@ -2823,6 +2826,70 @@ async def _fetch_with_retry(
         return resp
 
 
+async def _fetch_bytes_bounded(
+    client: httpx.AsyncClient,
+    url: str,
+    timeout: Optional[httpx.Timeout] = None,
+    max_bytes: int = _DOWNLOAD_MAX_BYTES,
+) -> bytes:
+    """Stream-download URL with a hard per-file size cap (default 200 MB).
+
+    Enforces the cap *before* the full body lands in RAM, guarding against
+    oversized or malicious responses from compromised regulatory sites.
+    """
+    if not _is_safe_url(url):
+        raise ValueError(f"Blocked unsafe URL: {url}")
+    _timeout = timeout or httpx.Timeout(_REQUEST_TIMEOUT, connect=10.0)
+    _headers = dict(_DEFAULT_HEADERS)
+
+    async def _stream_once() -> bytes:
+        async with client.stream("GET", url, headers=_headers, timeout=_timeout) as resp:
+            resp.raise_for_status()
+            cl = int(resp.headers.get("content-length", 0))
+            if cl > max_bytes:
+                raise ValueError(
+                    f"Content-Length {cl // (1024 * 1024)} MB exceeds "
+                    f"{max_bytes // (1024 * 1024)} MB download limit"
+                )
+            chunks: list[bytes] = []
+            received = 0
+            async for chunk in resp.aiter_bytes(65536):
+                received += len(chunk)
+                if received > max_bytes:
+                    raise ValueError(
+                        f"Download exceeded {max_bytes // (1024 * 1024)} MB limit, aborting"
+                    )
+                chunks.append(chunk)
+        return b"".join(chunks)
+
+    if TENACITY_AVAILABLE:
+        @retry(
+            stop=stop_after_attempt(3),
+            wait=wait_exponential(multiplier=1, min=2, max=10),
+            retry=retry_if_exception_type((httpx.ConnectError, httpx.TimeoutException)),
+            reraise=True,
+        )
+        async def _inner() -> bytes:
+            return await _stream_once()
+
+        return await _inner()
+    return await _stream_once()
+
+
+def _is_zip_bomb(data: bytes, max_uncompressed: int = _OFFICE_ZIP_BOMB_LIMIT) -> bool:
+    """Return True if the ZIP archive total uncompressed size exceeds the limit.
+
+    Protects against malicious .docx/.xlsx/.pptx files that decompress to
+    hundreds of MB from a small compressed payload.
+    """
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as zf:
+            total = sum(info.file_size for info in zf.infolist())
+            return total > max_uncompressed
+    except Exception:
+        return False  # Not a valid ZIP; let the format processor handle it
+
+
 # ============================================================
 # Tier Handlers
 # ============================================================
@@ -3319,11 +3386,9 @@ async def _extract_html_pdf_attachments(
     # ── File attachments ──
     for title, att_url, ext in file_links:
         try:
-            resp = await _fetch_with_retry(
+            att_bytes = await _fetch_bytes_bounded(
                 client, att_url, timeout=httpx.Timeout(60, connect=10)
             )
-            resp.raise_for_status()
-            att_bytes = resp.content
             if len(att_bytes) < 100:
                 continue
 
@@ -3335,13 +3400,13 @@ async def _extract_html_pdf_attachments(
                 if not md and len(att_bytes) <= _PDF_ATTACHMENT_MAX_BYTES:
                     md = await _docling_pdf_bytes_to_markdown_async(att_bytes, title, att_url)
             elif ext in _WORD_EXTS:
-                if len(att_bytes) <= _WORD_ATTACHMENT_MAX_BYTES:
+                if len(att_bytes) <= _WORD_ATTACHMENT_MAX_BYTES and not _is_zip_bomb(att_bytes):
                     md = await _word_bytes_to_markdown_async(att_bytes, title, att_url)
             elif ext in _EXCEL_EXTS:
-                if len(att_bytes) <= _EXCEL_ATTACHMENT_MAX_BYTES:
+                if len(att_bytes) <= _EXCEL_ATTACHMENT_MAX_BYTES and not _is_zip_bomb(att_bytes):
                     md = await _excel_bytes_to_markdown_async(att_bytes, title, att_url, ext)
             elif ext in _PPT_EXTS:
-                if len(att_bytes) <= _PPT_ATTACHMENT_MAX_BYTES:
+                if len(att_bytes) <= _PPT_ATTACHMENT_MAX_BYTES and not _is_zip_bomb(att_bytes):
                     md = await _ppt_bytes_to_markdown_async(att_bytes, title, att_url, ext)
 
             if md and len(md.strip()) > 200:
@@ -3557,11 +3622,9 @@ async def _extract_markdown_attachments(
     parts: list[str] = []
     for title, att_url, ext in file_links:
         try:
-            resp = await _fetch_with_retry(
+            att_bytes = await _fetch_bytes_bounded(
                 client, att_url, timeout=httpx.Timeout(60, connect=10)
             )
-            resp.raise_for_status()
-            att_bytes = resp.content
             if len(att_bytes) < 100:
                 continue
 
@@ -3573,13 +3636,13 @@ async def _extract_markdown_attachments(
                 if not md and len(att_bytes) <= _PDF_ATTACHMENT_MAX_BYTES:
                     md = await _docling_pdf_bytes_to_markdown_async(att_bytes, title, att_url)
             elif ext in _WORD_EXTS:
-                if len(att_bytes) <= _WORD_ATTACHMENT_MAX_BYTES:
+                if len(att_bytes) <= _WORD_ATTACHMENT_MAX_BYTES and not _is_zip_bomb(att_bytes):
                     md = await _word_bytes_to_markdown_async(att_bytes, title, att_url)
             elif ext in _EXCEL_EXTS:
-                if len(att_bytes) <= _EXCEL_ATTACHMENT_MAX_BYTES:
+                if len(att_bytes) <= _EXCEL_ATTACHMENT_MAX_BYTES and not _is_zip_bomb(att_bytes):
                     md = await _excel_bytes_to_markdown_async(att_bytes, title, att_url, ext)
             elif ext in _PPT_EXTS:
-                if len(att_bytes) <= _PPT_ATTACHMENT_MAX_BYTES:
+                if len(att_bytes) <= _PPT_ATTACHMENT_MAX_BYTES and not _is_zip_bomb(att_bytes):
                     md = await _ppt_bytes_to_markdown_async(att_bytes, title, att_url, ext)
 
             if md and len(md.strip()) > 200:
@@ -3724,6 +3787,13 @@ async def _crawl_tier2_httpx(
         # PDF — try PyMuPDF → Docling OCR (small PDFs only) → Jina
         if "application/pdf" in content_type or url.lower().endswith(".pdf"):
             pdf_name = site.get("name", site.get("agency", ""))
+            if len(response.content) > _DOWNLOAD_MAX_BYTES:
+                result["failure_reason"] = (
+                    f"PDF response {len(response.content) // (1024 * 1024)} MB "
+                    f"exceeds {_DOWNLOAD_MAX_BYTES // (1024 * 1024)} MB limit, skipping"
+                )
+                result["crawl_status"] = "skipped"
+                return result
             md = _pdf_bytes_to_markdown(response.content, pdf_name, url)
             if md and len(md.strip()) > 200:
                 result["content_markdown"] = md
