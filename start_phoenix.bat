@@ -121,7 +121,7 @@ echo.
 start "" "http://localhost:%PHOENIX_PORT%"
 
 cd /d "%PROJECT_DIR%"
-"%QMS_PYTHON%" -m phoenix.server.main --port %PHOENIX_PORT% serve --grpc-port %PHOENIX_GRPC_PORT%
+"%QMS_PYTHON%" -m phoenix.server.main serve --grpc-port %PHOENIX_GRPC_PORT%
 
 if errorlevel 1 (
     echo.
