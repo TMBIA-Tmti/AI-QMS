@@ -27,6 +27,7 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
+from src.utils.safe_io import atomic_write_json, atomic_write_text
 
 logger = logging.getLogger(__name__)
 
@@ -87,31 +88,7 @@ class RegulatoryMarkdownStorage:
             d for d in self.registry["documents"] if d.get("status") != "deleted"
         ]
         self.registry["document_count"] = len(active_docs)
-        self._atomic_write_json(self.registry_file, self.registry)
-
-    def _atomic_write_json(self, file_path: Path, data: dict) -> None:
-        """Atomic write for JSON files."""
-        temp_path = file_path.with_suffix(".tmp")
-        try:
-            with open(temp_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-            os.replace(temp_path, file_path)
-        except Exception as e:
-            if temp_path.exists():
-                temp_path.unlink()
-            raise e
-
-    def _atomic_write_text(self, file_path: Path, content: str) -> None:
-        """Atomic write for text/markdown files."""
-        temp_path = file_path.with_suffix(".md.tmp")
-        try:
-            with open(temp_path, "w", encoding="utf-8") as f:
-                f.write(content)
-            os.replace(temp_path, file_path)
-        except Exception as e:
-            if temp_path.exists():
-                temp_path.unlink()
-            raise e
+        atomic_write_json(self.registry_file, self.registry)
 
     def _calculate_hash(self, content: str) -> str:
         """Calculate SHA-256 hash of content."""
@@ -186,7 +163,7 @@ class RegulatoryMarkdownStorage:
             f"狀態: {crawl_status}\n\n---\n\n"
         )
         full_content = header + markdown_content
-        self._atomic_write_text(filepath, full_content)
+        atomic_write_text(filepath, full_content)
         content_hash = self._calculate_hash(full_content)
 
         # Create registry entry
@@ -904,7 +881,7 @@ class RegulatoryMarkdownStorage:
         ts = datetime.now().strftime("%Y%m%d")
         dest = upload_dir / f"{regulation_id}_uploaded_{ts}_{safe_name}.md"
 
-        self._atomic_write_text(dest, content)
+        atomic_write_text(dest, content)
         logger.info(f"Saved uploaded regulation: {dest}")
 
         return {
@@ -966,7 +943,7 @@ class RegulatoryMarkdownStorage:
                     lines.append(f"- {req}")
                 lines.append("")
 
-            self._atomic_write_text(dest, "\n".join(lines))
+            atomic_write_text(dest, "\n".join(lines))
             exported.append({"regulation_id": reg_id, "path": str(dest)})
 
         return {"exported_count": len(exported), "profiles": exported}

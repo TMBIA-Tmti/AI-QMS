@@ -440,7 +440,6 @@ from src.utils.watermark import (
     generate_watermark_preview,
     convert_to_pdf_for_viewing,
     get_document_level,
-    should_allow_download,
 )
 
 # v3.1.0: Load cached model lists from previous sessions on startup.

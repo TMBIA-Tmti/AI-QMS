@@ -18,6 +18,7 @@ import logging
 from pathlib import Path
 from typing import TypedDict, Optional, Literal, List
 from datetime import datetime
+from src.utils.safe_io import atomic_write_json, atomic_write_text
 
 logger = logging.getLogger(__name__)
 
@@ -135,17 +136,7 @@ class MarkdownStorageManager:
         self.registry["document_count"] = len(self.registry["documents"])
 
         # Atomic write: write to temp file then replace
-        self._atomic_write_json(self.registry_file, self.registry)
-
-    def _atomic_write_json(self, file_path: Path, data: dict) -> None:
-        """Atomic write for JSON files — delegates to safe_io for Windows resilience."""
-        from src.utils.safe_io import atomic_write_json
-        atomic_write_json(file_path, data)
-
-    def _atomic_write_text(self, file_path: Path, content: str) -> None:
-        """Atomic write for text files — delegates to safe_io for Windows resilience."""
-        from src.utils.safe_io import atomic_write_text
-        atomic_write_text(file_path, content)
+        atomic_write_json(self.registry_file, self.registry)
 
     def _calculate_hash(self, content: str) -> str:
         """Calculate SHA-256 hash of content"""
@@ -248,7 +239,7 @@ class MarkdownStorageManager:
         file_path = self.documents_path / doc_type / filename
 
         # Write markdown content with atomic write
-        self._atomic_write_text(file_path, markdown_content)
+        atomic_write_text(file_path, markdown_content)
 
         # Calculate hash
         content_hash = self._calculate_hash(markdown_content)
@@ -346,7 +337,7 @@ class MarkdownStorageManager:
         file_path = self.documents_path / doc_type / filename
 
         # Write markdown content with atomic write
-        self._atomic_write_text(file_path, markdown_content)
+        atomic_write_text(file_path, markdown_content)
 
         # Calculate hash
         content_hash = self._calculate_hash(markdown_content)

@@ -31,6 +31,7 @@ import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
+from src.utils.safe_io import atomic_write_json, atomic_write_text
 
 logger = logging.getLogger(__name__)
 
@@ -120,7 +121,7 @@ class ProductDocsStorage:
             counter += 1
 
         # Atomic write
-        self._atomic_write_text(md_path, content)
+        atomic_write_text(md_path, content)
 
         doc_id = f"{session_id}/{Path(md_filename).stem}"
 
@@ -334,31 +335,8 @@ class ProductDocsStorage:
     def _save_metadata(self, session_id: str, metadata: dict) -> None:
         """Save session metadata to _metadata.json with atomic write."""
         metadata_path = self.base_path / session_id / "_metadata.json"
-        self._atomic_write_json(metadata_path, metadata)
+        atomic_write_json(metadata_path, metadata)
 
-    def _atomic_write_json(self, file_path: Path, data: dict) -> None:
-        """Atomic write for JSON files."""
-        temp_path = file_path.with_suffix(".tmp")
-        try:
-            with open(temp_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-            os.replace(temp_path, file_path)
-        except Exception as e:
-            if temp_path.exists():
-                temp_path.unlink()
-            raise e
-
-    def _atomic_write_text(self, file_path: Path, content: str) -> None:
-        """Atomic write for text/markdown files."""
-        temp_path = file_path.with_suffix(".md.tmp")
-        try:
-            with open(temp_path, "w", encoding="utf-8") as f:
-                f.write(content)
-            os.replace(temp_path, file_path)
-        except Exception as e:
-            if temp_path.exists():
-                temp_path.unlink()
-            raise e
 
 
 # ============================================================

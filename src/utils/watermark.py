@@ -44,95 +44,6 @@ _A4_WIDTH = 595.27
 _A4_HEIGHT = 841.89
 
 
-def _create_watermark_overlay(
-    watermark_image_path: str,
-    page_width: float,
-    page_height: float,
-    opacity: float = DEFAULT_OPACITY,
-    angle: float = DEFAULT_ANGLE,
-    tile_count: int = DEFAULT_TILE_COUNT,
-) -> bytes:
-    """Create a single-page PDF overlay with tiled watermark images.
-
-    Args:
-        watermark_image_path: Path to the watermark image (PNG/JPG/etc.)
-        page_width: Target page width in points.
-        page_height: Target page height in points.
-        opacity: Image opacity 0.0 (invisible) to 1.0 (opaque). Default 0.15.
-        angle: Rotation angle in degrees. Default 45.
-        tile_count: Number of tiles per row/column. Default 3.
-
-    Returns:
-        PDF bytes of the watermark overlay page.
-    """
-    from reportlab.lib.utils import ImageReader
-    from reportlab.pdfgen import canvas
-
-    buf = io.BytesIO()
-    c = canvas.Canvas(buf, pagesize=(page_width, page_height))
-
-    # Load image to get aspect ratio
-    img = ImageReader(watermark_image_path)
-    img_w, img_h = img.getSize()
-    aspect = img_h / img_w if img_w else 1
-
-    # Calculate tile size — fit tile_count tiles across the page
-    # Leave small margins between tiles
-    margin_ratio = 0.1  # 10% margin between tiles
-    tile_w = page_width / tile_count * (1 - margin_ratio)
-    tile_h = tile_w * aspect
-
-    # If tile_h exceeds what fits vertically, scale down
-    max_tile_h = page_height / tile_count * (1 - margin_ratio)
-    if tile_h > max_tile_h:
-        tile_h = max_tile_h
-        tile_w = tile_h / aspect
-
-    # Calculate spacing
-    spacing_x = page_width / tile_count
-    spacing_y = page_height / tile_count
-
-    # Draw tiled watermarks
-    c.saveState()
-
-    # Set opacity via graphics state
-    from reportlab.lib.colors import Color
-
-    c.setFillColor(Color(0, 0, 0, alpha=opacity))
-
-    for row in range(tile_count + 1):  # +1 for edge coverage
-        for col in range(tile_count + 1):
-            cx = spacing_x * col + spacing_x / 2
-            cy = spacing_y * row + spacing_y / 2
-
-            c.saveState()
-            c.translate(cx, cy)
-            c.rotate(angle)
-
-            # Draw with opacity using the image directly
-            # reportlab handles opacity via the graphics state
-            c.drawImage(
-                ImageReader(watermark_image_path),
-                -tile_w / 2,
-                -tile_h / 2,
-                width=tile_w,
-                height=tile_h,
-                mask="auto",  # Preserve transparency
-                preserveAspectRatio=True,
-                anchor="c",
-            )
-            c.restoreState()
-
-    c.restoreState()
-
-    # Apply opacity to the entire page via ExtGState
-    # reportlab doesn't natively support per-image opacity easily,
-    # so we'll use pypdf to merge with reduced opacity instead.
-    c.showPage()
-    c.save()
-    return buf.getvalue()
-
-
 def _create_watermark_overlay_with_opacity(
     watermark_image_path: str,
     page_width: float,
@@ -577,8 +488,3 @@ def get_document_level(doc_id: str, doc_type: str, title: str, content: str) -> 
         return "2"
 
     return "other"
-
-
-def should_allow_download(doc_id: str, doc_type: str, title: str, content: str) -> bool:
-    """All documents are downloadable."""
-    return True

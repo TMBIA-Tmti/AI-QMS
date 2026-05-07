@@ -23,6 +23,7 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
+from src.utils.safe_io import atomic_write_json, atomic_write_text
 
 logger = logging.getLogger(__name__)
 
@@ -83,31 +84,7 @@ class RegulatoryAnalysisStorage:
             r for r in self.registry["reports"] if r.get("status") != "deleted"
         ]
         self.registry["report_count"] = len(active_reports)
-        self._atomic_write_json(self.registry_file, self.registry)
-
-    def _atomic_write_json(self, file_path: Path, data: dict) -> None:
-        """Atomic write for JSON files."""
-        temp_path = file_path.with_suffix(".tmp")
-        try:
-            with open(temp_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-            os.replace(temp_path, file_path)
-        except Exception as e:
-            if temp_path.exists():
-                temp_path.unlink()
-            raise e
-
-    def _atomic_write_text(self, file_path: Path, content: str) -> None:
-        """Atomic write for text/markdown files."""
-        temp_path = file_path.with_suffix(".md.tmp")
-        try:
-            with open(temp_path, "w", encoding="utf-8") as f:
-                f.write(content)
-            os.replace(temp_path, file_path)
-        except Exception as e:
-            if temp_path.exists():
-                temp_path.unlink()
-            raise e
+        atomic_write_json(self.registry_file, self.registry)
 
     def _calculate_hash(self, content: str) -> str:
         """Calculate SHA-256 hash of content."""
@@ -182,7 +159,7 @@ class RegulatoryAnalysisStorage:
         filepath = self.reports_path / filename
         relative_path = str(filepath.relative_to(self.base_path))
 
-        self._atomic_write_text(filepath, full_content)
+        atomic_write_text(filepath, full_content)
         content_hash = self._calculate_hash(full_content)
 
         # Create registry entry
