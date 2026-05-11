@@ -105,3 +105,8 @@ presentation/
 *.bak2
 *.bak3
 *.bak4
+
+# Dev-only scripts (local sync / test utilities — not for release)
+sync_to_test.bat
+sync_to_release.bat
+sync_to_*.bat
