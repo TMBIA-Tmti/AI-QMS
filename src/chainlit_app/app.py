@@ -2336,7 +2336,7 @@ def detect_signature(ocr_result, file_path: str = "", lang: str = "zh-TW") -> di
 
 
 @cl.set_chat_profiles
-async def chat_profile():
+def chat_profile():
     # NOTE: @cl.set_chat_profiles runs BEFORE any user session exists,
     # so t() cannot determine the user's language. We use multilingual
     # inline descriptions as a workaround (zh-TW / EN / ja-JP).
