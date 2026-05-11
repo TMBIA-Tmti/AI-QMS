@@ -13,6 +13,13 @@ Replaces legacy Gradio UI (removed)
 Port: 3000 (single app)
 """
 
+# Fix Windows ProactorEventLoop race condition (AssertionError: sockets is None)
+# that occurs when a client disconnects while a new connection arrives simultaneously.
+import sys as _sys
+if _sys.platform == "win32":
+    import asyncio as _asyncio
+    _asyncio.set_event_loop_policy(_asyncio.WindowsSelectorEventLoopPolicy())
+
 import os
 import sys
 import re
