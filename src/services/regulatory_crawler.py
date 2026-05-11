@@ -2773,9 +2773,9 @@ def _classify_failure(error: Exception, url: str) -> str:
 # sources are always preferred over general/user-generated content.
 # ============================================================
 
-# Tier 0 — International standards & primary regulatory bodies (score 100)
+# ── Tier 0 (score 100): 國際標準機構與主要法規主管機關 ──────────
 _CREDIBILITY_TIER0 = frozenset([
-    "iso.org", "who.int", "iec.ch",
+    "iso.org", "who.int", "iec.ch", "imdrf.org",
     "fda.gov", "federalregister.gov", "ecfr.gov", "hhs.gov", "cdc.gov",
     "ema.europa.eu", "health.ec.europa.eu", "ec.europa.eu", "eur-lex.europa.eu",
     "pmda.go.jp", "mhlw.go.jp",
@@ -2784,43 +2784,108 @@ _CREDIBILITY_TIER0 = frozenset([
     "tga.gov.au",
     "hsa.gov.sg",
     "sfda.gov.sa",
-    "anvisa.gov.br", "gov.br",
+    "anvisa.gov.br",
     "health.gov.il",
     "swissmedic.ch", "fedlex.admin.ch",
     "mhra.gov.uk", "legislation.gov.uk", "gov.uk",
+    "law.moj.gov.tw", "tfda.gov.tw",
+    "laws-lois.justice.gc.ca", "canada.ca",
+    "mdsap.global",
 ])
 
-# Tier 1 — Government domains by TLD pattern (score 80)
+# ── Tier 1 (score 80): 政府網域 TLD ────────────────────────────
 _GOV_TLD_PATTERNS = (
     ".gov", ".go.jp", ".go.kr", ".gov.au", ".gov.uk", ".gov.br",
     ".gov.in", ".gov.sg", ".gov.my", ".gov.ph", ".gov.vn", ".gov.eg",
     ".gov.co", ".gov.ru", ".gc.ca", ".govt.nz", ".gob.mx",
     ".gouv.fr", ".bund.de", ".admin.ch",
-    "laws-lois.justice.gc.ca", "law.moj.gov.tw", "laws.e-gov.go.jp",
-    "legislation.gov.au", "austlii.edu.au",
-    "mdsap.global",
+    "laws.e-gov.go.jp", "legislation.gov.au", "austlii.edu.au",
 )
 
-# Tier 9 — Excluded (score -1): user-generated / unreliable for regulatory content
+# ── Tier 3 (score 40): 半官方法律/標準資料庫關鍵字 ────────────
+_CREDIBILITY_TIER3_KEYWORDS = (
+    "legal", "law", "lex", "legis", "regulation", "regulatory",
+    "norme", "norma", "normat", "standard",
+    "luatvietnam", "zakonrf", "consultant.ru",
+    "medical-device-regulation", "medicaldevice",
+)
+
+# ── Tier 4a (score 35): 最具代表性的醫療器材/QMS 民間機構 ──────
+# 包含公告機構（Notified Body）、驗證機構、產業協會、法規顧問
+# 僅當 Tier 0-3 無結果時使用，所有資料必須標記出處
+_CREDIBILITY_CIVIL_ORGS = frozenset([
+    # 國際公告機構 / 驗證機構
+    "bsigroup.com",                 # BSI Group (UK Notified Body)
+    "tuvsud.com", "tuv.com",        # TÜV SÜD / TÜV Rheinland
+    "dnv.com",                      # DNV
+    "sgs.com",                      # SGS
+    "intertek.com",                 # Intertek
+    "ul.com", "ulstandards.ul.com", # UL / UL Standards
+    "dekra.com",                    # DEKRA
+    "kiwa.com",                     # Kiwa
+    "nsf.org",                      # NSF International
+    "eurofins.com",                 # Eurofins
+    # 法規事務專業組織
+    "raps.org",                     # Regulatory Affairs Professionals Society
+    "emergobyul.com",               # Emergo by UL (法規顧問)
+    # 醫療器材產業協會
+    "aami.org",                     # AAMI (美國醫療儀器推進協會)
+    "advamed.org",                  # AdvaMed (美國)
+    "medtecheurope.org",            # MedTech Europe
+    "cocir.org",                    # COCIR (歐洲放射/IT)
+    "mdic.org",                     # Medical Device Innovation Consortium
+    "jira.or.jp",                   # 日本醫療機器產業聯合會
+    "apamed.org",                   # 亞太醫療器材協會
+    "camdma.com",                   # 中國醫療器材
+    # 標準與驗證資訊平台
+    "isogroup.org",
+    "isobudgets.com",
+    "fdanews.com",
+    "medicaldeviceacademy.com",
+    # QMS 軟體商（具備法規知識庫）
+    "greenlight.guru",
+    "mastercontrol.com",
+    "qualio.com",
+    "etq.com",
+])
+
+# ── Tier 9 (score -1): 完全排除 ────────────────────────────────
 _CREDIBILITY_EXCLUDED = frozenset([
     "wikipedia.org", "wikimedia.org", "wikidata.org",
     "reddit.com", "quora.com", "stackexchange.com", "stackoverflow.com",
     "medium.com", "substack.com", "blogspot.com", "wordpress.com",
+    "tumblr.com", "weebly.com", "wix.com",
     "linkedin.com", "facebook.com", "twitter.com", "x.com",
-    "youtube.com", "tiktok.com",
-    "amazon.com", "ebay.com",
+    "youtube.com", "tiktok.com", "instagram.com",
+    "amazon.com", "ebay.com", "alibaba.com",
 ])
+
+# URL 全文抓取的最低門檻：
+#   官方(100) + 政府(80) + 學術(60) + 半官方(40) + 代表性民間機構(35)
+#   一般網頁(20) 只用於最後摘要，不抓取全文
+_MIN_FETCH_CREDIBILITY = 35
+
+# 來源層級標籤（顯示於摘要片段的出處說明）
+_CREDIBILITY_LABELS = {
+    100: "🏛️ 官方法規機構",
+    80:  "🏛️ 政府網域",
+    60:  "🎓 學術機構",
+    40:  "✅ 半官方資料庫",
+    35:  "🔍 代表性民間機構",
+    20:  "🌐 一般網頁（最後手段）",
+}
 
 
 def _url_credibility_score(url: str) -> int:
-    """Return a credibility score for a URL (higher = more authoritative).
+    """來源可信度分數（越高越權威）。
 
-    100  Tier 0: known primary regulatory body domains
-     80  Tier 1: .gov / .go.jp / other government TLDs
-     60  Tier 2: .edu / .ac.uk / academic institutions
-     40  Tier 3: industry bodies, legal databases, standards mirrors
-     20  Tier 4: general web (default)
-     -1  Tier 9: Wikipedia, social media, user-generated — excluded
+    100  Tier 0 : 國際標準機構、主要法規主管機關
+     80  Tier 1 : 政府網域（.gov、.go.jp 等）
+     60  Tier 2 : 學術機構（.edu、.ac.uk 等）
+     40  Tier 3 : 半官方法律/標準資料庫
+     35  Tier 4a: 最具代表性的醫療器材/QMS 民間機構（含 SGS、UL、TÜV 等）
+     20  Tier 4b: 一般網頁（僅用於摘要片段，需標記出處）
+     -1  Tier 9 : Wikipedia、社群媒體 — 完全排除
     """
     if not url:
         return 0
@@ -2830,45 +2895,52 @@ def _url_credibility_score(url: str) -> int:
     except Exception:
         return 20
 
-    # Tier 9 — excluded
     for excl in _CREDIBILITY_EXCLUDED:
         if host == excl or host.endswith("." + excl):
             return -1
 
-    # Tier 0 — known primary bodies
     for t0 in _CREDIBILITY_TIER0:
         if host == t0 or host.endswith("." + t0):
             return 100
 
-    # Tier 1 — government TLD patterns
     for pat in _GOV_TLD_PATTERNS:
         if host.endswith(pat) or pat in host:
             return 80
 
-    # Tier 2 — academic
     if any(host.endswith(s) for s in (".edu", ".ac.uk", ".ac.jp", ".ac.kr",
                                        ".ac.au", ".ac.nz", ".ac.in")):
         return 60
 
-    # Tier 3 — legal/standards databases known to carry regulatory text
-    if any(k in host for k in ("legal", "law", "lex", "legis", "regulation",
-                                "norme", "norma", "normat", "standard",
-                                "luatvietnam", "zakonrf", "consultant.ru",
-                                "medical-device-regulation")):
+    if any(k in host for k in _CREDIBILITY_TIER3_KEYWORDS):
         return 40
 
-    return 20  # Tier 4: general web
+    for org in _CREDIBILITY_CIVIL_ORGS:
+        if host == org or host.endswith("." + org):
+            return 35
+
+    return 20  # Tier 4b: 一般網頁
 
 
-def _sort_by_credibility(search_results: list) -> list:
-    """Sort DDG search results by source credibility (highest first).
-    Filters out Tier 9 (Wikipedia, social media, etc.) entirely.
+def _credibility_label(score: int) -> str:
+    """回傳對應可信度分數的中文標籤。"""
+    for threshold in sorted(_CREDIBILITY_LABELS.keys(), reverse=True):
+        if score >= threshold:
+            return _CREDIBILITY_LABELS[threshold]
+    return "🌐 來源不明"
+
+
+def _sort_by_credibility(search_results: list, min_score: int = 0) -> list:
+    """依來源可信度排序 DDG 搜尋結果。
+
+    min_score:
+      0  — 僅排除 Tier 9（摘要片段，所有結果都顯示但需標記出處）
+      35 — 只留 Tier 0-4a（URL 全文抓取用，排除隨機一般網頁）
     """
     scored = []
     for sr in search_results:
         url = sr.get("href") or sr.get("link") or ""
         score = _url_credibility_score(url)
-        if score >= 0:  # drop Tier 9
+        if score >= min_score:
             scored.append((score, sr))
     scored.sort(key=lambda x: x[0], reverse=True)
     return [sr for _, sr in scored]
@@ -4428,9 +4500,9 @@ class AsyncRegulatoryUpdateCrawler:
                 result["crawl_duration_seconds"] = round(time.time() - start, 2)
                 return result
 
-            # M1: extract candidate URLs, sorted by source credibility (Tier 0 first)
-            # Wikipedia and social media (Tier 9) are automatically excluded.
-            ranked_results = _sort_by_credibility(search_results)
+            # M1: URL 抓取：只使用 Tier 0-4a（官方/半官方/代表性民間機構）
+            # min_score=35 排除隨機一般網頁，Wikipedia 等已由 score=-1 排除
+            ranked_results = _sort_by_credibility(search_results, min_score=_MIN_FETCH_CREDIBILITY)
             candidate_urls = [
                 sr.get("href") or sr.get("link") or ""
                 for sr in ranked_results
@@ -4457,15 +4529,21 @@ class AsyncRegulatoryUpdateCrawler:
                         region, agency,
                     )
 
-            # All URL fetches failed / timed out — combine snippets as last resort
-            # Still use credibility-ranked order so most authoritative sources appear first.
-            snippet_results = _sort_by_credibility(search_results)
-            md_parts = [f"# {region} — {agency} (DuckDuckGo 搜尋摘要)\n"]
+            # 摘要片段：所有非 Tier 9 來源都顯示，但每筆都標記來源層級
+            # min_score=0 保留一般網頁作最後手段，但標記「🌐 一般網頁（最後手段）」
+            snippet_results = _sort_by_credibility(search_results, min_score=0)
+            md_parts = [f"# {region} — {agency} (DuckDuckGo 搜尋摘要)\n\n"
+                        f"> ⚠️ 以下結果依來源可信度排序。所有資料均標記出處層級，請以官方來源為準。\n"]
             for i, sr in enumerate(snippet_results[:8], 1):
                 title = sr.get("title", "")
                 body = sr.get("body", "")
                 href = sr.get("href", sr.get("link", ""))
-                md_parts.append(f"## {i}. {title}\n\n{body}\n\n來源: {href}\n")
+                score = _url_credibility_score(href)
+                label = _credibility_label(score)
+                md_parts.append(
+                    f"## {i}. {title}\n\n{body}\n\n"
+                    f"**出處**：{href}  \n**來源層級**：{label}\n"
+                )
             combined = "\n---\n".join(md_parts)
             if len(combined.strip()) > 100:
                 result["crawl_status"] = "success"
