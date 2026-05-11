@@ -20,6 +20,17 @@ if _sys.platform == "win32":
     import asyncio as _asyncio
     _asyncio.set_event_loop_policy(_asyncio.WindowsSelectorEventLoopPolicy())
 
+# Suppress verbose internal HTTP request logs from the primp library.
+# primp is used by duckduckgo_search internally to query multiple search backends
+# (Wikipedia OpenSearch API, Brave, Yahoo, Yandex etc.) as part of result gathering.
+# These requests are DDGS internals — our credibility filter already excludes
+# Wikipedia and non-official sources from the results we actually use.
+# Showing these logs misleads users into thinking we are fetching Wikipedia content.
+import logging as _logging
+_logging.getLogger("primp").setLevel(_logging.CRITICAL)
+_logging.getLogger("duckduckgo_search").setLevel(_logging.CRITICAL)
+_logging.getLogger("duckduckgo_search.ddgs").setLevel(_logging.CRITICAL)
+
 # Suppress RuntimeWarning from litellm's async_service_success_hook.
 # This is a known litellm internal bug where an async logging hook is called
 # without await. The LLM call itself completes normally. Version is intentionally

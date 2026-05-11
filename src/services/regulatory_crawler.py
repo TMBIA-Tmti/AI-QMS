@@ -2950,12 +2950,31 @@ def _sort_by_credibility(search_results: list, min_score: int = 0) -> list:
 
 
 def _ddgs_search(query: str, max_results: int = 5) -> list:
-    """Search DuckDuckGo for supplementary regulatory info."""
+    """Search DuckDuckGo for supplementary regulatory info.
+
+    Appends site-bias operators to steer results toward official/government sources.
+    Results are returned as-is; credibility filtering is applied by the caller.
+    """
     if DDGS is None:
         return []
+    # Bias query toward official regulatory / government / civil org sources.
+    # This does not guarantee results — DDG may still return general pages —
+    # but significantly increases the proportion of authoritative results.
+    # Our _sort_by_credibility filter handles the final selection.
+    biased_query = (
+        f"{query} "
+        f"(site:.gov OR site:.go.jp OR site:.gov.au OR site:.gc.ca OR "
+        f"site:iso.org OR site:who.int OR site:iec.ch OR site:imdrf.org OR "
+        f"site:legislation.gov.uk OR site:eur-lex.europa.eu OR "
+        f"site:sgs.com OR site:tuvsud.com OR site:ul.com OR site:bsigroup.com)"
+    )
     try:
         with DDGS() as ddgs:
-            results = list(ddgs.text(query, max_results=max_results))
+            results = list(ddgs.text(biased_query, max_results=max_results))
+        # If biased query returns nothing, fall back to plain query
+        if not results:
+            with DDGS() as ddgs:
+                results = list(ddgs.text(query, max_results=max_results))
         return results
     except Exception as e:
         # M8: classify failure type for actionable logging
