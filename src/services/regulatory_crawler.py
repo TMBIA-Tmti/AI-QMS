@@ -4237,6 +4237,65 @@ class AsyncRegulatoryUpdateCrawler:
         result["crawl_duration_seconds"] = 0.0
         return result
 
+    async def _ddgs_url_discovery(
+        self,
+        site: dict,
+        region: str,
+        candidate_urls: list,
+        start: float,
+    ):
+        """Try up to 3 DDG-discovered URLs via Tier2/Tier3 with per-fetch timeouts.
+
+        Each Tier2 fetch is capped at 8s, each Tier3 Jina fetch at 12s.
+        Returns a successful result dict or None.
+        Called inside asyncio.wait_for (25s hard cap) from _fallback_ddgs_search.
+        """
+        for candidate_url in candidate_urls[:3]:  # max 3 URLs (was 5)
+            alt_site = dict(site)
+            alt_site["url"] = candidate_url
+            alt_site.pop("sitemap_url", None)
+
+            # Tier2 httpx — 8s per-fetch timeout
+            try:
+                alt_result = await asyncio.wait_for(
+                    _crawl_tier2_httpx(
+                        self._client, alt_site, region, self._etag_cache,
+                        jina_semaphore=self._jina_semaphore,
+                    ),
+                    timeout=8.0,
+                )
+                if alt_result.get("crawl_status") == "success":
+                    content = alt_result.get("content_markdown", "")
+                    if _is_regulatory_fulltext(content):
+                        alt_result["note"] = f"DDG URL 發現 (httpx): {candidate_url[:100]}"
+                        alt_result["crawl_duration_seconds"] = round(time.time() - start, 2)
+                        return alt_result
+            except asyncio.TimeoutError:
+                logger.debug("DDG alt httpx timeout (%s)", candidate_url[:60])
+            except Exception as e:
+                logger.debug("DDG alt httpx failed (%s): %s", candidate_url[:60], str(e)[:80])
+
+            # Tier3 Jina — 12s per-fetch timeout
+            try:
+                alt_result = await asyncio.wait_for(
+                    _crawl_tier3_jina(
+                        self._client, alt_site, region, self._jina_semaphore
+                    ),
+                    timeout=12.0,
+                )
+                if alt_result.get("crawl_status") == "success":
+                    content = alt_result.get("content_markdown", "")
+                    if _is_regulatory_fulltext(content):
+                        alt_result["note"] = f"DDG URL 發現 (Jina): {candidate_url[:100]}"
+                        alt_result["crawl_duration_seconds"] = round(time.time() - start, 2)
+                        return alt_result
+            except asyncio.TimeoutError:
+                logger.debug("DDG alt Jina timeout (%s)", candidate_url[:60])
+            except Exception as e:
+                logger.debug("DDG alt Jina failed (%s): %s", candidate_url[:60], str(e)[:80])
+
+        return None
+
     async def _fallback_ddgs_search(self, site: dict, region: str) -> dict:
         """Fallback: DDG URL discovery → Tier2/Tier3 fetch → snippet summary.
 
@@ -4244,6 +4303,7 @@ class AsyncRegulatoryUpdateCrawler:
         M2: Uses _build_ddg_query() for citation-aware targeted queries.
         M3: Validates fetched content is actual regulatory text via _is_regulatory_fulltext().
         M5: Called after both httpx and Jina fail, so alt URLs cover both paths.
+        URL discovery is hard-capped at 25s total to prevent Freshness Check hangs.
         Only falls back to snippet-combination if all URL fetches fail or lack full text.
         """
         result = _make_result_template(site, region)
@@ -4260,53 +4320,29 @@ class AsyncRegulatoryUpdateCrawler:
                 result["crawl_duration_seconds"] = round(time.time() - start, 2)
                 return result
 
-            # M1: extract candidate URLs and attempt real fetches
-            candidate_urls = []
-            for sr in search_results:
-                href = sr.get("href") or sr.get("link") or ""
-                if href and _is_safe_url(href):
-                    candidate_urls.append(href)
+            # M1: extract candidate URLs
+            candidate_urls = [
+                sr.get("href") or sr.get("link") or ""
+                for sr in search_results
+                if (sr.get("href") or sr.get("link")) and _is_safe_url(sr.get("href") or sr.get("link", ""))
+            ]
 
-            for candidate_url in candidate_urls[:5]:
-                alt_site = dict(site)
-                alt_site["url"] = candidate_url
-                alt_site.pop("sitemap_url", None)  # sitemap irrelevant for alt URL
-
-                # Try Tier2 httpx first
+            # URL discovery with hard 25s total cap
+            if candidate_urls:
                 try:
-                    alt_result = await _crawl_tier2_httpx(
-                        self._client, alt_site, region, self._etag_cache,
-                        jina_semaphore=self._jina_semaphore,
+                    disc_result = await asyncio.wait_for(
+                        self._ddgs_url_discovery(site, region, candidate_urls, start),
+                        timeout=25.0,
                     )
-                    if alt_result.get("crawl_status") == "success":
-                        content = alt_result.get("content_markdown", "")
-                        if _is_regulatory_fulltext(content):  # M3: quality gate
-                            alt_result["note"] = (
-                                f"DDG URL 發現 (httpx): {candidate_url[:100]}"
-                            )
-                            alt_result["crawl_duration_seconds"] = round(time.time() - start, 2)
-                            return alt_result
-                except Exception as e:
-                    logger.debug("DDG alt httpx failed (%s): %s", candidate_url[:60], str(e)[:80])
-
-                # Try Tier3 Jina on the alt URL
-                try:
-                    alt_result = await _crawl_tier3_jina(
-                        self._client, alt_site, region, self._jina_semaphore
+                    if disc_result is not None:
+                        return disc_result
+                except asyncio.TimeoutError:
+                    logger.warning(
+                        "DDG URL discovery exceeded 25s budget for %s/%s — falling back to snippets",
+                        region, agency,
                     )
-                    if alt_result.get("crawl_status") == "success":
-                        content = alt_result.get("content_markdown", "")
-                        if _is_regulatory_fulltext(content):  # M3: quality gate
-                            alt_result["note"] = (
-                                f"DDG URL 發現 (Jina): {candidate_url[:100]}"
-                            )
-                            alt_result["crawl_duration_seconds"] = round(time.time() - start, 2)
-                            return alt_result
-                except Exception as e:
-                    logger.debug("DDG alt Jina failed (%s): %s", candidate_url[:60], str(e)[:80])
 
-            # All URL fetches failed or content didn't pass quality gate
-            # Last resort: combine snippets as reference material (not full text)
+            # All URL fetches failed / timed out — combine snippets as last resort
             md_parts = [f"# {region} — {agency} (DuckDuckGo 搜尋摘要)\n"]
             for i, sr in enumerate(search_results, 1):
                 title = sr.get("title", "")

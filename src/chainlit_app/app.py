@@ -37,6 +37,17 @@ _warnings.filterwarnings(
     category=RuntimeWarning,
 )
 
+# Suppress PyTorch UserWarning for RTX 50-series (Blackwell / sm_120+).
+# PyTorch stable does not yet support sm_120; the app already handles this via
+# gpu_check.py which prints a structured warning and falls back to CPU mode.
+# The raw torch UserWarning is redundant and clutters the startup log.
+_warnings.filterwarnings(
+    "ignore",
+    message=r".*CUDA capability sm_1[0-9][0-9].*is not compatible.*",
+    category=UserWarning,
+    module="torch",
+)
+
 import os
 import sys
 import re

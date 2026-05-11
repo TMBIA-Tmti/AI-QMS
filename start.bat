@@ -98,14 +98,21 @@ echo.
 
 :: Auto-cleanup: Kill orphaned Chainlit Python processes on ports 3000-3010
 :: This prevents port conflicts from previous sessions that were closed improperly
+set "KILLED_ANY=0"
 for /L %%p in (3000,1,3010) do (
     for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":%%p .*LISTENING"') do (
         tasklist /FI "PID eq %%a" /FO CSV /NH 2>nul | findstr /I "python" >nul
         if not errorlevel 1 (
             echo [INFO] Found orphaned Python process on port %%p ^(PID %%a^). Cleaning up...
             taskkill /PID %%a /F >nul 2>&1
+            set "KILLED_ANY=1"
         )
     )
+)
+:: Wait for OS to release ports after kill (TIME_WAIT state)
+if "%KILLED_ANY%"=="1" (
+    echo [INFO] Waiting for ports to be released...
+    timeout /t 3 /nobreak >nul
 )
 
 :: Show menu
@@ -461,8 +468,8 @@ if not errorlevel 1 (
     exit /b 0
 )
 set /a PHOENIX_WAIT_COUNT+=1
-if %PHOENIX_WAIT_COUNT% GEQ 15 (
-    echo      [WARN] Phoenix did not start within 15 seconds. Traces will not be collected.
+if %PHOENIX_WAIT_COUNT% GEQ 30 (
+    echo      [WARN] Phoenix did not start within 30 seconds. Traces will not be collected.
     echo      [WARN] Check the "AI-QMS Phoenix" window for errors.
     exit /b 1
 )
