@@ -2767,6 +2767,114 @@ def _classify_failure(error: Exception, url: str) -> str:
 # ============================================================
 # DuckDuckGo Supplementary Search
 # ============================================================
+# Source Credibility Ranking
+# Mirrors the /web search credibility tier system.
+# Applied to DDG fallback URL discovery to ensure official regulatory
+# sources are always preferred over general/user-generated content.
+# ============================================================
+
+# Tier 0 — International standards & primary regulatory bodies (score 100)
+_CREDIBILITY_TIER0 = frozenset([
+    "iso.org", "who.int", "iec.ch",
+    "fda.gov", "federalregister.gov", "ecfr.gov", "hhs.gov", "cdc.gov",
+    "ema.europa.eu", "health.ec.europa.eu", "ec.europa.eu", "eur-lex.europa.eu",
+    "pmda.go.jp", "mhlw.go.jp",
+    "nmpa.gov.cn", "english.nmpa.gov.cn",
+    "mfds.go.kr",
+    "tga.gov.au",
+    "hsa.gov.sg",
+    "sfda.gov.sa",
+    "anvisa.gov.br", "gov.br",
+    "health.gov.il",
+    "swissmedic.ch", "fedlex.admin.ch",
+    "mhra.gov.uk", "legislation.gov.uk", "gov.uk",
+])
+
+# Tier 1 — Government domains by TLD pattern (score 80)
+_GOV_TLD_PATTERNS = (
+    ".gov", ".go.jp", ".go.kr", ".gov.au", ".gov.uk", ".gov.br",
+    ".gov.in", ".gov.sg", ".gov.my", ".gov.ph", ".gov.vn", ".gov.eg",
+    ".gov.co", ".gov.ru", ".gc.ca", ".govt.nz", ".gob.mx",
+    ".gouv.fr", ".bund.de", ".admin.ch",
+    "laws-lois.justice.gc.ca", "law.moj.gov.tw", "laws.e-gov.go.jp",
+    "legislation.gov.au", "austlii.edu.au",
+    "mdsap.global",
+)
+
+# Tier 9 — Excluded (score -1): user-generated / unreliable for regulatory content
+_CREDIBILITY_EXCLUDED = frozenset([
+    "wikipedia.org", "wikimedia.org", "wikidata.org",
+    "reddit.com", "quora.com", "stackexchange.com", "stackoverflow.com",
+    "medium.com", "substack.com", "blogspot.com", "wordpress.com",
+    "linkedin.com", "facebook.com", "twitter.com", "x.com",
+    "youtube.com", "tiktok.com",
+    "amazon.com", "ebay.com",
+])
+
+
+def _url_credibility_score(url: str) -> int:
+    """Return a credibility score for a URL (higher = more authoritative).
+
+    100  Tier 0: known primary regulatory body domains
+     80  Tier 1: .gov / .go.jp / other government TLDs
+     60  Tier 2: .edu / .ac.uk / academic institutions
+     40  Tier 3: industry bodies, legal databases, standards mirrors
+     20  Tier 4: general web (default)
+     -1  Tier 9: Wikipedia, social media, user-generated — excluded
+    """
+    if not url:
+        return 0
+    try:
+        from urllib.parse import urlparse
+        host = urlparse(url).netloc.lower().lstrip("www.")
+    except Exception:
+        return 20
+
+    # Tier 9 — excluded
+    for excl in _CREDIBILITY_EXCLUDED:
+        if host == excl or host.endswith("." + excl):
+            return -1
+
+    # Tier 0 — known primary bodies
+    for t0 in _CREDIBILITY_TIER0:
+        if host == t0 or host.endswith("." + t0):
+            return 100
+
+    # Tier 1 — government TLD patterns
+    for pat in _GOV_TLD_PATTERNS:
+        if host.endswith(pat) or pat in host:
+            return 80
+
+    # Tier 2 — academic
+    if any(host.endswith(s) for s in (".edu", ".ac.uk", ".ac.jp", ".ac.kr",
+                                       ".ac.au", ".ac.nz", ".ac.in")):
+        return 60
+
+    # Tier 3 — legal/standards databases known to carry regulatory text
+    if any(k in host for k in ("legal", "law", "lex", "legis", "regulation",
+                                "norme", "norma", "normat", "standard",
+                                "luatvietnam", "zakonrf", "consultant.ru",
+                                "medical-device-regulation")):
+        return 40
+
+    return 20  # Tier 4: general web
+
+
+def _sort_by_credibility(search_results: list) -> list:
+    """Sort DDG search results by source credibility (highest first).
+    Filters out Tier 9 (Wikipedia, social media, etc.) entirely.
+    """
+    scored = []
+    for sr in search_results:
+        url = sr.get("href") or sr.get("link") or ""
+        score = _url_credibility_score(url)
+        if score >= 0:  # drop Tier 9
+            scored.append((score, sr))
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [sr for _, sr in scored]
+
+
+# ============================================================
 
 
 def _ddgs_search(query: str, max_results: int = 5) -> list:
@@ -4320,12 +4428,19 @@ class AsyncRegulatoryUpdateCrawler:
                 result["crawl_duration_seconds"] = round(time.time() - start, 2)
                 return result
 
-            # M1: extract candidate URLs
+            # M1: extract candidate URLs, sorted by source credibility (Tier 0 first)
+            # Wikipedia and social media (Tier 9) are automatically excluded.
+            ranked_results = _sort_by_credibility(search_results)
             candidate_urls = [
                 sr.get("href") or sr.get("link") or ""
-                for sr in search_results
+                for sr in ranked_results
                 if (sr.get("href") or sr.get("link")) and _is_safe_url(sr.get("href") or sr.get("link", ""))
             ]
+            logger.debug(
+                "DDG candidates for %s/%s (credibility-ranked): %s",
+                region, agency,
+                [u[:60] for u in candidate_urls[:3]],
+            )
 
             # URL discovery with hard 25s total cap
             if candidate_urls:
@@ -4343,8 +4458,10 @@ class AsyncRegulatoryUpdateCrawler:
                     )
 
             # All URL fetches failed / timed out — combine snippets as last resort
+            # Still use credibility-ranked order so most authoritative sources appear first.
+            snippet_results = _sort_by_credibility(search_results)
             md_parts = [f"# {region} — {agency} (DuckDuckGo 搜尋摘要)\n"]
-            for i, sr in enumerate(search_results, 1):
+            for i, sr in enumerate(snippet_results[:8], 1):
                 title = sr.get("title", "")
                 body = sr.get("body", "")
                 href = sr.get("href", sr.get("link", ""))
