@@ -20,6 +20,23 @@ if _sys.platform == "win32":
     import asyncio as _asyncio
     _asyncio.set_event_loop_policy(_asyncio.WindowsSelectorEventLoopPolicy())
 
+# Suppress RuntimeWarning from litellm's async_service_success_hook.
+# This is a known litellm internal bug where an async logging hook is called
+# without await. The LLM call itself completes normally. Version is intentionally
+# locked due to prior CVE; suppressing the warning avoids log noise without
+# touching the locked package.
+import warnings as _warnings
+_warnings.filterwarnings(
+    "ignore",
+    message=r"coroutine.*async_service_success_hook.*was never awaited",
+    category=RuntimeWarning,
+)
+_warnings.filterwarnings(
+    "ignore",
+    message=r"Enable tracemalloc to get the object allocation traceback",
+    category=RuntimeWarning,
+)
+
 import os
 import sys
 import re
