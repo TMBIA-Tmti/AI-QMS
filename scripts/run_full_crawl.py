@@ -1,9 +1,15 @@
-"""Standalone script: crawl all 32 regions, annotate QMS sections, save to markdown storage."""
+"""Standalone script: crawl all 32 regions, annotate QMS sections, save to markdown storage.
+
+Usage:
+    python scripts/run_full_crawl.py               # standard full crawl
+    python scripts/run_full_crawl.py --check-updates  # M7: also detect version updates via DDG
+"""
 import asyncio
 import sys
 import os
 import json
 import logging
+import argparse
 from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -82,5 +88,62 @@ async def main():
     return report
 
 
+async def _check_regulatory_updates(results: dict) -> None:
+    """M7: DDG news scan — detect if any regulation has been updated since the note was written."""
+    from src.services.regulatory_crawler import _ddgs_search
+    import re
+
+    year_re = re.compile(r"\b20(2[3-9]|3\d)\b")
+    current_year = datetime.utcnow().year
+    flagged = 0
+
+    print("\n[UPDATE CHECK] Scanning for regulatory version changes via DuckDuckGo…")
+    for r in results.get("results", []):
+        if r.get("crawl_status") != "success":
+            continue
+        agency = r.get("agency", "")
+        region = r.get("region", "")
+        note = r.get("note", "") or ""
+
+        query = f"{region} {agency} regulation update amendment 2025 2026"
+        try:
+            hits = await asyncio.to_thread(_ddgs_search, query, 3)
+        except Exception:
+            continue
+
+        for hit in hits:
+            body = hit.get("body", "") + hit.get("title", "")
+            years_found = [int(y) for y in year_re.findall(body)]
+            if any(y > current_year - 1 for y in years_found):
+                # Check if note already mentions this year
+                if not any(str(y) in note for y in years_found):
+                    print(
+                        f"  [UPDATE_DETECTED] {region}/{agency} — "
+                        f"DDG snippet mentions {max(years_found)}: "
+                        f"{body[:120]}"
+                    )
+                    flagged += 1
+                    break
+
+    if flagged == 0:
+        print("[UPDATE CHECK] No new updates detected.")
+    else:
+        print(f"[UPDATE CHECK] {flagged} potential update(s) found — review notes above.")
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    parser = argparse.ArgumentParser(description="AI-QMS full regulatory crawl")
+    parser.add_argument(
+        "--check-updates",
+        action="store_true",
+        default=False,
+        help="M7: after crawl, scan DDG for regulation version updates",
+    )
+    args = parser.parse_args()
+
+    async def _run():
+        report = await main()
+        if args.check_updates and report:
+            await _check_regulatory_updates(report)
+
+    asyncio.run(_run())

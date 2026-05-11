@@ -2777,8 +2777,75 @@ def _ddgs_search(query: str, max_results: int = 5) -> list:
         with DDGS() as ddgs:
             results = list(ddgs.text(query, max_results=max_results))
         return results
-    except Exception:
+    except Exception as e:
+        # M8: classify failure type for actionable logging
+        err = str(e).lower()
+        if "rate" in err or "202" in err or "blocked" in err or "ratelimit" in err:
+            logger.warning("DDG rate-limited: %s", str(e)[:120])
+        elif "connect" in err or "timeout" in err or "network" in err:
+            logger.warning("DDG network error (%s): %s", type(e).__name__, str(e)[:120])
+        else:
+            logger.warning("DDG search failed (%s): %s", type(e).__name__, str(e)[:120])
         return []
+
+
+import re as _re
+
+_DDG_CITATION_RE = _re.compile(
+    r"(?:No\.\s*\d+[\w/]*"
+    r"|SOR[\-/]\d+[\-/]\d+"
+    r"|RDC\s*\w+[/]\d+"
+    r"|\d+\s*CFR\s*Part\s*\d+"
+    r"|Ordinance\s*(?:No\.)?\s*\d+"
+    r"|Decree\s*\d+[/\-]\d+"
+    r"|Act\s*\d+"
+    r"|SI\s*\d+[/]\d+"
+    r"|SR\s*\d+\.\d+"
+    r"|RDC\s*n[oº°]\s*[\d/]+"
+    r"|ISO\s*\d+(?::\d+)?)",
+    _re.IGNORECASE,
+)
+
+
+def _build_ddg_query(site: dict, region: str) -> str:
+    """M2: Build targeted DDG query using regulation citation extracted from site metadata."""
+    name = site.get("name", "")
+    note = site.get("note", "")
+    agency = site.get("agency", "")
+
+    en_name = region
+    if "(" in region and ")" in region:
+        en_name = region.split("(")[1].rstrip(")")
+
+    citations = _DDG_CITATION_RE.findall(name + " " + note)
+    if citations:
+        citation = citations[0].strip()
+        return f'"{citation}" {en_name} medical device regulation full text'
+
+    # Fall back to first 70 chars of the regulation name
+    short_name = name[:70].strip().rstrip("—").strip()
+    return f"{en_name} {short_name} regulation full text"
+
+
+_REGULATORY_KEYWORDS = frozenset([
+    "article", "section", "chapter", "clause", "regulation", "requirement",
+    "shall", "must", "pursuant", "compliance", "manufacturer", "annex",
+    "条", "章", "第", "条文", "令", "artikel", "abschnitt", "paragraf",
+    "artículo", "sección", "capítulo", "artigo", "seção", "decreto",
+    "постановление", "статья", "глава",
+])
+
+
+def _is_regulatory_fulltext(content: str) -> bool:
+    """M3: Heuristic — does this content look like regulatory full text vs an intro/index page?"""
+    if len(content) < 1500:
+        return False
+    lines = [ln for ln in content.splitlines() if ln.strip()]
+    if len(lines) < 25:
+        return False
+    content_lower = content.lower()
+    hits = sum(1 for kw in _REGULATORY_KEYWORDS if kw in content_lower)
+    return hits >= 3
 
 
 # ============================================================
@@ -4072,13 +4139,21 @@ class AsyncRegulatoryUpdateCrawler:
 
         async with sem:
             crawl_delay = min(site.get("crawl_delay", 3), 5)
-            await asyncio.sleep(crawl_delay * 0.5)
+            await asyncio.sleep(crawl_delay)  # M9: use full configured delay, not half
 
             if tier == 1:
                 result = await _crawl_tier1_api(
                     self._client, site, region, self._etag_cache
                 )
                 if result.get("crawl_status") != "success":
+                    # M4: attempt DDG URL discovery before falling back to pre-written profile
+                    ddgs_result = await self._fallback_ddgs_search(site, region)
+                    if ddgs_result.get("crawl_status") == "success":
+                        ddgs_result["note"] = (
+                            f"API 失敗 ({result.get('failure_reason', '未知')})"
+                            f" → DDG URL 發現成功"
+                        )
+                        return ddgs_result
                     profile = self._fallback_profile(site, region)
                     if profile:
                         return profile
@@ -4163,21 +4238,76 @@ class AsyncRegulatoryUpdateCrawler:
         return result
 
     async def _fallback_ddgs_search(self, site: dict, region: str) -> dict:
-        """Fallback: use DuckDuckGo to search for regulation content."""
+        """Fallback: DDG URL discovery → Tier2/Tier3 fetch → snippet summary.
+
+        M1: Extracts alternative URLs from DDG results and attempts real page fetches.
+        M2: Uses _build_ddg_query() for citation-aware targeted queries.
+        M3: Validates fetched content is actual regulatory text via _is_regulatory_fulltext().
+        M5: Called after both httpx and Jina fail, so alt URLs cover both paths.
+        Only falls back to snippet-combination if all URL fetches fail or lack full text.
+        """
         result = _make_result_template(site, region)
         start = time.time()
+        agency = site.get("agency", "")
         try:
-            agency = site.get("agency", "")
-            en_name = region
-            if "(" in region and ")" in region:
-                en_name = region.split("(")[1].rstrip(")")
-            query = f"{en_name} {agency} medical device regulation requirements"
+            # M2: targeted query using regulation citation from metadata
+            query = _build_ddg_query(site, region)
+            logger.debug("DDG fallback query for %s/%s: %s", region, agency, query)
+
             search_results = await asyncio.to_thread(_ddgs_search, query, 8)
             if not search_results:
                 result["failure_reason"] = "DuckDuckGo 搜尋無結果"
                 result["crawl_duration_seconds"] = round(time.time() - start, 2)
                 return result
-            md_parts = [f"# {region} — {agency} (DuckDuckGo 備援搜尋結果)\n"]
+
+            # M1: extract candidate URLs and attempt real fetches
+            candidate_urls = []
+            for sr in search_results:
+                href = sr.get("href") or sr.get("link") or ""
+                if href and _is_safe_url(href):
+                    candidate_urls.append(href)
+
+            for candidate_url in candidate_urls[:5]:
+                alt_site = dict(site)
+                alt_site["url"] = candidate_url
+                alt_site.pop("sitemap_url", None)  # sitemap irrelevant for alt URL
+
+                # Try Tier2 httpx first
+                try:
+                    alt_result = await _crawl_tier2_httpx(
+                        self._client, alt_site, region, self._etag_cache,
+                        jina_semaphore=self._jina_semaphore,
+                    )
+                    if alt_result.get("crawl_status") == "success":
+                        content = alt_result.get("content_markdown", "")
+                        if _is_regulatory_fulltext(content):  # M3: quality gate
+                            alt_result["note"] = (
+                                f"DDG URL 發現 (httpx): {candidate_url[:100]}"
+                            )
+                            alt_result["crawl_duration_seconds"] = round(time.time() - start, 2)
+                            return alt_result
+                except Exception as e:
+                    logger.debug("DDG alt httpx failed (%s): %s", candidate_url[:60], str(e)[:80])
+
+                # Try Tier3 Jina on the alt URL
+                try:
+                    alt_result = await _crawl_tier3_jina(
+                        self._client, alt_site, region, self._jina_semaphore
+                    )
+                    if alt_result.get("crawl_status") == "success":
+                        content = alt_result.get("content_markdown", "")
+                        if _is_regulatory_fulltext(content):  # M3: quality gate
+                            alt_result["note"] = (
+                                f"DDG URL 發現 (Jina): {candidate_url[:100]}"
+                            )
+                            alt_result["crawl_duration_seconds"] = round(time.time() - start, 2)
+                            return alt_result
+                except Exception as e:
+                    logger.debug("DDG alt Jina failed (%s): %s", candidate_url[:60], str(e)[:80])
+
+            # All URL fetches failed or content didn't pass quality gate
+            # Last resort: combine snippets as reference material (not full text)
+            md_parts = [f"# {region} — {agency} (DuckDuckGo 搜尋摘要)\n"]
             for i, sr in enumerate(search_results, 1):
                 title = sr.get("title", "")
                 body = sr.get("body", "")
@@ -4188,8 +4318,8 @@ class AsyncRegulatoryUpdateCrawler:
                 result["crawl_status"] = "success"
                 result["content_source"] = "live"
                 result["content_markdown"] = combined
-                result["title"] = f"{agency} (DuckDuckGo fallback)"
-                result["note"] = "透過 DuckDuckGo 搜尋取得替代法規資訊"
+                result["title"] = f"{agency} (DDG snippet reference)"
+                result["note"] = "DDG URL 全文抓取失敗 — 以搜尋摘要作為參考資料"
             else:
                 result["failure_reason"] = "DuckDuckGo 搜尋結果內容不足"
         except Exception as e:
