@@ -44,6 +44,10 @@ regulatory_markdown_storage/
 .files/
 nul
 
+# Local tool data (Claude Code, analysis output — never commit)
+.claude/
+analysis data/
+
 # Phoenix (Arize Phoenix LLM observability data)
 phoenix_data/
 .phoenix/
