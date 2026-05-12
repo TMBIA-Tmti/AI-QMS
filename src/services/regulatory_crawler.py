@@ -4150,13 +4150,27 @@ async def _crawl_tier2_httpx(
                     if attachments:
                         if site.get("save_attachments_separately"):
                             # Each PDF becomes a separate crawl result
-                            result["_attachment_splits"] = _split_attachment_sections(
+                            splits = _split_attachment_sections(
                                 attachments, site, region
+                            )
+                            result["_attachment_splits"] = splits
+                            logger.info(
+                                "Attachment splits for %s/%s: %d docs extracted",
+                                region, site.get("agency", ""), len(splits),
                             )
                         else:
                             result["content_markdown"] += attachments
-                except Exception:
-                    pass
+                    elif site.get("save_attachments_separately"):
+                        logger.warning(
+                            "No attachments extracted for %s/%s (index_page site) — "
+                            "page may have changed structure or all downloads failed",
+                            region, site.get("agency", ""),
+                        )
+                except Exception as _att_exc:
+                    logger.warning(
+                        "Attachment extraction failed for %s/%s: %s",
+                        region, site.get("agency", ""), str(_att_exc)[:200],
+                    )
         else:
             result["failure_reason"] = (
                 "頁面內容為空或需要 JavaScript 渲染 — "

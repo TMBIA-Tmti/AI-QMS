@@ -248,6 +248,7 @@ async def analyze_regulation_with_llm(
     send_progress_fn: Optional[Callable] = None,
     lang: str = "zh-TW",
     provider_id: str = "ollama",
+    is_local_override: Optional[bool] = None,
 ) -> Optional[RegulationProfile]:
     """Analyze crawled regulatory text and generate a RegulationProfile.
 
@@ -270,7 +271,9 @@ async def analyze_regulation_with_llm(
     profile_id = generate_profile_id_from_region(region_name)
     country_code = profile_id.split("_")[0] if "_" in profile_id else profile_id[:2]
 
-    is_local = _is_local_provider(provider_id)
+    # is_local_override lets callers (e.g. app.py) pass the provider manager's
+    # actual is_local flag, bypassing the static _LOCAL_PROVIDERS name check.
+    is_local = is_local_override if is_local_override is not None else _is_local_provider(provider_id)
     _params = _get_model_params(is_local)
     _batch_size = _params["batch_size"]
     logger.info(
@@ -328,7 +331,10 @@ async def analyze_regulation_with_llm(
             )
         await send_progress_fn(_msg_batch)
 
-    semaphore = asyncio.Semaphore(_MAX_CONCURRENT_BATCHES)
+    # Local servers (Ollama / LM Studio) process requests sequentially.
+    # Sending 3 concurrent batches means the 3rd waits 12+ minutes in
+    # queue before even starting, reliably triggering the timeout.
+    semaphore = asyncio.Semaphore(1 if is_local else _MAX_CONCURRENT_BATCHES)
 
     async def _run_batch(batch_idx: int, batch: list[str]) -> None:
         batch_clauses = [
@@ -367,91 +373,26 @@ async def analyze_regulation_with_llm(
                         max_tokens=_params["max_tokens_clause"],
                         stream=False,
                     )
-
-                response_text = response.get("content", "")
-                usage = response.get("usage", {})
-                _accumulate_usage(total_usage, usage)
-
-                if (
-                    not response_text
-                    or response_text.startswith("[ERROR]")
-                    or response.get("all_failed")
-                ):
-                    logger.warning(
-                        f"LLM call failed for batch {batch_idx}: "
-                        f"{response_text[:200] if response_text else 'empty'}"
-                    )
-                    _fill_batch_fallback(iso_mapped, batch)
-                    return
-
-                parsed = _parse_json_from_response(response_text)
-                if parsed and isinstance(parsed, list):
-                    for item in parsed:
-                        cid = item.get("clause_id", "")
-                        if cid and cid in ISO_13485_CHECKLIST:
-                            # Parse within_clause_deltas if present
-                            raw_deltas = item.get("within_clause_deltas", [])
-                            deltas = []
-                            if isinstance(raw_deltas, list):
-                                for didx, dd in enumerate(raw_deltas, 1):
-                                    if isinstance(dd, dict):
-                                        deltas.append(WithinClauseDelta(
-                                            delta_id=dd.get("delta_id", f"{profile_id}-WITHIN-{cid}-{didx:03d}"),
-                                            iso_clause=cid,
-                                            title_en=dd.get("title_en", ""),
-                                            title_zh=dd.get("title_zh", ""),
-                                            title_ja=dd.get("title_ja", ""),
-                                            iso_baseline_en=dd.get("iso_baseline_en", ""),
-                                            iso_baseline_zh=dd.get("iso_baseline_zh", ""),
-                                            iso_baseline_ja=dd.get("iso_baseline_ja", ""),
-                                            country_specific_en=dd.get("country_specific_en", ""),
-                                            country_specific_zh=dd.get("country_specific_zh", ""),
-                                            country_specific_ja=dd.get("country_specific_ja", ""),
-                                            regulation_ref=dd.get("regulation_ref", ""),
-                                            original_text=dd.get("original_text", ""),
-                                            original_lang=dd.get("original_lang", ""),
-                                            english_translation=dd.get("english_translation", ""),
-                                            delta_type=dd.get("delta_type", "other"),
-                                            audit_impact=dd.get("audit_impact", "major"),
-                                            expected_evidence=dd.get("expected_evidence", []),
-                                            confidence=min(1.0, max(0.0, float(dd.get("confidence", 0.5)))),
-                                        ))
-
-                            iso_mapped[cid] = ClauseMapping(
-                                iso_clause=cid,
-                                status=_parse_status(item.get("status", "na")),
-                                regulation_ref=item.get("regulation_ref", ""),
-                                rationale_en=item.get("rationale_en", ""),
-                                rationale_zh=item.get("rationale_zh", ""),
-                                method=MappingMethod.LLM_ANALYSIS,
-                                confidence=min(
-                                    1.0, max(0.0, float(item.get("confidence", 0.5)))
-                                ),
-                                notes=item.get("notes", ""),
-                                original_text=item.get("original_text", ""),
-                                original_lang=item.get("original_lang", ""),
-                                english_translation=item.get("english_translation", ""),
-                                semantic_note=item.get("semantic_note", ""),
-                                within_clause_deltas=deltas,
-                            )
-                else:
-                    logger.warning(
-                        f"Failed to parse JSON for batch {batch_idx}, using fallback"
-                    )
-                    _fill_batch_fallback(iso_mapped, batch)
-
-                if send_progress_fn:
-                    if lang.startswith("ja"):
-                        _batch_done_msg = f"✅ バッチ {batch_idx}/{total_batches} 完了 ({batch[0]}–{batch[-1]})"
-                    elif lang.startswith("zh"):
-                        _batch_done_msg = f"✅ 批次 {batch_idx}/{total_batches} 完成 ({batch[0]}–{batch[-1]})"
-                    else:
-                        _batch_done_msg = f"✅ Batch {batch_idx}/{total_batches} done ({batch[0]}–{batch[-1]})"
-                    await send_progress_fn(_batch_done_msg)
+            except Exception as e:
+                # asyncio.to_thread itself failed (rare); treat as non-retriable
+                logger.error(f"Unexpected exception in batch {batch_idx} (attempt {_attempt + 1}): {e}")
+                _fill_batch_fallback(iso_mapped, batch)
                 return
 
-            except Exception as e:
-                _e_str = str(e).lower()
+            response_text = response.get("content", "")
+            usage = response.get("usage", {})
+            _accumulate_usage(total_usage, usage)
+
+            # completion() catches all LLM exceptions and returns error dicts —
+            # the try/except above never fires for timeouts.  Check the response
+            # content for timeout errors and handle retries here instead.
+            _is_error = (
+                not response_text
+                or response_text.startswith("[ERROR]")
+                or response.get("all_failed")
+            )
+            if _is_error:
+                _e_str = response_text.lower()
                 _is_timeout = "timeout" in _e_str or "timed out" in _e_str
                 if _is_timeout and _attempt < _MAX_RETRIES_BATCH:
                     _delay = 2 * (2 ** _attempt)  # 2s, 4s
@@ -468,9 +409,78 @@ async def analyze_regulation_with_llm(
                         await send_progress_fn(_retry_msg)
                     await asyncio.sleep(_delay)
                     continue
-                logger.error(f"Exception during clause batch {batch_idx} (attempt {_attempt + 1}): {e}")
+                logger.warning(
+                    f"LLM call failed for batch {batch_idx}: "
+                    f"{response_text[:200] if response_text else 'empty'}"
+                )
                 _fill_batch_fallback(iso_mapped, batch)
                 return
+
+            parsed = _parse_json_from_response(response_text)
+            if parsed and isinstance(parsed, list):
+                for item in parsed:
+                    cid = item.get("clause_id", "")
+                    if cid and cid in ISO_13485_CHECKLIST:
+                        # Parse within_clause_deltas if present
+                        raw_deltas = item.get("within_clause_deltas", [])
+                        deltas = []
+                        if isinstance(raw_deltas, list):
+                            for didx, dd in enumerate(raw_deltas, 1):
+                                if isinstance(dd, dict):
+                                    deltas.append(WithinClauseDelta(
+                                        delta_id=dd.get("delta_id", f"{profile_id}-WITHIN-{cid}-{didx:03d}"),
+                                        iso_clause=cid,
+                                        title_en=dd.get("title_en", ""),
+                                        title_zh=dd.get("title_zh", ""),
+                                        title_ja=dd.get("title_ja", ""),
+                                        iso_baseline_en=dd.get("iso_baseline_en", ""),
+                                        iso_baseline_zh=dd.get("iso_baseline_zh", ""),
+                                        iso_baseline_ja=dd.get("iso_baseline_ja", ""),
+                                        country_specific_en=dd.get("country_specific_en", ""),
+                                        country_specific_zh=dd.get("country_specific_zh", ""),
+                                        country_specific_ja=dd.get("country_specific_ja", ""),
+                                        regulation_ref=dd.get("regulation_ref", ""),
+                                        original_text=dd.get("original_text", ""),
+                                        original_lang=dd.get("original_lang", ""),
+                                        english_translation=dd.get("english_translation", ""),
+                                        delta_type=dd.get("delta_type", "other"),
+                                        audit_impact=dd.get("audit_impact", "major"),
+                                        expected_evidence=dd.get("expected_evidence", []),
+                                        confidence=min(1.0, max(0.0, float(dd.get("confidence", 0.5)))),
+                                    ))
+
+                        iso_mapped[cid] = ClauseMapping(
+                            iso_clause=cid,
+                            status=_parse_status(item.get("status", "na")),
+                            regulation_ref=item.get("regulation_ref", ""),
+                            rationale_en=item.get("rationale_en", ""),
+                            rationale_zh=item.get("rationale_zh", ""),
+                            method=MappingMethod.LLM_ANALYSIS,
+                            confidence=min(
+                                1.0, max(0.0, float(item.get("confidence", 0.5)))
+                            ),
+                            notes=item.get("notes", ""),
+                            original_text=item.get("original_text", ""),
+                            original_lang=item.get("original_lang", ""),
+                            english_translation=item.get("english_translation", ""),
+                            semantic_note=item.get("semantic_note", ""),
+                            within_clause_deltas=deltas,
+                        )
+            else:
+                logger.warning(
+                    f"Failed to parse JSON for batch {batch_idx}, using fallback"
+                )
+                _fill_batch_fallback(iso_mapped, batch)
+
+            if send_progress_fn:
+                if lang.startswith("ja"):
+                    _batch_done_msg = f"✅ バッチ {batch_idx}/{total_batches} 完了 ({batch[0]}–{batch[-1]})"
+                elif lang.startswith("zh"):
+                    _batch_done_msg = f"✅ 批次 {batch_idx}/{total_batches} 完成 ({batch[0]}–{batch[-1]})"
+                else:
+                    _batch_done_msg = f"✅ Batch {batch_idx}/{total_batches} done ({batch[0]}–{batch[-1]})"
+                await send_progress_fn(_batch_done_msg)
+            return
 
     await asyncio.gather(
         *[_run_batch(idx, batch) for idx, batch in enumerate(batches, 1)]
@@ -527,50 +537,22 @@ async def analyze_regulation_with_llm(
                     max_tokens=_params["max_tokens_unique"],
                     stream=False,
                 )
-                response_text = response.get("content", "")
-                usage = response.get("usage", {})
-                _accumulate_usage(total_usage, usage)
-
-                if (
-                    response_text
-                    and not response_text.startswith("[ERROR]")
-                    and not response.get("all_failed")
-                ):
-                    parsed = _parse_json_from_response(response_text)
-                    if parsed and isinstance(parsed, list):
-                        for idx, item in enumerate(parsed, 1):
-                            req_id = item.get("req_id", f"{profile_id}-{idx:03d}")
-                            unique_reqs.append(
-                                UniqueRequirement(
-                                    req_id=req_id,
-                                    regulation_ref=item.get("regulation_ref", ""),
-                                    title_en=item.get("title_en", ""),
-                                    title_zh=item.get("title_zh", ""),
-                                    requirement_en=item.get("requirement_en", ""),
-                                    requirement_zh=item.get("requirement_zh", ""),
-                                    related_iso_clauses=item.get("related_iso_clauses", []),
-                                    audit_impact=item.get("audit_impact", "major"),
-                                    audit_question_en=item.get("audit_question_en", ""),
-                                    audit_question_zh=item.get("audit_question_zh", ""),
-                                    expected_evidence=item.get("expected_evidence", []),
-                                    rationale_en=item.get("rationale_en", ""),
-                                    rationale_zh=item.get("rationale_zh", ""),
-                                    method=MappingMethod.LLM_ANALYSIS,
-                                    confidence=min(
-                                        1.0, max(0.0, float(item.get("confidence", 0.5)))
-                                    ),
-                                    original_text=item.get("original_text", ""),
-                                    original_lang=item.get("original_lang", ""),
-                                    english_translation=item.get("english_translation", ""),
-                                    semantic_note=item.get("semantic_note", ""),
-                                    is_within_clause_delta=item.get("is_within_clause_delta", False),
-                                    within_clause_delta_vs_iso=item.get("within_clause_delta_vs_iso", ""),
-                                )
-                            )
+            except Exception as e:
+                logger.error(f"Unexpected exception during unique requirements analysis (attempt {_uq_attempt + 1}): {e}")
                 break
 
-            except Exception as e:
-                _e_str = str(e).lower()
+            response_text = response.get("content", "")
+            usage = response.get("usage", {})
+            _accumulate_usage(total_usage, usage)
+
+            # Check for timeout error dicts (completion() swallows exceptions)
+            _uq_is_error = (
+                not response_text
+                or response_text.startswith("[ERROR]")
+                or response.get("all_failed")
+            )
+            if _uq_is_error:
+                _e_str = response_text.lower()
                 _is_timeout = "timeout" in _e_str or "timed out" in _e_str
                 if _is_timeout and _uq_attempt < _MAX_RETRIES_BATCH:
                     _delay = 2 * (2 ** _uq_attempt)
@@ -585,8 +567,41 @@ async def analyze_regulation_with_llm(
                         await send_progress_fn(_uq_retry)
                     await asyncio.sleep(_delay)
                     continue
-                logger.error(f"Exception during unique requirements analysis (attempt {_uq_attempt + 1}): {e}")
+                logger.error(f"Unique requirements analysis failed (attempt {_uq_attempt + 1}): {response_text[:200]}")
                 break
+
+            parsed = _parse_json_from_response(response_text)
+            if parsed and isinstance(parsed, list):
+                for idx, item in enumerate(parsed, 1):
+                    req_id = item.get("req_id", f"{profile_id}-{idx:03d}")
+                    unique_reqs.append(
+                        UniqueRequirement(
+                            req_id=req_id,
+                            regulation_ref=item.get("regulation_ref", ""),
+                            title_en=item.get("title_en", ""),
+                            title_zh=item.get("title_zh", ""),
+                            requirement_en=item.get("requirement_en", ""),
+                            requirement_zh=item.get("requirement_zh", ""),
+                            related_iso_clauses=item.get("related_iso_clauses", []),
+                            audit_impact=item.get("audit_impact", "major"),
+                            audit_question_en=item.get("audit_question_en", ""),
+                            audit_question_zh=item.get("audit_question_zh", ""),
+                            expected_evidence=item.get("expected_evidence", []),
+                            rationale_en=item.get("rationale_en", ""),
+                            rationale_zh=item.get("rationale_zh", ""),
+                            method=MappingMethod.LLM_ANALYSIS,
+                            confidence=min(
+                                1.0, max(0.0, float(item.get("confidence", 0.5)))
+                            ),
+                            original_text=item.get("original_text", ""),
+                            original_lang=item.get("original_lang", ""),
+                            english_translation=item.get("english_translation", ""),
+                            semantic_note=item.get("semantic_note", ""),
+                            is_within_clause_delta=item.get("is_within_clause_delta", False),
+                            within_clause_delta_vs_iso=item.get("within_clause_delta_vs_iso", ""),
+                        )
+                    )
+            break
 
     # ── Step 3: Build and save profile ──
     profile = RegulationProfile(

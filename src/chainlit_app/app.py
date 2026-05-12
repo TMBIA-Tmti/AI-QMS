@@ -205,13 +205,16 @@ def get_phoenix_project(profile: str = "") -> str:
     return PHOENIX_PROJECT_MAP.get(profile, PHOENIX_DEFAULT_PROJECT)
 
 
-def _detect_phoenix_endpoint() -> str:
+def _detect_phoenix_endpoint() -> str | None:
     """Auto-detect Phoenix endpoint by scanning ports 6006-6016.
 
     Priority:
       1. PHOENIX_COLLECTOR_ENDPOINT env var (set by start.bat / start_chainlit.bat)
       2. Scan ports 6006-6016 for a running Phoenix server
-      3. Fallback to default http://localhost:6006/v1/traces
+      3. Return None — no server found, tracing will be skipped
+
+    Returns None when no server is reachable so the caller can skip
+    registration entirely (avoids 10-second span-export timeouts per call).
     """
     import socket
 
@@ -233,8 +236,8 @@ def _detect_phoenix_endpoint() -> str:
         except Exception:
             continue
 
-    # 3. Fallback to default
-    return "http://localhost:6006/v1/traces"
+    # 3. No server found — return None to suppress registration
+    return None
 
 
 try:
@@ -247,25 +250,33 @@ try:
 
     _phoenix_endpoint = _detect_phoenix_endpoint()
 
-    # Register with default project; per-request routing via dangerously_using_project()
-    _phoenix_tracer_provider = phoenix_register(
-        project_name=PHOENIX_DEFAULT_PROJECT,
-        endpoint=_phoenix_endpoint,
-        batch=False,  # Immediate export for debugging; set True in production
-    )
-    LiteLLMInstrumentor().instrument(tracer_provider=_phoenix_tracer_provider)
+    if _phoenix_endpoint is None:
+        # No Phoenix server reachable — skip registration entirely.
+        # Registering against an unreachable endpoint causes a 10-second
+        # read-timeout on every LLM span export, flooding logs with errors.
+        print(
+            "[INFO] Phoenix server not detected on ports 6006-6016. "
+            "LLM tracing disabled. Start Phoenix to enable observability."
+        )
+    else:
+        # Register with default project; per-request routing via dangerously_using_project()
+        _phoenix_tracer_provider = phoenix_register(
+            project_name=PHOENIX_DEFAULT_PROJECT,
+            endpoint=_phoenix_endpoint,
+            batch=False,  # Immediate export for debugging; set True in production
+        )
+        LiteLLMInstrumentor().instrument(tracer_provider=_phoenix_tracer_provider)
 
-    # Get a tracer for custom (non-LLM) spans like web search, OCR, etc.
+        # Get a tracer for custom (non-LLM) spans like web search, OCR, etc.
+        _phoenix_tracer = _phoenix_tracer_provider.get_tracer("ai-qms-custom")
 
-    _phoenix_tracer = _phoenix_tracer_provider.get_tracer("ai-qms-custom")
-
-    _phoenix_using_project = dangerously_using_project
-    _phoenix_using_attributes = using_attributes
-    PHOENIX_ENABLED = True
-    print(
-        f"[OK] Phoenix multi-project tracing enabled → {_phoenix_endpoint}"
-        f" (projects: {', '.join(PHOENIX_PROJECT_MAP.values())})"
-    )
+        _phoenix_using_project = dangerously_using_project
+        _phoenix_using_attributes = using_attributes
+        PHOENIX_ENABLED = True
+        print(
+            f"[OK] Phoenix multi-project tracing enabled → {_phoenix_endpoint}"
+            f" (projects: {', '.join(PHOENIX_PROJECT_MAP.values())})"
+        )
 except ImportError:
     # Auto-install Phoenix packages for users who upgraded via git pull
     print("[INFO] Phoenix packages not found. Auto-installing...")
@@ -297,21 +308,27 @@ except ImportError:
         )
 
         _phoenix_endpoint = _detect_phoenix_endpoint()
-        _phoenix_tracer_provider = phoenix_register(
-            project_name=PHOENIX_DEFAULT_PROJECT,
-            endpoint=_phoenix_endpoint,
-            batch=False,
-        )
-        LiteLLMInstrumentor().instrument(tracer_provider=_phoenix_tracer_provider)
+        if _phoenix_endpoint is None:
+            print(
+                "[INFO] Phoenix auto-installed but server not running. "
+                "LLM tracing disabled."
+            )
+        else:
+            _phoenix_tracer_provider = phoenix_register(
+                project_name=PHOENIX_DEFAULT_PROJECT,
+                endpoint=_phoenix_endpoint,
+                batch=False,
+            )
+            LiteLLMInstrumentor().instrument(tracer_provider=_phoenix_tracer_provider)
 
-        _phoenix_tracer = _phoenix_tracer_provider.get_tracer("ai-qms-custom")
-        _phoenix_using_project = dangerously_using_project
-        _phoenix_using_attributes = using_attributes
-        PHOENIX_ENABLED = True
-        print(
-            f"[OK] Phoenix auto-installed and enabled → {_phoenix_endpoint}"
-            f" (projects: {', '.join(PHOENIX_PROJECT_MAP.values())})"
-        )
+            _phoenix_tracer = _phoenix_tracer_provider.get_tracer("ai-qms-custom")
+            _phoenix_using_project = dangerously_using_project
+            _phoenix_using_attributes = using_attributes
+            PHOENIX_ENABLED = True
+            print(
+                f"[OK] Phoenix auto-installed and enabled → {_phoenix_endpoint}"
+                f" (projects: {', '.join(PHOENIX_PROJECT_MAP.values())})"
+            )
     except Exception as auto_err:
         print(f"[INFO] Phoenix auto-install failed ({auto_err}). LLM tracing disabled.")
 except Exception as e:
@@ -6075,6 +6092,7 @@ async def handle_regulatory_update_rescan(selected_regions: list):
                             send_progress_fn=_profile_progress,
                             lang=cl.user_session.get("language", DEFAULT_LANG),
                             provider_id=_provider_id,
+                            is_local_override=_manager.current_provider["is_local"],
                         )
                         if _profile:
                             await cl.Message(
