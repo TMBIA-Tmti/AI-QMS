@@ -3936,6 +3936,23 @@ async def on_chat_end():
                 model_name=cl.user_session.get("model_name", ""),
             )
 
+        # Record interrupted version update if session disconnected mid-confirmation
+        _pending_doc_info = cl.user_session.get("current_doc_info")
+        if _pending_doc_info:
+            try:
+                _audit = ImmutableAuditLog()
+                _audit.create_record(
+                    action="VERSION_UPDATE_INTERRUPTED",
+                    document_id=_pending_doc_info.get("doc_id", "UNKNOWN"),
+                    user_id=cl.user_session.get("user_name", "unknown"),
+                    details={
+                        "file_path": cl.user_session.get("current_file_path", ""),
+                        "reason": "session_disconnected",
+                    },
+                )
+            except Exception:
+                pass
+
         # Save user settings on disconnect
         user_name = cl.user_session.get("user_name", "")
         if user_name:
@@ -7840,6 +7857,19 @@ async def handle_file_upload(files):
 
         if result["success"]:
             succeeded.append(result)
+            if not result.get("is_duplicate"):
+                _audit = ImmutableAuditLog()
+                _audit.create_record(
+                    action="FILE_UPLOADED",
+                    document_id=result.get("saved_doc_id", result["filename"]),
+                    user_id=cl.user_session.get("user_name", "unknown"),
+                    details={
+                        "filename": result["filename"],
+                        "ocr_provider": (result.get("ocr_result") or {}).get("provider_used", ""),
+                        "doc_type": (result.get("doc_info") or {}).get("doc_type", ""),
+                        "sig_detected": (result.get("sig_result") or {}).get("detected", False),
+                    },
+                )
         else:
             failed.append(result)
 
@@ -7933,6 +7963,18 @@ async def handle_file_upload(files):
             cl.user_session.set("current_ocr_result", last.get("ocr_result"))
             cl.user_session.set("current_doc_info", last.get("doc_info"))
             cl.user_session.set("current_file_path", last.get("dest_path"))
+            _audit = ImmutableAuditLog()
+            _audit.create_record(
+                action="VERSION_UPDATE_INITIATED",
+                document_id=dup["doc_id"],
+                user_id=cl.user_session.get("user_name", "unknown"),
+                details={
+                    "filename": last["filename"],
+                    "existing_version": existing_ver,
+                    "new_version": new_ver,
+                    "dest_path": last.get("dest_path", ""),
+                },
+            )
 
     progress_msg.content = "\n".join(lines)
     await progress_msg.update()
@@ -8504,10 +8546,19 @@ async def on_cancel_stamps(action):
 async def on_cancel_version_update(action):
     """Cancel version update"""
     await action.remove()
+    _doc_info = cl.user_session.get("current_doc_info")
     cl.user_session.set("current_ocr_result", None)
     cl.user_session.set("current_doc_info", None)
     cl.user_session.set("current_file_path", None)
     cl.user_session.set("awaiting_confirmer_name", False)
+    if _doc_info:
+        _audit = ImmutableAuditLog()
+        _audit.create_record(
+            action="VERSION_UPDATE_CANCELLED",
+            document_id=_doc_info.get("doc_id", "UNKNOWN"),
+            user_id=cl.user_session.get("user_name", "unknown"),
+            details={"reason": "user_cancelled"},
+        )
     await cl.Message(content=t("version.cancelled")).send()
 
 
