@@ -195,14 +195,12 @@ REGION_SITES = {
         },
         {
             "agency": "EUR-Lex-MDR-HTML",
-            "name": "Regulation (EU) 2017/745 — EU MDR Download Page: all 24 official language PDFs (medical-device-regulation.eu)",
+            "name": "Regulation (EU) 2017/745 — EU MDR Download Page (English reference index, medical-device-regulation.eu)",
             "url": "https://www.medical-device-regulation.eu/download-mdr/",
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "index_page": True,
-            "save_attachments_separately": True,
-            "note": "EU MDR 2017/745 download hub — 24 official language PDFs (BG/CS/DA/DE/EL/EN/ES/ET/FI/FR/GA/HR/HU/IT/LT/LV/MT/NL/PL/PT/RO/SK/SL/SV); direct httpx 200 OK; each language PDF saved as separate markdown file",
+            "note": "EU MDR 2017/745 download page (English only — full English PDF already covered by EU-MDR-2017-745-PDF); kept as reference index listing available language versions",
         },
         {
             "agency": "MDCG",
@@ -4011,14 +4009,18 @@ async def _crawl_tier2_httpx(
     start = time.time()
 
     try:
-        # Conditional request headers
+        # Conditional request headers.
+        # Sites with save_attachments_separately=True (e.g. MDCG index) MUST bypass
+        # ETag caching: a 304 response causes early return that skips the attachment
+        # extraction logic, meaning all individual PDFs are lost on cached crawls.
         req_headers = {}
-        cached = etag_cache.get(url)
-        if cached:
-            if cached.get("etag"):
-                req_headers["If-None-Match"] = cached["etag"]
-            if cached.get("last_modified"):
-                req_headers["If-Modified-Since"] = cached["last_modified"]
+        if not site.get("save_attachments_separately"):
+            cached = etag_cache.get(url)
+            if cached:
+                if cached.get("etag"):
+                    req_headers["If-None-Match"] = cached["etag"]
+                if cached.get("last_modified"):
+                    req_headers["If-Modified-Since"] = cached["last_modified"]
 
         response = await _fetch_with_retry(client, url, headers=req_headers)
 
@@ -4040,13 +4042,14 @@ async def _crawl_tier2_httpx(
 
         response.raise_for_status()
 
-        # Update ETag cache
-        etag = response.headers.get("ETag")
-        last_mod = response.headers.get("Last-Modified")
-        content_hash = hashlib.sha256(response.content).hexdigest()[:16]
-        etag_cache.set(
-            url, etag=etag, last_modified=last_mod, content_hash=content_hash
-        )
+        # Update ETag cache (only for non-attachment-split sites)
+        if not site.get("save_attachments_separately"):
+            etag = response.headers.get("ETag")
+            last_mod = response.headers.get("Last-Modified")
+            content_hash = hashlib.sha256(response.content).hexdigest()[:16]
+            etag_cache.set(
+                url, etag=etag, last_modified=last_mod, content_hash=content_hash
+            )
 
         content_type = response.headers.get("content-type", "")
 
