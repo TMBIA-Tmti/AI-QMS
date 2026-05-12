@@ -263,7 +263,7 @@ try:
         _phoenix_tracer_provider = phoenix_register(
             project_name=PHOENIX_DEFAULT_PROJECT,
             endpoint=_phoenix_endpoint,
-            batch=False,  # Immediate export for debugging; set True in production
+            batch=True,
         )
         LiteLLMInstrumentor().instrument(tracer_provider=_phoenix_tracer_provider)
 
@@ -317,7 +317,7 @@ except ImportError:
             _phoenix_tracer_provider = phoenix_register(
                 project_name=PHOENIX_DEFAULT_PROJECT,
                 endpoint=_phoenix_endpoint,
-                batch=False,
+                batch=True,
             )
             LiteLLMInstrumentor().instrument(tracer_provider=_phoenix_tracer_provider)
 
@@ -2834,7 +2834,18 @@ async def _regulatory_background_scheduler():
             )
 
             reg_md_store = get_regulatory_markdown_store()
-            reg_md_store.save_from_crawl_results(crawl_results)
+            _sched_save = reg_md_store.save_from_crawl_results(crawl_results)
+
+            # Log change summary (scheduler runs headless, no Chainlit UI)
+            try:
+                from src.services.regulatory_diff import build_change_summary
+                _sched_cs = build_change_summary(_sched_save, crawl_results)
+                if _sched_cs.get("has_any_change"):
+                    logger_name.info("[Scheduler] Regulatory changes detected in this crawl run")
+                else:
+                    logger_name.info("[Scheduler] No regulatory content changes detected")
+            except Exception:
+                pass
 
             summary = crawl_results.get("summary", {})
             logger_name.info(
@@ -5503,6 +5514,70 @@ async def handle_regulatory_export(format_type: str):
 # ============================================================
 
 
+async def _display_change_summary(save_result: dict, crawl_results: dict) -> None:
+    """Display per-country change summary after save_from_crawl_results().
+
+    Shows EU split (MDR core law vs MDCG guidance) and X/N changed for other
+    countries.  Skips display if no per_doc_changes data (e.g. old save path).
+    """
+    per_doc = save_result.get("per_doc_changes")
+    if not per_doc:
+        return
+
+    try:
+        from src.services.regulatory_diff import build_change_summary
+        from src.chainlit_app.lang_config import display_region as _dr
+        summary = build_change_summary(save_result, crawl_results)
+    except Exception as exc:
+        logging.getLogger(__name__).debug(f"Change summary build failed: {exc}")
+        return
+
+    lang = cl.user_session.get("language", DEFAULT_LANG)
+    lines = [t("regulatory_update.change_summary_header"), ""]
+
+    # ── EU MDR core law ──────────────────────────────────────────────────────
+    eu = summary.get("eu", {})
+    for core in eu.get("mdr_core", []):
+        agency = core["agency"]
+        if core["first_baseline"]:
+            label = t("regulatory_update.first_baseline")
+            lines.append(f"🇪🇺 **{agency}**: {label}")
+        elif core["changed"]:
+            articles_str = ", ".join(core["changed_articles"]) if core["changed_articles"] else "—"
+            lines.append(f"🆕 🇪🇺 **{agency}**: {t('regulatory_update.eu_mdr_changed', articles=articles_str)}")
+        else:
+            lines.append(f"✅ 🇪🇺 **{agency}**: {t('regulatory_update.eu_mdr_no_change')}")
+
+    # ── MDCG guidance ────────────────────────────────────────────────────────
+    mdcg = eu.get("mdcg", {})
+    mdcg_total = mdcg.get("total", 0)
+    mdcg_changed = mdcg.get("changed_count", 0)
+    mdcg_baseline = mdcg.get("first_baseline_count", 0)
+    if mdcg_total > 0:
+        if mdcg_baseline == mdcg_total:
+            lines.append(f"🇪🇺 **MDCG ({mdcg_total})**: {t('regulatory_update.first_baseline')}")
+        elif mdcg_changed > 0:
+            lines.append(f"🆕 🇪🇺 **MDCG**: {t('regulatory_update.eu_mdcg_updated', count=mdcg_changed)} / {mdcg_total}")
+        else:
+            lines.append(f"✅ 🇪🇺 **MDCG ({mdcg_total})**: {t('regulatory_update.eu_mdcg_no_change')}")
+
+    # ── Other countries ──────────────────────────────────────────────────────
+    for region, counts in sorted(summary.get("countries", {}).items()):
+        region_display = _dr(region, lang)
+        changed = counts["changed"]
+        total = counts["total"]
+        baseline = counts["first_baseline"]
+        if baseline == total:
+            lines.append(f"  {region_display}: {t('regulatory_update.first_baseline')}")
+        elif changed > 0:
+            lines.append(f"🆕 **{region_display}**: {t('regulatory_update.country_changed', country=region_display, changed=changed, total=total)}")
+        else:
+            lines.append(f"✅ **{region_display}**: {t('regulatory_update.country_no_change', country=region_display)}")
+
+    if lines:
+        await cl.Message(content="\n".join(lines), author="Eira").send()
+
+
 async def handle_regulatory_update():
     """Handle 法規清單更新 command — crawl regulatory websites and show results."""
     # Step 0: Show existing local regulatory references first
@@ -5680,6 +5755,7 @@ async def handle_regulatory_update():
         else:
             _save_msg = f"💾 Saved {saved_count} regulatory documents to Markdown DB"
         await cl.Message(content=_save_msg).send()
+    await _display_change_summary(save_result, crawl_results)
     skipped_details = save_result.get("skipped_details", [])
     if skipped_details:
         skip_lines = [
@@ -5968,6 +6044,7 @@ async def handle_regulatory_update_rescan(selected_regions: list):
         else:
             _rescan_msg = f"💾 Rescan updated {_rescan_saved} regulatory documents in Markdown DB"
         await cl.Message(content=_rescan_msg).send()
+    await _display_change_summary(_rescan_save, crawl_results)
     _rescan_skipped = _rescan_save.get("skipped_details", [])
     if _rescan_skipped:
         _skip_lines = [
@@ -8519,14 +8596,13 @@ async def chat_with_llm(message_text: str, profile: str):
                 stream=True,
                 timeout=30,
             )
-
-        full_response = ""
-        for chunk in response:
-            if hasattr(chunk, "choices") and chunk.choices:
-                delta = chunk.choices[0].delta
-                if hasattr(delta, "content") and delta.content:
-                    full_response += delta.content
-                    await msg.stream_token(delta.content)
+            full_response = ""
+            async for chunk in _iter_stream_with_timeout(response, chunk_timeout=30):
+                if hasattr(chunk, "choices") and chunk.choices:
+                    delta = chunk.choices[0].delta
+                    if hasattr(delta, "content") and delta.content:
+                        full_response += delta.content
+                        await msg.stream_token(delta.content)
 
         if not full_response:
             full_response = t("error.no_response")
@@ -9544,14 +9620,13 @@ async def chat_with_llm_web(message_text: str, profile: str):
                 stream=True,
                 timeout=60,
             )
-
-        full_response = ""
-        for chunk in response:
-            if hasattr(chunk, "choices") and chunk.choices:
-                delta = chunk.choices[0].delta
-                if hasattr(delta, "content") and delta.content:
-                    full_response += delta.content
-                    await msg.stream_token(delta.content)
+            full_response = ""
+            async for chunk in _iter_stream_with_timeout(response, chunk_timeout=60):
+                if hasattr(chunk, "choices") and chunk.choices:
+                    delta = chunk.choices[0].delta
+                    if hasattr(delta, "content") and delta.content:
+                        full_response += delta.content
+                        await msg.stream_token(delta.content)
 
         if not full_response:
             full_response = t("error.no_response")

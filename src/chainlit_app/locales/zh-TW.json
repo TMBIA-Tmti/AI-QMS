@@ -1371,5 +1371,13 @@
   "region.russia": "俄羅斯",
   "region.egypt": "埃及",
   "region.chile": "智利",
-  "region.uae": "阿聯酋"
+  "region.uae": "阿聯酋",
+  "regulatory_update.change_summary_header": "Eira：📊 **法規變更比對結果**",
+  "regulatory_update.eu_mdr_changed": "MDR 本法：偉測到差異 — {articles}",
+  "regulatory_update.eu_mdr_no_change": "MDR 本法：無變更",
+  "regulatory_update.eu_mdcg_updated": "MDCG 指引：{count} 份有更新",
+  "regulatory_update.eu_mdcg_no_change": "MDCG 指引：無更新",
+  "regulatory_update.country_changed": "{country}：{changed}/{total} sites 有變更",
+  "regulatory_update.country_no_change": "{country}：無變更",
+  "regulatory_update.first_baseline": "（首次建立基準，後續更新將顯示變更比對）"
 }

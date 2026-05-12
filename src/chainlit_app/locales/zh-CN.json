@@ -1376,5 +1376,13 @@
   "llmAssist.inputPlaceholder": "输入補充资料（文字、URL、文章或算式）...",
   "llmAssist.analyze": "🔍 分析",
   "llmAssist.apply": "✅ 採用建議",
-  "llmAssist.dismiss": "✕ 忽略"
+  "llmAssist.dismiss": "✕ 忽略",
+  "regulatory_update.change_summary_header": "Eira：📊 **法规变更比对结果**",
+  "regulatory_update.eu_mdr_changed": "MDR 本法：检测到差异 — {articles}",
+  "regulatory_update.eu_mdr_no_change": "MDR 本法：无变更",
+  "regulatory_update.eu_mdcg_updated": "MDCG 指引：{count} 份有更新",
+  "regulatory_update.eu_mdcg_no_change": "MDCG 指引：无更新",
+  "regulatory_update.country_changed": "{country}：{changed}/{total} sites 有变更",
+  "regulatory_update.country_no_change": "{country}：无变更",
+  "regulatory_update.first_baseline": "（首次建立基准，后续更新将显示变更比对）"
 }

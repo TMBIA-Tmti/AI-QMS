@@ -94,6 +94,18 @@ class RegulatoryMarkdownStorage:
         """Calculate SHA-256 hash of content."""
         return f"sha256:{hashlib.sha256(content.encode('utf-8')).hexdigest()}"
 
+    def _calculate_body_hash(self, markdown_content: str) -> str:
+        """Calculate SHA-256 hash of regulatory body text only (excludes auto-header).
+
+        The stored Markdown file prepends a header block ending with '---\\n\\n'.
+        This hash covers only the content AFTER that separator so that repeated
+        crawls of an unchanged page produce the same hash regardless of timestamp.
+        """
+        sep = "\n---\n\n"
+        idx = markdown_content.find(sep)
+        body = markdown_content[idx + len(sep):] if idx != -1 else markdown_content
+        return f"sha256:{hashlib.sha256(body.encode('utf-8')).hexdigest()}"
+
     def _sanitize_name(self, name: str) -> str:
         """Sanitize a name for use as directory/file name."""
         return re.sub(r"[^\w\-]", "_", name)
@@ -165,6 +177,7 @@ class RegulatoryMarkdownStorage:
         full_content = header + markdown_content
         atomic_write_text(filepath, full_content)
         content_hash = self._calculate_hash(full_content)
+        body_hash = self._calculate_body_hash(full_content)
 
         # Create registry entry
         entry = {
@@ -179,6 +192,7 @@ class RegulatoryMarkdownStorage:
             "failure_reason": failure_reason,
             "markdown_path": relative_path,
             "content_hash": content_hash,
+            "body_hash": body_hash,
             "has_pdf": has_pdf,
             "pdf_urls": pdf_urls or [],
             "status": "active",
@@ -232,6 +246,7 @@ class RegulatoryMarkdownStorage:
         skipped_count = 0
         replaced_count = 0
         doc_ids = []
+        per_doc_changes: list[dict] = []
 
         # Load QMS annotator once (graceful no-op if unavailable)
         try:
@@ -239,6 +254,17 @@ class RegulatoryMarkdownStorage:
             _annotator_ok = True
         except Exception:
             _annotator_ok = False
+
+        # Load diff utilities once (graceful no-op if unavailable)
+        try:
+            from src.services.regulatory_diff import (
+                EU_MDR_CORE_AGENCIES,
+                compute_article_diff,
+            )
+            _diff_ok = True
+        except Exception:
+            _diff_ok = False
+            EU_MDR_CORE_AGENCIES = frozenset()
 
         skipped_details = []
 
@@ -255,6 +281,15 @@ class RegulatoryMarkdownStorage:
                 })
                 continue
 
+            region = r.get("region", "Unknown")
+            agency = r.get("agency", "Unknown")
+
+            # Retrieve previous body_hash before saving (for change detection)
+            prev_doc = self.get_document_by_url(r.get("url", ""))
+            prev_body_hash: Optional[str] = prev_doc.get("body_hash") if prev_doc else None
+            prev_content: Optional[str] = prev_doc.get("content") if prev_doc else None
+            is_first_baseline = prev_body_hash is None
+
             # QMS section annotation — runs before save, failure never blocks save
             if _annotator_ok:
                 try:
@@ -263,8 +298,8 @@ class RegulatoryMarkdownStorage:
                     pass
 
             result = self.save_regulatory_document(
-                region=r.get("region", "Unknown"),
-                agency=r.get("agency", "Unknown"),
+                region=region,
+                agency=agency,
                 agency_name=r.get("agency_name", ""),
                 title=r.get("title", ""),
                 url=r.get("url", ""),
@@ -280,13 +315,47 @@ class RegulatoryMarkdownStorage:
                 saved_count += 1
                 new_doc_id = result["doc_id"]
                 doc_ids.append(new_doc_id)
+
+                # Determine content_changed by comparing body_hashes
+                new_entry = next(
+                    (d for d in self.registry["documents"] if d.get("doc_id") == new_doc_id),
+                    None,
+                )
+                new_body_hash = new_entry.get("body_hash") if new_entry else None
+                content_changed = (
+                    False if is_first_baseline
+                    else (new_body_hash != prev_body_hash)
+                )
+
+                # Article-level diff for EU MDR core law
+                changed_articles: list[str] = []
+                if (
+                    _diff_ok
+                    and content_changed
+                    and agency in EU_MDR_CORE_AGENCIES
+                    and prev_content
+                    and new_entry
+                ):
+                    try:
+                        new_md_path = self.base_path / new_entry.get("markdown_path", "")
+                        new_full = new_md_path.read_text(encoding="utf-8") if new_md_path.exists() else ""
+                        changed_articles = compute_article_diff(prev_content, new_full)
+                    except Exception as exc:
+                        logger.debug(f"Article diff failed for {agency}: {exc}")
+
+                per_doc_changes.append({
+                    "region": region,
+                    "agency": agency,
+                    "content_changed": content_changed,
+                    "first_baseline": is_first_baseline,
+                    "prev_body_hash": prev_body_hash,
+                    "new_body_hash": new_body_hash,
+                    "changed_articles": changed_articles,
+                })
+
                 # Per-agency replacement: delete only the old version of this
                 # specific agency, leaving all other documents untouched.
-                old = self._replace_old_versions(
-                    r.get("region", "Unknown"),
-                    r.get("agency", "Unknown"),
-                    new_doc_id,
-                )
+                old = self._replace_old_versions(region, agency, new_doc_id)
                 replaced_count += old
             else:
                 skipped_count += 1
@@ -307,6 +376,7 @@ class RegulatoryMarkdownStorage:
             "skipped_details": skipped_details,
             "replaced_count": replaced_count,
             "doc_ids": doc_ids,
+            "per_doc_changes": per_doc_changes,
         }
 
     # ============================================================

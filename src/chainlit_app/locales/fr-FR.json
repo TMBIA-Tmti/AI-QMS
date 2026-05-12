@@ -1362,5 +1362,13 @@
   "llmAssist.inputPlaceholder": "Enter supplementary materials (text, URL, article or formula)...",
   "llmAssist.analyze": "🔍 Analyze",
   "llmAssist.apply": "✅ Apply Suggestion",
-  "llmAssist.dismiss": "✕ Dismiss"
+  "llmAssist.dismiss": "✕ Dismiss",
+  "regulatory_update.change_summary_header": "Eira: 📊 **Regulatory Change Comparison**",
+  "regulatory_update.eu_mdr_changed": "MDR Core Law: differences detected — {articles}",
+  "regulatory_update.eu_mdr_no_change": "MDR Core Law: no change",
+  "regulatory_update.eu_mdcg_updated": "MDCG Guidance: {count} document(s) updated",
+  "regulatory_update.eu_mdcg_no_change": "MDCG Guidance: no updates",
+  "regulatory_update.country_changed": "{country}: {changed}/{total} sites changed",
+  "regulatory_update.country_no_change": "{country}: no change",
+  "regulatory_update.first_baseline": "(First crawl — baseline established; future runs will show diffs)"
 }

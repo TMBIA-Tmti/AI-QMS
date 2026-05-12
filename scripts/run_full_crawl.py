@@ -47,6 +47,40 @@ async def main():
           f"Skipped: {save.get('skipped_count',0)}, "
           f"Replaced: {save.get('replaced_count',0)} old docs")
 
+    # Print change summary
+    try:
+        from src.services.regulatory_diff import build_change_summary
+        cs = build_change_summary(save, results)
+        print("\n--- Regulatory Change Summary ---")
+        eu = cs.get("eu", {})
+        for core in eu.get("mdr_core", []):
+            if core["first_baseline"]:
+                print(f"  EU / {core['agency']}: [first baseline]")
+            elif core["changed"]:
+                arts = ", ".join(core["changed_articles"]) or "—"
+                print(f"  EU / {core['agency']}: CHANGED — {arts}")
+            else:
+                print(f"  EU / {core['agency']}: no change")
+        mdcg = eu.get("mdcg", {})
+        if mdcg.get("total", 0) > 0:
+            if mdcg.get("first_baseline_count", 0) == mdcg["total"]:
+                print(f"  EU / MDCG ({mdcg['total']}): [first baseline]")
+            elif mdcg.get("changed_count", 0) > 0:
+                print(f"  EU / MDCG: {mdcg['changed_count']}/{mdcg['total']} updated")
+            else:
+                print(f"  EU / MDCG ({mdcg['total']}): no change")
+        for region, counts in sorted(cs.get("countries", {}).items()):
+            tag = region.split("(")[-1].rstrip(")").strip() if "(" in region else region
+            if counts["first_baseline"] == counts["total"]:
+                print(f"  {tag}: [first baseline]")
+            elif counts["changed"] > 0:
+                print(f"  {tag}: {counts['changed']}/{counts['total']} sites changed")
+            else:
+                print(f"  {tag}: no change ({counts['total']} sites)")
+        print("-" * 40)
+    except Exception as e:
+        print(f"  [change summary unavailable: {e}]")
+
     # Write detailed report
     report_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "last_crawl_report.json")
     report = {
