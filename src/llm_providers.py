@@ -919,11 +919,10 @@ class LLMProviderManager:
             if api_key:
                 api_params["api_key"] = api_key
 
-            # Default timeout: local providers need more time (model inference is slow).
-            # 1200s (20 min) covers even slow 4B models on large regulation batches.
-            # Cloud providers use 180s which is generous for fast API responses.
+            # Local providers: None = no timeout, wait indefinitely until the model responds.
+            # Cloud providers: 180s is generous for fast API responses.
             if "timeout" not in api_params:
-                api_params["timeout"] = 1200 if provider["is_local"] else 180
+                api_params["timeout"] = None if provider["is_local"] else 180
 
             # Merge additional kwargs (but don't override stream)
             for k, v in kwargs.items():
