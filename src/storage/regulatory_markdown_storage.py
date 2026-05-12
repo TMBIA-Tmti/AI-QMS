@@ -193,18 +193,36 @@ class RegulatoryMarkdownStorage:
         )
         return {"success": True, "doc_id": doc_id, "path": str(filepath)}
 
+    def _replace_old_versions(self, region: str, agency: str, new_doc_id: str) -> int:
+        """Soft-delete all active documents with the same region+agency except new_doc_id.
+
+        Called immediately after a successful save so only the replaced document
+        is deleted — documents that were not crawled in this run are preserved.
+        """
+        deleted = 0
+        now = datetime.now(timezone.utc).isoformat()
+        for doc in self.registry.get("documents", []):
+            if doc.get("status") == "deleted":
+                continue
+            if doc.get("region") == region and doc.get("agency") == agency:
+                if doc.get("doc_id") != new_doc_id:
+                    doc["status"] = "deleted"
+                    doc["deleted_at"] = now
+                    deleted += 1
+        if deleted:
+            self._save_registry()
+        return deleted
+
     def save_from_crawl_results(self, crawl_results: dict) -> dict:
         """Batch save from crawler output. Only saves successful crawls with content.
 
-        Before saving, soft-deletes all existing active documents from the same
-        regions that appear in the crawl results, so old versions are replaced.
+        Uses per-agency replacement: only documents that have a successful new
+        version are removed. Documents that were not crawled or failed are kept,
+        preserving previously downloaded PDF attachments (e.g. MDCG guidance PDFs)
+        even when a subset of sites fail or return ETag 304 with no new content.
 
         Args:
             crawl_results: dict with 'results' list and 'summary' dict
-                Each result item has keys:
-                    region, agency, agency_name, url, title, content_markdown,
-                    crawl_status, failure_reason, has_pdf, pdf_urls,
-                    crawl_timestamp, crawl_duration_seconds, note
 
         Returns:
             dict with 'saved_count', 'skipped_count', 'doc_ids', 'replaced_count'
@@ -221,26 +239,6 @@ class RegulatoryMarkdownStorage:
             _annotator_ok = True
         except Exception:
             _annotator_ok = False
-
-        # Collect regions from successful crawl results
-        crawled_regions = set()
-        for r in results:
-            if r.get("crawl_status") == "success" and r.get("content_markdown"):
-                region = r.get("region", "")
-                if region:
-                    crawled_regions.add(region)
-
-        # Soft-delete old documents from these regions before saving new ones
-        for region in crawled_regions:
-            old_docs = self.delete_by_region(region)
-            replaced_count += old_docs.get("deleted_count", 0)
-
-        if replaced_count > 0:
-            # Purge deleted files immediately to free disk space
-            self.purge_deleted()
-            logger.info(
-                f"Replaced {replaced_count} old docs from regions: {crawled_regions}"
-            )
 
         skipped_details = []
 
@@ -280,9 +278,25 @@ class RegulatoryMarkdownStorage:
 
             if result.get("success"):
                 saved_count += 1
-                doc_ids.append(result["doc_id"])
+                new_doc_id = result["doc_id"]
+                doc_ids.append(new_doc_id)
+                # Per-agency replacement: delete only the old version of this
+                # specific agency, leaving all other documents untouched.
+                old = self._replace_old_versions(
+                    r.get("region", "Unknown"),
+                    r.get("agency", "Unknown"),
+                    new_doc_id,
+                )
+                replaced_count += old
             else:
                 skipped_count += 1
+
+        if replaced_count > 0:
+            self.purge_deleted()
+            logger.info(
+                f"Replaced {replaced_count} old docs from regions: "
+                f"{set(r.get('region','') for r in results if r.get('crawl_status')=='success')}"
+            )
 
         logger.info(
             f"Batch save complete: {saved_count} saved, {skipped_count} skipped, {replaced_count} old docs replaced"
