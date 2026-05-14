@@ -3,8 +3,10 @@ regulatory_markdown_storage so the LLM analysis pipeline can use it.
 
 Source priority:
   1a. EUR-Lex CELLAR via SPARQL   — dynamic, always finds latest consolidated
-  1b. CELLAR hardcoded DOC_1 URLs — static bypass when SPARQL is blocked
-  1c. CELLAR CELEX date URL       — SPARQL-free, no UUID required
+                                    → on success: auto-saves URL to local cache
+  1b. URL cache (.cellar_url_cache.json) — previously resolved URLs, newest first
+  1c. CELLAR hardcoded DOC_1 URLs — static fallback (always valid, may be older)
+  1d. CELEX date scan             — scans last 90 days for new versions, no SPARQL/UUID
   2.  legislation.gov.uk PDF      — latest revised (up to 2020-04-24)
 
 Validation (3 layers):
@@ -42,6 +44,10 @@ MIN_ARTICLES  = 80
 # ── CELLAR config ───────────────────────────────────────────────────────────────
 SPARQL_ENDPOINT  = "https://publications.europa.eu/webapi/rdf/sparql"
 CELLAR_CELEX_RE  = r"02017R0745-(\d{8})"
+
+# Local URL cache — auto-written when SPARQL succeeds so other machines can use
+# the latest resolved URL without needing SPARQL access.
+CELLAR_URL_CACHE = Path(__file__).parent / ".cellar_url_cache.json"
 
 # Hardcoded DOC_1 URLs — valid as long as CELLAR exists (never 404, just older version).
 # Newest first.  Update automatically: a successful SPARQL run prints the new URL.
@@ -146,6 +152,96 @@ def _sparql_query(query: str) -> list[dict]:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# URL cache — persists latest resolved CELLAR URL across runs / machines
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _load_url_cache() -> list[tuple[str, str]]:
+    """Load cached CELLAR URLs from .cellar_url_cache.json.
+
+    Returns list of (doc1_url, celex) tuples, newest first.
+    Returns [] if cache does not exist or is malformed.
+    """
+    try:
+        if not CELLAR_URL_CACHE.exists():
+            return []
+        data = json.loads(CELLAR_URL_CACHE.read_text(encoding="utf-8"))
+        entries = data.get("entries", [])
+        # Sort by celex date descending (newest first)
+        entries.sort(key=lambda x: x.get("celex", ""), reverse=True)
+        result = [(e["url"], e["celex"]) for e in entries if "url" in e and "celex" in e]
+        if result:
+            print(f"  [cache] Loaded {len(result)} URL(s) from {CELLAR_URL_CACHE.name}")
+        return result
+    except Exception as exc:
+        print(f"  [cache] Could not load cache: {exc}")
+        return []
+
+
+def _save_url_cache(celex: str, url: str) -> None:
+    """Persist a successfully resolved CELLAR URL to .cellar_url_cache.json.
+
+    Keeps the 5 most recent entries.  Called automatically when SPARQL succeeds.
+    """
+    try:
+        entries: list[dict] = []
+        if CELLAR_URL_CACHE.exists():
+            try:
+                entries = json.loads(
+                    CELLAR_URL_CACHE.read_text(encoding="utf-8")
+                ).get("entries", [])
+            except Exception:
+                entries = []
+
+        # Deduplicate by celex, insert/update
+        entries = [e for e in entries if e.get("celex") != celex]
+        entries.append({"celex": celex, "url": url, "saved": time.strftime("%Y-%m-%d")})
+        # Keep newest 5 by celex date
+        entries.sort(key=lambda x: x.get("celex", ""), reverse=True)
+        entries = entries[:5]
+
+        CELLAR_URL_CACHE.write_text(
+            json.dumps({"entries": entries, "updated": time.strftime("%Y-%m-%d")},
+                       indent=2),
+            encoding="utf-8",
+        )
+        print(f"  [cache] Saved {celex} → {CELLAR_URL_CACHE.name}")
+    except Exception as exc:
+        print(f"  [cache] Could not save cache: {exc}")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CELEX date scan — finds new consolidated versions without SPARQL or UUID
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _cellar_date_scan(days: int = 90) -> tuple[bytes, str, str] | None:
+    """Scan the last `days` days for a new CELLAR consolidated version.
+
+    Uses the UUID-free CELEX URL pattern.  Stops at the first valid PDF found.
+    Saves newly found URL to cache automatically.
+    """
+    import datetime
+    print(f"  [1d] CELEX date scan: checking last {days} days...")
+    today = datetime.date.today()
+    checked = 0
+    for offset in range(days):
+        d = (today - datetime.timedelta(days=offset)).strftime("%Y%m%d")
+        celex = f"02017R0745-{d}"
+        url = _CELLAR_CELEX_URL_TMPL.format(date=d)
+        if not _head_ok(url, timeout=5):
+            checked += 1
+            continue
+        # HEAD returned 200 — try full download + validate
+        label = f"CELLAR date-scan {celex}"
+        data = _download(url, label, timeout=120)
+        if data and _validate(data, label):
+            _save_url_cache(celex, url)
+            return data, celex, f"EUR-Lex CELLAR (date-scan) — CELEX {celex}"
+        checked += 1
+    print(f"  [1d] Scanned {checked} dates, no valid version found")
+    return None
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # CELLAR — step 1a: dynamic SPARQL
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -196,6 +292,7 @@ def _cellar_sparql() -> tuple[str, str] | None:
                 continue
             url = rows[0]["manif"]["value"] + "/DOC_1"
             print(f"  [1a] SPARQL: resolved {celex} → {url[:80]}")
+            _save_url_cache(celex, url)   # persist for SPARQL-blocked machines
             return url, celex
         except Exception as exc:
             print(f"    {celex}: {exc}, skipping")
@@ -239,33 +336,58 @@ def _cellar_celex_url(celex: str) -> tuple[bytes, str, str] | None:
 # Combined CELLAR fetch (1a → 1b → 1c per known celex)
 # ══════════════════════════════════════════════════════════════════════════════
 
+def _try_url_list(
+    url_list: list[tuple[str, str]], step_label: str
+) -> tuple[bytes, str, str] | None:
+    """Try each (url, celex) pair, return first valid result."""
+    for url, celex in url_list:
+        if not _head_ok(url, timeout=8):
+            print(f"  [{step_label}] HEAD failed: {celex}, skip")
+            continue
+        label = f"CELLAR {celex} ({step_label})"
+        data = _download(url, label, timeout=120)
+        if data and _validate(data, label):
+            return data, celex, f"EUR-Lex CELLAR ({step_label}) — CELEX {celex}"
+    return None
+
+
 def fetch_cellar() -> tuple[bytes, str, str] | None:
     print("\n[source 1] EUR-Lex CELLAR")
 
-    # 1a: SPARQL dynamic
+    # 1a: SPARQL — dynamic, always finds latest; auto-saves URL to cache on success
     sparql_result = _cellar_sparql()
     if sparql_result:
         url, celex = sparql_result
         data = _download(url, f"CELLAR {celex}", timeout=120)
         if data and _validate(data, f"CELLAR {celex}"):
             return data, celex, f"EUR-Lex CELLAR SPARQL — CELEX {celex}"
-        print("  SPARQL download failed — trying hardcoded...")
+        print("  [1a] SPARQL download failed — continuing to cache...")
     else:
-        print("  SPARQL unavailable/blocked — trying hardcoded URLs...")
+        print("  [1a] SPARQL unavailable/blocked — continuing to cache...")
 
-    # 1b: Hardcoded DOC_1
+    # 1b: URL cache — previously resolved URLs written by successful SPARQL runs
+    #     Works across machines: copy .cellar_url_cache.json to share latest URL
+    cached = _load_url_cache()
+    if cached:
+        result = _try_url_list(cached, "cache")
+        if result:
+            return result
+        print("  [1b] All cached URLs failed — trying hardcoded...")
+    else:
+        print("  [1b] No cache found — trying hardcoded URLs...")
+
+    # 1c: Hardcoded DOC_1 — static fallback, always valid (CELLAR never removes old versions)
     result = _cellar_hardcoded()
     if result:
         return result
 
-    # 1c: CELEX date URL fallback for each known CELEX
-    print("  [1c] Trying CELEX date URLs...")
-    for _, celex in CELLAR_KNOWN_URLS:
-        r = _cellar_celex_url(celex)
-        if r:
-            return r
+    # 1d: CELEX date scan — scans last 90 days for new versions without SPARQL or UUID
+    #     Catches newly published consolidated versions not yet in hardcoded list
+    result = _cellar_date_scan(days=90)
+    if result:
+        return result
 
-    print("  All CELLAR paths failed")
+    print("  [fail] All CELLAR paths exhausted")
     return None
 
 
