@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 # Agencies whose content should be diffed at article level
 EU_MDR_CORE_AGENCIES: frozenset = frozenset(
-    {"EU-MDR-2017-745-PDF", "EUR-Lex-MDR-HTML"}
+    {"EUR-Lex-MDR-CELLAR", "EUR-Lex-MDR-UK", "EU-MDR-2017-745-PDF", "EUR-Lex-MDR-HTML"}
 )
 
 # Agency prefix that identifies MDCG guidance documents

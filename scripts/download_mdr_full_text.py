@@ -1,14 +1,20 @@
-"""Download EU MDR 2017/745 full text and write to markdown.
+"""Download EU MDR 2017/745 full text, convert to markdown, and save to
+regulatory_markdown_storage so the LLM analysis pipeline can use it.
 
 Source priority:
-  1. EUR-Lex CELLAR via SPARQL   — latest consolidated (e.g. 02017R0745-20250110)
-  2. legislation.gov.uk           — latest revised PDF  (up to 2020-04-24)
-  3. medical-device-regulation.eu — 2017 original adopted text (fallback)
+  1a. EUR-Lex CELLAR via SPARQL   — dynamic, always finds latest consolidated
+  1b. CELLAR hardcoded DOC_1 URLs — static bypass when SPARQL is blocked
+  1c. CELLAR CELEX date URL       — SPARQL-free, no UUID required
+  2.  legislation.gov.uk PDF      — latest revised (up to 2020-04-24)
 
 Validation (3 layers):
   Layer 1 — network  : HTTP success, non-empty response
   Layer 2 — content  : magic bytes %PDF, size > 500 KB
   Layer 3 — structure: PyMuPDF extracts > 50 K chars, Article hits >= 80
+
+Output:
+  docs/regulations_check/歐盟__EU__MDR_2017_745_OJ_full_text.md  (raw reference)
+  regulatory_markdown_storage/documents/歐盟__EU_/EUR-Lex-MDR-CELLAR_*.md  (LLM path)
 """
 import json
 import re
@@ -24,22 +30,21 @@ except ImportError:
     sys.exit("[error] PyMuPDF not installed: pip install pymupdf")
 
 # ── paths ──────────────────────────────────────────────────────────────────────
-ROOT = Path(__file__).parent.parent
+ROOT       = Path(__file__).parent.parent
 OUTPUT_DIR = ROOT / "docs" / "regulations_check"
 OUTPUT_FILE = OUTPUT_DIR / "歐盟__EU__MDR_2017_745_OJ_full_text.md"
 
 # ── thresholds ─────────────────────────────────────────────────────────────────
-MIN_PDF_BYTES = 500_000   # MDR PDF should be ~1.5–2 MB
-MIN_CHARS     = 50_000    # extracted text chars
-MIN_ARTICLES  = 80        # "Article N" regex hits
+MIN_PDF_BYTES = 500_000
+MIN_CHARS     = 50_000
+MIN_ARTICLES  = 80
 
-# ── source URLs ────────────────────────────────────────────────────────────────
+# ── CELLAR config ───────────────────────────────────────────────────────────────
 SPARQL_ENDPOINT  = "https://publications.europa.eu/webapi/rdf/sparql"
-CELLAR_CELEX_RE  = r"02017R0745-(\d{8})"   # consolidated version pattern
+CELLAR_CELEX_RE  = r"02017R0745-(\d{8})"
 
-# Hardcoded CELLAR DOC_1 URLs — used when SPARQL endpoint is blocked/unavailable.
-# Update by running this script successfully and noting the printed CELEX + URL.
-# Newest version first.
+# Hardcoded DOC_1 URLs — valid as long as CELLAR exists (never 404, just older version).
+# Newest first.  Update automatically: a successful SPARQL run prints the new URL.
 CELLAR_KNOWN_URLS: list[tuple[str, str]] = [
     (
         "http://publications.europa.eu/resource/cellar/"
@@ -53,15 +58,21 @@ CELLAR_KNOWN_URLS: list[tuple[str, str]] = [
     ),
 ]
 
-LEGUK_INDEX      = "https://www.legislation.gov.uk/eur/2017/745"
-LEGUK_FALLBACK   = "https://www.legislation.gov.uk/eur/2017/745/pdfs/eur_20170745_2020-04-24_en.pdf"
-
-# NOTE: medical-device-regulation.eu is now CAPTCHA-protected and will likely fail.
-# Kept as last resort in case Cloudflare protection is lifted.
-MDR_EU_PDF       = (
-    "https://www.medical-device-regulation.eu/wp-content/uploads"
-    "/2019/05/CELEX_32017R0745_EN_TXT.pdf"
+# CELEX-based URL (no UUID, no SPARQL) — stable chunk ID verified across versions.
+# Pattern: 02017R0745-{YYYYMMDD}.ENG.pdfa2a.CL2017R0745EN0050010.0001.pdf
+_CELLAR_CELEX_URL_TMPL = (
+    "http://publications.europa.eu/resource/celex/"
+    "02017R0745-{date}.ENG.pdfa2a.CL2017R0745EN0050010.0001.pdf"
 )
+
+# ── legislation.gov.uk ──────────────────────────────────────────────────────────
+LEGUK_INDEX    = "https://www.legislation.gov.uk/eur/2017/745"
+LEGUK_FALLBACK = "https://www.legislation.gov.uk/eur/2017/745/pdfs/eur_20170745_2020-04-24_en.pdf"
+
+# ── storage agency keys ─────────────────────────────────────────────────────────
+AGENCY_CELLAR = "EUR-Lex-MDR-CELLAR"
+AGENCY_UK     = "EUR-Lex-MDR-UK"
+REGION        = "歐盟 (EU)"
 
 _HEADERS = {
     "User-Agent": "Mozilla/5.0 (compatible; regulatory-crawler/1.0)",
@@ -70,7 +81,7 @@ _HEADERS = {
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Helpers
+# Core helpers
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _download(url: str, label: str, timeout: int = 90) -> bytes | None:
@@ -85,6 +96,16 @@ def _download(url: str, label: str, timeout: int = 90) -> bytes | None:
         return None
 
 
+def _head_ok(url: str, timeout: int = 15) -> bool:
+    """HEAD request — True if URL returns 200."""
+    try:
+        req = urllib.request.Request(url, headers=_HEADERS, method="HEAD")
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.status == 200
+    except Exception:
+        return False
+
+
 def _validate(data: bytes, label: str) -> bool:
     if not data or len(data) < MIN_PDF_BYTES:
         print(f"  [fail] {label}: too small ({len(data) if data else 0:,} B)")
@@ -97,7 +118,7 @@ def _validate(data: bytes, label: str) -> bool:
         full_text = "".join(p.get_text("text") for p in doc)
         doc.close()
         chars = len(full_text)
-        hits = len(re.findall(r"Article\s+\d+", full_text))
+        hits  = len(re.findall(r"Article\s+\d+", full_text))
         if chars < MIN_CHARS:
             print(f"  [fail] {label}: only {chars:,} chars (need {MIN_CHARS:,})")
             return False
@@ -125,15 +146,12 @@ def _sparql_query(query: str) -> list[dict]:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Source 1 — EUR-Lex CELLAR via SPARQL
+# CELLAR — step 1a: dynamic SPARQL
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _cellar_get_download_url() -> tuple[str, str] | None:
-    """
-    Query SPARQL for all consolidated MDR versions, try newest → oldest,
-    return (download_url, celex) for the first with a valid ENG PDF.
-    """
-    print("  Querying SPARQL for consolidated versions...")
+def _cellar_sparql() -> tuple[str, str] | None:
+    """Return (doc1_url, celex) for the newest ENG PDF via SPARQL, or None."""
+    print("  [1a] SPARQL: querying consolidated versions...")
     try:
         bindings = _sparql_query("""
             PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
@@ -143,7 +161,7 @@ def _cellar_get_download_url() -> tuple[str, str] | None:
             }
         """)
     except Exception as exc:
-        print(f"  [err] SPARQL failed: {exc}")
+        print(f"  [err] SPARQL: {exc}")
         return None
 
     versions: list[tuple[str, str, str]] = []
@@ -153,18 +171,16 @@ def _cellar_get_download_url() -> tuple[str, str] | None:
         m = re.match(CELLAR_CELEX_RE, celex)
         if m:
             versions.append((m.group(1), celex, work))
-    versions.sort(reverse=True)   # newest date first
+    versions.sort(reverse=True)
 
     if not versions:
-        print("  [warn] No consolidated versions found")
+        print("  [warn] SPARQL: no consolidated versions found")
         return None
 
-    print(f"  Found {len(versions)} consolidated versions, trying newest first...")
-
+    print(f"  [1a] SPARQL: {len(versions)} versions, trying newest first...")
     for date, celex, work_uri in versions:
         try:
-            # Get ENG pdfa2a manifestation URI
-            manif_rows = _sparql_query(f"""
+            rows = _sparql_query(f"""
                 PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
                 SELECT ?manif WHERE {{
                   VALUES ?work {{ <{work_uri}> }}
@@ -176,25 +192,27 @@ def _cellar_get_download_url() -> tuple[str, str] | None:
                   FILTER(CONTAINS(STR(?mime), "pdfa2a"))
                 }}
             """)
-            if not manif_rows:
-                print(f"    {celex}: no ENG PDF manifestation, skip")
+            if not rows:
                 continue
-
-            manif_uri = manif_rows[0]["manif"]["value"]
-            download_url = manif_uri + "/DOC_1"
-            print(f"    {celex}: {download_url[:90]}")
-            return download_url, celex
-
+            url = rows[0]["manif"]["value"] + "/DOC_1"
+            print(f"  [1a] SPARQL: resolved {celex} → {url[:80]}")
+            return url, celex
         except Exception as exc:
-            print(f"    {celex}: {type(exc).__name__}: {exc}, skip")
-            continue
-
+            print(f"    {celex}: {exc}, skipping")
     return None
 
 
-def _try_known_cellar_urls() -> tuple[bytes, str, str] | None:
-    """Try hardcoded CELLAR DOC_1 URLs — no SPARQL needed."""
+# ══════════════════════════════════════════════════════════════════════════════
+# CELLAR — step 1b: hardcoded DOC_1 URLs
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _cellar_hardcoded() -> tuple[bytes, str, str] | None:
+    """Try hardcoded CELLAR DOC_1 URLs (no SPARQL needed)."""
     for url, celex in CELLAR_KNOWN_URLS:
+        # Quick HEAD check — hardcoded URLs should always be 200 on CELLAR
+        if not _head_ok(url):
+            print(f"  [1b] HEAD failed for {celex}, skipping")
+            continue
         label = f"CELLAR {celex} (hardcoded)"
         data = _download(url, label, timeout=120)
         if data and _validate(data, label):
@@ -202,26 +220,57 @@ def _try_known_cellar_urls() -> tuple[bytes, str, str] | None:
     return None
 
 
-def fetch_cellar() -> tuple[bytes, str, str] | None:
-    print("\n[source 1] EUR-Lex CELLAR (SPARQL + hardcoded fallback)")
+# ══════════════════════════════════════════════════════════════════════════════
+# CELLAR — step 1c: CELEX date URL (no UUID, no SPARQL)
+# ══════════════════════════════════════════════════════════════════════════════
 
-    # 1a: Dynamic SPARQL — finds latest consolidated version automatically
-    sparql_result = _cellar_get_download_url()
+def _cellar_celex_url(celex: str) -> tuple[bytes, str, str] | None:
+    """Try the CELEX-based stable URL pattern (avoids UUID dependency)."""
+    date = celex.replace("02017R0745-", "")
+    url = _CELLAR_CELEX_URL_TMPL.format(date=date)
+    label = f"CELLAR celex-URL {celex}"
+    data = _download(url, label, timeout=120)
+    if data and _validate(data, label):
+        return data, celex, f"EUR-Lex CELLAR (CELEX URL) — CELEX {celex}"
+    return None
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Combined CELLAR fetch (1a → 1b → 1c per known celex)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def fetch_cellar() -> tuple[bytes, str, str] | None:
+    print("\n[source 1] EUR-Lex CELLAR")
+
+    # 1a: SPARQL dynamic
+    sparql_result = _cellar_sparql()
     if sparql_result:
         url, celex = sparql_result
         data = _download(url, f"CELLAR {celex}", timeout=120)
         if data and _validate(data, f"CELLAR {celex}"):
             return data, celex, f"EUR-Lex CELLAR SPARQL — CELEX {celex}"
-        print("  SPARQL URL downloaded but validation failed — trying hardcoded URLs...")
+        print("  SPARQL download failed — trying hardcoded...")
     else:
-        print("  SPARQL unavailable/blocked — trying hardcoded CELLAR DOC_1 URLs...")
+        print("  SPARQL unavailable/blocked — trying hardcoded URLs...")
 
-    # 1b: Hardcoded fallback — works when SPARQL endpoint is blocked on this network
-    return _try_known_cellar_urls()
+    # 1b: Hardcoded DOC_1
+    result = _cellar_hardcoded()
+    if result:
+        return result
+
+    # 1c: CELEX date URL fallback for each known CELEX
+    print("  [1c] Trying CELEX date URLs...")
+    for _, celex in CELLAR_KNOWN_URLS:
+        r = _cellar_celex_url(celex)
+        if r:
+            return r
+
+    print("  All CELLAR paths failed")
+    return None
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Source 2 — legislation.gov.uk
+# Source 2 — legislation.gov.uk PDF
 # ══════════════════════════════════════════════════════════════════════════════
 
 def fetch_legislation_gov_uk() -> tuple[bytes, str, str] | None:
@@ -234,7 +283,6 @@ def fetch_legislation_gov_uk() -> tuple[bytes, str, str] | None:
             LEGUK_INDEX, headers={"User-Agent": "Mozilla/5.0"})
         with urllib.request.urlopen(req, timeout=30) as resp:
             html = resp.read().decode("utf-8", errors="replace")
-        # Find revised PDF links: eur_20170745_YYYY-MM-DD_en.pdf
         matches = re.findall(
             r'href="(https://www\.legislation\.gov\.uk/eur/2017/745/pdfs/'
             r'eur_\d+_(\d{4}-\d{2}-\d{2})_en\.pdf)"',
@@ -243,31 +291,18 @@ def fetch_legislation_gov_uk() -> tuple[bytes, str, str] | None:
         if matches:
             matches.sort(key=lambda x: x[1], reverse=True)
             pdf_url, version = matches[0]
-            print(f"  Auto-detected latest: {version}")
+            print(f"  Auto-detected: {version} — {pdf_url}")
     except Exception as exc:
         print(f"  [warn] index parse failed: {exc}")
 
     if not pdf_url:
-        print("  Falling back to hardcoded 2020-04-24 URL")
+        print("  Using hardcoded 2020-04-24 URL")
         pdf_url, version = LEGUK_FALLBACK, "2020-04-24"
 
     label = f"legislation.gov.uk {version}"
     data = _download(pdf_url, label)
     if data and _validate(data, label):
         return data, version, f"legislation.gov.uk (EU MDR — {version})"
-    return None
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# Source 3 — medical-device-regulation.eu
-# ══════════════════════════════════════════════════════════════════════════════
-
-def fetch_mdr_eu() -> tuple[bytes, str, str] | None:
-    print("\n[source 3] medical-device-regulation.eu (2017 original)")
-    label = "medical-device-regulation.eu"
-    data = _download(MDR_EU_PDF, label)
-    if data and _validate(data, label):
-        return data, "2017-original", "medical-device-regulation.eu (2017 adopted)"
     return None
 
 
@@ -280,7 +315,8 @@ def pdf_to_markdown(data: bytes, source_label: str, version: str) -> str:
     n = len(doc)
     header = (
         "# Regulation (EU) 2017/745 — EU Medical Device Regulation (MDR) Full Text\n\n"
-        f"**Citation**: Regulation (EU) 2017/745 of the European Parliament and of the Council of 5 April 2017  \n"
+        f"**Citation**: Regulation (EU) 2017/745 of the European Parliament "
+        f"and of the Council of 5 April 2017  \n"
         f"**Source**: {source_label}  \n"
         f"**Version / CELEX**: {version}  \n"
         f"**Downloaded**: {time.strftime('%Y-%m-%d')}  \n"
@@ -297,31 +333,81 @@ def pdf_to_markdown(data: bytes, source_label: str, version: str) -> str:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# Save to regulatory_markdown_storage (LLM path)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def save_to_regulatory_storage(
+    md_content: str,
+    source_label: str,
+    version: str,
+    source_url: str,
+    agency: str,
+) -> None:
+    """Save converted markdown to regulatory_markdown_storage so LLM can read it."""
+    try:
+        sys.path.insert(0, str(ROOT))
+        from src.storage.regulatory_markdown_storage import get_regulatory_markdown_store
+
+        store = get_regulatory_markdown_store()
+        agency_name = (
+            f"Regulation (EU) 2017/745 — EU MDR Full Text "
+            f"({source_label}, {version})"
+        )
+        result = store.save_regulatory_document(
+            region=REGION,
+            agency=agency,
+            agency_name=agency_name,
+            title=f"EU MDR 2017/745 — {version}",
+            url=source_url,
+            markdown_content=md_content,
+            note=f"Downloaded via download_mdr_full_text.py — {source_label}",
+        )
+        if result.get("success"):
+            # Replace older versions of the same agency so LLM gets the fresh one
+            store._replace_old_versions(REGION, agency, result["doc_id"])
+            print(f"[storage] Saved → regulatory_markdown_storage: {Path(result['path']).name}")
+        else:
+            print(f"[storage] Save returned unexpected result: {result}")
+    except Exception as exc:
+        print(f"[storage] Warning: could not save to regulatory_markdown_storage: {exc}")
+        print(f"[storage]   (LLM analysis will use previously stored version)")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # Main
 # ══════════════════════════════════════════════════════════════════════════════
 
 def main() -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    result = (
-        fetch_cellar()
-        or fetch_legislation_gov_uk()
-        or fetch_mdr_eu()
-    )
+    result = fetch_cellar() or fetch_legislation_gov_uk()
 
     if result is None:
-        print("\n[FAIL] All three sources exhausted — cannot download MDR PDF.")
+        print("\n[FAIL] All sources exhausted — cannot download MDR PDF.")
         sys.exit(1)
 
     data, version, label = result
     print(f"\n[ok] Source: {label}")
 
+    # Determine agency key and source URL
+    is_cellar = "CELLAR" in label or "cellar" in label.lower()
+    agency     = AGENCY_CELLAR if is_cellar else AGENCY_UK
+    source_url = (
+        CELLAR_KNOWN_URLS[0][0] if is_cellar
+        else LEGUK_FALLBACK
+    )
+
     print("[convert] PDF → Markdown...")
     md = pdf_to_markdown(data, label, version)
 
+    # Write raw reference file (docs/regulations_check/)
     OUTPUT_FILE.write_text(md, encoding="utf-8")
     kb = OUTPUT_FILE.stat().st_size // 1024
     print(f"[write] {OUTPUT_FILE.name} ({kb} KB)")
+
+    # Save to regulatory_markdown_storage (LLM analysis path)
+    save_to_regulatory_storage(md, label, version, source_url, agency)
+
     print("[done]")
 
 

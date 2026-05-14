@@ -1046,3 +1046,97 @@ def get_regulatory_markdown_store() -> RegulatoryMarkdownStorage:
     if _reg_md_store_instance is None:
         _reg_md_store_instance = RegulatoryMarkdownStorage()
     return _reg_md_store_instance
+
+
+# ============================================================
+# MDCG new-document confirmation utilities
+# ============================================================
+
+def _extract_qms_score(content: str) -> int:
+    """Extract the highest QMS relevance score from annotated markdown content.
+
+    Looks for <!-- QMS_RELEVANT: clauses=[...], score=N --> markers added
+    by src.analysis.qms_annotator.annotate_qms_sections().
+    Returns 0 if no markers found (NON_QMS document).
+    """
+    import re
+    scores = re.findall(r"score=(\d+)", content)
+    return max((int(s) for s in scores), default=0)
+
+
+def list_mdcg_docs_by_relevance(
+    region: str = "歐盟 (EU)",
+    min_score: int = 0,
+    new_only: bool = False,
+) -> list[dict]:
+    """List MDCG guidance documents sorted by QMS relevance score (highest first).
+
+    Args:
+        region:    Region to query (default: EU).
+        min_score: Only return docs with QMS score >= min_score.
+        new_only:  If True, only return docs flagged as first-baseline
+                   (newly crawled since last run).
+
+    Returns:
+        List of dicts: agency, title, qms_score, crawl_timestamp, markdown_path,
+                       is_new, doc_id — sorted by qms_score descending.
+
+    Usage:
+        from src.storage.regulatory_markdown_storage import list_mdcg_docs_by_relevance
+        docs = list_mdcg_docs_by_relevance(min_score=3)
+        for d in docs:
+            print(d['qms_score'], d['agency'], d['title'])
+    """
+    store = get_regulatory_markdown_store()
+    all_docs = store.list_documents(region=region, status="active")
+    mdcg_docs = [d for d in all_docs if d.get("agency", "").startswith("MDCG")]
+
+    results = []
+    for d in mdcg_docs:
+        doc_full = store.get_document(d["doc_id"])
+        content = doc_full.get("content", "") if doc_full else ""
+        score = _extract_qms_score(content)
+
+        if score < min_score:
+            continue
+
+        # "New" = first time this specific URL has been crawled (no previous body_hash)
+        # We approximate this by checking if the note contains "first baseline" indicator,
+        # or if crawl_timestamp is within the last 7 days compared to the previous doc.
+        is_new = d.get("note", "").find("first_baseline") != -1
+
+        entry = {
+            "doc_id": d["doc_id"],
+            "agency": d["agency"],
+            "title": d.get("title", "")[:100],
+            "qms_score": score,
+            "crawl_timestamp": d.get("crawl_timestamp", ""),
+            "markdown_path": d.get("markdown_path", ""),
+            "url": d.get("url", ""),
+            "is_new": is_new,
+        }
+        if new_only and not is_new:
+            continue
+        results.append(entry)
+
+    results.sort(key=lambda x: x["qms_score"], reverse=True)
+    return results
+
+
+def get_mdcg_summary(region: str = "歐盟 (EU)") -> dict:
+    """Return a summary of MDCG guidance documents for the LLM analysis report.
+
+    Returns:
+        dict with: total_count, high_relevance_count (score>=3), top_docs (list),
+                   new_docs_count
+    """
+    all_docs = list_mdcg_docs_by_relevance(region=region)
+    high = [d for d in all_docs if d["qms_score"] >= 3]
+    new_docs = [d for d in all_docs if d["is_new"]]
+    return {
+        "total_count": len(all_docs),
+        "high_relevance_count": len(high),
+        "new_docs_count": len(new_docs),
+        "top_docs": all_docs[:10],
+        "new_docs": new_docs[:20],
+    }

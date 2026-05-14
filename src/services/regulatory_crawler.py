@@ -185,26 +185,25 @@ REGION_SITES = {
     ],
     "歐盟 (EU)": [
         {
-            "agency": "EU-MDR-2017-745-PDF",
-            "name": "Regulation (EU) 2017/745 — EU MDR Full Text PDF, consolidated 02017R0745-20260101 (EUR-Lex CELLAR official)",
+            "agency": "EUR-Lex-MDR-CELLAR",
+            "name": "Regulation (EU) 2017/745 — EU MDR Full Text PDF, consolidated 02017R0745-20260101 (EUR-Lex CELLAR official, English)",
             "url": "http://publications.europa.eu/resource/cellar/fddb3266-f0ab-11f0-8d3c-01aa75ed71a1.0007.03/DOC_1",
             "tier": 1,
             "strategy": "html",
             "crawl_delay": 3,
             "fallback_urls": [
                 "https://www.legislation.gov.uk/eur/2017/745/pdfs/eur_20170745_2020-04-24_en.pdf",
-                "https://www.medical-device-regulation.eu/wp-content/uploads/2019/05/CELEX_32017R0745_EN_TXT.pdf",
             ],
-            "note": "PRIMARY EU MDR source: EUR-Lex CELLAR consolidated PDF CELEX 02017R0745-20260101 (includes M1-M5 amendments: EU 2020/561, 2023/502, 2023/607, 2024/568, 2024/1860). DOC_1 endpoint bypasses JS challenge. URL auto-resolved via SPARQL — update by running scripts/download_mdr_full_text.py. Fallback: legislation.gov.uk (2020-04-24), then medical-device-regulation.eu (2017 original).",
+            "note": "PRIMARY EU MDR source: EUR-Lex CELLAR consolidated PDF CELEX 02017R0745-20260101 (includes M1-M5 amendments through 2024/1860, English). DOC_1 endpoint bypasses JS challenge. Fallback: legislation.gov.uk 2020-04-24 PDF (missing 2023/2024 amendments but full article text). Update URL by running scripts/download_mdr_full_text.py.",
         },
         {
-            "agency": "EUR-Lex-MDR-HTML",
-            "name": "Regulation (EU) 2017/745 — EU MDR Download Page (English reference index, medical-device-regulation.eu)",
-            "url": "https://www.medical-device-regulation.eu/download-mdr/",
+            "agency": "EUR-Lex-MDR-UK",
+            "name": "Regulation (EU) 2017/745 — EU MDR Full Text PDF (legislation.gov.uk revised 2020-04-24, English)",
+            "url": "https://www.legislation.gov.uk/eur/2017/745/pdfs/eur_20170745_2020-04-24_en.pdf",
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "EU MDR 2017/745 download page (English only — full English PDF already covered by EU-MDR-2017-745-PDF); kept as reference index listing available language versions",
+            "note": "UK-hosted EU MDR PDF — consolidated to EU 2020/561 (2020-04-24). Missing EU 2023/607 and 2024/1860 amendments. Used as secondary source when CELLAR is unavailable. Direct PDF link, no JS challenge.",
         },
         {
             "agency": "MDCG",
@@ -4346,10 +4345,44 @@ class AsyncRegulatoryUpdateCrawler:
             self._domain_semaphores[domain] = asyncio.Semaphore(_DOMAIN_CONCURRENCY)
         return self._domain_semaphores[domain]
 
+    async def _try_fallback_urls(
+        self, site: dict, region: str, primary_reason: str
+    ) -> dict | None:
+        """Try each URL in site['fallback_urls'] via tier-2 httpx.
+
+        Returns the first successful result dict, or None if all fail.
+        The result has agency/region from the original site so storage
+        uses the correct key.
+        """
+        fallback_urls: list[str] = site.get("fallback_urls", [])
+        if not fallback_urls:
+            return None
+        for fb_url in fallback_urls:
+            fb_site = {**site, "url": fb_url, "tier": 2}
+            try:
+                fb_result = await _crawl_tier2_httpx(
+                    self._client, fb_site, region,
+                    self._etag_cache, jina_semaphore=self._jina_semaphore,
+                )
+            except Exception as exc:
+                logger.warning("fallback_url %s failed: %s", fb_url[:80], exc)
+                continue
+            if fb_result.get("crawl_status") == "success":
+                fb_result["note"] = (
+                    f"Primary URL failed ({primary_reason[:80]})"
+                    f" → fallback URL succeeded: {fb_url}"
+                )
+                logger.info(
+                    "fallback_url succeeded for %s/%s: %s",
+                    region, site.get("agency", ""), fb_url[:80],
+                )
+                return fb_result
+        return None
+
     async def _crawl_single_site(self, site: dict, region: str) -> dict:
         """Crawl a single site with tier dispatch, fallback chain, and rate limiting.
 
-        Fallback chain: Tier2 (httpx) → Tier3 (Jina) → DuckDuckGo → pre-written profile.
+        Fallback chain: Tier2 (httpx) → Tier3 (Jina) → fallback_urls → DuckDuckGo → pre-written profile.
         force_profile=True sites still attempt real crawl first; the pre-written profile
         is used only as absolute last resort after all live tiers fail.
         """
@@ -4359,18 +4392,23 @@ class AsyncRegulatoryUpdateCrawler:
 
         async with sem:
             crawl_delay = min(site.get("crawl_delay", 3), 5)
-            await asyncio.sleep(crawl_delay)  # M9: use full configured delay, not half
+            await asyncio.sleep(crawl_delay)
 
             if tier == 1:
                 result = await _crawl_tier1_api(
                     self._client, site, region, self._etag_cache
                 )
                 if result.get("crawl_status") != "success":
-                    # M4: attempt DDG URL discovery before falling back to pre-written profile
+                    primary_reason = result.get("failure_reason", "未知")
+                    # Try fallback_urls (e.g. legislation.gov.uk PDF when CELLAR blocked)
+                    fb = await self._try_fallback_urls(site, region, primary_reason)
+                    if fb:
+                        return fb
+                    # DDG URL discovery
                     ddgs_result = await self._fallback_ddgs_search(site, region)
                     if ddgs_result.get("crawl_status") == "success":
                         ddgs_result["note"] = (
-                            f"API 失敗 ({result.get('failure_reason', '未知')})"
+                            f"API 失敗 ({primary_reason})"
                             f" → DDG URL 發現成功"
                         )
                         return ddgs_result
@@ -4383,17 +4421,21 @@ class AsyncRegulatoryUpdateCrawler:
                     self._client, site, region, self._jina_semaphore
                 )
                 if result.get("crawl_status") != "success":
+                    primary_reason = result.get("failure_reason", "未知")
+                    fb = await self._try_fallback_urls(site, region, primary_reason)
+                    if fb:
+                        return fb
                     ddgs_result = await self._fallback_ddgs_search(site, region)
                     if ddgs_result.get("crawl_status") == "success":
                         ddgs_result["note"] = (
-                            f"Jina 失敗 ({result.get('failure_reason', '未知')})"
+                            f"Jina 失敗 ({primary_reason})"
                             f" → DuckDuckGo 備援成功"
                         )
                         return ddgs_result
                     profile = self._fallback_profile(site, region)
                     if profile:
                         profile["note"] = (
-                            f"Jina 失敗 ({result.get('failure_reason', '未知')})"
+                            f"Jina 失敗 ({primary_reason})"
                             f" → DuckDuckGo 亦失敗 → 使用預設法規摘要"
                         )
                         return profile
@@ -4413,6 +4455,14 @@ class AsyncRegulatoryUpdateCrawler:
                             f"httpx 失敗 ({original_reason}) → Jina 備援成功"
                         )
                         return jina_result
+                    # Try fallback_urls before DDG
+                    combined_reason = (
+                        f"{original_reason}"
+                        f" → Jina 失敗 ({jina_result.get('failure_reason', '未知')})"
+                    )
+                    fb = await self._try_fallback_urls(site, region, combined_reason)
+                    if fb:
+                        return fb
                     ddgs_result = await self._fallback_ddgs_search(site, region)
                     if ddgs_result.get("crawl_status") == "success":
                         ddgs_result["note"] = (
