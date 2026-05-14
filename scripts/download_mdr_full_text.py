@@ -4,9 +4,10 @@ regulatory_markdown_storage so the LLM analysis pipeline can use it.
 Source priority:
   1a. EUR-Lex CELLAR via SPARQL   — dynamic, always finds latest consolidated
                                     → on success: auto-saves URL to local cache
-  1b. URL cache (.cellar_url_cache.json) — previously resolved URLs, newest first
-  1c. CELLAR hardcoded DOC_1 URLs — static fallback (always valid, may be older)
-  1d. CELEX date scan             — scans last 90 days for new versions, no SPARQL/UUID
+  1b. CELLAR hardcoded DOC_1 URLs — static fallback (always valid, may be older version)
+  1c. CELEX date scan             — scans last 90 days for new versions, no SPARQL/UUID
+                                    → on success: auto-saves URL to local cache
+  1d. URL cache (last resort)     — .cellar_url_cache.json, used only when all above fail
   2.  legislation.gov.uk PDF      — latest revised (up to 2020-04-24)
 
 Validation (3 layers):
@@ -361,31 +362,34 @@ def fetch_cellar() -> tuple[bytes, str, str] | None:
         data = _download(url, f"CELLAR {celex}", timeout=120)
         if data and _validate(data, f"CELLAR {celex}"):
             return data, celex, f"EUR-Lex CELLAR SPARQL — CELEX {celex}"
-        print("  [1a] SPARQL download failed — continuing to cache...")
+        print("  [1a] SPARQL download failed — trying hardcoded...")
     else:
-        print("  [1a] SPARQL unavailable/blocked — continuing to cache...")
+        print("  [1a] SPARQL unavailable/blocked — trying hardcoded URLs...")
 
-    # 1b: URL cache — previously resolved URLs written by successful SPARQL runs
-    #     Works across machines: copy .cellar_url_cache.json to share latest URL
-    cached = _load_url_cache()
-    if cached:
-        result = _try_url_list(cached, "cache")
-        if result:
-            return result
-        print("  [1b] All cached URLs failed — trying hardcoded...")
-    else:
-        print("  [1b] No cache found — trying hardcoded URLs...")
-
-    # 1c: Hardcoded DOC_1 — static fallback, always valid (CELLAR never removes old versions)
+    # 1b: Hardcoded DOC_1 — static fallback, always valid (CELLAR never removes old versions)
     result = _cellar_hardcoded()
     if result:
         return result
 
-    # 1d: CELEX date scan — scans last 90 days for new versions without SPARQL or UUID
-    #     Catches newly published consolidated versions not yet in hardcoded list
+    # 1c: CELEX date scan — scans last 90 days for new versions without SPARQL or UUID
+    #     Catches newly published consolidated versions; auto-saves URL to cache on success
     result = _cellar_date_scan(days=90)
     if result:
         return result
+
+    # 1d: URL cache — LAST RESORT, used only when all above paths fail
+    #     Contains URLs written by any previous successful SPARQL / date-scan run.
+    #     Shared via git: commit .cellar_url_cache.json to propagate latest URL
+    #     across machines where SPARQL + hardcoded + date-scan all fail.
+    print("  [1d] All live paths failed — trying URL cache as last resort...")
+    cached = _load_url_cache()
+    if cached:
+        result = _try_url_list(cached, "cache(last-resort)")
+        if result:
+            return result
+        print("  [1d] Cache also failed")
+    else:
+        print("  [1d] No cache file found")
 
     print("  [fail] All CELLAR paths exhausted")
     return None
