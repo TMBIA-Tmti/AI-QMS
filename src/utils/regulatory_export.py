@@ -387,35 +387,174 @@ def export_regulatory_to_word(
 
     doc.add_paragraph()
 
-    # ── 縮寫說明 / Abbreviation Legend ──
-    doc.add_heading("縮寫說明 / Abbreviation Legend", level=2)
-    doc.add_paragraph(
-        "ISO 13485  — 醫療器材品質管理系統國際標準（Quality Management Systems for Medical Devices）\n"
-        "EU MDR     — 歐盟醫療器材法規 2017/745（European Union Medical Device Regulation）\n"
-        "EU IVDR    — 歐盟體外診斷法規 2017/746\n"
-        "TFDA       — 臺灣食品藥物管理署（Taiwan Food and Drug Administration）\n"
-        "21 CFR 820 — 美國 FDA 品質系統法規（Quality System Regulation / QMSR）\n"
-        "MDSAP      — 醫療器材單一稽核計畫，涵蓋美國/加拿大/巴西/澳洲/日本\n"
-        "QMS        — 品質管理系統（Quality Management System）\n"
-        "RA         — 法規事務（Regulatory Affairs）；報告中標記為需 RA 審查的項目\n"
-        "GMP        — 良好製造規範（Good Manufacturing Practice）\n"
-        "IVD        — 體外診斷醫療器材（In Vitro Diagnostics）"
-    )
+    # ── Abbreviation Legend (language-aware) ──
+    if lang.startswith("zh"):
+        _abbrev_heading = "縮寫說明"
+        _abbrev_content = (
+            "ISO 13485  — 醫療器材品質管理系統國際標準\n"
+            "EU MDR     — 歐盟醫療器材法規 2017/745\n"
+            "EU IVDR    — 歐盟體外診斷法規 2017/746\n"
+            "TFDA       — 臺灣食品藥物管理署\n"
+            "21 CFR 820 — 美國 FDA 品質系統法規（QSR/QMSR）\n"
+            "MDSAP      — 醫療器材單一稽核計畫（美國/加拿大/巴西/澳洲/日本）\n"
+            "QMS        — 品質管理系統\n"
+            "RA         — 法規事務；報告中標記為需 RA 審查的項目\n"
+            "GMP        — 良好製造規範\n"
+            "IVD        — 體外診斷醫療器材"
+        )
+        _guide_heading = "報告欄位說明"
+        _guide_content = (
+            "【法規彙總清單】\n"
+            "  標準名稱：文件中引用的法規或標準名稱\n"
+            "  引用文件數：引用該法規的文件總數\n"
+            "  引用文件清單：列出所有引用該法規的文件 ID\n\n"
+            "【逐文件詳情】\n"
+            "  文件 ID / 標題 / 文件類型：來自 QMS 文件庫的基本資訊\n"
+            "  版本：文件目前版次\n"
+            "  引用法規：該文件所引用的全部法規/標準清單\n\n"
+            "【評估報告】：AI 對法規引用完整性與合規性的整體評估意見\n"
+            "【驗證報告】：對評估結論的二次核查結果"
+        )
+    elif lang.startswith("ja"):
+        _abbrev_heading = "略語一覧"
+        _abbrev_content = (
+            "ISO 13485  — 医療機器の品質マネジメントシステム国際規格\n"
+            "EU MDR     — EU 医療機器規則 2017/745\n"
+            "EU IVDR    — EU 体外診断医療機器規則 2017/746\n"
+            "TFDA       — 台湾食品薬物管理署\n"
+            "21 CFR 820 — 米国 FDA 品質システム規制（QSR/QMSR）\n"
+            "MDSAP      — 医療機器単一審査プログラム（米国/カナダ/ブラジル/オーストラリア/日本）\n"
+            "QMS        — 品質マネジメントシステム\n"
+            "RA         — 薬事；レポートで RA 審査が必要とマークされた項目\n"
+            "GMP        — 適正製造基準\n"
+            "IVD        — 体外診断医療機器"
+        )
+        _guide_heading = "レポートフィールドガイド"
+        _guide_content = (
+            "【法規集計一覧】\n"
+            "  標準名称：文書内で引用された法規または標準の名称\n"
+            "  引用文書数：当該法規を引用する文書の総数\n"
+            "  引用文書一覧：当該法規を引用するすべての文書 ID\n\n"
+            "【文書別詳細】\n"
+            "  文書 ID / タイトル / 文書種別：QMS 文書ライブラリの基本情報\n"
+            "  バージョン：文書の現行版\n"
+            "  引用法規：当該文書が引用するすべての法規/標準の一覧\n\n"
+            "【評価レポート】：法規引用の完全性とコンプライアンスに関する AI の総合評価\n"
+            "【検証レポート】：評価結論の二次確認結果"
+        )
+    elif lang.startswith("ko"):
+        _abbrev_heading = "약어 목록"
+        _abbrev_content = (
+            "ISO 13485  — 의료기기 품질경영시스템 국제표준\n"
+            "EU MDR     — EU 의료기기 규정 2017/745\n"
+            "EU IVDR    — EU 체외진단기기 규정 2017/746\n"
+            "TFDA       — 대만 식품의약품안전처\n"
+            "21 CFR 820 — 미국 FDA 품질시스템 규정(QSR/QMSR)\n"
+            "MDSAP      — 의료기기 단일심사 프로그램(미국/캐나다/브라질/호주/일본)\n"
+            "QMS        — 품질경영시스템\n"
+            "RA         — 규제 업무; 보고서에서 RA 검토가 필요한 항목\n"
+            "GMP        — 우수제조기준\n"
+            "IVD        — 체외진단 의료기기"
+        )
+        _guide_heading = "보고서 필드 안내"
+        _guide_content = (
+            "[규제 종합 목록]\n"
+            "  표준명: 문서에서 인용된 법규 또는 표준 이름\n"
+            "  인용 문서 수: 해당 법규를 인용한 문서 총수\n"
+            "  인용 문서 목록: 해당 법규를 인용한 모든 문서 ID\n\n"
+            "[문서별 상세]\n"
+            "  문서 ID / 제목 / 문서 유형: QMS 문서 라이브러리 기본 정보\n"
+            "  버전: 현재 문서 버전\n"
+            "  인용 규제: 해당 문서에서 인용한 모든 법규/표준 목록\n\n"
+            "[평가 보고서]: 법규 인용 완전성 및 컴플라이언스에 대한 AI 종합 평가\n"
+            "[검증 보고서]: 평가 결론의 이중 검증 결과"
+        )
+    elif lang.startswith("de"):
+        _abbrev_heading = "Abkürzungsverzeichnis"
+        _abbrev_content = (
+            "ISO 13485  — Internationale Norm für Qualitätsmanagementsysteme für Medizinprodukte\n"
+            "EU MDR     — EU-Medizinprodukteverordnung 2017/745\n"
+            "EU IVDR    — EU-In-vitro-Diagnostika-Verordnung 2017/746\n"
+            "TFDA       — Taiwanesische Lebens- und Arzneimittelbehörde\n"
+            "21 CFR 820 — US-amerikanische FDA-Qualitätssystemverordnung (QSR/QMSR)\n"
+            "MDSAP      — Single-Audit-Programm für Medizinprodukte (USA/Kanada/Brasilien/Australien/Japan)\n"
+            "QMS        — Qualitätsmanagementsystem\n"
+            "RA         — Regulatorische Angelegenheiten; im Bericht als RA-prüfungspflichtig markiert\n"
+            "GMP        — Gute Herstellungspraxis\n"
+            "IVD        — In-vitro-Diagnostika"
+        )
+        _guide_heading = "Berichtsfeld-Leitfaden"
+        _guide_content = (
+            "[Aggregate Normen]\n"
+            "  Normname: Name der in Dokumenten zitierten Vorschrift/Norm\n"
+            "  Anzahl Dokumente: Gesamtanzahl der Dokumente, die diese Norm zitieren\n"
+            "  Dokumentenliste: Alle Dokument-IDs, die diese Norm zitieren\n\n"
+            "[Dokumentendetails]\n"
+            "  Dokument-ID / Titel / Typ: Grundinformationen aus der QMS-Dokumentenbibliothek\n"
+            "  Version: Aktuelle Dokumentversion\n"
+            "  Zitierte Normen: Alle Vorschriften/Normen, die dieses Dokument zitiert\n\n"
+            "[Bewertungsbericht]: KI-Gesamtbewertung der Vollständigkeit und Compliance von Normzitierungen\n"
+            "[Verifizierungsbericht]: Zweite Überprüfung der Bewertungsschlussfolgerungen"
+        )
+    elif lang.startswith("fr"):
+        _abbrev_heading = "Liste des abréviations"
+        _abbrev_content = (
+            "ISO 13485  — Norme internationale pour les systèmes de management de la qualité des dispositifs médicaux\n"
+            "EU MDR     — Règlement UE sur les dispositifs médicaux 2017/745\n"
+            "EU IVDR    — Règlement UE sur les dispositifs de diagnostic in vitro 2017/746\n"
+            "TFDA       — Administration taïwanaise des aliments et des médicaments\n"
+            "21 CFR 820 — Réglementation du système qualité de la FDA américaine (QSR/QMSR)\n"
+            "MDSAP      — Programme d'audit unique des dispositifs médicaux (USA/Canada/Brésil/Australie/Japon)\n"
+            "QMS        — Système de management de la qualité\n"
+            "RA         — Affaires réglementaires; éléments marqués comme nécessitant une révision RA\n"
+            "GMP        — Bonnes pratiques de fabrication\n"
+            "IVD        — Diagnostic in vitro"
+        )
+        _guide_heading = "Guide des champs du rapport"
+        _guide_content = (
+            "[Normes agrégées]\n"
+            "  Nom de la norme: Nom de la réglementation/norme citée dans les documents\n"
+            "  Nombre de documents: Nombre total de documents citant cette norme\n"
+            "  Liste de documents: Tous les identifiants de documents citant cette norme\n\n"
+            "[Détail par document]\n"
+            "  ID / Titre / Type: Informations de base de la bibliothèque QMS\n"
+            "  Version: Version actuelle du document\n"
+            "  Normes citées: Toutes les réglementations/normes citées dans ce document\n\n"
+            "[Rapport d'évaluation]: Évaluation globale de l'IA sur la conformité des citations réglementaires\n"
+            "[Rapport de vérification]: Deuxième validation des conclusions d'évaluation"
+        )
+    else:
+        _abbrev_heading = "Abbreviation Legend"
+        _abbrev_content = (
+            "ISO 13485  — International Standard for Quality Management Systems for Medical Devices\n"
+            "EU MDR     — European Union Medical Device Regulation 2017/745\n"
+            "EU IVDR    — European Union In Vitro Diagnostic Regulation 2017/746\n"
+            "TFDA       — Taiwan Food and Drug Administration\n"
+            "21 CFR 820 — US FDA Quality System Regulation (QSR/QMSR)\n"
+            "MDSAP      — Medical Device Single Audit Program (US/Canada/Brazil/Australia/Japan)\n"
+            "QMS        — Quality Management System\n"
+            "RA         — Regulatory Affairs; items marked RA require RA review in report\n"
+            "GMP        — Good Manufacturing Practice\n"
+            "IVD        — In Vitro Diagnostics"
+        )
+        _guide_heading = "Report Field Guide"
+        _guide_content = (
+            "[Aggregate Standards]\n"
+            "  Standard Name: Name of regulation/standard referenced in documents\n"
+            "  Referenced By (Count): Total number of documents referencing this standard\n"
+            "  Reference List: All document IDs referencing this standard\n\n"
+            "[Per-Document Detail]\n"
+            "  Document ID / Title / Type: Basic information from QMS document library\n"
+            "  Version: Current document version\n"
+            "  Referenced Standards: All regulatory standards referenced in this document\n\n"
+            "[Assessment]: AI's overall assessment of regulatory reference completeness and compliance\n"
+            "[Verification]: Second-level validation of assessment conclusions"
+        )
+    doc.add_heading(_abbrev_heading, level=2)
+    doc.add_paragraph(_abbrev_content)
 
-    # ── 報告欄位說明 / Report Field Guide ──
-    doc.add_heading("報告欄位說明 / Report Field Guide", level=2)
-    doc.add_paragraph(
-        "【法規彙總清單 / Aggregate Standards】\n"
-        "  標準名稱（Standard）：文件中引用的法規或標準名稱\n"
-        "  引用文件數（Count）：引用該法規的文件總數\n"
-        "  引用文件清單（Referenced By）：列出所有引用該法規的文件 ID\n\n"
-        "【逐文件詳情 / Per-Document Detail】\n"
-        "  文件 ID / 標題 / 文件類型：來自 QMS 文件庫的基本資訊\n"
-        "  版本（Version）：文件目前版次\n"
-        "  引用法規（Standards）：該文件所引用的全部法規/標準清單\n\n"
-        "【評估報告 / Assessment】：AI 對法規引用完整性與合規性的整體評估意見\n"
-        "【驗證報告 / Verification】：對評估結論的二次核查結果"
-    )
+    doc.add_heading(_guide_heading, level=2)
+    doc.add_paragraph(_guide_content)
 
     if not aggregate:
         doc.add_paragraph(_t("regulatory_export.no_refs", lang))

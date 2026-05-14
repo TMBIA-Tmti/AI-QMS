@@ -251,7 +251,7 @@ def export_regulatory_update_to_word(
 
     # ── Abbreviation Legend (language-aware) ──
     if lang.startswith("zh"):
-        abbrev_heading = "縮寫說明 / Abbreviation Legend"
+        abbrev_heading = "縮寫說明"
         abbrev_body = (
             "FDA / eCFR  — 美國食品藥物管理局 / 聯邦法規電子資料庫（21 CFR 820 QSR/QMSR）\n"
             "TFDA        — 臺灣食品藥物管理署（醫療器材管理法, GMP）\n"
@@ -265,8 +265,58 @@ def export_regulatory_update_to_word(
             "ANVISA      — 巴西國家衛生監督局（Brazil RDC 665/2022）\n"
             "Health Canada — 加拿大衛生部（CMDR SOR/98-282, ISO 13485）\n"
             "MDSAP       — 醫療器材單一稽核計畫（美國/加拿大/巴西/澳洲/日本）\n"
-            "QMS         — 品質管理系統（Quality Management System）\n"
-            "RA          — 法規事務（Regulatory Affairs）"
+            "QMS         — 品質管理系統\n"
+            "RA          — 法規事務"
+        )
+        guide_heading = "報告欄位說明"
+        guide_body = (
+            "【彙總更新清單欄位說明】\n"
+            "  地區：法規機構所在地區，如 US / EU / TW / JP / CN\n"
+            "  機構：法規發布機構代碼，如 FDA / TFDA / EMA\n"
+            "  爬取狀態：success 表示成功取得更新；failed 表示無法存取\n"
+            "  新增項目數：本次爬取中偵測到的新發布文件或指引數量\n"
+            "  更新類型：regulation（法規本文）/ guidance（指引）/ notice（公告）\n"
+            "  相關性：AI 評估與本 QMS 系統的相關程度（high / medium / low）\n"
+            "  對應 QMS 標準：該機構發布的內容所對應的主要 QMS 標準\n\n"
+            "【爬取結果作用原理】\n"
+            "  系統定期從各國法規機構官網爬取最新公告，比對既有紀錄偵測新增內容，\n"
+            "  並由 AI 評估每筆更新與現行 QMS 文件的相關性，協助 RA 人員快速識別需回應的法規變動。\n\n"
+            "【內容摘要】：爬取內容的前 100 字預覽\n"
+            "【儲存路徑】：成功爬取的原始文件儲存於 regulatory_markdown_storage 的路徑"
+        )
+    elif lang.startswith("ja"):
+        abbrev_heading = "略語一覧"
+        abbrev_body = (
+            "FDA / eCFR  — 米国食品医薬品局 / 連邦規則電子データベース（21 CFR 820 QSR/QMSR）\n"
+            "TFDA        — 台湾食品薬物管理署（医療機器管理法, GMP）\n"
+            "EMA / MDCG  — 欧州医薬品庁 / 医療機器調整グループ（EU MDR 2017/745, EU IVDR 2017/746）\n"
+            "PMDA        — 医薬品医療機器総合機構（QMS省令, JIS T 2304）\n"
+            "NMPA        — 中国国家薬品監督管理局（医療機器生産品質管理基準）\n"
+            "TGA         — オーストラリア医薬品管理局（Australian Medical Device Standards）\n"
+            "MFDS        — 韓国食品医薬品安全処（KGMP）\n"
+            "HSA         — シンガポール保健科学局（Singapore Medical Device GMP）\n"
+            "CDSCO       — インド中央医薬品標準管理機構（India MDR 2017）\n"
+            "ANVISA      — ブラジル国家衛生監督局（Brazil RDC 665/2022）\n"
+            "Health Canada — カナダ保健省（CMDR SOR/98-282, ISO 13485）\n"
+            "MDSAP       — 医療機器単一審査プログラム（米国/カナダ/ブラジル/オーストラリア/日本）\n"
+            "QMS         — 品質マネジメントシステム\n"
+            "RA          — 薬事"
+        )
+        guide_heading = "レポートフィールドガイド"
+        guide_body = (
+            "【集計更新一覧フィールド説明】\n"
+            "  地域：法規機関の所在地域（US / EU / TW / JP / CN など）\n"
+            "  機関：法規発行機関コード（FDA / TFDA / EMA など）\n"
+            "  クロール状態：success = 更新取得成功、failed = アクセス不可\n"
+            "  新規項目数：今回のクロールで検出された新規文書・ガイダンスの数\n"
+            "  更新種別：regulation（法規本文）/ guidance（ガイダンス）/ notice（公告）\n"
+            "  関連性：本 QMS システムとの関連度の AI 評価（high / medium / low）\n"
+            "  対応 QMS 標準：当該機関が発行する内容に対応する主要 QMS 標準\n\n"
+            "【クロール結果の仕組み】\n"
+            "  システムは各国規制機関の公式サイトから最新公告を定期クロールし、既存記録と比較して新着内容を検出します。\n"
+            "  AI が各更新と現行 QMS 文書との関連性を評価し、RA 担当者が対応すべき規制変更を迅速に特定できるよう支援します。\n\n"
+            "【内容サマリー】：クロール内容の最初の 100 文字プレビュー\n"
+            "【保存パス】：クロール成功した原文の regulatory_markdown_storage 内保存パス"
         )
     else:
         abbrev_heading = "Abbreviation Legend"
@@ -286,26 +336,28 @@ def export_regulatory_update_to_word(
             "QMS         — Quality Management System\n"
             "RA          — Regulatory Affairs"
         )
+        guide_heading = "Report Field Guide"
+        guide_body = (
+            "[Summary Table Fields]\n"
+            "  Region: Regulatory agency jurisdiction (US / EU / TW / JP / CN etc.)\n"
+            "  Agency: Regulatory body code (FDA / TFDA / EMA etc.)\n"
+            "  Crawl Status: success = update retrieved; failed = access failed\n"
+            "  New Items: Number of newly published documents/guidance detected this crawl\n"
+            "  Update Type: regulation / guidance / notice\n"
+            "  Relevance: AI-assessed relevance to this QMS (high / medium / low)\n"
+            "  QMS Mapping: Primary QMS standards corresponding to the agency's content\n\n"
+            "[How Crawl Results Work]\n"
+            "  The system periodically crawls official regulatory agency websites, detects new content\n"
+            "  by comparing against existing records, and uses AI to assess each update's relevance\n"
+            "  to the current QMS documents — helping RA teams quickly identify regulatory changes.\n\n"
+            "[Content Summary]: First 100-character preview of crawled content\n"
+            "[Storage Path]: Path within regulatory_markdown_storage where crawled content is saved"
+        )
     doc.add_heading(abbrev_heading, level=2)
     doc.add_paragraph(abbrev_body)
 
-    # ── 報告欄位說明 / Report Field Guide ──
-    doc.add_heading("報告欄位說明 / Report Field Guide", level=2)
-    doc.add_paragraph(
-        "【彙總更新清單 / Summary Table 欄位說明】\n"
-        "  地區（Region）：法規機構所在地區，如 US / EU / TW / JP / CN\n"
-        "  機構（Agency）：法規發布機構代碼，如 FDA / TFDA / EMA\n"
-        "  爬取狀態（Crawl Status）：success 表示成功取得更新；failed 表示無法存取\n"
-        "  新增項目數（New Items）：本次爬取中偵測到的新發布文件或指引數量\n"
-        "  更新類型（Update Type）：regulation（法規本文）/ guidance（指引）/ notice（公告）\n"
-        "  相關性（Relevance）：AI 評估與本 QMS 系統的相關程度（high / medium / low）\n"
-        "  對應 QMS 標準（QMS Mapping）：該機構發布的內容所對應的主要 QMS 標準\n\n"
-        "【爬取結果作用原理】\n"
-        "  系統定期從各國法規機構官網爬取最新公告，比對既有紀錄偵測新增內容，\n"
-        "  並由 AI 評估每筆更新與現行 QMS 文件的相關性，協助 RA 人員快速識別需回應的法規變動。\n\n"
-        "【內容摘要（Content Summary）】：爬取內容的前 100 字預覽\n"
-        "【儲存路徑（Storage Path）】：成功爬取的原始文件儲存於 regulatory_markdown_storage 的路徑"
-    )
+    doc.add_heading(guide_heading, level=2)
+    doc.add_paragraph(guide_body)
 
     # Section 1: Summary Table (enhanced with structured columns)
     doc.add_heading(_t("regulatory_update_export.summary_heading", lang), level=2)
