@@ -6150,65 +6150,85 @@ async def handle_regulatory_update_rescan(selected_regions: list):
                 if _provider_id != "ollama":
                     _manager.disable_fallback = True
 
-                for _region in regions_needing_profile:
-                    # Gather crawled texts for this region
-                    _region_crawl_texts = [
-                        {
-                            "region": r.get("region", ""),
-                            "agency": r.get("agency", ""),
-                            "content_markdown": r.get("content_markdown", ""),
-                            "url": r.get("url", ""),
-                        }
-                        for r in crawl_results.get("results", [])
-                        if r.get("region") == _region
-                        and r.get("crawl_status") == "success"
-                        and r.get("content_markdown")
-                    ]
+                # Parallel profile generation — cloud: 4 concurrent, local: 1 sequential
+                _lang = cl.user_session.get("language", DEFAULT_LANG)
+                _is_local_provider = _manager.current_provider.get("is_local", False)
+                _profile_concurrency = 1 if _is_local_provider else 4
+                _profile_sem = asyncio.Semaphore(_profile_concurrency)
 
-                    if not _region_crawl_texts:
-                        await cl.Message(
-                            content=t("ui.profile_no_crawl_data", region=_region)
-                        ).send()
-                        continue
+                _all_results_map = {
+                    r.get("region", ""): [] for r in crawl_results.get("results", [])
+                }
+                for _r in crawl_results.get("results", []):
+                    if (
+                        _r.get("crawl_status") == "success"
+                        and _r.get("content_markdown")
+                        and _r.get("region") in _all_results_map
+                    ):
+                        _all_results_map[_r["region"]].append({
+                            "region": _r.get("region", ""),
+                            "agency": _r.get("agency", ""),
+                            "content_markdown": _r.get("content_markdown", ""),
+                            "url": _r.get("url", ""),
+                        })
 
-                    async def _profile_progress(msg: str) -> None:
+                async def _analyze_one_region(region: str) -> tuple:
+                    _texts = _all_results_map.get(region, [])
+                    if not _texts:
+                        return region, None, None
+
+                    async def _progress(msg: str) -> None:
                         try:
-                            await cl.Message(content=msg).send()
+                            await cl.Message(content=f"[{region}] {msg}").send()
                         except Exception:
                             pass
 
-                    try:
-                        _profile = await analyze_regulation_with_llm(
-                            region_name=_region,
-                            crawled_texts=_region_crawl_texts,
-                            llm_completion_fn=_manager.completion,
-                            model=_model_name,
-                            send_progress_fn=_profile_progress,
-                            lang=cl.user_session.get("language", DEFAULT_LANG),
-                            provider_id=_provider_id,
-                            is_local_override=_manager.current_provider["is_local"],
-                        )
-                        if _profile:
-                            await cl.Message(
-                                content=t("ui.profile_generated", region=_region)
-                                + f" {_profile.regulation_id} "
-                                + f"({len(_profile.iso_mapped)} "
-                                + t("ui.profile_mapped_count")
-                                + f", {len(_profile.unique_requirements)} "
-                                + t("ui.profile_unique_count") + ")"
-                            ).send()
-                        else:
-                            await cl.Message(
-                                content=t("ui.profile_gen_failed", region=_region)
-                            ).send()
-                    except Exception as _profile_err:
-                        import logging
+                    async with _profile_sem:
+                        try:
+                            _p = await analyze_regulation_with_llm(
+                                region_name=region,
+                                crawled_texts=_texts,
+                                llm_completion_fn=_manager.completion,
+                                model=_model_name,
+                                send_progress_fn=_progress,
+                                lang=_lang,
+                                provider_id=_provider_id,
+                                is_local_override=_is_local_provider,
+                            )
+                            return region, _p, None
+                        except Exception as _exc:
+                            return region, None, _exc
 
-                        logging.getLogger(__name__).warning(
+                import logging as _logging
+                _parallel_results = await asyncio.gather(
+                    *[_analyze_one_region(r) for r in regions_needing_profile],
+                    return_exceptions=False,
+                )
+
+                for _region, _profile, _profile_err in _parallel_results:
+                    if _profile_err is not None:
+                        _logging.getLogger(__name__).warning(
                             f"Failed to generate profile for {_region}: {_profile_err}"
                         )
                         await cl.Message(
                             content=t("ui.profile_gen_failed_err", region=_region, error=str(_profile_err)[:100])
+                        ).send()
+                    elif _profile is None:
+                        await cl.Message(
+                            content=t("ui.profile_no_crawl_data", region=_region)
+                        ).send()
+                    elif _profile:
+                        await cl.Message(
+                            content=t("ui.profile_generated", region=_region)
+                            + f" {_profile.regulation_id} "
+                            + f"({len(_profile.iso_mapped)} "
+                            + t("ui.profile_mapped_count")
+                            + f", {len(_profile.unique_requirements)} "
+                            + t("ui.profile_unique_count") + ")"
+                        ).send()
+                    else:
+                        await cl.Message(
+                            content=t("ui.profile_gen_failed", region=_region)
                         ).send()
             else:
                 await cl.Message(
@@ -10147,93 +10167,10 @@ async def on_message(message: cl.Message):
         await cl.Message(content=response, elements=elements).send()
         return
 
-    # List — all records (active + obsolete + version history)
-    if _match_cmd(text, "cmd.list") or _match_cmd_exact(text, "cmd.list"):
-        response = await handle_list()
-        # Pre-generate Word + Excel for direct download
-        elements = []
-        try:
-            word_path, _ = await handle_allrecords_export("word")
-            if word_path:
-                wname = re.sub(r"^\d{14}_", "", Path(word_path).name)
-                elements.append(cl.File(name=wname, path=word_path, display="inline"))
-        except Exception:
-            pass
-        try:
-            excel_path, _ = await handle_allrecords_export("excel")
-            if excel_path:
-                ename = re.sub(r"^\d{14}_", "", Path(excel_path).name)
-                elements.append(cl.File(name=ename, path=excel_path, display="inline"))
-        except Exception:
-            pass
-        await cl.Message(content=response, elements=elements).send()
-        return
-
-    # Web Search: /web prefix → LLM Chat with Web + DB context
-    # (must be checked BEFORE cmd.search to avoid "/web 搜尋..." matching "搜尋")
-    if _match_cmd_startswith(text, "cmd.web"):
-        query = _extract_after_cmd(text, "cmd.web")
-        if query:
-            await chat_with_llm_web(query, profile)
-        else:
-            await cl.Message(content=t("web.no_query")).send()
-        return
-
-    # Search (prefix command: "search keyword")
-    if _match_cmd(text, "cmd.search"):
-        query = _extract_after_cmd(text, "cmd.search")
-        response = await handle_search(query)
-        await cl.Message(content=response).send()
-        return
-
-    # ============================================================
-    # Export / Download with Inline File Attachments
-    # ============================================================
-
-    # --- Audit export (must check before audit display) ---
-    if _match_cmd(text, "cmd.download_audit"):
-        if has_word_suffix:
-            filepath, msg_text = await handle_audit_export("word")
-            if filepath:
-                await _send_file_download(filepath, msg_text)
-            else:
-                await cl.Message(content=msg_text).send()
-        elif has_excel_suffix:
-            filepath, msg_text = await handle_audit_export("excel")
-            if filepath:
-                await _send_file_download(filepath, msg_text)
-            else:
-                await cl.Message(content=msg_text).send()
-        elif has_pdf_suffix:
-            _, msg_text = await handle_audit_export("pdf")
-            await cl.Message(content=msg_text).send()
-        else:
-            elements = []
-            try:
-                word_path, _ = await handle_audit_export("word")
-                if word_path:
-                    wname = re.sub(r"^\d{14}_", "", Path(word_path).name)
-                    elements.append(
-                        cl.File(name=wname, path=word_path, display="inline")
-                    )
-            except Exception:
-                pass
-            try:
-                excel_path, _ = await handle_audit_export("excel")
-                if excel_path:
-                    ename = re.sub(r"^\d{14}_", "", Path(excel_path).name)
-                    elements.append(
-                        cl.File(name=ename, path=excel_path, display="inline")
-                    )
-            except Exception:
-                pass
-            await cl.Message(
-                content=t("ui.doc_change_report"),
-                elements=elements,
-            ).send()
-        return
-
     # --- Regulatory UPDATE export (must check before download_regulatory) ---
+    # NOTE: All regulatory checks are placed BEFORE cmd.list to prevent "regulatory list"
+    # and Japanese equivalents ("法規一覧", "規制リスト") from being caught by the "list"
+    # substring match in cmd.list.
     if _match_cmd(text, "cmd.download_regulatory_update"):
         if has_word_suffix:
             filepath, msg_text = await handle_regulatory_update_export("word")
@@ -10318,26 +10255,95 @@ async def on_message(message: cl.Message):
             ).send()
         return
 
-    # Regulatory standards list (display only)
+    # --- Regulatory standards list + LLM analysis ---
     if _match_cmd(text, "cmd.regulatory"):
-        response = await handle_regulatory_list()
+        await handle_regulatory_list()
+        return
+
+    # List — all records (active + obsolete + version history)
+    if _match_cmd(text, "cmd.list") or _match_cmd_exact(text, "cmd.list"):
+        response = await handle_list()
         # Pre-generate Word + Excel for direct download
         elements = []
         try:
-            word_path, _ = await handle_regulatory_export("word")
+            word_path, _ = await handle_allrecords_export("word")
             if word_path:
                 wname = re.sub(r"^\d{14}_", "", Path(word_path).name)
                 elements.append(cl.File(name=wname, path=word_path, display="inline"))
         except Exception:
             pass
         try:
-            excel_path, _ = await handle_regulatory_export("excel")
+            excel_path, _ = await handle_allrecords_export("excel")
             if excel_path:
                 ename = re.sub(r"^\d{14}_", "", Path(excel_path).name)
                 elements.append(cl.File(name=ename, path=excel_path, display="inline"))
         except Exception:
             pass
         await cl.Message(content=response, elements=elements).send()
+        return
+
+    # Web Search: /web prefix → LLM Chat with Web + DB context
+    # (must be checked BEFORE cmd.search to avoid "/web 搜尋..." matching "搜尋")
+    if _match_cmd_startswith(text, "cmd.web"):
+        query = _extract_after_cmd(text, "cmd.web")
+        if query:
+            await chat_with_llm_web(query, profile)
+        else:
+            await cl.Message(content=t("web.no_query")).send()
+        return
+
+    # Search (prefix command: "search keyword")
+    if _match_cmd(text, "cmd.search"):
+        query = _extract_after_cmd(text, "cmd.search")
+        response = await handle_search(query)
+        await cl.Message(content=response).send()
+        return
+
+    # ============================================================
+    # Export / Download with Inline File Attachments
+    # ============================================================
+
+    # --- Audit export (must check before audit display) ---
+    if _match_cmd(text, "cmd.download_audit"):
+        if has_word_suffix:
+            filepath, msg_text = await handle_audit_export("word")
+            if filepath:
+                await _send_file_download(filepath, msg_text)
+            else:
+                await cl.Message(content=msg_text).send()
+        elif has_excel_suffix:
+            filepath, msg_text = await handle_audit_export("excel")
+            if filepath:
+                await _send_file_download(filepath, msg_text)
+            else:
+                await cl.Message(content=msg_text).send()
+        elif has_pdf_suffix:
+            _, msg_text = await handle_audit_export("pdf")
+            await cl.Message(content=msg_text).send()
+        else:
+            elements = []
+            try:
+                word_path, _ = await handle_audit_export("word")
+                if word_path:
+                    wname = re.sub(r"^\d{14}_", "", Path(word_path).name)
+                    elements.append(
+                        cl.File(name=wname, path=word_path, display="inline")
+                    )
+            except Exception:
+                pass
+            try:
+                excel_path, _ = await handle_audit_export("excel")
+                if excel_path:
+                    ename = re.sub(r"^\d{14}_", "", Path(excel_path).name)
+                    elements.append(
+                        cl.File(name=ename, path=excel_path, display="inline")
+                    )
+            except Exception:
+                pass
+            await cl.Message(
+                content=t("ui.doc_change_report"),
+                elements=elements,
+            ).send()
         return
 
     # --- Reference export ---
