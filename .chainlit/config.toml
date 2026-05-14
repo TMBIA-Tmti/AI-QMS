@@ -6,8 +6,8 @@
 user_env = []
 
 # Duration (in seconds) during which the session is saved when the connection is lost
-# 7200 = 2 hours — keeps session alive through long analysis jobs
-session_timeout = 7200
+# 999999 = no practical limit — keeps session alive indefinitely
+session_timeout = 999999
 
 # Enable third parties caching
 cache = false

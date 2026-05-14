@@ -72,6 +72,11 @@ exit /b 1
 echo [OK] Python: %QMS_PYTHON%
 echo.
 
+:: ── No-disconnect settings ────────────────────────────────────────────────────
+set "UVICORN_TIMEOUT_KEEP_ALIVE=0"
+set "UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN=300"
+:: ─────────────────────────────────────────────────────────────────────────────
+
 :: Auto-update: always sync all packages from requirements.txt
 echo [INFO] Checking dependencies...
 "%QMS_PYTHON%" -m pip install -r "%PROJECT_DIR%requirements.txt" --quiet --disable-pip-version-check < nul 2>nul

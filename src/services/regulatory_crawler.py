@@ -186,12 +186,16 @@ REGION_SITES = {
     "歐盟 (EU)": [
         {
             "agency": "EU-MDR-2017-745-PDF",
-            "name": "Regulation (EU) 2017/745 — EU MDR Full Text PDF, all 123 Articles + Annexes I-XVII (medical-device-regulation.eu mirror)",
-            "url": "https://www.medical-device-regulation.eu/wp-content/uploads/2019/05/CELEX_32017R0745_EN_TXT.pdf",
-            "tier": 2,
+            "name": "Regulation (EU) 2017/745 — EU MDR Full Text PDF, consolidated 02017R0745-20260101 (EUR-Lex CELLAR official)",
+            "url": "http://publications.europa.eu/resource/cellar/fddb3266-f0ab-11f0-8d3c-01aa75ed71a1.0007.03/DOC_1",
+            "tier": 1,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "PRIMARY EU MDR source: CELEX 32017R0745 official English PDF (1.5MB, 175 pages) hosted on medical-device-regulation.eu — verified HTTP 200, PyMuPDF extracts all 123 articles + 17 Annexes including Annex IX QMS conformity assessment (pages 33, 50-52); EUR-Lex direct blocked by Cloudflare",
+            "fallback_urls": [
+                "https://www.legislation.gov.uk/eur/2017/745/pdfs/eur_20170745_2020-04-24_en.pdf",
+                "https://www.medical-device-regulation.eu/wp-content/uploads/2019/05/CELEX_32017R0745_EN_TXT.pdf",
+            ],
+            "note": "PRIMARY EU MDR source: EUR-Lex CELLAR consolidated PDF CELEX 02017R0745-20260101 (includes M1-M5 amendments: EU 2020/561, 2023/502, 2023/607, 2024/568, 2024/1860). DOC_1 endpoint bypasses JS challenge. URL auto-resolved via SPARQL — update by running scripts/download_mdr_full_text.py. Fallback: legislation.gov.uk (2020-04-24), then medical-device-regulation.eu (2017 original).",
         },
         {
             "agency": "EUR-Lex-MDR-HTML",
