@@ -76,6 +76,11 @@ exit /b 1
 echo [OK] Python: %QMS_PYTHON%
 echo.
 
+:: ── No-disconnect settings ────────────────────────────────────────────────────
+set "UVICORN_TIMEOUT_KEEP_ALIVE=0"
+set "UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN=300"
+:: ─────────────────────────────────────────────────────────────────────────────
+
 :: Auto-accept Conda Terms of Service (required since Miniconda 25.1.1)
 where conda >nul 2>&1
 if not errorlevel 1 (
