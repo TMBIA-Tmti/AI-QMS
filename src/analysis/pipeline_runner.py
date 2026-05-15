@@ -439,6 +439,7 @@ async def run_pipeline_analysis(
     on_run_id_ready: Optional[Callable] = None,
     custom_skip_phases: list[str] | None = None,
     lang: str = "zh-TW",
+    provider_info: Optional[dict] = None,
 ) -> PipelineRunResult:
     """Run the full analysis pipeline with async progress reporting.
 
@@ -480,6 +481,8 @@ async def run_pipeline_analysis(
             standard=standard,
             selected_regulations=selected_regulations,
             lang=lang,
+            provider_is_local=bool(provider_info and provider_info.get("is_local", False)),
+            provider_info=provider_info,
         )
 
         pipeline.state.source_command = source_command

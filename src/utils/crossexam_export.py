@@ -44,6 +44,100 @@ EXPORT_DIR = (Path(__file__).resolve().parent.parent.parent / "data" / "exports"
 from src.chainlit_app.lang_config import lang_key as _lang_key  # noqa: E402
 
 
+def _build_env_table_rows(run_meta: dict, lk: str) -> list[tuple[str, str]]:
+    """Build (label, value) pairs for the Execution Environment table."""
+    _lb = {
+        "zh": {
+            "provider":      "LLM Provider",
+            "provider_type": "Provider 類型",
+            "model":         "使用模型",
+            "api_base":      "API Base URL",
+            "max_workers":   "並發設定",
+            "gpu":           "GPU",
+            "vram":          "VRAM",
+            "capability":    "GPU Capability",
+            "driver_cuda":   "Driver CUDA",
+            "torch":         "PyTorch",
+            "torch_cuda":    "PyTorch CUDA",
+            "compat":        "相容性狀態",
+            "platform":      "作業系統",
+        },
+        "en": {
+            "provider":      "LLM Provider",
+            "provider_type": "Provider Type",
+            "model":         "Model",
+            "api_base":      "API Base URL",
+            "max_workers":   "Concurrency",
+            "gpu":           "GPU",
+            "vram":          "VRAM",
+            "capability":    "GPU Capability",
+            "driver_cuda":   "Driver CUDA",
+            "torch":         "PyTorch",
+            "torch_cuda":    "PyTorch CUDA",
+            "compat":        "Compatibility",
+            "platform":      "OS",
+        },
+        "ja": {
+            "provider":      "LLM プロバイダ",
+            "provider_type": "プロバイダ種別",
+            "model":         "使用モデル",
+            "api_base":      "API ベース URL",
+            "max_workers":   "並列設定",
+            "gpu":           "GPU",
+            "vram":          "VRAM",
+            "capability":    "GPU Capability",
+            "driver_cuda":   "Driver CUDA",
+            "torch":         "PyTorch",
+            "torch_cuda":    "PyTorch CUDA",
+            "compat":        "互換性ステータス",
+            "platform":      "OS",
+        },
+    }
+    lb = _lb.get(lk, _lb["en"])
+
+    def _compat_str(status: str, warnings: list) -> str:
+        if status == "ok":
+            return "✅ OK"
+        if warnings:
+            return f"⚠️ {status}: {warnings[0][:80]}"
+        return f"⚠️ {status}"
+
+    rows: list[tuple[str, str]] = []
+    if run_meta.get("provider_name"):
+        rows.append((lb["provider"], run_meta["provider_name"]))
+    if run_meta.get("provider_type"):
+        rows.append((lb["provider_type"], run_meta["provider_type"]))
+    if run_meta.get("model"):
+        rows.append((lb["model"], run_meta["model"]))
+    if run_meta.get("api_base_url") and run_meta.get("is_local"):
+        rows.append((lb["api_base"], run_meta["api_base_url"]))
+    if "max_workers" in run_meta:
+        reason = run_meta.get("workers_reason", "")
+        wval = f"max_workers = {run_meta['max_workers']}"
+        if reason:
+            wval += f"  ({reason})"
+        rows.append((lb["max_workers"], wval))
+    rows.append(("", ""))  # visual separator
+    if run_meta.get("gpu_name"):
+        rows.append((lb["gpu"], run_meta["gpu_name"]))
+    if run_meta.get("vram_gb") is not None and run_meta.get("vram_gb", 0) > 0:
+        rows.append((lb["vram"], f"{run_meta['vram_gb']} GB"))
+    if run_meta.get("gpu_capability"):
+        rows.append((lb["capability"], run_meta["gpu_capability"]))
+    if run_meta.get("driver_cuda"):
+        rows.append((lb["driver_cuda"], run_meta["driver_cuda"]))
+    if run_meta.get("torch_version"):
+        rows.append((lb["torch"], run_meta["torch_version"]))
+    if run_meta.get("torch_cuda"):
+        rows.append((lb["torch_cuda"], run_meta["torch_cuda"]))
+    compat = run_meta.get("gpu_compat_status", "")
+    if compat:
+        rows.append((lb["compat"], _compat_str(compat, run_meta.get("gpu_compat_warnings", []))))
+    if run_meta.get("platform"):
+        rows.append((lb["platform"], run_meta["platform"]))
+    return rows
+
+
 _EXPORT_HEADERS: dict[str, dict[str, str]] = {
     "zh": {
         "title_crossexam": "AI-QMS 交叉詰問記錄",
@@ -1262,6 +1356,24 @@ def export_deep_report_word(
         doc.add_heading(dh["deep_s0_skipped"], level=3)
         for sp in _skipped:
             doc.add_paragraph(f"  • {_PHASE_LABELS.get(sp, sp)} — {_PHASE_NAMES_ZH.get(sp, sp)} / {_PHASE_NAMES_EN.get(sp, sp)}")
+    # ── Execution Environment ───────────────────────────────────
+    _run_meta = _prog.get("run_metadata", {})
+    if _run_meta:
+        _env_head = {"zh": "執行環境", "en": "Execution Environment", "ja": "実行環境"}
+        doc.add_heading(_env_head.get(_lk, "Execution Environment"), level=3)
+        _env_rows = _build_env_table_rows(_run_meta, _lk)
+        _eh_labels = {"zh": ["項目", "值"], "en": ["Item", "Value"], "ja": ["項目", "値"]}
+        _eh = _eh_labels.get(_lk, ["Item", "Value"])
+        env_tbl = doc.add_table(rows=1 + len(_env_rows), cols=2)
+        env_tbl.style = "Table Grid"
+        for ci, h in enumerate(_eh):
+            cell = env_tbl.rows[0].cells[ci]
+            cell.text = h
+            runs = cell.paragraphs[0].runs
+            (runs[0] if runs else cell.paragraphs[0].add_run(h)).bold = True
+        for ri, (label, value) in enumerate(_env_rows, 1):
+            env_tbl.rows[ri].cells[0].text = label
+            env_tbl.rows[ri].cells[1].text = value
     # P0 Data Quality
     if data_quality:
         doc.add_heading(dh["deep_s0_dq_title"], level=3)
@@ -2285,6 +2397,26 @@ def export_deep_report_excel(
         append_crossref_table_excel(wb, lang=lang)
     except Exception:
         pass
+
+    # ── Sheet: Execution Environment ───────────────────────────
+    _run_meta_xl = _prog.get("run_metadata", {}) if _prog else {}
+    if _run_meta_xl:
+        _env_sheet_name = {"zh": "執行環境", "en": "Exec Environment", "ja": "実行環境"}
+        ws_env = wb.create_sheet(_xl_safe(_env_sheet_name.get(_lk, "Exec Environment")))
+        _env_rows_xl = _build_env_table_rows(_run_meta_xl, _lk)
+        _eh_xl = {"zh": ["項目", "值"], "en": ["Item", "Value"], "ja": ["項目", "値"]}
+        _hdr_xl = _eh_xl.get(_lk, ["Item", "Value"])
+        _env_hdr_fill = PatternFill(start_color="1F3864", end_color="1F3864", fill_type="solid")
+        for ci, h in enumerate(_hdr_xl, 1):
+            c = ws_env.cell(row=1, column=ci, value=h)
+            c.font = Font(bold=True, color="FFFFFF")
+            c.fill = _env_hdr_fill
+            c.alignment = Alignment(horizontal="center")
+        for ri, (label, value) in enumerate(_env_rows_xl, 2):
+            ws_env.cell(row=ri, column=1, value=label)
+            ws_env.cell(row=ri, column=2, value=value)
+        ws_env.column_dimensions["A"].width = 22
+        ws_env.column_dimensions["B"].width = 55
 
     safe_save_binary(filepath, wb.save)
     return filepath

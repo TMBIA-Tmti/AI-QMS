@@ -1205,6 +1205,7 @@ async def get_report(run_id: str):
             "data_quality": dq,
             "source_check": sc,
             "llm_budget": budget,
+            "run_metadata": getattr(state, "run_metadata", {}),
             "verdict_options": [
                 {"value": v, **VERDICT_DISPLAY.get(v, {})} for v in Verdict.ALL
             ],
@@ -1228,6 +1229,7 @@ async def get_summary(run_id: str):
         "summary": summary,
         "progress": progress,
         "llm_budget": budget,
+        "run_metadata": getattr(table.state, "run_metadata", {}),
     }
     if qa_audit_summary:
         resp["qa_audit_summary"] = qa_audit_summary

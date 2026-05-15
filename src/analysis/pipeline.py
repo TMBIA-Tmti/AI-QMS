@@ -152,6 +152,71 @@ def _emit_phase3_event(run_id: str, event: dict) -> None:
 
 
 # ============================================================
+# Runtime metadata collection
+# ============================================================
+
+
+def _collect_run_metadata(
+    provider_info: Optional[dict] = None,
+    provider_is_local: bool = False,
+) -> dict:
+    """Collect provider + hardware info at pipeline start for reports."""
+    import platform
+    meta: dict = {}
+
+    # ── Provider ──────────────────────────────────────────────
+    if provider_info:
+        meta.update({
+            "provider_name":  provider_info.get("provider_name", ""),
+            "provider_type":  provider_info.get("provider_type", ""),
+            "is_local":       provider_info.get("is_local", provider_is_local),
+            "model":          provider_info.get("model", ""),
+            "api_base_url":   provider_info.get("api_base_url", ""),
+        })
+    else:
+        meta["is_local"] = provider_is_local
+        meta["provider_name"] = "Local LLM" if provider_is_local else "Cloud API"
+        meta["provider_type"] = "Local LLM" if provider_is_local else "Cloud API"
+
+    meta["max_workers"] = 1 if provider_is_local else 8
+    meta["workers_reason"] = "auto: local provider" if provider_is_local else "auto: cloud API"
+
+    # ── GPU / hardware ────────────────────────────────────────
+    try:
+        import torch
+        meta["torch_version"] = torch.__version__
+        if torch.cuda.is_available():
+            meta["gpu_name"] = torch.cuda.get_device_name(0)
+            props = torch.cuda.get_device_properties(0)
+            meta["vram_gb"] = round(props.total_memory / (1024 ** 3), 1)
+            cap = torch.cuda.get_device_capability(0)
+            meta["gpu_capability"] = f"sm_{cap[0]}{cap[1]}"
+            meta["torch_cuda"] = torch.version.cuda or "N/A"
+        else:
+            meta["gpu_name"] = "No CUDA GPU"
+            meta["torch_cuda"] = "N/A"
+            meta["vram_gb"] = 0
+    except ImportError:
+        meta["gpu_name"] = "torch not installed"
+        meta["torch_version"] = "N/A"
+        meta["torch_cuda"] = "N/A"
+
+    try:
+        from src.ocr.gpu_check import _get_driver_cuda_version, check_gpu
+        meta["driver_cuda"] = _get_driver_cuda_version() or "N/A"
+        gpu_status = check_gpu()
+        meta["gpu_compat_status"] = gpu_status.get("status", "unknown")
+        meta["gpu_compat_warnings"] = gpu_status.get("warnings", [])
+    except Exception:
+        meta["driver_cuda"] = "N/A"
+        meta["gpu_compat_status"] = "unknown"
+        meta["gpu_compat_warnings"] = []
+
+    meta["platform"] = platform.system()
+    return meta
+
+
+# ============================================================
 # Pipeline orchestrator
 # ============================================================
 
@@ -182,6 +247,8 @@ class AnalysisPipeline:
         on_row_complete: Optional[Callable] = None,
         selected_regulations: list[str] | None = None,
         lang: str = "zh-TW",
+        provider_is_local: bool = False,
+        provider_info: Optional[dict] = None,
     ):
         """Initialize the pipeline.
 
@@ -206,6 +273,7 @@ class AnalysisPipeline:
         self._state_dir.mkdir(parents=True, exist_ok=True)
         self._selected_regulations = selected_regulations
         self._lang = lang
+        self._provider_is_local = provider_is_local
 
         # Callbacks
         self._on_phase_complete = on_phase_complete
@@ -227,6 +295,12 @@ class AnalysisPipeline:
 
         # Thread lock for Phase 5 parallel state updates
         self._state_lock = threading.Lock()
+
+        # Collect runtime metadata (provider + hardware) once at init
+        self._state.run_metadata = _collect_run_metadata(
+            provider_info=provider_info,
+            provider_is_local=provider_is_local,
+        )
 
         # Comparison table wrapper
         self._table = ComparisonTable(self._state, state_dir)
@@ -540,6 +614,14 @@ class AnalysisPipeline:
             f"Phase 0.5 complete: {mapping_summary.get('rows_mapped', 0)} rows mapped"
         )
 
+    def _compute_max_workers(self, cloud_cap: int) -> int:
+        """Return max concurrent workers based on provider type.
+
+        Local providers (LM Studio / Ollama) are single-instance — use 1.
+        Cloud APIs support true concurrency — use cloud_cap.
+        """
+        return 1 if self._provider_is_local else cloud_cap
+
     def _execute_phase_1(self) -> None:
         """Phase 1: Gap Scan (LLM) — per-document grouping, parallelized."""
         logger.info("Executing Phase 1: Gap Scan (per-document, parallel)")
@@ -559,7 +641,7 @@ class AnalysisPipeline:
 
         import concurrent.futures
 
-        max_workers = min(8, len(doc_groups))
+        max_workers = min(self._compute_max_workers(8), len(doc_groups))
         total_docs = len(doc_groups)
         docs_completed = 0
 
@@ -603,8 +685,91 @@ class AnalysisPipeline:
                 except Exception as e:
                     logger.error(f"Phase 1 failed for doc {doc_id}: {e}")
 
+        # Retry once for docs that failed due to transient LLM errors
+        self.retry_failed_phase1_docs()
         self._notify_phase_complete(Phase.GAP_SCAN)
         self._advance_global_phase(Phase.CHECKLIST_VERIFY)
+
+    def retry_failed_phase1_docs(self) -> int:
+        """Retry Phase 1 for docs that failed due to transient LLM errors.
+
+        Finds rows where current_phase == gap_scan AND
+        phase_results['gap_scan']['status'] == 'failed'.
+        Re-runs run_gap_scan_document() once for each failed doc group.
+        On success, advances rows to the next phase.
+
+        Returns:
+            Number of docs successfully recovered.
+        """
+        import concurrent.futures as _cf
+        from src.analysis.gap_scanner import run_gap_scan_document
+
+        all_rows = self._state.get_all_rows()
+        failed_rows = [
+            r for r in all_rows
+            if r.current_phase == Phase.GAP_SCAN.value
+            and r.phase_results.get(Phase.GAP_SCAN.value, {}).get("status")
+            == PhaseStatus.FAILED.value
+        ]
+        if not failed_rows:
+            return 0
+
+        doc_groups: dict[str, list] = {}
+        for row in failed_rows:
+            doc_groups.setdefault(row.doc_id, []).append(row)
+
+        logger.info(
+            "retry_failed_phase1_docs: retrying %d docs (%d rows)",
+            len(doc_groups), len(failed_rows),
+        )
+
+        max_workers = min(self._compute_max_workers(8), len(doc_groups))
+        success_count = 0
+
+        def _retry_single(doc_id: str, rows: list) -> tuple:
+            result = run_gap_scan_document(
+                doc_id=doc_id,
+                rows=rows,
+                state=self._state,
+                llm_completion_fn=self._llm_fn,
+                model=self._model,
+                run_id=self._state.run_id,
+                lang=self._lang,
+            )
+            return (doc_id, rows, result)
+
+        with _cf.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(_retry_single, doc_id, rows): doc_id
+                for doc_id, rows in doc_groups.items()
+            }
+            for future in _cf.as_completed(futures):
+                doc_id = futures[future]
+                try:
+                    _, rows, result = future.result()
+                    with self._state_lock:
+                        recovered = 0
+                        for row in rows:
+                            row.set_phase_result(Phase.GAP_SCAN, result)
+                            if result.status in (
+                                PhaseStatus.COMPLETED.value,
+                                PhaseStatus.SKIPPED.value,
+                            ):
+                                row.advance_to_next_phase()
+                                recovered += 1
+                            self._state.update_row(row)
+                        success_count += min(1, recovered)
+                        self._save_state()
+                except Exception as e:
+                    logger.error(
+                        "retry_failed_phase1_docs: doc %s failed again: %s", doc_id, e
+                    )
+
+        logger.info(
+            "retry_failed_phase1_docs: %d/%d docs recovered",
+            success_count, len(doc_groups),
+        )
+        return success_count
 
     def _execute_phase_2(self) -> None:
         """Phase 2: Checklist Verification (LLM) — per-document grouping, parallelized."""
@@ -626,7 +791,7 @@ class AnalysisPipeline:
 
         import concurrent.futures
 
-        max_workers = min(4, len(doc_groups))
+        max_workers = min(self._compute_max_workers(4), len(doc_groups))
 
         def _verify_single_doc(doc_id: str, rows: list) -> tuple:
             result = run_checklist_verify_document(
@@ -776,7 +941,7 @@ class AnalysisPipeline:
 
         import concurrent.futures
 
-        max_workers = min(4, len(doc_groups))
+        max_workers = min(self._compute_max_workers(4), len(doc_groups))
 
         def _remediate_single_doc(doc_id: str, rows: list) -> tuple:
             result = run_remediation_document(
@@ -849,7 +1014,7 @@ class AnalysisPipeline:
         import concurrent.futures
 
         # Limit concurrency to avoid overwhelming LLM API
-        max_workers = min(4, len(doc_groups))
+        max_workers = min(self._compute_max_workers(4), len(doc_groups))
 
         def _verify_single_doc(doc_id: str, rows: list) -> tuple:
             """Process one document group. Returns (doc_id, rows, result)."""
@@ -927,7 +1092,7 @@ class AnalysisPipeline:
                     verified_doc_groups[doc_id] = refreshed_rows
 
             if verified_doc_groups and not self._budget_exceeded():
-                qa_max_workers = min(4, len(verified_doc_groups))
+                qa_max_workers = min(self._compute_max_workers(4), len(verified_doc_groups))
                 with concurrent.futures.ThreadPoolExecutor(
                     max_workers=qa_max_workers
                 ) as qa_executor:

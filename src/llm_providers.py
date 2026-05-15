@@ -769,6 +769,19 @@ class LLMProviderManager:
         )
         return True
 
+    def get_provider_runtime_info(self) -> dict:
+        """Return current provider info dict for run_metadata collection."""
+        p = self.current_provider
+        return {
+            "provider_id": p["provider_id"],
+            "provider_name": p["display_name"],
+            "provider_type": "Local LLM" if p["is_local"] else "Cloud API",
+            "is_local": p["is_local"],
+            "model": p.get("default_model", ""),
+            "api_base_url": p.get("api_base_url", "") if p["is_local"] else "",
+            "category": p.get("category", ""),
+        }
+
     def get_available_models(self) -> list[str]:
         """Get list of available models for current provider"""
         return self.current_provider["available_models"]
@@ -919,10 +932,15 @@ class LLMProviderManager:
             if api_key:
                 api_params["api_key"] = api_key
 
-            # Local providers: None = no timeout, wait indefinitely until the model responds.
-            # Cloud providers: 180s is generous for fast API responses.
+            # Local providers: no timeout by default (user requirement: 永久 — wait forever).
+            # Set LOCAL_LLM_TIMEOUT env var (seconds) to override when needed.
+            # Cloud providers: 180s default.
             if "timeout" not in api_params:
-                api_params["timeout"] = None if provider["is_local"] else 180
+                if provider["is_local"]:
+                    _local_to = os.getenv("LOCAL_LLM_TIMEOUT")
+                    api_params["timeout"] = int(_local_to) if _local_to else None
+                else:
+                    api_params["timeout"] = 180
 
             # Merge additional kwargs (but don't override stream)
             for k, v in kwargs.items():

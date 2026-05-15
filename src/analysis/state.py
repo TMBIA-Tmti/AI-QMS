@@ -334,6 +334,15 @@ class LLMBudget:
         return max(0, self.max_total_tokens - self.total_tokens_used)
 
     @property
+    def remaining_seconds(self) -> float:
+        """Seconds left in the time budget. Returns float('inf') if no limit."""
+        import time as _t
+        if self.max_time_seconds <= 0:
+            return float("inf")
+        elapsed = _t.time() - self.start_time if self.start_time > 0 else 0.0
+        return max(0.0, self.max_time_seconds - elapsed)
+
+    @property
     def exceeded(self) -> bool:
         import time
 
@@ -428,6 +437,9 @@ class PipelineState:
 
     # Selected regulations for multi-regulation cross-exam (persisted for restart recovery)
     selected_regulations: list[str] = field(default_factory=list)
+
+    # Runtime environment metadata (provider, hardware, max_workers) — populated at pipeline start
+    run_metadata: dict = field(default_factory=dict)
 
     # Completion
     completed_at: Optional[float] = None
@@ -571,6 +583,7 @@ class PipelineState:
             "verdict_distribution": verdict_counts,
             "llm_budget": budget.to_dict(),
             "pause_reason": self.pause_reason,
+            "run_metadata": self.run_metadata,
         }
 
     # ---- Serialization ----

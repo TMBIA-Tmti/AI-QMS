@@ -1334,6 +1334,21 @@ def run_gap_scan_document(
             },
         )
 
+        # For cloud providers, honour remaining time budget as per-call timeout.
+        # For local providers, pass no timeout (永久 — user requirement).
+        _is_local = False
+        try:
+            _mgr = getattr(llm_completion_fn, "__self__", None)
+            if _mgr and hasattr(_mgr, "current_provider"):
+                _is_local = _mgr.current_provider.get("is_local", False)
+        except Exception:
+            pass
+        _budget_timeout_kwargs: dict = {}
+        if not _is_local:
+            _remaining = budget.remaining_seconds
+            if _remaining != float("inf") and _remaining > 10:
+                _budget_timeout_kwargs = {"timeout": min(180, int(_remaining))}
+
         # Call LLM with retry for rate limit / transient errors
         response = None
         last_error = ""
@@ -1347,6 +1362,7 @@ def run_gap_scan_document(
                 temperature=temperature,
                 max_tokens=max_tokens,
                 stream=False,
+                **_budget_timeout_kwargs,
             )
             _rt = response.get("content", "")
             if _rt and not _rt.startswith("[ERROR]") and not response.get("all_failed"):

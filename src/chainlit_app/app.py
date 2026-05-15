@@ -4879,6 +4879,16 @@ async def _ask_product_docs_upload() -> Optional[str]:
         return None
 
 
+def _get_session_provider_info() -> dict:
+    """Return current provider runtime info from the active Chainlit session."""
+    try:
+        provider_id = cl.user_session.get("provider_id", "ollama")
+        manager = create_provider_manager(provider_id)
+        return manager.get_provider_runtime_info()
+    except Exception:
+        return {}
+
+
 async def handle_regulatory_list():
     """Handle 法規清單 command — scan regulatory references, integrate crawl data, LLM assessment."""
     storage = get_markdown_store()
@@ -5228,6 +5238,7 @@ async def handle_regulatory_list():
                 custom_skip_phases=_skip_phases if _skip_phases else None,
                 max_tokens_budget=10_000_000_000,
                 lang=_pipeline_lang,
+                provider_info=_get_session_provider_info(),
             )
 
         if pipeline_result and pipeline_result.success:
@@ -6378,6 +6389,7 @@ async def handle_regulatory_update_rescan(selected_regions: list):
                     else None,
                     max_tokens_budget=10_000_000_000,
                     lang=_pipeline_lang_update,
+                    provider_info=_get_session_provider_info(),
                 )
 
             if pipeline_result and pipeline_result.success:
