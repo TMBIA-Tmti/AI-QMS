@@ -1369,6 +1369,10 @@ def run_gap_scan_document(
                 break
             last_error = _rt[:300] if _rt else _err_empty
             is_rate_limit = "rate_limit" in last_error.lower() or "429" in last_error
+            # Connection errors on local providers are handled by llm_providers
+            # (_wait_for_local_service_ready + one retry inside completion()).
+            # If we still got [ERROR] after that reconnect cycle, no further
+            # outer retry will help — break immediately.
             if not is_rate_limit:
                 break  # non-rate-limit error — no point retrying
 

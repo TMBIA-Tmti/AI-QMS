@@ -977,6 +977,44 @@ class LLMProviderManager:
             error_msg = str(e)
             print(f"[ERROR] LLM completion failed: {error_msg}")
 
+            # ── Auto-reconnect for local providers ──────────────────────────
+            # When Ollama / LM Studio disconnects (connection error / server error),
+            # wait until the service comes back before returning the error.
+            # This is transparent to all callers — they receive the result once
+            # the service recovers and the retry succeeds.
+            # No timeout by default (永久). Set LOCAL_LLM_RECONNECT_MAX_WAIT
+            # env var to limit wait time.
+            _is_conn_error = any(t in error_msg.lower() for t in (
+                "connection error", "connectionerror", "connection refused",
+                "cannot connect", "failed to establish", "remotedisconnected",
+                "broken pipe", "econnrefused", "network error",
+            ))
+            if provider["is_local"] and _is_conn_error and not stream:
+                _wait_for_local_service_ready(provider)
+                # Retry once after service recovers
+                try:
+                    _retry_params = dict(api_params)  # reuse the same params
+                    _retry_params.pop("stream", None)
+                    _retry_params["stream"] = False
+                    _retry_response = litellm.completion(**_retry_params)
+                    return {
+                        "content": _retry_response.choices[0].message.content,
+                        "usage": {
+                            "prompt_tokens": _retry_response.usage.prompt_tokens
+                            if _retry_response.usage else 0,
+                            "completion_tokens": _retry_response.usage.completion_tokens
+                            if _retry_response.usage else 0,
+                            "total_tokens": _retry_response.usage.total_tokens
+                            if _retry_response.usage else 0,
+                        },
+                        "model": _retry_response.model,
+                        "provider": provider["provider_id"],
+                        "reconnected": True,
+                    }
+                except Exception as retry_e:
+                    error_msg = str(retry_e)
+                    print(f"[ERROR] LLM retry after reconnect failed: {error_msg}")
+
             # For streaming, yield an error message
             if stream:
 
@@ -1422,6 +1460,66 @@ def _fetch_models_lmstudio(base_url: str | None = None) -> list[str] | None:
         return sorted(models) if models else None
     except Exception:
         return None
+
+
+def _is_local_service_up(provider: dict) -> bool:
+    """Ping the local LLM service health endpoint.
+
+    Returns True if the service responds (regardless of model list).
+    Works for both Ollama (/api/tags) and LM Studio (/v1/models).
+    """
+    base_url = provider.get("api_base_url", "")
+    pid = provider.get("provider_id", "")
+    try:
+        if pid == "ollama" or "11434" in base_url:
+            url = base_url.rstrip("/") or "http://localhost:11434"
+            # Ollama: root returns "Ollama is running" with 200
+            resp = requests.get(url.rstrip("/v1") or url, timeout=3)
+        else:
+            # LM Studio and other OpenAI-compatible local servers
+            url = base_url.rstrip("/") or "http://localhost:1234/v1"
+            resp = requests.get(f"{url}/models", timeout=3)
+        return resp.status_code < 500
+    except Exception:
+        return False
+
+
+def _wait_for_local_service_ready(provider: dict) -> None:
+    """Block until the local LLM service (Ollama / LM Studio) responds.
+
+    Polls the health endpoint at configurable intervals.
+    Default: infinite wait (永久) with 15-second intervals.
+
+    Env vars:
+        LOCAL_LLM_RECONNECT_INTERVAL  — seconds between polls (default 15)
+        LOCAL_LLM_RECONNECT_MAX_WAIT  — total seconds before giving up (default 0 = infinite)
+    """
+    import time as _t
+
+    interval = int(os.getenv("LOCAL_LLM_RECONNECT_INTERVAL", "15"))
+    max_wait = int(os.getenv("LOCAL_LLM_RECONNECT_MAX_WAIT", "0"))  # 0 = infinite
+    provider_name = provider.get("display_name", "Local LLM")
+
+    waited = 0
+    attempt = 0
+    while True:
+        attempt += 1
+        if _is_local_service_up(provider):
+            if attempt > 1:
+                print(f"[OK] {provider_name} reconnected after {waited}s (attempt {attempt})")
+            return
+        print(
+            f"[WAIT] {provider_name} unreachable — retrying in {interval}s "
+            f"(attempt {attempt}{f', waited {waited}s so far' if waited else ''})"
+        )
+        _t.sleep(interval)
+        waited += interval
+        if max_wait > 0 and waited >= max_wait:
+            print(
+                f"[WARN] {provider_name} did not recover within {max_wait}s "
+                f"(LOCAL_LLM_RECONNECT_MAX_WAIT). Proceeding with error."
+            )
+            return
 
 
 def _fetch_models_openai(api_key: str | None = None) -> list[str] | None:
