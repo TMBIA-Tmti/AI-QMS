@@ -40,8 +40,8 @@ logger = logging.getLogger(__name__)
 _BATCH_SIZE = 24  # clauses per LLM call (71 clauses → 3 batches)
 _MAX_CONCURRENT_BATCHES = 3
 _MAX_RETRIES_BATCH = 2  # retry on timeout (3 total attempts)
-_MAX_REGULATORY_TEXT_CHARS = 6000  # truncate crawled text per LLM call
-_MAX_UNIQUE_REQ_TEXT_CHARS = 8000  # more context for unique requirements
+_MAX_REGULATORY_TEXT_CHARS = 12000  # truncate crawled text per LLM call
+_MAX_UNIQUE_REQ_TEXT_CHARS = 12000  # more context for unique requirements
 
 # Local model providers — smaller context windows, conservative defaults
 _LOCAL_PROVIDERS = {"ollama", "lmstudio"}
@@ -51,7 +51,7 @@ _CLOUD_PARAMS: dict = {
     "max_regulatory_chars": _MAX_REGULATORY_TEXT_CHARS,
     "max_unique_req_chars": _MAX_UNIQUE_REQ_TEXT_CHARS,
     "max_tokens_clause": 16384,
-    "max_tokens_unique": 8192,
+    "max_tokens_unique": 16384,
 }
 
 # batch_size 8: 8 clauses × ~200 token/clause ≈ 1,600 token output → fits in 8k
@@ -210,29 +210,206 @@ def _build_focused_regulatory_text(
 ) -> str:
     """Build a focused regulatory text excerpt.
 
-    Direction B: distribute max_chars evenly across sites so each site
-    contributes rather than the first site monopolising the budget.
+    G2 — doc_type-aware char distribution:
+      portal       sites are excluded entirely (no regulatory content).
+      primary      sites receive 2× weight relative to qms_guidance.
+      qms_guidance sites receive 1× weight.
+
     Direction C: within each site's budget, prioritise keyword-matching
     paragraphs so the LLM sees the most relevant content.
     """
-    valid = [ct for ct in crawled_texts if ct.get("content_markdown", "").strip()]
+    try:
+        from src.services.regulatory_crawler import get_site_doc_type as _gdt
+    except ImportError:
+        _gdt = None
+
+    # Filter out portal sites; classify remaining
+    valid: list[dict] = []
+    weights: list[int] = []
+    for ct in crawled_texts:
+        if not ct.get("content_markdown", "").strip():
+            continue
+        doc_type = ct.get("doc_type") or (_gdt(ct) if _gdt else "primary")
+        if doc_type == "portal":
+            continue
+        valid.append(ct)
+        weights.append(2 if doc_type == "primary" else 1)
+
     if not valid:
         return ""
 
-    chars_per_site = max(max_chars // len(valid), 500)
+    total_weight = sum(weights)
     parts: list[str] = []
-    for ct in valid:
+    for ct, w in zip(valid, weights):
+        site_chars = max(int(max_chars * w / total_weight), 300)
         agency = ct.get("agency", "")
         raw = ct["content_markdown"]
         excerpt = (
-            _filter_relevant_paragraphs(raw, clause_keywords, chars_per_site)
+            _filter_relevant_paragraphs(raw, clause_keywords, site_chars)
             if clause_keywords
-            else raw[:chars_per_site]
+            else raw[:site_chars]
         )
         header = f"[{agency}]" if agency else "[Source]"
         parts.append(f"{header}\n{excerpt}")
 
     return "\n---\n".join(parts)[:max_chars]
+
+
+# ============================================================
+# QMS Relevance Classifier (G2 — P-11/P-16)
+# ============================================================
+
+_QMS_GUIDANCE_KEYWORDS = frozenset([
+    "quality management", "qms", "document control", "management review",
+    "capa", "corrective action", "internal audit", "supplier control",
+    "design control", "risk management", "post-market surveillance",
+    "vigilance", "udi", "traceability", "notified body", "annex ix",
+    "annex xi", "good manufacturing practice", "gmp", "quality system",
+    "inspection criteria", "audit procedure", "iso 13485", "manufacturing control",
+    "complaint handling", "nonconforming product", "process validation",
+])
+
+_NON_QMS_KEYWORDS = frozenset([
+    "clinical evaluation only", "ivdr classification", "ecodesign",
+    "transition timeline news", "general timeline", "fees schedule",
+])
+
+
+def classify_qms_relevance(title: str, content_preview: str = "") -> str:
+    """Three-tier QMS relevance classification.
+
+    Returns: 'qms_relevant' | 'not_relevant' | 'uncertain'
+    """
+    combined = (title + " " + content_preview[:500]).lower()
+    qms_hits = sum(1 for kw in _QMS_GUIDANCE_KEYWORDS if kw in combined)
+    non_qms_hits = sum(1 for kw in _NON_QMS_KEYWORDS if kw in combined)
+    if qms_hits >= 1 and non_qms_hits == 0:
+        return "qms_relevant"
+    if non_qms_hits >= 1 and qms_hits == 0:
+        return "not_relevant"
+    return "uncertain"
+
+
+# ============================================================
+# Supplemental Guidance Analysis (G2 — P-10/MDCG)
+# ============================================================
+
+
+async def analyze_supplemental_guidance(
+    region_name: str,
+    guidance_texts: list[dict],
+    llm_completion_fn: Callable,
+    model: str = "default",
+    provider_id: str = "ollama",
+    is_local_override: Optional[bool] = None,
+    max_guidance_docs: int = 5,
+) -> list:
+    """Analyze supplemental guidance documents for additional QMS requirements.
+
+    For each guidance doc (up to max_guidance_docs most relevant ones), asks LLM:
+    'What QMS requirements does this guidance add BEYOND ISO 13485 base requirements?'
+
+    Returns list of UniqueRequirement objects to append to the country's profile.
+    """
+    from src.analysis.compliance_rules import (
+        UniqueRequirement, MappingMethod, MappingStatus,
+    )
+
+    if not guidance_texts:
+        return []
+
+    is_local = is_local_override if is_local_override is not None else _is_local_provider(provider_id)
+    max_chars = 4000 if is_local else 8000
+
+    # Score and rank guidance docs by QMS relevance
+    scored: list[tuple[int, dict]] = []
+    for ct in guidance_texts:
+        title = ct.get("agency", "") + " " + ct.get("url", "")
+        preview = ct.get("content_markdown", "")[:300]
+        rel = classify_qms_relevance(title, preview)
+        score = {"qms_relevant": 2, "uncertain": 1, "not_relevant": 0}[rel]
+        if score > 0:
+            scored.append((score, ct))
+
+    scored.sort(key=lambda x: -x[0])
+    selected = [ct for _, ct in scored[:max_guidance_docs]]
+
+    all_reqs: list[UniqueRequirement] = []
+    seen_titles: set[str] = set()
+
+    for ct in selected:
+        agency = ct.get("agency", "Unknown")
+        content = ct.get("content_markdown", "")[:max_chars]
+        if not content.strip():
+            continue
+
+        prompt = f"""You are analyzing regulatory guidance for medical device QMS compliance.
+
+Agency/Document: {agency}
+Region: {region_name}
+
+GUIDANCE CONTENT:
+{content}
+
+TASK: Identify QMS requirements in this guidance that ADD to or EXCEED the base ISO 13485:2016 requirements.
+Focus on concrete requirements that a manufacturer's QMS must address.
+Ignore general information, clinical/device-specific requirements, and things already covered by ISO 13485.
+
+Respond with a JSON array (max 5 items). Each item:
+{{
+  "title_en": "short requirement title (max 60 chars)",
+  "requirement_en": "specific QMS requirement description (1-2 sentences)",
+  "related_iso_clauses": ["4.2.3", "8.2.2"],
+  "audit_impact": "major|minor|informational",
+  "source_agency": "{agency}"
+}}
+
+If no additional QMS requirements found, return empty array: []"""
+
+        messages = [{"role": "user", "content": prompt}]
+        try:
+            resp = await llm_completion_fn(
+                messages=messages,
+                model=model,
+                temperature=0.1,
+                max_tokens=2048,
+                stream=False,
+            )
+            raw = resp.get("content", "") if isinstance(resp, dict) else str(resp)
+            # Extract JSON array
+            import re as _re
+            m = _re.search(r'\[.*?\]', raw, _re.DOTALL)
+            if not m:
+                continue
+            items = json.loads(m.group())
+            for item in items:
+                title_key = item.get("title_en", "")[:40].lower()
+                if title_key in seen_titles or not title_key:
+                    continue
+                seen_titles.add(title_key)
+                req = UniqueRequirement(
+                    req_id=f"{agency.upper().replace('-','_')[:8]}_{len(all_reqs)+1:03d}",
+                    regulation_ref=agency,
+                    title_en=item.get("title_en", ""),
+                    title_zh=item.get("title_zh", item.get("title_en", "")),
+                    requirement_en=item.get("requirement_en", ""),
+                    requirement_zh=item.get("requirement_zh", ""),
+                    related_iso_clauses=item.get("related_iso_clauses", []),
+                    audit_impact=item.get("audit_impact", "major"),
+                    audit_question_en=f"Does the QMS address: {item.get('title_en','')}?",
+                    audit_question_zh=f"QMS 是否涵蓋：{item.get('title_en','')}？",
+                    expected_evidence=["Documented procedure", "Records"],
+                    rationale_en=f"Required by {agency} guidance for {region_name}",
+                    rationale_zh=f"{region_name} {agency} 指引要求",
+                    method=MappingMethod.LLM_ANALYSIS,
+                    confidence=0.75,
+                    is_within_clause_delta=False,
+                )
+                all_reqs.append(req)
+        except Exception as exc:
+            logger.warning(f"analyze_supplemental_guidance failed for {agency}: {exc}")
+
+    return all_reqs
 
 
 # ============================================================
@@ -604,6 +781,23 @@ async def analyze_regulation_with_llm(
             break
 
     # ── Step 3: Build and save profile ──
+    # D-2: compute content_quality based on non-na ratio
+    _non_na_count = sum(
+        1 for m in iso_mapped.values()
+        if m.status != MappingStatus.NOT_APPLICABLE
+    )
+    _total_clauses = max(len(iso_mapped), 1)
+    _non_na_ratio = _non_na_count / _total_clauses
+    _fallback_used = any(
+        ct.get("content_source") == "pre-written" for ct in crawled_texts
+    )
+    if _fallback_used:
+        _content_quality = "fallback_used"
+    elif _non_na_ratio < 0.05:
+        _content_quality = "low"
+    else:
+        _content_quality = "ok"
+
     profile = RegulationProfile(
         regulation_id=profile_id,
         name_en=f"{en_name} Medical Device QMS Regulation",
@@ -616,6 +810,7 @@ async def analyze_regulation_with_llm(
         last_updated=datetime.now().strftime("%Y-%m-%d"),
         iso_mapped=iso_mapped,
         unique_requirements=unique_reqs,
+        content_quality=_content_quality,
     )
 
     try:
@@ -627,6 +822,34 @@ async def analyze_regulation_with_llm(
         )
     except Exception as e:
         logger.error(f"Failed to save RegulationProfile for {profile_id}: {e}")
+
+    # ── Upgrade predefined profile if this region maps to one (P-01/P-02/P-03) ──
+    try:
+        from src.analysis.compliance_rules import (
+            _REGION_TO_PROFILE_STATIC,
+            get_regulation,
+            merge_profiles,
+            backup_predefined_profile,
+        )
+        _predefined_id = _REGION_TO_PROFILE_STATIC.get(region_name)
+        if _predefined_id and _predefined_id != profile_id:
+            _base = get_regulation(_predefined_id)
+            if _base is not None:
+                _merged = merge_profiles(_base, profile)
+                if _merged is not None:
+                    backup_predefined_profile(_predefined_id)
+                    _upgraded_path = save_crawled_regulation(_merged, as_id=_predefined_id)
+                    logger.info(
+                        f"Upgraded predefined profile {_predefined_id} "
+                        f"via merge with {profile_id} → {_upgraded_path}"
+                    )
+                else:
+                    logger.info(
+                        f"Crawled profile {profile_id} quality below threshold "
+                        f"— predefined {_predefined_id} retained unchanged"
+                    )
+    except Exception as _upg_err:
+        logger.warning(f"Profile upgrade step failed for {profile_id}: {_upg_err}")
 
     if send_progress_fn:
         mapped_count = sum(

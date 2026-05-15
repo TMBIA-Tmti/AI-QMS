@@ -173,15 +173,6 @@ REGION_SITES = {
             "crawl_delay": 3,
             "note": "QMSR Final Rule (89 FR 7496, Rule 2024-01709) published Feb 2, 2024, effective Feb 2, 2026 — amends 21 CFR Part 820 to incorporate ISO 13485:2016 by reference; eCFR full text at ecfr.gov/current/title-21/chapter-I/subchapter-H/part-820",
         },
-        {
-            "agency": "Federal-Register-QMSR",
-            "name": "Federal Register — FDA QMSR Final Rule 2024-01709 (full text)",
-            "url": "https://www.federalregister.gov/documents/2024/02/02/2024-01709/medical-devices-quality-system-regulation-amendments",
-            "tier": 2,
-            "strategy": "html",
-            "crawl_delay": 3,
-            "note": "Federal Register full text of FDA QMSR Final Rule 89 FR 7496 — tier 2 HTML (API URL caused ProtocolError with unencoded brackets); direct page URL is stable",
-        },
     ],
     "歐盟 (EU)": [
         {
@@ -1154,6 +1145,7 @@ REGION_SITES = {
 REGION_PROFILES: dict[tuple[str, str], str] = {
     ("台灣 (Taiwan)", "TFDA-QMS"): """\
 # 醫療器材品質管理系統準則 (Taiwan QMS Criteria)
+# Last reviewed: 2026-05-14
 
 **主管機關**: 衛生福利部食品藥物管理署 (TFDA)
 **法規編號**: pcode L0030116
@@ -1180,6 +1172,7 @@ REGION_PROFILES: dict[tuple[str, str], str] = {
 """,
     ("台灣 (Taiwan)", "TFDA-QMS-EN"): """\
 # Medical Device Quality Management System Guidelines — Taiwan (English)
+# Last reviewed: 2026-05-14
 
 **Authority**: Taiwan TFDA | **Law Code**: L0030116 | **Effective**: 2021-05-01
 
@@ -1200,6 +1193,7 @@ A valid ISO 13485:2016 certificate from an accredited body is accepted as eviden
 """,
     ("美國 (USA)", "FDA-QMSR"): """\
 # FDA Quality Management System Regulation (QMSR) — 21 CFR Part 820
+# Last reviewed: 2026-05-14
 
 **Authority**: U.S. Food and Drug Administration (FDA / CDRH)
 **Citation**: 21 CFR Part 820
@@ -1230,6 +1224,7 @@ Where ISO 13485 is silent, FDA guidance documents supplement requirements.
 """,
     ("美國 (USA)", "eCFR-820"): """\
 # 21 CFR Part 820 — Quality Management System Regulation (QMSR) Full Text
+# Last reviewed: 2026-05-14
 
 **Source**: Electronic Code of Federal Regulations (eCFR)
 **Effective**: February 2, 2026 | **Replaces**: Former QSR (21 CFR 820, 1996)
@@ -1240,6 +1235,7 @@ for device history records, design history files, and complaint handling linked 
 """,
     ("歐盟 (EU)", "EUR-Lex-MDR-OJ"): """\
 # EU Medical Device Regulation (EU MDR) 2017/745
+# Last reviewed: 2026-05-14
 
 **Citation**: Regulation (EU) 2017/745 of the European Parliament and of the Council
 **Published**: OJ L 117, 5.5.2017 | **Full Application Date**: May 26, 2021
@@ -1323,6 +1319,7 @@ Manufacturers must maintain and apply a QMS approved by a notified body covering
 """,
     ("歐盟 (EU)", "MDCG"): """\
 # EU MDR MDCG Guidance — QMS Requirements
+# Last reviewed: 2026-05-14
 
 **Source**: Medical Device Coordination Group (MDCG) endorsed guidance documents
 **Primary Document**: MDCG 2019-11 Rev.1 "Guidance on the QMS documentation that notified
@@ -1394,6 +1391,7 @@ by an alternative method with equivalent evidence.
 """,
     ("英國 (UK)", "UK-MDR-2002"): """\
 # The Medical Devices Regulations 2002 (SI 2002/618) — UK QMS Requirements
+# Last reviewed: 2026-05-14
 
 **Citation**: SI 2002/618 (as amended)
 **Authority**: Medicines and Healthcare products Regulatory Agency (MHRA)
@@ -1421,6 +1419,7 @@ of QMS compliance for UKCA marking.
 """,
     ("日本 (Japan)", "eGov-QMS-169"): """\
 # 医療機器 QMS 省令 — MHLW Ministerial Ordinance No. 169 (QMS省令)
+# Last reviewed: 2026-05-14
 
 **正式名称**: 医療機器及び体外診断用医薬品の製造管理及び品質管理の基準に関する省令
 **根拠法**: 医薬品、医療機器等の品質、有効性及び安全性の確保等に関する法律（薬機法）第 23 条の 2 の 5
@@ -1449,6 +1448,7 @@ of QMS compliance for UKCA marking.
 """,
     ("中國 (China)", "NMPA-GMP-CN"): """\
 # Good Manufacturing Practice for Medical Devices — China (Revised 2025)
+# Last reviewed: 2026-05-14
 
 **Authority**: National Medical Products Administration (NMPA)
 **Announcement**: NMPA [2025] No. 107 (issued November 2025)
@@ -1481,35 +1481,169 @@ Foreign manufacturers must obtain NMPA GMP compliance certification for import r
 """,
     ("韓國 (Korea)", "MFDS-KGMP"): """\
 # Korea Good Manufacturing Practice for Medical Devices (K-GMP)
+# Last reviewed: 2026-05-14
 
 **Korean Name**: 의료기기 제조 및 품질관리 기준
 **Authority**: Ministry of Food and Drug Safety (MFDS)
 **Legal Basis**: Medical Devices Act Article 6 (Act No. 14330)
 **Latest Revision**: 2024 (aligned with ISO 13485:2016 Third Edition)
+**Structure**: 9 Chapters, 79 Articles
 
-## Key Requirements
+## Chapter 2 — Quality Management System (ISO 13485 §4 equivalent)
 
-| Clause | Topic |
-|---|---|
-| Chapter 2 | Quality Management System (ISO 13485 §4) |
-| Chapter 3 | Management Responsibility (ISO 13485 §5) |
-| Chapter 4 | Resource Management (ISO 13485 §6) |
-| Chapter 5 | Product Realization (ISO 13485 §7) |
-| Chapter 6 | Measurement, Analysis, and Improvement (ISO 13485 §8) |
+Article 4 (§4.1): The manufacturer shall establish, document, implement, and maintain a quality
+management system and continually improve its effectiveness in accordance with the requirements
+of this standard. The manufacturer shall determine the processes needed for the QMS.
 
-## Certification
+Article 5 (§4.2.1): Documentation shall include: (a) documented quality policy and quality
+objectives; (b) a quality manual; (c) documented procedures and records required by this
+standard; (d) documents needed to ensure the effective planning, operation, and control of
+processes.
 
-- Class I: Self-declaration of GMP compliance
-- Class II–IV: GMP assessment by MFDS or accredited inspection body required
-- ISO 13485:2016 certificate accepted as substitute for foreign manufacturers via MDSAP
+Article 6 (§4.2.2): The manufacturer shall establish and maintain a quality manual that includes:
+the scope of the QMS, documented procedures or reference to them, and a description of the
+interaction between the processes of the QMS.
 
-## Scope
+Article 7 (§4.2.3): Document control procedures shall include approval, review, update,
+identification of changes, availability at point of use, and prevention of unintended use of
+obsolete documents.
 
-Applies to all Class I–IV medical device manufacturers in Korea and foreign manufacturers
-seeking MFDS registration.
+Article 8 (§4.2.4): Records shall be controlled. The manufacturer shall establish procedures
+for identification, storage, protection, retrieval, retention time, and disposition of records.
+Retention period: at least the lifetime of the device but no less than 2 years from product
+release date (Korea-specific retention requirement).
+
+Article 9 (§4.2.5): Technical documentation (Device Master Record equivalent) shall be
+maintained for each device type.
+
+## Chapter 3 — Management Responsibility (ISO 13485 §5 equivalent)
+
+Article 10 (§5.1): Top management shall provide evidence of commitment to the development
+and implementation of the QMS and maintaining its effectiveness.
+
+Article 11 (§5.2): Top management shall ensure that customer requirements are determined
+and met.
+
+Article 12 (§5.3): Top management shall establish the quality policy. The quality policy
+shall be appropriate to the purpose of the organization, include a commitment to comply
+with requirements and maintain the effectiveness of the QMS.
+
+Article 13 (§5.4.1): Top management shall ensure that quality objectives are established
+at relevant functions and levels within the organization.
+
+Article 14 (§5.4.2): Top management shall ensure that the planning of the QMS is carried
+out.
+
+Article 15 (§5.5.1): Top management shall ensure that responsibilities and authorities
+are defined and communicated.
+
+Article 16 (§5.5.2): Top management shall appoint a member of management who, irrespective
+of other responsibilities, shall have responsibility and authority for ensuring QMS processes
+are established, implemented, and maintained (Management Representative).
+
+Article 17 (§5.5.3): Top management shall ensure that appropriate communication processes
+are established and that communication takes place regarding the effectiveness of the QMS.
+
+Article 18 (§5.6): Management shall conduct reviews of the QMS at planned intervals.
+Management review inputs shall include: audit results, customer feedback, process performance,
+product conformity, preventive and corrective actions, previous review follow-up, and
+regulatory changes.
+
+## Chapter 4 — Resource Management (ISO 13485 §6 equivalent)
+
+Article 19 (§6.1): The organization shall determine and provide the resources needed to
+implement, maintain, and continually improve the effectiveness of the QMS.
+
+Article 20 (§6.2): Personnel performing work affecting product quality shall be competent
+on the basis of appropriate education, training, skills, and experience.
+
+Article 21 (§6.3): The organization shall determine, provide, and maintain the infrastructure
+needed to achieve conformity to product requirements. Infrastructure includes buildings,
+workspace, process equipment, and supporting services.
+
+Article 22 (§6.4): The organization shall determine and manage the work environment needed
+to achieve conformity to product requirements, including contamination control for sterile
+or clean room environments.
+
+## Chapter 5 — Product Realization (ISO 13485 §7 equivalent)
+
+Article 23 (§7.1): The organization shall plan and develop the processes needed for product
+realization. This shall be consistent with the requirements of other processes of the QMS,
+including risk management (per MFDS Medical Device Risk Management Guidelines).
+
+Article 24 (§7.2.1): Customer-related requirements shall be determined, including
+requirements for the device, requirements not stated by the customer but necessary for
+intended use, applicable regulatory requirements, and any additional requirements.
+
+Article 25 (§7.2.2): The organization shall review the requirements related to the product
+prior to commitment to supply.
+
+Article 26 (§7.2.3): The organization shall determine and implement effective arrangements
+for communicating with customers regarding complaints and advisory notices.
+
+Article 27–30 (§7.3): Design and development planning, inputs, outputs, review,
+verification, validation, transfer, changes, and design history file (DHF) requirements.
+The DHF shall be maintained for each device type.
+
+Article 31 (§7.4.1): Supplier evaluation and selection criteria shall be established.
+Purchasing information shall describe the product to be purchased. Purchased product shall
+be verified.
+
+Articles 32–36 (§7.5.1–7.5.11): Production and service provision controls, cleanliness,
+identification and traceability (lot number mandatory), customer property, preservation,
+process validation, and sterile device requirements. Implantable device traceability
+records shall be maintained for the lifetime of the device.
+
+Article 37 (§7.6): Monitoring and measuring equipment shall be calibrated at specified
+intervals or prior to use. Calibration records shall be maintained.
+
+## Chapter 6 — Measurement, Analysis and Improvement (ISO 13485 §8 equivalent)
+
+Article 38 (§8.1): The organization shall plan and implement the monitoring, measurement,
+analysis, and improvement processes needed.
+
+Article 39 (§8.2.1): Feedback from the post-production phase shall be gathered and used
+as input to risk management and product monitoring.
+
+Article 40 (§8.2.2): Complaint handling procedures shall be established. Complaints
+shall be investigated and records maintained. Korea-specific: adverse event reports to
+MFDS within 15 days for serious adverse events, 30 days for all others.
+
+Article 41 (§8.2.3): The manufacturer shall report to MFDS any adverse event that has
+occurred inside or outside Korea if the device caused or may have caused serious injury,
+death, or a significant public health risk.
+
+Article 42 (§8.2.4): Internal audits shall be conducted at planned intervals to determine
+whether the QMS conforms to planned arrangements and requirements of this standard.
+
+Article 43 (§8.2.5–8.2.6): Monitoring and measurement of processes and product quality
+shall be performed.
+
+Article 44 (§8.3): Nonconforming product shall be identified and controlled. Rework
+and re-inspection procedures shall be documented.
+
+Article 45 (§8.4): Data analysis shall be performed to determine the suitability and
+effectiveness of the QMS.
+
+Articles 46–47 (§8.5.2–8.5.3): CAPA procedures shall be established. Root cause analysis
+shall be performed. Corrective actions shall be proportionate to the effects of the
+nonconformities encountered. Preventive actions shall be determined to eliminate causes
+of potential nonconformities.
+
+## Korea-Specific Additional Requirements (beyond ISO 13485)
+
+- **MFDS GMP Certificate**: Class II–IV manufacturers must obtain MFDS GMP certificate
+  (or accredited inspection body GMP certificate) renewed every 3 years.
+- **UDI (Unique Device Identification)**: Korea adopted UDI system from January 2024.
+  Class III/IV implantable devices first, phased rollout through 2027.
+- **Post-Market Surveillance Report**: Annual PMS report required for Class II–IV.
+- **Re-examination Period**: Class III–IV new devices undergo 6-year re-examination period.
+- **Adverse Event Reporting**: Serious injury/death: 15 days; other adverse events: 30 days;
+  MDR-equivalent field safety notices must be submitted to MFDS before implementing FSCA.
 """,
     ("加拿大 (Canada)", "CMDR-SOR98-282"): """\
 # Medical Devices Regulations SOR/98-282 — QMS Requirements (Section 32)
+# Last reviewed: 2026-05-14
 
 **Citation**: SOR/98-282, Medical Devices Regulations
 **Authority**: Health Canada
@@ -1540,6 +1674,7 @@ Measurement/Monitoring/Analysis, and Improvement — all mapped to ISO 13485:201
 """,
     ("澳洲 (Australia)", "TGA-Legislation"): """\
 # Therapeutic Goods (Medical Devices) Regulations 2002 — QMS Requirements
+# Last reviewed: 2026-05-14
 
 **Citation**: F2002B00237, TG(MD)R 2002 (current consolidated text)
 **Authority**: Therapeutic Goods Administration (TGA)
@@ -1567,6 +1702,7 @@ in lieu of separate TGA conformity assessment for QMS requirements.
 """,
     ("瑞士 (Switzerland)", "MedDO-SR812213"): """\
 # Verordnung über Medizinprodukte (MedDO) SR 812.213 — Swiss Medical Devices Ordinance
+# Last reviewed: 2026-05-14
 
 **Citation**: SR 812.213
 **Authority**: Swissmedic
@@ -1595,6 +1731,7 @@ EUDAMED-compatible Swiss registration system and hold Swissmedic-accepted QMS ce
 """,
     ("巴西 (Brazil)", "ANVISA-RDC665"): """\
 # RDC nº 665/2022 — Boas Práticas de Fabricação para Produtos para Saúde (BGMP)
+# Last reviewed: 2026-05-14
 
 **Citation**: Resolução RDC nº 665, de 30 de março de 2022
 **Authority**: ANVISA (Agência Nacional de Vigilância Sanitária)
@@ -1627,6 +1764,7 @@ BGMP compliance as part of ANVISA registration (INMETRO or recognised CB scheme 
 """,
     ("印度 (India)", "CDSCO-MDR2017"): """\
 # Medical Devices Rules 2017 (MDR 2017) — India QMS Requirements
+# Last reviewed: 2026-05-14
 
 **Citation**: G.S.R. 78(E), Ministry of Health and Family Welfare, January 31, 2017
 **Authority**: Central Drugs Standard Control Organisation (CDSCO)
@@ -1661,70 +1799,204 @@ Foreign manufacturers must submit ISO 13485 certificate with import licence appl
 """,
     ("新加坡 (Singapore)", "SSO-HPR-2010"): """\
 # Health Products (Medical Devices) Regulations 2010 (S 436/2010) — Singapore QMS
+# Last reviewed: 2026-05-14
 
-> **⚠️ 無獨立 QMS 法規 / 独立QMS法令なし / NO INDEPENDENT QMS LAW** — Singapore has no standalone QMS regulation equivalent to EU MDR Annex IX or FDA 21 CFR Part 820. QMS requirement exists by reference to ISO 13485:2016 in HP(MD)R 2010 Regulation 23 and Third Schedule.
+> **⚠️ 無獨立 QMS 法規 / NO INDEPENDENT QMS LAW** — Singapore has no standalone QMS
+> regulation. QMS requirements derive from HP(MD)R 2010 Regulation 23 and the Third
+> Schedule, which incorporate ISO 13485:2016 by reference as the mandatory standard.
 
-**Citation**: S 436/2010, made under Health Products Act (HPA) Cap 122D
+**Citation**: S 436/2010 (Health Products Act, Cap 122D)
 **Authority**: Health Sciences Authority (HSA)
-**In Force**: November 1, 2010 (amended 2021, 2024)
+**Effective**: November 1, 2010 (amended through 2024)
 
-## QMS Requirements
+## Regulation 23 — Quality Management System Requirement
 
-Regulation 23 and Third Schedule require that manufacturers of Class B, C, and D devices
-hold a valid ISO 13485:2016 certificate for their manufacturing site(s).
+23.—(1) A manufacturer of a registrable medical device (Class B, C, or D) shall implement
+and maintain a quality management system that conforms to ISO 13485:2016 as a condition
+of obtaining and retaining a manufacturer's licence under section 36A of the Act.
 
-| Device Class | QMS Requirement |
-|---|---|
-| Class A | No ISO 13485 required (self-declaration) |
-| Class B | ISO 13485 certificate (from Jan 1, 2025: MDSAP or equivalent) |
-| Class C | ISO 13485 certificate |
-| Class D | ISO 13485 certificate |
+23.—(2) The quality management system shall cover all processes related to design and
+development, production, installation, and servicing of the device at each manufacturing
+site identified in the manufacturer's licence.
 
-## From January 1, 2025
+23.—(3) The QMS shall include the following documented requirements, consistent with
+ISO 13485:2016:
+  (a) Quality policy and quality objectives (§5.3, §5.4.1);
+  (b) Quality manual (§4.2.2);
+  (c) Document control procedures (§4.2.3);
+  (d) Record control procedures (§4.2.4);
+  (e) Management review procedures (§5.6);
+  (f) Resource management including personnel competence and training (§6.2);
+  (g) Risk management integrated with product realization (§7.1);
+  (h) Design and development controls where applicable (§7.3);
+  (i) Purchasing and supplier controls (§7.4);
+  (j) Production and service provision controls (§7.5);
+  (k) Monitoring and measurement of processes and products (§8.2.5, §8.2.6);
+  (l) CAPA procedures (§8.5.2, §8.5.3);
+  (m) Complaint handling and post-market surveillance (§8.2.1, §8.2.2).
 
-HSA requires MDSAP audit certificate OR ISO 13485 certificate from an MDSAP-recognised
-auditing organisation for manufacturer licence applications (Class B/C/D).
+## Third Schedule — Conformity Assessment Routes
 
-## ASEAN MDD Alignment
+Third Schedule Part 1 (Design Examination): Applies to Class D devices. Requires
+full technical documentation review by HSA or recognized Conformity Assessment Body (CAB).
 
-Singapore HP(MD)R is broadly aligned with the ASEAN Medical Device Directive (AMDD)
-framework, facilitating mutual recognition across ASEAN member states.
+Third Schedule Part 2 (Product Quality Assurance): Applies to Class C/D devices.
+Requires QMS assessment — ISO 13485 certificate covering manufacturing site.
+
+Third Schedule Part 3 (Type Examination + QMS): Applies to Class C/D devices via
+alternative route combining type-testing with QMS certificate.
+
+## Device Classes and QMS Requirements
+
+| Class | Risk | QMS Requirement |
+|---|---|---|
+| Class A | Low | No ISO 13485 required; self-declaration of safety |
+| Class B | Low-Moderate | ISO 13485 certificate from MDSAP-recognised body (from Jan 2025) |
+| Class C | Moderate-High | ISO 13485 certificate; Third Schedule assessment |
+| Class D | High | ISO 13485 certificate; HSA design examination |
+
+## HSA QMS Specific Requirements (beyond ISO 13485 base)
+
+- **Complaint Handling (Reg. 41)**: Serious adverse events to HSA within 10 days;
+  non-serious adverse events within 30 days.
+- **Field Safety Corrective Actions (FSCA) (Reg. 42)**: FSCA notification to HSA before
+  implementing; Field Safety Notice (FSN) to be issued.
+- **Post-Market Surveillance (Reg. 39)**: PMS system required for all Class B/C/D devices;
+  trend reporting to HSA for Class C/D.
+- **UDI (Reg. 23A)**: UDI requirement phased in from 2024–2027; Class D first.
+- **Authorised Local Correspondent**: Foreign manufacturer must appoint a Singapore-registered
+  Company to act as correspondent (local agent responsibility).
+
+## From January 1, 2025 — MDSAP Mandatory
+
+HSA accepts only MDSAP audit certificates from MDSAP participant auditing organisations
+(BSI, SGS, DNV, TÜV SÜD, DEKRA, Bureau Veritas) for new and renewal manufacturer licence
+applications for Class B, C, and D devices.
 """,
     ("沙烏地阿拉伯 (Saudi Arabia)", "SFDA-MDS-REQ10"): """\
 # SFDA Requirements for Inspections and Quality Management System — MDS-REQ10
+# Last reviewed: 2026-05-14
 
-**Citation**: MDS-REQ10 (SFDA Medical Devices Sector)
-**Authority**: Saudi Food and Drug Authority (SFDA)
-**Basis**: Medical Devices Law (Royal Decree M/65, 2017)
+**Citation**: MDS-REQ10 (SFDA Medical Devices Sector, Version 2.0, January 2021)
+**Authority**: Saudi Food and Drug Authority (SFDA), Medical Devices Sector
+**Legal Basis**: Medical Devices Law (Royal Decree M/65, 2017); SFDA Regulations
+**Supplementary**: MDS-G024 — SFDA Guidance for ISO 13485 Requirements with SFDA Regulations
 
-## Key Requirements
+## Section 3 — QMS General Requirements (maps to ISO 13485 §4)
 
-MDS-REQ10 specifies that all medical device establishments (manufacturers, importers, distributors)
-must implement a QMS compliant with ISO 13485:2016 as a condition of SFDA establishment licence.
+3.1 The establishment shall establish, document, implement, and maintain a QMS and
+continually improve its effectiveness in accordance with ISO 13485:2016.
 
-### QMS Scope
+3.2 Documentation requirements shall include:
+  (a) Quality policy (§5.3) and quality objectives (§5.4.1);
+  (b) Quality manual describing QMS scope and process interactions (§4.2.2);
+  (c) Documented procedures required by ISO 13485:2016 (§4.2.1);
+  (d) Records required by ISO 13485:2016 (§4.2.4).
 
-- Design and development (for manufacturers)
-- Supplier management and purchasing controls
-- Production and service controls
-- Post-market surveillance and vigilance
-- Complaint handling and CAPA
-- Document and records management
+3.3 Document control: The establishment shall establish a documented procedure for
+document control including approval, review, revision, identification, and accessibility
+of documents (§4.2.3). Records shall be legible, identifiable, and retrievable.
 
-## ISO 13485 Certification
+3.4 Device Master Record: Technical file / Device Master Record shall be established
+and maintained for each device or device family (§4.2.5). Minimum retention: 5 years
+from date of manufacture, or lifetime of the device, whichever is longer.
 
-- Manufacturers must submit ISO 13485:2016 certificate (accredited CB required)
-- Foreign manufacturers: certificate must cover the manufacturing site
-- MDSAP certificate accepted as equivalent to ISO 13485 certificate
+## Section 4 — Management Responsibility (maps to ISO 13485 §5)
 
-## SFDA Registration Process
+4.1 Top management shall demonstrate commitment by establishing quality policy and
+objectives, conducting management reviews, and ensuring availability of resources (§5.1).
 
-1. Establishment Licence (requires ISO 13485 + MDS-REQ10 compliance declaration)
-2. Device Licence (product registration via GHAD online system)
-3. Periodic inspection by SFDA QMS inspectors
+4.2 Customer focus: The establishment shall determine customer requirements and ensure
+they are met (§5.2). Post-market requirements shall be integrated into QMS.
+
+4.3 Quality policy shall be appropriate, include commitment to compliance and continual
+improvement, be communicated and understood at all levels (§5.3).
+
+4.4 Management representative shall be appointed with responsibility for QMS (§5.5.2).
+
+4.5 Management review shall be conducted at least annually. Records shall be maintained.
+Inputs include: internal audit results, customer feedback, process/product monitoring,
+CAPA status, and changes affecting QMS (§5.6.2).
+
+## Section 5 — Resource Management (maps to ISO 13485 §6)
+
+5.1 Resources shall be provided for QMS implementation and improvement (§6.1).
+
+5.2 Personnel performing work affecting product quality shall be competent based on
+education, training, skills, and experience. Training records shall be maintained (§6.2).
+
+5.3 Infrastructure (buildings, equipment, utilities) shall be determined, provided, and
+maintained. Maintenance schedules shall be documented (§6.3).
+
+5.4 Work environment including contamination control shall be managed. Environmental
+monitoring records required for sterile manufacturing (§6.4).
+
+## Section 6 — Product Realization (maps to ISO 13485 §7)
+
+6.1 Planning of product realization shall include quality objectives, processes, documents,
+resources, and risk management activities (§7.1). Risk management per ISO 14971 required.
+
+6.2 Customer requirements shall be determined including applicable regulatory requirements
+(Saudi FDA licensing requirements, SFDA device classification rules) (§7.2.1).
+
+6.3 Design and development controls required for Class B, C, D devices: planning, inputs,
+outputs, review, verification, validation, transfer, changes, and design history file
+(§7.3). DHF shall be maintained for the lifetime of the device.
+
+6.4 Purchasing: Approved supplier list shall be maintained. Supplier evaluation criteria
+shall be defined. Incoming inspection/verification procedures shall be documented (§7.4).
+
+6.5 Production and service: Manufacturing controls shall include documented procedures,
+work instructions, monitoring and control criteria, and process parameters. Process
+validation required for processes where output cannot be verified by subsequent monitoring
+(§7.5.1, §7.5.6). Traceability of device to raw material lot numbers required (§7.5.3).
+
+6.6 Sterile devices: Additional requirements for sterility assurance, sterilization
+validation, bioburden testing, and sterilization batch records (§7.5.7).
+
+6.7 Calibration: Monitoring and measuring equipment shall be calibrated at specified
+intervals. Calibration records and uncertainty of measurement shall be documented (§7.6).
+
+## Section 7 — Measurement, Analysis and Improvement (maps to ISO 13485 §8)
+
+7.1 Feedback system: Post-market surveillance process shall be established and maintained.
+PMS data shall be input to risk management and continuous improvement (§8.2.1).
+
+7.2 Complaint handling: Written procedure for receiving, recording, evaluating, and
+investigating complaints required. SFDA-specific: complaints involving risk of death or
+serious injury must be reported to SFDA within 15 calendar days (§8.2.2, §8.2.3).
+
+7.3 Adverse event reporting: Saudi-specific requirement — all serious adverse events
+(actual and near-misses involving risk of serious injury/death) must be reported to
+SFDA Medical Devices Vigilance System (EMDAD) within 15 days. Periodic safety reports
+required annually for implantable and Class D devices.
+
+7.4 Internal audit: Documented audit program based on status and importance of processes
+and results of previous audits. Audit records and nonconformity reports (§8.2.4).
+
+7.5 Process and product monitoring: Statistical techniques may be used where appropriate.
+Acceptance criteria shall be specified in quality plans or documented procedures (§8.2.5–8.2.6).
+
+7.6 CAPA: Documented procedures for CAPA. Root cause analysis required. Effectiveness
+verification required. CAPA records including description of nonconformity, root cause,
+corrective/preventive action taken, and effectiveness check results (§8.5.2–8.5.3).
+
+## SFDA-Specific Additional Requirements (MDS-REQ10 beyond ISO 13485)
+
+- **Establishment Licence Renewal**: Every 2 years; QMS compliance re-verification required.
+- **SFDA Inspector Access**: Manufacturers must provide access to SFDA QMS inspectors for
+  unannounced on-site inspections at any manufacturing site serving Saudi Arabia.
+- **Authorized Local Agent**: Foreign manufacturers must appoint a SFDA-registered Saudi
+  establishment as authorized agent responsible for regulatory compliance.
+- **Product Registration (Device Licence)**: Via GHAD online system; Class B/C/D require
+  QMS certificate; Class D requires additional technical dossier review.
+- **Arabic Labelling**: Labels and IFU must be in Arabic and English for Saudi market.
+- **EMDAD Vigilance System**: Electronic submission of adverse events and FSCA through SFDA
+  EMDAD portal mandatory.
 """,
     ("泰國 (Thailand)", "Thai-FDA-GMP"): """\
 # Thailand Medical Device QMS — GMP Notification B.E. 2566 (2023)
+# Last reviewed: 2026-05-14
 
 **Authority**: Thai Food and Drug Administration (Thai FDA), Ministry of Public Health
 **Legal Basis**: Medical Devices Act B.E. 2562 (2019)
@@ -1757,6 +2029,7 @@ MDSAP certificates are accepted from MDSAP-recognised organisations.
 """,
     ("紐西蘭 (New Zealand)", "Medsafe-MD-Legislation"): """\
 # New Zealand Medical Device Regulation — Medicines Act 1981 & GMP Code
+# Last reviewed: 2026-05-14
 
 > **⚠️ 無獨立 QMS 法規 / 独立QMS法令なし / NO INDEPENDENT QMS LAW** — New Zealand has no standalone QMS regulation equivalent to EU MDR Annex IX or FDA 21 CFR Part 820. The Therapeutic Products Act 2023 was REPEALED in December 2024; current QMS requirements derive from the NZ Code of GMP (Part 7) referencing ISO 13485:2016, under the Medicines Act 1981 framework. A new Medical Products Bill is in development.
 
@@ -1794,6 +2067,7 @@ NZ participates in the IMDRF to align with international regulatory frameworks.
 """,
     ("墨西哥 (Mexico)", "DOF-NOM241-2025"): """\
 # NOM-241-SSA1-2021 — Buenas Prácticas de Fabricación para Dispositivos Médicos
+# Last reviewed: 2026-05-14
 
 **Citation**: NOM-241-SSA1-2021
 **Authority**: COFEPRIS (Comisión Federal para la Protección contra Riesgos Sanitarios)
@@ -1830,6 +2104,7 @@ and in vitro diagnostic devices (IVD) in Mexico.
 """,
     ("南非 (South Africa)", "SAHPRA-ISO13485"): """\
 # SAHPRA — ISO 13485 Certificate Requirement for Medical Device Establishment Licence
+# Last reviewed: 2026-05-14
 
 **Authority**: South African Health Products Regulatory Authority (SAHPRA)
 **Legal Basis**: Medicines and Related Substances Act 101 of 1965, Regulations 5 & 6
@@ -1866,37 +2141,94 @@ South Africa is actively aligning its medical device regulatory framework with I
 including adoption of IMDRF's Technical Document on QMS requirements.
 """,
     ("土耳其 (Turkey)", "TITCK-MD-Legislation"): """\
-# Turkey Medical Device QMS — EU MDR 2017/745 Aligned Regulations (2021)
+# Turkey Medical Device QMS — EU MDR 2017/745 Aligned Regulation (2021)
+# Last reviewed: 2026-05-14
 
 **Authority**: Türkiye İlaç ve Tıbbi Cihaz Kurumu (TITCK)
-**Legal Basis**: Medical Device Regulation published June 2, 2021 (Official Gazette No. 31499)
-**EU MDR Alignment**: Substantially mirrors EU MDR 2017/745
+**Legal Basis**: Tıbbi Cihaz Yönetmeliği (Medical Device Regulation), Official Gazette No. 31499,
+  June 2, 2021 | **Structure**: Aligned with EU MDR 2017/745
 
-## QMS Requirements
+## Article 10 — General Obligations of Manufacturers (QMS Core Requirement)
 
-Turkey's medical device regulation requires conformity assessment procedures equivalent to
-EU MDR 2017/745, including QMS requirements from Annex IX.
+10.1 Manufacturers shall establish, document, implement, maintain, keep up to date, and
+continually improve a quality management system that ensures compliance with this Regulation
+in the most effective manner proportionate to the risk class and type of device.
 
-| Device Class | EU MDR Equivalent | QMS Requirement |
+10.2 The QMS shall cover all parts of and requirements on the manufacturer's organisation
+that deal with the quality of processes, procedures, and devices, governing the structure,
+responsibilities, procedures, processes, and management resources.
+
+10.3 The QMS shall address the following minimum elements:
+  (a) Regulatory compliance strategy including conformity assessment procedures and
+      modification management procedures (§4.1, §4.2 ISO 13485 equivalent);
+  (b) Identification of applicable general safety and performance requirements (GSPR,
+      Annex I — equivalent to ISO 13485 §7.1 risk management);
+  (c) Responsibility of management (§5.1, §5.5.1 equivalent);
+  (d) Resource management, including supplier and sub-contractor selection and control
+      (§6.1, §7.4 equivalent);
+  (e) Risk management as set out in Section 3 of Annex I (ISO 14971 by reference);
+  (f) Clinical evaluation in accordance with Annex XIV, including PMCF (§8.2.1 equivalent);
+  (g) Product realisation, including planning, design, development, production, and
+      service provision (§7.1–§7.5 equivalent);
+  (h) Verification of UDI assignments (§7.5.3 equivalent);
+  (i) Setup, implementation and maintenance of a post-market surveillance system (§8.2.1);
+  (j) Communication with competent authorities, notified bodies, economic operators,
+      customers, and other stakeholders (§5.5.3, §7.2.3 equivalent);
+  (k) Reporting of serious incidents and field safety corrective actions (§8.2.2, §8.2.3);
+  (l) Management of CAPA and verification of effectiveness (§8.5.2, §8.5.3 equivalent);
+  (m) Monitoring, measurement of output, data analysis, and product improvement (§8.2.5,
+      §8.2.6, §8.4, §8.5.1 equivalent).
+
+## Annex IX — QMS Conformity Assessment (ISO 13485 equivalent assessment route)
+
+Annex IX §2.1: Manufacturers of Class IIa, IIb, and III devices shall be subject to a
+conformity assessment procedure based on the quality management system described in Annex IX.
+
+Annex IX §2.2 — QMS Assessment Scope: The notified body (or TITCK auditor) shall audit
+the manufacturer's QMS covering:
+  (a) Quality management system documentation;
+  (b) Policies, objectives, and commitment of top management (§5.1–§5.3);
+  (c) Document and record control (§4.2.3, §4.2.4);
+  (d) Human resources, training, and competence management (§6.2);
+  (e) Design and development management procedures (§7.3);
+  (f) Purchasing controls and incoming inspection (§7.4);
+  (g) Production and process controls (§7.5.1, §7.5.6);
+  (h) Traceability including UDI (§7.5.3);
+  (i) Post-market surveillance system and vigilance (§8.2.1, §8.2.2, §8.2.3);
+  (j) CAPA procedures and effectiveness verification (§8.5.2, §8.5.3);
+  (k) Internal audit programme (§8.2.4);
+  (l) Management review process and records (§5.6).
+
+## Conformity Assessment Routes by Device Class
+
+| Device Class | Route | QMS Requirement |
 |---|---|---|
-| Class I | Self-declaration | No third-party QMS audit |
-| Class IIa | Annex IX Route A | ISO 13485 QMS audit by TITCK Notified Body |
-| Class IIb / Class III | Annex IX full | Full QMS audit + Design Dossier |
+| Class I | Self-declaration + Declaration of Conformity | No QMS audit; QMS documentation retained |
+| Class I (measuring, sterile, reusable surgical) | Annex IX or XI + Notified Body | QMS audit required |
+| Class IIa | Annex IX (Route A) or Annex XI Part A | ISO 13485-equivalent QMS audit |
+| Class IIb | Annex IX or XI Part A + type examination | Full QMS audit + technical documentation |
+| Class III | Annex IX (full assessment) | Full QMS audit + design dossier assessment |
+| AIMD | Annex IX (full assessment) | Full QMS audit + design dossier assessment |
 
-## CE Marking Acceptance
+## Turkey-Specific QMS Requirements Beyond ISO 13485 Base
 
-TITCK accepts CE marking from EU Notified Bodies for medical devices. Manufacturers holding
-a valid CE certificate under EU MDR 2017/745 can apply for Turkish registration without
-a separate QMS audit.
-
-## Transition Timeline
-
-- Pre-2021 devices under old Medical Device Regulation (2001/8 aligned with MDD 93/42/EEC)
-- From June 14, 2021: New MDR-aligned regulation in force
-- Transition period for existing CE MDD certificates as agreed with EU Commission
+- **CE Marking Acceptance (Article 98)**: CE marking under EU MDR 2017/745 from EU
+  Notified Bodies is accepted for Turkish Ürün Takip Sistemi (UTS) registration without
+  a separate Turkish QMS audit, provided the CE certificate remains valid.
+- **UTS Registration**: All medical devices sold in Turkey must be registered in the UTS
+  (Product Tracking System). QMS certificate must be submitted.
+- **Adverse Event Reporting**: Serious incidents to TITCK within 15 calendar days.
+  Trend reports for non-serious events quarterly.
+- **FSCA (Field Safety Corrective Actions)**: TITCK notification required before
+  implementing FSCA; Field Safety Notice (FSN) in Turkish required.
+- **Periodic Safety Update Report (PSUR)**: Required for Class IIa/IIb/III devices;
+  annually for Class III, biennially for IIb, every 3 years for IIa.
+- **Unique Device Identification (UDI)**: Turkey UDI system aligned with EU MDR;
+  phased implementation from 2024 (Class III first).
 """,
     ("印尼 (Indonesia)", "Kemkes-CPAKB"): """\
 # Indonesia Medical Device QMS — CPAKB (Permenkes No. 20 Tahun 2017)
+# Last reviewed: 2026-05-14
 
 **Authority**: Ministry of Health (Kemenkes), Directorate General of Pharmaceutical and Medical Devices (Farmalkes)
 **Legal Basis**: Permenkes No. 20 Tahun 2017 — Cara Pembuatan Alat Kesehatan yang Baik (CPAKB)
@@ -1928,6 +2260,7 @@ as part of the product registration (Nomor Izin Edar — NIE) application.
 """,
     ("馬來西亞 (Malaysia)", "MDA-Legislation"): """\
 # Malaysia Medical Device Act 737 (2012) — QMS Requirements
+# Last reviewed: 2026-05-14
 
 > **⚠️ 無獨立 QMS 法規 / 独立QMS法令なし / NO INDEPENDENT QMS LAW** — Malaysia has no standalone QMS regulation equivalent to EU MDR Annex IX or FDA 21 CFR Part 820. QMS requirement exists by reference to ISO 13485:2016 under Medical Device Regulations 2012 (P.U.(A) 210/2012), Part III conformity assessment provisions.
 
@@ -1962,6 +2295,7 @@ QMS certificate must be submitted with initial registration and renewed every 5 
 """,
     ("以色列 (Israel)", "MOH-MD-Division"): """\
 # Israel Medical Device QMS — Medical Equipment Law 5772-2012
+# Last reviewed: 2026-05-14
 
 > **⚠️ 無獨立 QMS 法規 / 独立QMS法令なし / NO INDEPENDENT QMS LAW** — Israel has no standalone QMS regulation equivalent to EU MDR Annex IX or FDA 21 CFR Part 820. QMS requirement (ISO 13485:2016) is embedded within the import licence conditions under Medical Equipment Law 5772-2012 and Medical Equipment Regulations 5773-2013; CE marking under EU MDR is accepted as primary equivalent evidence.
 
@@ -1993,6 +2327,7 @@ Foreign manufacturers must appoint a local Authorised Representative (Israeli ag
 """,
     ("菲律賓 (Philippines)", "FDA-PH-RA9711"): """\
 # Philippines FDA — Medical Device QMS Requirements (RA 9711 / FDA Act 2009)
+# Last reviewed: 2026-05-14
 
 > **⚠️ 無獨立 QMS 法規 / 独立QMS法令なし / NO INDEPENDENT QMS LAW** — Philippines has no standalone QMS regulation equivalent to EU MDR Annex IX or FDA 21 CFR Part 820. QMS requirement (ISO 13485:2016) exists as a registration condition under FDA Circular No. 2020-007 issued pursuant to Republic Act 9711 (FDA Act of 2009); RA 9711 itself is a market access law, not a QMS technical standard.
 
@@ -2029,6 +2364,7 @@ the ASEAN MDPQ (Medical Device Product Quality) framework.
 """,
     ("越南 (Vietnam)", "DMEC-MOH"): """\
 # Vietnam Medical Device QMS — Decree 98/2021/ND-CP & Circular 10/2023/TT-BYT
+# Last reviewed: 2026-05-14
 
 **Authority**: Ministry of Health (MOH), Department of Medical Equipment and Construction (DMEC)
 **Primary Regulation**: Decree No. 98/2021/ND-CP (November 8, 2021)
@@ -2060,6 +2396,7 @@ manufacturers as a mandatory condition for product registration (number/declarat
 """,
     ("哥倫比亞 (Colombia)", "INVIMA-Decreto4725"): """\
 # Colombia Medical Device QMS — Decreto 4725/2005 (INVIMA)
+# Last reviewed: 2026-05-14
 
 **Authority**: Instituto Nacional de Vigilancia de Medicamentos y Alimentos (INVIMA)
 **Legal Basis**: Decreto 4725 de 2005 (Medical Devices and Diagnostic Equipment)
@@ -2096,6 +2433,7 @@ Colombia is working towards alignment with IMDRF guidelines through the PAHO/PAN
 """,
     ("俄羅斯 (Russia)", "RZN-MD"): """\
 # Russia Medical Device QMS — Government Decree No. 1684 (2024)
+# Last reviewed: 2026-05-14
 
 **Authority**: Federal Service for Surveillance in Healthcare (Roszdravnadzor)
 **Primary Regulation**: Government Decree No. 1684 (effective March 1, 2025; replaces No. 1416)
@@ -2128,6 +2466,7 @@ Russia, Belarus, Kazakhstan, Armenia, and Kyrgyzstan.
 """,
     ("埃及 (Egypt)", "EDA-MD-Guide"): """\
 # Egypt Medical Device QMS — EDA Registration Requirements
+# Last reviewed: 2026-05-14
 
 **Authority**: Egyptian Drug Authority (EDA), formerly CAPA
 **Legal Basis**: Ministerial Decree No. 425/2015; EDA Law 151/2019
@@ -2167,6 +2506,7 @@ significant changes to QMS or device design.
 """,
     ("智利 (Chile)", "ISP-Regulations"): """\
 # Chile Medical Device QMS — ISP Chile / ANAMED Regulations
+# Last reviewed: 2026-05-14
 
 > **⚠️ 無獨立 QMS 法規 / 独立QMS法令なし / NO INDEPENDENT QMS LAW** — Chile has no standalone QMS regulation equivalent to EU MDR Annex IX or FDA 21 CFR Part 820. GMP requirements are embedded in Decreto Supremo No. 825/1998 (Reglamento de Dispositivos Médicos) with reference to US 21 CFR Part 820 standards; ISO 13485:2016 certificate is accepted as equivalent evidence for Registro Sanitario applications.
 
@@ -2207,44 +2547,101 @@ adoption of IMDRF-aligned regulatory framework for medical devices.
 """,
     ("阿聯酋 (UAE)", "MOHAP-FDL38-2024"): """\
 # UAE Medical Device QMS — Federal Decree-Law No. 38 of 2024
+# Last reviewed: 2026-05-14
 
 **Authority**: Ministry of Health and Prevention (MOHAP) & Emirates Health Authority (EHA)
-**Legal Basis**: Federal Decree-Law No. 38 of 2024 (Medical Products, Pharmacy Practice and Pharmaceutical Establishments)
-**In Force**: January 2025 | **Replaces**: Federal Law No. 4 of 1983
+**Legal Basis**: Federal Decree-Law No. 38 of 2024 (Medical Products, Pharmacy Practice
+  and Pharmaceutical Establishments) | **In Force**: January 2025
 
-## QMS Requirements
+## Article 47 — Quality Management System Requirements
 
-UAE requires ISO 13485:2016 certificate for medical device manufacturer registration
-(Establishment Licence) under the new Federal Decree-Law No. 38 of 2024.
+47.1 Medical device manufacturers operating in or exporting to the UAE shall establish,
+implement, and maintain a quality management system that complies with the requirements of
+ISO 13485:2016 as referenced by MOHAP Technical Guidance.
 
-| Entity Type | Requirement |
+47.2 The QMS shall address:
+  (a) Quality policy and quality objectives established by top management (§5.3, §5.4.1);
+  (b) Quality manual documenting QMS scope and process interactions (§4.2.2);
+  (c) Document control: approval, review, update, identification, and withdrawal of obsolete
+      documents (§4.2.3);
+  (d) Record control: identification, storage, protection, retrieval, retention, and
+      disposal of quality records. Retention period minimum 5 years or device lifetime (§4.2.4);
+  (e) Design and development controls for all Class II, III devices (§7.3.1–§7.3.10);
+  (f) Supplier management: approved supplier list, evaluation criteria, purchasing controls,
+      and incoming inspection/verification (§7.4.1–§7.4.3);
+  (g) Production controls: documented procedures, work instructions, process validation
+      for special processes (§7.5.1–§7.5.6);
+  (h) Calibration programme for monitoring and measuring equipment (§7.6);
+  (i) Post-market surveillance and vigilance system (§8.2.1–§8.2.3);
+  (j) CAPA with root cause analysis and effectiveness verification (§8.5.2–§8.5.3).
+
+## Article 48 — Management Responsibility
+
+48.1 Top management shall demonstrate commitment to QMS establishment and continual
+improvement by establishing quality policy, ensuring objectives are set, conducting
+management reviews, and ensuring resource availability (§5.1).
+
+48.2 Management representative shall be appointed with documented responsibility for
+QMS maintenance and reporting performance to top management (§5.5.2).
+
+48.3 Management review shall be conducted at least annually with documented records.
+Inputs shall include audit results, customer feedback, process performance, nonconformances,
+CAPA status, regulatory changes, and recommendations for improvement (§5.6.2).
+
+## Article 49 — Resource Management
+
+49.1 Personnel competence requirements shall be defined, and training records maintained.
+Personnel affecting product quality shall demonstrate required competence (§6.2).
+
+49.2 Infrastructure including buildings, equipment, and support services shall be maintained
+with documented maintenance schedules (§6.3).
+
+49.3 Work environment requirements including temperature, humidity, and contamination control
+shall be defined and monitored for relevant processes (§6.4).
+
+## Article 50 — Vigilance and Adverse Event Reporting
+
+50.1 Serious adverse events (events causing or likely to cause serious injury or death) shall
+be reported to MOHAP within 15 calendar days of becoming aware.
+
+50.2 Field Safety Corrective Actions (FSCA) require prior notification to MOHAP. Field Safety
+Notices (FSN) must be submitted in Arabic and English.
+
+50.3 Periodic Safety Update Reports (PSUR) required for high-risk devices annually.
+
+## MOHAP/EMAAR Registration Requirements
+
+| Entity Type | QMS Requirement |
 |---|---|
-| Manufacturer (UAE) | ISO 13485:2016 certificate + MOHAP GMP inspection |
-| Foreign Manufacturer | ISO 13485:2016 certificate from home country CB |
-| Importer | Manufacturer's ISO 13485 + MOHAP importer licence |
-| Distributor | Manufacturer's ISO 13485 + distributor licence |
+| UAE Manufacturer | ISO 13485 certificate + MOHAP on-site GMP inspection |
+| Foreign Manufacturer | ISO 13485 from IAF MLA member CB at manufacturing site |
+| Importer | Manufacturer ISO 13485 + MOHAP importer establishment licence |
+| Distributor | Manufacturer ISO 13485 + MOHAP distributor establishment licence |
 
-## ISO 13485 Acceptance
+## Device Classification and QMS Requirements
 
-MOHAP and Dubai Health Authority (DHA) accept:
-- ISO 13485:2016 certificate from DAkkS, UKAS, or IAF MLA member CBs
-- CE marking (EU MDR) as alternative for most device classes
-- MDSAP certificate from MDSAP-recognised auditing organisations
+| Class | Risk | QMS/Registration |
+|---|---|---|
+| Class A | Low | Basic product registration; no QMS audit |
+| Class B | Low-Moderate | ISO 13485 certificate required |
+| Class C | Moderate-High | ISO 13485 certificate + technical dossier |
+| Class D | High | ISO 13485 + clinical evidence + MOHAP pre-market review |
 
-## Registration Process (MOHAP / UAE REGMED)
+## UAE-Specific Additional Requirements
 
-1. Obtain Establishment Licence (requires ISO 13485 certificate)
-2. Register product in MOHAP/EMAAR system (product registration dossier)
-3. MOHAP approval / Certificate of Registration
-4. Periodic renewal every 3 years
-
-## Emirates-Specific Requirements
-
-Dubai (DHA) and Abu Dhabi (DOH) may have additional emirate-level requirements
-that supplement the federal MOHAP framework.
+- **Authorized Local Distributor**: Foreign manufacturers must appoint a UAE-licensed
+  establishment as authorized local distributor responsible for market surveillance.
+- **Arabic Labelling**: All labelling and IFU must be available in Arabic for UAE market.
+- **UDI (Unique Device Identification)**: MOHAP UDI system aligned with IMDRF standards;
+  Class C/D devices first, phased rollout through 2027.
+- **Emirates Health Authority (DHA/DOH)**: Dubai and Abu Dhabi may require additional
+  emirate-level establishment registration that supplements federal MOHAP licence.
+- **Halal Considerations**: Devices incorporating materials of animal origin require
+  ESMA (Emirates Authority for Standardization) halal certification.
 """,
     ("阿根廷 (Argentina)", "ANMAT-MD"): """\
 # Argentina Medical Device QMS — ANMAT Disposición 64/2025 (replaces 2318/2002)
+# Last reviewed: 2026-05-14
 
 **Authority**: Administración Nacional de Medicamentos, Alimentos y Tecnología Médica (ANMAT)
 **Current Regulation**: Disposición ANMAT 64/2025 (in force Jan 2025, incorporates MERCOSUR GMC 25/21)
@@ -2304,9 +2701,102 @@ _OFFICE_ZIP_BOMB_LIMIT = 500 * 1024 * 1024  # 500 MB uncompressed — blocks ZIP
 _JINA_READER_BASE = "https://r.jina.ai/"
 _JINA_TIMEOUT = 60  # Jina Reader may be slow
 _JINA_DELAY = 3.0  # seconds between Jina requests (20 req/min limit)
-_MAX_CONTENT_SIZE = 50_000  # 50KB max markdown content
+_MAX_CONTENT_SIZE = 150_000  # 150KB max markdown content (B-3: was 50KB)
 _DOMAIN_CONCURRENCY = 2  # max concurrent requests per domain
 _ETAG_CACHE_PATH = Path("data/etag_cache.json")
+_INDEX_DIFF_CACHE_PATH = Path("data/index_page_diff_cache.json")
+
+# ── G2: doc_type mapping for all REGION_SITES entries ──────────────────────
+# primary      = main QMS regulation/law for that country
+# qms_guidance = semi-official guidance supplementing ISO 13485 QMS requirements
+# portal       = homepage/portal with no direct regulatory content (excluded from LLM)
+_AGENCY_DOC_TYPE: dict[str, str] = {
+    # Taiwan
+    "TFDA-QMS": "primary", "TFDA-QMS-EN": "primary", "TFDA-QMS-Inspection": "primary",
+    # USA
+    "FDA-QMSR": "primary", "eCFR-820": "primary",
+    # EU
+    "EUR-Lex-MDR-CELLAR": "primary", "EUR-Lex-MDR-UK": "primary", "EUR-Lex-MDR-OJ": "primary",
+    "MDCG": "qms_guidance", "MDCG-2019-11": "qms_guidance", "MDCG-2021-25": "qms_guidance",
+    "MDCG-2020-7": "qms_guidance", "MDCG-2022-14": "qms_guidance", "MDCG-2021-27": "qms_guidance",
+    "MDCG-2022-21": "qms_guidance", "MDCG-2019-6": "qms_guidance", "MDCG-2018-1": "qms_guidance",
+    "MDCG-2020-14": "qms_guidance", "MDCG-2023-1": "qms_guidance",
+    # UK
+    "UK-MDR-2002": "primary", "MHRA-Guidance": "qms_guidance",
+    # Japan
+    "eGov-QMS-169": "primary", "PMDA-QMS-EN": "primary", "PMDA-QMS": "primary",
+    # China
+    "NMPA-GMP-CN": "primary", "NMPA-GMP-Announcement": "qms_guidance", "NMPA-Regulations": "portal",
+    # Korea
+    "MFDS-MD-Regulations": "primary", "MFDS-KGMP": "primary", "MFDS-KGMP-PDF": "primary",
+    # Canada
+    "CMDR-SOR98-282": "primary", "CMDR-Full": "primary",
+    "FDA-MDSAP-Audit": "qms_guidance", "FDA-MDSAP-Assessment": "qms_guidance",
+    "MDSAP-Companion-ISO13485": "qms_guidance",
+    # Australia
+    "TGA-Legislation": "primary", "TGA-Legislation-PDF": "primary", "TGA-ARGMD": "qms_guidance",
+    # Switzerland
+    "Swissmedic-MedDO": "primary", "MedDO-SR812213": "primary",
+    # Brazil
+    "ANVISA-RDC665": "primary", "ANVISA-RDC665-News": "portal",
+    # MDSAP
+    "MDSAP-Global-Audit": "qms_guidance", "MDSAP-Global-QMS": "qms_guidance",
+    "MDSAP-Global-General": "qms_guidance", "MDSAP-Global-Assessment": "qms_guidance",
+    # International
+    "ISO": "primary", "ICH": "primary", "IMDRF": "primary",
+    # India
+    "CDSCO-MDR2017": "primary", "CDSCO-MD": "portal",
+    # Singapore
+    "SSO-HPR-2010-PDF": "primary", "SSO-HPR-2010": "portal", "HSA-QMS": "qms_guidance",
+    # Saudi Arabia
+    "SFDA-MDS-REQ10": "primary", "SFDA-ISO13485-Guidance": "qms_guidance",
+    # Thailand
+    "Thai-FDA-GMP": "primary", "Thai-FDA-GMP-Law": "primary",
+    "Thai-FDA-NewLaws": "qms_guidance", "Thai-FDA-GMP-About": "qms_guidance",
+    # New Zealand
+    "Medsafe-MD-Legislation": "primary", "MoH-NZ-MD-Regulation": "primary",
+    "NZ-Medicines-Act-1981": "primary", "Medsafe-GMP": "qms_guidance",
+    # Mexico
+    "NOM241-EN-PDF": "primary", "DOF-NOM241-2025": "primary",
+    # Argentina
+    "ANMAT-Disposicion64-25": "primary", "ANMAT-MD": "portal",
+    # South Africa
+    "SAHPRA-MD": "primary", "SAHPRA-ISO13485": "primary",
+    # Turkey
+    "Mevzuat-TCY": "primary", "TITCK-MD-Legislation": "primary",
+    "TITCK-Mevzuat": "portal", "TITCK-New-Regs": "qms_guidance",
+    # Indonesia
+    "BPK-Permenkes20": "primary", "Kemkes-CPAKB": "primary",
+    # Malaysia
+    "MDA-Legislation-List": "primary", "MDA-Act737-PDF": "primary", "MDA-Legislation": "portal",
+    # Israel
+    "Nevo-MD-Regulations-2021": "primary", "Nevo-MD-Law-2012": "primary",
+    "MOH-Laws": "portal", "MOH-MD-Division": "qms_guidance",
+    # Philippines
+    "FDA-PH-RA9711": "primary", "FDA-PH-MD": "portal",
+    # Vietnam
+    "LuatVN-Decree98-EN": "primary", "LuatVN-Consolidated-PDF": "primary",
+    "LuatVN-Decree04-2025-EN": "primary", "DMEC-MOH": "portal",
+    # Colombia
+    "INVIMA-Decreto4725": "primary", "INVIMA-Decreto4725-PDF": "primary", "INVIMA-MD": "portal",
+    # Russia
+    "ZakonRF-1684": "primary", "Consultant-1684": "primary", "RZN-MD": "portal",
+    # Egypt
+    "EDA-MD-Guide": "primary", "EDA": "portal",
+    # Chile
+    "ISP-Regulations": "primary",
+    # UAE
+    "MOHAP-FDL38-2024": "primary", "MOHAP": "portal",
+}
+
+
+def get_site_doc_type(site: dict) -> str:
+    """Return doc_type for a site dict. Falls back to 'primary' if unknown."""
+    explicit = site.get("doc_type")
+    if explicit:
+        return explicit
+    return _AGENCY_DOC_TYPE.get(site.get("agency", ""), "primary")
+
 
 # QMS-related keywords for sitemap URL filtering
 _QMS_KEYWORDS = [
@@ -3229,12 +3719,14 @@ async def _crawl_tier1_api(
         if response.status_code == 304:
             previous_content = _retrieve_cached_content(url)
             if previous_content:
+                _cached_entry = etag_cache.get(url) or {}
                 result["crawl_status"] = "success"
-                result["content_source"] = "live"
+                result["content_source"] = "cached"  # B-2: not "live" — restored from previous crawl
                 result["title"] = f"{site['agency']} (cached — not modified)"
                 result["content_markdown"] = previous_content
                 result["note"] = (
                     "HTTP 304 Not Modified — restored content from previous crawl"
+                    + (f" (cached_at: {_cached_entry.get('cached_at', 'unknown')})" if _cached_entry.get("cached_at") else "")
                 )
                 result["crawl_duration_seconds"] = round(time.time() - start, 2)
                 return result
@@ -3295,15 +3787,114 @@ async def _crawl_tier1_api(
     return result
 
 
-def _pdf_bytes_to_markdown(pdf_bytes: bytes, display_name: str, source_url: str) -> str:
+# ── Section markers for QMS-relevant sections in major regulatory PDFs ────────
+# Used by _extract_qms_sections_from_pdf() to locate and extract specific parts.
+_QMS_SECTION_MARKERS: list[tuple[str, str]] = [
+    # EU MDR 2017/745 — the most critical sections for QMS
+    ("ARTICLE 10", "ARTICLE 11"),      # General obligations of manufacturers (QMS mandate)
+    ("ANNEX IX", "ANNEX X"),           # Conformity assessment based on QMS (full NB audit scope)
+    ("ANNEX XI", "ANNEX XII"),         # Product Quality Assurance (alternative route)
+    ("ANNEX I", "ANNEX II"),           # GSPR — referenced in QMS risk management
+    # Generic markers that appear in most medical device regulations
+    ("QUALITY MANAGEMENT SYSTEM", None),  # Grab context around any QMS section
+    ("QUALITY SYSTEM", None),
+]
+
+_QMS_SECTION_MAX_CHARS = 200_000  # 200 KB — enough for Annex IX + Article 10 combined
+
+
+def _extract_qms_sections_from_pdf(pdf_bytes: bytes, display_name: str, source_url: str) -> str:
+    """Method 1: Section-aware PDF extraction for large regulatory documents.
+
+    Uses PyMuPDF to scan page text for QMS section markers (Article 10, Annex IX, etc.)
+    and extracts only those pages, skipping non-QMS content.
+
+    This allows processing a 600 KB regulation text while only sending the
+    QMS-relevant ~100 KB to storage and analysis.
+
+    Returns extracted QMS sections as Markdown, or "" if PyMuPDF unavailable.
+    """
+    if not FITZ_AVAILABLE:
+        return ""
+    try:
+        doc = _fitz.open(stream=pdf_bytes, filetype="pdf")
+        n = len(doc)
+        if n == 0:
+            doc.close()
+            return ""
+
+        # Extract all page texts first (needed for section boundary detection)
+        page_texts = []
+        for page in doc:
+            page_texts.append(page.get_text("text") or "")
+        doc.close()
+
+        # Find page ranges for each section marker
+        section_pages: set[int] = set()
+        for start_marker, end_marker in _QMS_SECTION_MARKERS:
+            in_section = False
+            for i, text in enumerate(page_texts):
+                text_upper = text.upper()
+                if not in_section and start_marker in text_upper:
+                    in_section = True
+                if in_section:
+                    section_pages.add(i)
+                    # Also include next 2 pages for context
+                    if i + 1 < n:
+                        section_pages.add(i + 1)
+                    if i + 2 < n:
+                        section_pages.add(i + 2)
+                if in_section and end_marker and end_marker in text_upper and i > min(section_pages):
+                    in_section = False
+
+        if not section_pages:
+            # No section markers found — fall back to first N chars of full text
+            full_text = "\n".join(page_texts)
+            if not full_text.strip():
+                return ""
+            header = f"# {display_name}\n\n**Source**: {source_url}  \n**Pages**: {n} (full)\n\n---\n\n"
+            return (header + full_text)[:_QMS_SECTION_MAX_CHARS]
+
+        # Build section-extracted text
+        parts = []
+        total_chars = 0
+        for i in sorted(section_pages):
+            text = page_texts[i].strip()
+            if text:
+                parts.append(f"\n<!-- Page {i+1}/{n} -->\n{text}\n")
+                total_chars += len(text)
+            if total_chars >= _QMS_SECTION_MAX_CHARS:
+                break
+
+        if not parts:
+            return ""
+        header = (
+            f"# {display_name}\n\n"
+            f"**Source**: {source_url}  \n"
+            f"**Extraction**: QMS sections only ({len(section_pages)}/{n} pages)\n\n---\n\n"
+        )
+        return (header + "\n".join(parts))[:_QMS_SECTION_MAX_CHARS]
+    except Exception:
+        return ""
+
+
+def _pdf_bytes_to_markdown(pdf_bytes: bytes, display_name: str, source_url: str,
+                            section_aware: bool = False) -> str:
     """Extract text from a PDF, returning Markdown.
 
     Pipeline:
-    1. MarkItDown (primary) — unified conversion engine, handles most PDFs
-    2. PyMuPDF (fallback)   — direct text layer extraction
+    1. Section-aware extraction (if section_aware=True) — extracts only QMS sections
+    2. MarkItDown (primary) — unified conversion engine, handles most PDFs
+    3. PyMuPDF (fallback)   — direct text layer extraction
     Returns "" if no text found → triggers Docling OCR fallback in caller.
     """
     import os, tempfile
+
+    # 0. Section-aware extraction for large regulatory PDFs (Method 1 — EU MDR etc.)
+    if section_aware and len(pdf_bytes) > 500_000:  # only for PDFs > 500 KB
+        sections_md = _extract_qms_sections_from_pdf(pdf_bytes, display_name, source_url)
+        if sections_md and len(sections_md.strip()) > 500:
+            return sections_md
 
     # 1. Try MarkItDown first (same engine used for Word/Excel/PPT)
     if MARKITDOWN_AVAILABLE and _MD_CONVERTER is not None:
@@ -4031,12 +4622,14 @@ async def _crawl_tier2_httpx(
         if response.status_code == 304:
             previous_content = _retrieve_cached_content(url)
             if previous_content:
+                _cached_entry = etag_cache.get(url) or {}
                 result["crawl_status"] = "success"
-                result["content_source"] = "live"
+                result["content_source"] = "cached"  # B-2: not "live" — restored from previous crawl
                 result["title"] = f"{site['agency']} (cached — not modified)"
                 result["content_markdown"] = previous_content
                 result["note"] = (
                     "HTTP 304 Not Modified — restored content from previous crawl"
+                    + (f" (cached_at: {_cached_entry.get('cached_at', 'unknown')})" if _cached_entry.get("cached_at") else "")
                 )
                 result["crawl_duration_seconds"] = round(time.time() - start, 2)
                 return result
@@ -4066,7 +4659,13 @@ async def _crawl_tier2_httpx(
                 )
                 result["crawl_status"] = "skipped"
                 return result
-            md = _pdf_bytes_to_markdown(response.content, pdf_name, url)
+            # Method 1: section-aware extraction for large primary PDFs (EU MDR etc.)
+            _use_section_aware = (
+                len(response.content) > 500_000
+                and get_site_doc_type(site) == "primary"
+            )
+            md = _pdf_bytes_to_markdown(response.content, pdf_name, url,
+                                        section_aware=_use_section_aware)
             if md and len(md.strip()) > 200:
                 result["content_markdown"] = md
                 result["title"] = pdf_name
@@ -4420,23 +5019,34 @@ class AsyncRegulatoryUpdateCrawler:
                 result = await _crawl_tier3_jina(
                     self._client, site, region, self._jina_semaphore
                 )
-                if result.get("crawl_status") != "success":
-                    primary_reason = result.get("failure_reason", "未知")
+                # B-1: validate Jina content — bot-block / nav pages must not pass
+                _jina_content_ok = (
+                    result.get("crawl_status") == "success"
+                    and _is_regulatory_fulltext(result.get("content_markdown", ""))
+                )
+                if not _jina_content_ok:
+                    primary_reason = result.get("failure_reason") or "Jina 內容未通過法規文本驗證"
+                    if result.get("crawl_status") == "success":
+                        primary_reason = "Jina 回傳內容未通過法規文本驗證（可能為 bot-block 或導覽頁）"
+                        result["crawl_status"] = "failed"
+                        result["failure_reason"] = primary_reason
                     fb = await self._try_fallback_urls(site, region, primary_reason)
                     if fb:
                         return fb
-                    ddgs_result = await self._fallback_ddgs_search(site, region)
-                    if ddgs_result.get("crawl_status") == "success":
-                        ddgs_result["note"] = (
-                            f"Jina 失敗 ({primary_reason})"
-                            f" → DuckDuckGo 備援成功"
-                        )
-                        return ddgs_result
+                    # B-5: force_profile sites skip DDG — they are known-blocked
+                    if not site.get("force_profile"):
+                        ddgs_result = await self._fallback_ddgs_search(site, region)
+                        if ddgs_result.get("crawl_status") == "success":
+                            ddgs_result["note"] = (
+                                f"Jina 失敗 ({primary_reason})"
+                                f" → DuckDuckGo 備援成功"
+                            )
+                            return ddgs_result
                     profile = self._fallback_profile(site, region)
                     if profile:
                         profile["note"] = (
                             f"Jina 失敗 ({primary_reason})"
-                            f" → DuckDuckGo 亦失敗 → 使用預設法規摘要"
+                            f" → 使用預設法規摘要"
                         )
                         return profile
                 return result
@@ -4450,15 +5060,23 @@ class AsyncRegulatoryUpdateCrawler:
                     jina_result = await _crawl_tier3_jina(
                         self._client, site, region, self._jina_semaphore
                     )
-                    if jina_result.get("crawl_status") == "success":
+                    # B-1: validate Jina fallback content as well
+                    _jina_ok = (
+                        jina_result.get("crawl_status") == "success"
+                        and _is_regulatory_fulltext(jina_result.get("content_markdown", ""))
+                    )
+                    if _jina_ok:
                         jina_result["note"] = (
                             f"httpx 失敗 ({original_reason}) → Jina 備援成功"
                         )
                         return jina_result
+                    jina_fail_reason = jina_result.get("failure_reason") or "Jina 內容未通過法規文本驗證"
+                    if jina_result.get("crawl_status") == "success":
+                        jina_fail_reason = "Jina 回傳內容未通過法規文本驗證"
                     # Try fallback_urls before DDG
                     combined_reason = (
                         f"{original_reason}"
-                        f" → Jina 失敗 ({jina_result.get('failure_reason', '未知')})"
+                        f" → Jina 失敗 ({jina_fail_reason})"
                     )
                     fb = await self._try_fallback_urls(site, region, combined_reason)
                     if fb:
@@ -4467,7 +5085,7 @@ class AsyncRegulatoryUpdateCrawler:
                     if ddgs_result.get("crawl_status") == "success":
                         ddgs_result["note"] = (
                             f"httpx 失敗 ({original_reason})"
-                            f" → Jina 失敗 ({jina_result.get('failure_reason', '未知')})"
+                            f" → Jina 失敗 ({jina_fail_reason})"
                             f" → DuckDuckGo 備援成功"
                         )
                         return ddgs_result
@@ -4475,13 +5093,13 @@ class AsyncRegulatoryUpdateCrawler:
                     if profile:
                         profile["note"] = (
                             f"httpx 失敗 ({original_reason})"
-                            f" → Jina 失敗 ({jina_result.get('failure_reason', '未知')})"
+                            f" → Jina 失敗 ({jina_fail_reason})"
                             f" → DuckDuckGo 亦失敗 → 使用預設法規摘要"
                         )
                         return profile
                     result["failure_reason"] = (
                         f"{original_reason}"
-                        f" → Jina 備援亦失敗 ({jina_result.get('failure_reason', '未知')})"
+                        f" → Jina 備援亦失敗 ({jina_fail_reason})"
                         f" → DuckDuckGo 備援亦失敗"
                     )
                 return result

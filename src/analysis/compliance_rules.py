@@ -53,6 +53,8 @@ __all__ = [
     "generate_cross_exam_questions",
     "load_crawled_regulation",
     "save_crawled_regulation",
+    "backup_predefined_profile",
+    "merge_profiles",
     "map_unique_to_iso_clause",
     "get_profile_id_for_region",
     "get_region_for_profile",
@@ -4461,6 +4463,13 @@ class RegulationProfile:
     iso_mapped: dict[str, ClauseMapping] = field(default_factory=dict)
     # Delta: requirements UNIQUE to this country (not in ISO 13485)
     unique_requirements: list[UniqueRequirement] = field(default_factory=list)
+    # D-2: content quality indicator
+    # "ok"           = >10% clauses are full/partial — analysis likely reliable
+    # "low"          = <5% clauses are full/partial — crawl content was poor
+    # "fallback_used"= REGION_PROFILES pre-written content was used as input
+    content_quality: str = "ok"
+    # F-1: set True when crawler detects regulation update (ETag change)
+    needs_reanalysis: bool = False
 
 
 # ============================================================
@@ -9860,16 +9869,117 @@ def generate_cross_exam_questions(
 CRAWLED_REGULATIONS_DIR = os.path.join("data", "regulations")
 
 
-def save_crawled_regulation(profile: RegulationProfile) -> str:
+def backup_predefined_profile(profile_id: str) -> Optional[str]:
+    """Backup a predefined profile to data/regulations/backups/ before overwriting.
+
+    Returns the backup file path, or None if the profile is not on disk.
+    """
+    src_path = os.path.join(CRAWLED_REGULATIONS_DIR, f"{profile_id}.json")
+    if not os.path.exists(src_path):
+        return None
+    from datetime import date as _date_cls
+    backup_dir = os.path.join(CRAWLED_REGULATIONS_DIR, "backups")
+    os.makedirs(backup_dir, exist_ok=True)
+    date_str = _date_cls.today().strftime("%Y%m%d")
+    backup_path = os.path.join(backup_dir, f"{profile_id}_backup_{date_str}.json")
+    import shutil as _shutil
+    _shutil.copy2(src_path, backup_path)
+    return backup_path
+
+
+def merge_profiles(
+    base: "RegulationProfile",
+    incoming: "RegulationProfile",
+    quality_threshold: float = 0.60,
+) -> "Optional[RegulationProfile]":
+    """Merge an incoming crawled profile into a base predefined profile.
+
+    Returns a merged RegulationProfile if incoming quality is acceptable,
+    or None if incoming is too poor to improve the base.
+
+    Merge strategy:
+      - Per clause: keep the mapping with higher confidence score.
+      - unique_requirements: union, deduplicated by first 40 chars of title_en.
+      - regulation_id: always use base.regulation_id (predefined ID).
+      - source: "merged"
+    """
+    base_non_na = sum(
+        1 for m in base.iso_mapped.values()
+        if m.status != MappingStatus.NOT_APPLICABLE
+    )
+    incoming_non_na = sum(
+        1 for m in incoming.iso_mapped.values()
+        if m.status != MappingStatus.NOT_APPLICABLE
+    )
+    # Reject incoming if it's below the quality threshold relative to base
+    if base_non_na > 0 and incoming_non_na < quality_threshold * base_non_na:
+        return None
+
+    # Clause-level merge: pick higher confidence mapping
+    merged_iso_mapped: dict = {}
+    all_clause_ids = set(base.iso_mapped.keys()) | set(incoming.iso_mapped.keys())
+    for cid in all_clause_ids:
+        base_m = base.iso_mapped.get(cid)
+        inc_m = incoming.iso_mapped.get(cid)
+        if base_m is None:
+            merged_iso_mapped[cid] = inc_m
+        elif inc_m is None:
+            merged_iso_mapped[cid] = base_m
+        else:
+            # Both exist — prefer higher confidence; prefer non-na over na
+            base_score = (0 if base_m.status == MappingStatus.NOT_APPLICABLE else 1) + base_m.confidence
+            inc_score = (0 if inc_m.status == MappingStatus.NOT_APPLICABLE else 1) + inc_m.confidence
+            merged_iso_mapped[cid] = base_m if base_score >= inc_score else inc_m
+
+    # unique_requirements merge: union, deduped by title prefix
+    seen_titles: set[str] = set()
+    merged_reqs: list = []
+    for req in list(base.unique_requirements) + list(incoming.unique_requirements):
+        key = req.title_en[:40].lower().strip()
+        if key not in seen_titles:
+            seen_titles.add(key)
+            merged_reqs.append(req)
+
+    merged_non_na = sum(
+        1 for m in merged_iso_mapped.values()
+        if m.status != MappingStatus.NOT_APPLICABLE
+    )
+    merged_quality = "ok" if merged_non_na >= 15 else "low"
+
+    return RegulationProfile(
+        regulation_id=base.regulation_id,
+        name_en=base.name_en,
+        name_zh=base.name_zh,
+        country=base.country,
+        country_name_en=base.country_name_en,
+        country_name_zh=base.country_name_zh,
+        source="merged",
+        source_url=incoming.source_url or base.source_url,
+        last_updated=datetime.now().strftime("%Y-%m-%d"),
+        effective_date=base.effective_date,
+        iso_mapped=merged_iso_mapped,
+        unique_requirements=merged_reqs,
+        content_quality=merged_quality,
+        needs_reanalysis=False,
+    )
+
+
+def save_crawled_regulation(profile: RegulationProfile, as_id: Optional[str] = None) -> str:
     """Save a crawled regulation profile to JSON file.
+
+    Args:
+        profile: The RegulationProfile to save.
+        as_id: If provided, save under this ID instead of profile.regulation_id.
+               Used by the upgrade mechanism to save merged profiles under predefined IDs.
 
     Returns the file path.
     """
+    save_id = as_id if as_id else profile.regulation_id
     os.makedirs(CRAWLED_REGULATIONS_DIR, exist_ok=True)
-    filepath = os.path.join(CRAWLED_REGULATIONS_DIR, f"{profile.regulation_id}.json")
+    filepath = os.path.join(CRAWLED_REGULATIONS_DIR, f"{save_id}.json")
 
     data = {
-        "regulation_id": profile.regulation_id,
+        "regulation_id": save_id,
         "name_en": profile.name_en,
         "name_zh": profile.name_zh,
         "country": profile.country,
@@ -9946,13 +10056,15 @@ def save_crawled_regulation(profile: RegulationProfile) -> str:
             }
             for r in profile.unique_requirements
         ],
+        "content_quality": profile.content_quality,
+        "needs_reanalysis": profile.needs_reanalysis,
     }
 
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-    # Also register in memory
-    PREDEFINED_REGULATIONS[profile.regulation_id] = profile
+    # Register in memory under the saved ID (may differ from profile.regulation_id when as_id is used)
+    PREDEFINED_REGULATIONS[save_id] = profile
     return filepath
 
 
@@ -10046,6 +10158,8 @@ def load_crawled_regulation(filepath: str) -> RegulationProfile:
         effective_date=data.get("effective_date", ""),
         iso_mapped=iso_mapped,
         unique_requirements=unique_reqs,
+        content_quality=data.get("content_quality", "ok"),
+        needs_reanalysis=data.get("needs_reanalysis", False),
     )
 
     # Register in memory
