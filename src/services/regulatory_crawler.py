@@ -126,31 +126,38 @@ def _is_safe_url(url: str) -> bool:
 REGION_SITES = {
     "台灣 (Taiwan)": [
         {
-            "agency": "TFDA-QMS",
-            "name": "醫療器材品質管理系統準則 — 全國法規資料庫 (Taiwan QMS Criteria, 79 articles, ISO 13485 equivalent)",
-            "url": "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=L0030116",
-            "tier": 3,
-            "strategy": "html",
-            "crawl_delay": 3,
-            "note": "PRIMARY QMS regulation: 醫療器材品質管理系統準則 (TFDA Order, 2021-04-14, effective 2021-05-01) — 79 articles mirroring ISO 13485:2016 — Jina Reader for dynamic content",
+            # Primary source: MOJ Open API bulk download — 26 active medical device
+            # regulations fetched in one ZIP, no per-page scraping needed.
+            "agency": "TFDA-BulkAPI",
+            "name": "台灣醫療器材法規全集 — MOJ Open API Bulk (26 active regulations, ChOrder+ChLaw)",
+            "url": "https://law.moj.gov.tw/api/ch/order/json",
+            "tier": 1,
+            "strategy": "bulk_zip",
+            "crawl_delay": 0,
+            "doc_type": "primary",
+            "note": (
+                "MOJ Open API bulk download: ChOrder.json.zip + ChLaw.json.zip → "
+                "filter 衛生福利部＞食品藥物管理目 + '醫療器材' keyword → "
+                "26 active laws (L0030106~L0030137). "
+                "Covers: QMS準則(L0030116), 管理法(L0030106), 查核辦法(L0030112), "
+                "嚴重不良事件(L0030124), 安全監視(L0030125), 許可證(L0030128), etc. "
+                "Cache TTL: 7 days (API updates weekly on Fridays)."
+            ),
         },
         {
+            # English fallback: Jina Reader for the QMS Criteria English page.
+            # Kept as supplementary source for English-language LLM analysis.
             "agency": "TFDA-QMS-EN",
             "name": "Medical Device Quality Management System Guidelines (English) — Taiwan Laws Database",
             "url": "https://law.moj.gov.tw/ENG/LawClass/LawAll.aspx?pcode=L0030116",
             "tier": 3,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "English version of the QMS Criteria (same pcode L0030116) — ISO 13485:2016 equivalent under Medical Devices Act 2021",
-        },
-        {
-            "agency": "TFDA-QMS-Inspection",
-            "name": "醫療器材品質管理系統查核及製造許可證核發辦法 (QMS Inspection & Manufacturing License Issuance Regulations)",
-            "url": "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=L0030112",
-            "tier": 3,
-            "strategy": "html",
-            "crawl_delay": 3,
-            "note": "QMS inspection and licence rules under Medical Devices Act — pcode L0030112",
+            "doc_type": "qms_guidance",
+            "note": (
+                "English version of QMS Criteria L0030116 — ISO 13485:2016 equivalent "
+                "under Medical Devices Act 2021. Supplementary to bulk API primary source."
+            ),
         },
     ],
     "美國 (USA)": [
@@ -2711,8 +2718,9 @@ _INDEX_DIFF_CACHE_PATH = Path("data/index_page_diff_cache.json")
 # qms_guidance = semi-official guidance supplementing ISO 13485 QMS requirements
 # portal       = homepage/portal with no direct regulatory content (excluded from LLM)
 _AGENCY_DOC_TYPE: dict[str, str] = {
-    # Taiwan
-    "TFDA-QMS": "primary", "TFDA-QMS-EN": "primary", "TFDA-QMS-Inspection": "primary",
+    # Taiwan — bulk API replaces individual Jina entries; EN kept as supplementary
+    "TFDA-BulkAPI": "primary",
+    "TFDA-QMS": "primary", "TFDA-QMS-EN": "qms_guidance", "TFDA-QMS-Inspection": "primary",
     # USA
     "FDA-QMSR": "primary", "eCFR-820": "primary",
     # EU
@@ -3690,6 +3698,77 @@ def _retrieve_cached_content(url: str) -> Optional[str]:
     except Exception:
         pass
     return None
+
+
+async def _crawl_bulk_zip(site: dict, region: str) -> dict:
+    """Bulk ZIP strategy: Taiwan MOJ Open API — download all medical device laws.
+
+    Downloads ChOrder.json.zip + ChLaw.json.zip (cached for 7 days),
+    filters active TFDA medical device regulations (26 laws), converts each
+    to structured Markdown, and returns a single merged crawl result containing
+    all laws separated by clear section dividers.
+
+    Each individual law is also stored as ``_bulk_sub_results`` on the result
+    so callers (e.g. save_from_crawl_results) can optionally split them.
+    """
+    result = _make_result_template(site, region)
+    start  = time.time()
+
+    try:
+        from src.services.taiwan_bulk_api import fetch_taiwan_laws_bulk
+
+        sub_results = await asyncio.to_thread(
+            fetch_taiwan_laws_bulk,
+            use_cache=True,
+            save_individual_files=False,
+        )
+
+        if not sub_results:
+            result["crawl_status"]  = "failed"
+            result["failure_reason"] = "bulk_zip: no laws returned from taiwan_bulk_api"
+            return result
+
+        # Build merged markdown with clear per-law sections
+        parts: list[str] = []
+        for r in sub_results:
+            agency  = r.get("agency", "")
+            title   = r.get("title", "")
+            content = r.get("content_markdown", "")
+            meta    = r.get("_law_metadata", {})
+            pcode   = meta.get("pcode", "")
+            parts.append(
+                f"<!-- LAW_START: {pcode} agency={agency} -->\n"
+                f"{content}\n"
+                f"<!-- LAW_END: {pcode} -->"
+            )
+
+        merged = (
+            f"# 台灣醫療器材法規全集 (Taiwan Medical Device Regulatory Bundle)\n\n"
+            f"**來源**: MOJ Open API Bulk Download  \n"
+            f"**法規數量**: {len(sub_results)} 部現行醫療器材法規  \n"
+            f"**下載時間**: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}  \n\n"
+            f"---\n\n"
+        ) + "\n\n---\n\n".join(parts)
+
+        result["crawl_status"]    = "success"
+        result["content_source"]  = "bulk_api"
+        result["content_markdown"] = merged
+        result["title"]           = f"Taiwan Medical Device Regulatory Bundle ({len(sub_results)} laws)"
+        result["note"]            = (
+            f"MOJ Bulk API: {len(sub_results)} active medical device regulations — "
+            f"ChOrder + ChLaw — "
+            + ", ".join(r.get("_law_metadata", {}).get("pcode", "") for r in sub_results[:5])
+            + " …"
+        )
+        result["_bulk_sub_results"] = sub_results
+
+    except Exception as exc:
+        result["crawl_status"]   = "failed"
+        result["failure_reason"] = f"bulk_zip error: {exc}"
+        logger.error("_crawl_bulk_zip failed for %s/%s: %s", region, site.get("agency"), exc)
+
+    result["crawl_duration_seconds"] = round(time.time() - start, 2)
+    return result
 
 
 async def _crawl_tier1_api(
@@ -4985,9 +5064,15 @@ class AsyncRegulatoryUpdateCrawler:
         force_profile=True sites still attempt real crawl first; the pre-written profile
         is used only as absolute last resort after all live tiers fail.
         """
-        tier = site.get("tier", 2)
-        url = site.get("url", "")
-        sem = self._get_domain_semaphore(url)
+        tier     = site.get("tier", 2)
+        strategy = site.get("strategy", "")
+        url      = site.get("url", "")
+        sem      = self._get_domain_semaphore(url)
+
+        # bulk_zip: Taiwan MOJ Open API — download all laws in one ZIP,
+        # return a single merged crawl result containing all filtered laws.
+        if strategy == "bulk_zip":
+            return await _crawl_bulk_zip(site, region)
 
         async with sem:
             crawl_delay = min(site.get("crawl_delay", 3), 5)

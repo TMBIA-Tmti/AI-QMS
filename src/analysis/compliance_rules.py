@@ -4470,6 +4470,10 @@ class RegulationProfile:
     content_quality: str = "ok"
     # F-1: set True when crawler detects regulation update (ETag change)
     needs_reanalysis: bool = False
+    # B-NEW: set True when one or more source laws are flagged as deprecated/amended
+    deprecated_warning: bool = False
+    # B-NEW: pcode → amendment date for laws detected as updated since last static build
+    amended_laws: dict = field(default_factory=dict)
 
 
 # ============================================================
@@ -9891,6 +9895,8 @@ def merge_profiles(
     base: "RegulationProfile",
     incoming: "RegulationProfile",
     quality_threshold: float = 0.60,
+    law_metadata: "Optional[dict[str, dict]]" = None,
+    static_build_date: str = "20210101",
 ) -> "Optional[RegulationProfile]":
     """Merge an incoming crawled profile into a base predefined profile.
 
@@ -9898,10 +9904,22 @@ def merge_profiles(
     or None if incoming is too poor to improve the base.
 
     Merge strategy:
-      - Per clause: keep the mapping with higher confidence score.
+      - Per clause: keep mapping with higher confidence; allow high-confidence
+        dynamic override when incoming confidence > 1.3 × base confidence.
       - unique_requirements: union, deduplicated by first 40 chars of title_en.
       - regulation_id: always use base.regulation_id (predefined ID).
       - source: "merged"
+      - Smart amendment/deprecation detection via law_metadata from Bulk API.
+
+    Args:
+        base:              The predefined (static) profile.
+        incoming:          The crawled (dynamic) profile from LLM analysis.
+        quality_threshold: Reject incoming if non-NA ratio < this × base count.
+        law_metadata:      pcode → {modified_date, abandon_note, ...} from
+                           taiwan_bulk_api.get_law_metadata_index(). When provided,
+                           enables amendment and deprecation detection.
+        static_build_date: YYYYMMDD date of the static profile's last manual build.
+                           Laws with modified_date > this are flagged as amended.
     """
     base_non_na = sum(
         1 for m in base.iso_mapped.values()
@@ -9911,27 +9929,56 @@ def merge_profiles(
         1 for m in incoming.iso_mapped.values()
         if m.status != MappingStatus.NOT_APPLICABLE
     )
-    # Reject incoming if it's below the quality threshold relative to base
+    # Reject incoming if below quality threshold relative to base
     if base_non_na > 0 and incoming_non_na < quality_threshold * base_non_na:
         return None
 
-    # Clause-level merge: pick higher confidence mapping
+    # ── Smart law status detection (requires law_metadata from Bulk API) ───────
+    deprecated_warning = False
+    amended_laws: dict[str, str] = {}
+
+    if law_metadata:
+        for pcode, meta in law_metadata.items():
+            abandon = meta.get("abandon_note", "")
+            mod_date = meta.get("modified_date", "")
+
+            if abandon == "廢":
+                deprecated_warning = True
+
+            if mod_date and static_build_date and mod_date > static_build_date:
+                amended_laws[pcode] = mod_date
+
+    needs_reanalysis = bool(amended_laws)
+
+    # ── Clause-level merge ────────────────────────────────────────────────────
+    # Static profiles are hand-crafted and reliable; give them a 0.10
+    # "stability bonus" so the LLM override only wins when it is meaningfully
+    # more confident (> 0.10 higher pure confidence AND not marking as N/A).
+    _STATIC_BONUS = 0.10
+
     merged_iso_mapped: dict = {}
     all_clause_ids = set(base.iso_mapped.keys()) | set(incoming.iso_mapped.keys())
     for cid in all_clause_ids:
         base_m = base.iso_mapped.get(cid)
-        inc_m = incoming.iso_mapped.get(cid)
+        inc_m  = incoming.iso_mapped.get(cid)
+
         if base_m is None:
             merged_iso_mapped[cid] = inc_m
         elif inc_m is None:
             merged_iso_mapped[cid] = base_m
         else:
-            # Both exist — prefer higher confidence; prefer non-na over na
             base_score = (0 if base_m.status == MappingStatus.NOT_APPLICABLE else 1) + base_m.confidence
-            inc_score = (0 if inc_m.status == MappingStatus.NOT_APPLICABLE else 1) + inc_m.confidence
-            merged_iso_mapped[cid] = base_m if base_score >= inc_score else inc_m
+            inc_score  = (0 if inc_m.status  == MappingStatus.NOT_APPLICABLE else 1) + inc_m.confidence
 
-    # unique_requirements merge: union, deduped by title prefix
+            # Apply stability bonus to static: dynamic wins only when it is
+            # materially more confident AND not marking the clause as N/A.
+            if (inc_m.status != MappingStatus.NOT_APPLICABLE
+                    and inc_m.confidence > base_m.confidence + _STATIC_BONUS):
+                merged_iso_mapped[cid] = inc_m
+            else:
+                merged_iso_mapped[cid] = base_m if base_score >= inc_score else inc_m
+
+    # ── unique_requirements merge: union, deduped by title prefix ─────────────
     seen_titles: set[str] = set()
     merged_reqs: list = []
     for req in list(base.unique_requirements) + list(incoming.unique_requirements):
@@ -9960,7 +10007,9 @@ def merge_profiles(
         iso_mapped=merged_iso_mapped,
         unique_requirements=merged_reqs,
         content_quality=merged_quality,
-        needs_reanalysis=False,
+        needs_reanalysis=needs_reanalysis,
+        deprecated_warning=deprecated_warning,
+        amended_laws=amended_laws,
     )
 
 
@@ -10056,8 +10105,10 @@ def save_crawled_regulation(profile: RegulationProfile, as_id: Optional[str] = N
             }
             for r in profile.unique_requirements
         ],
-        "content_quality": profile.content_quality,
-        "needs_reanalysis": profile.needs_reanalysis,
+        "content_quality":    profile.content_quality,
+        "needs_reanalysis":   profile.needs_reanalysis,
+        "deprecated_warning": profile.deprecated_warning,
+        "amended_laws":       profile.amended_laws,
     }
 
     with open(filepath, "w", encoding="utf-8") as f:
@@ -10160,6 +10211,8 @@ def load_crawled_regulation(filepath: str) -> RegulationProfile:
         unique_requirements=unique_reqs,
         content_quality=data.get("content_quality", "ok"),
         needs_reanalysis=data.get("needs_reanalysis", False),
+        deprecated_warning=data.get("deprecated_warning", False),
+        amended_laws=data.get("amended_laws", {}),
     )
 
     # Register in memory
