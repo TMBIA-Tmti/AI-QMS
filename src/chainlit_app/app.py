@@ -588,6 +588,19 @@ def t(key: str, lang: str = None, **kwargs) -> str:
     return text
 
 
+def _report_btn_html(url: str, label: str, icon: str = "📊") -> str:
+    """Return an HTML anchor that opens the report URL in a new browser tab.
+
+    Requires unsafe_allow_html = true in .chainlit/config.toml (G5).
+    """
+    return (
+        f'<a href="{url}" target="_blank" rel="noopener noreferrer" '
+        f'style="display:inline-block;padding:4px 12px;border-radius:6px;'
+        f'background:#1976d2;color:#fff;text-decoration:none;font-weight:600;">'
+        f"{icon} {label}</a>"
+    )
+
+
 def _match_cmd(text: str, cmd_key: str) -> bool:
     """Check if text matches any keyword for the given command across all languages."""
     all_kw = get_all_command_keywords(cmd_key)
@@ -2392,7 +2405,7 @@ def detect_signature(ocr_result, file_path: str = "", lang: str = "zh-TW") -> di
 
 
 @cl.set_chat_profiles
-def chat_profile():
+async def chat_profile():
     # NOTE: @cl.set_chat_profiles runs BEFORE any user session exists,
     # so t() cannot determine the user's language. We use multilingual
     # inline descriptions as a workaround (zh-TW / EN / ja-JP).
@@ -3384,8 +3397,8 @@ async def _display_daily_audit_result(result):
             else:
                 lines.append(t("daily_audit.crossval_significant_drift", delta=delta))
 
-    # HTML report link
-    lines.append(f"\n[🔗 {t('daily_audit.view_report')}]({_report_url})")
+    # New-tab report button (G5)
+    lines.append(f"\n{_report_btn_html(_report_url, t('daily_audit.view_report'), icon='🔗')}")
 
     msg_content = "\n".join(lines)
 
@@ -3536,8 +3549,8 @@ async def _display_meta_review_result(meta):
         for i, rec in enumerate(meta.recommendations[:5], 1):
             lines.append(f"  {i}. {rec}")
 
-    # HTML report link
-    lines.append(f"\n[🔗 {t('meta_review.view_report')}]({_meta_report_url})")
+    # New-tab report button (G5)
+    lines.append(f"\n{_report_btn_html(_meta_report_url, t('meta_review.view_report'), icon='🔗')}")
 
     msg_content = "\n".join(lines)
 
@@ -3855,7 +3868,7 @@ async def on_chat_start():
                             f"{t('report.status')}: {_status_icon} {_status_label} "
                             f"({_completed}/{_total})\n"
                             f"{t('report.time')}: {_created}\n"
-                            f"[\ud83d\udd17 {t('report.view_report')}]({_report_url})"
+                            + _report_btn_html(_report_url, t('report.view_report'), icon='\ud83d\udd17')
                         ),
                     ).send()
                     _shown += 1
@@ -5203,8 +5216,10 @@ async def handle_regulatory_list():
                 _lang = cl.user_session.get("language", DEFAULT_LANG)
                 report_url = f"/api/report/page/{run_id}?lang={_lang}"
                 await cl.Message(
-                    content=f"\n\n📊 **[{t('report.open_realtime')}]({report_url})**\n\n"
-                    f"{t('report.page_online')}"
+                    content=(
+                        f"\n\n{_report_btn_html(report_url, t('report.open_realtime'))}\n\n"
+                        f"{t('report.page_online')}"
+                    )
                 ).send()
 
             # Resolve selected regions → regulation profile IDs
@@ -5348,13 +5363,15 @@ async def handle_regulatory_list():
         except Exception:
             pass
 
-        # Send report page link to user
+        # Send report page link to user (new-tab button, G5)
         try:
             _lang = cl.user_session.get("language", DEFAULT_LANG)
             report_url = f"/api/report/page/{pipeline_result.run_id}?lang={_lang}"
             await cl.Message(
-                content=f"\n\n📊 **[{t('report.open_interactive')}]({report_url})**\n\n"
-                f"{t('report.page_features')}"
+                content=(
+                    f"\n\n{_report_btn_html(report_url, t('report.open_interactive'))}\n\n"
+                    f"{t('report.page_features')}"
+                )
             ).send()
         except Exception:
             pass
@@ -5571,7 +5588,7 @@ async def _display_change_summary(save_result: dict, crawl_results: dict) -> Non
             label = t("regulatory_update.first_baseline")
             lines.append(f"🇪🇺 **{agency}**: {label}")
         elif core["changed"]:
-            articles_str = ", ".join(core["changed_articles"]) if core["changed_articles"] else "—"
+            articles_str = ", ".join(core["articles"]) if core["articles"] else "—"
             lines.append(f"🆕 🇪🇺 **{agency}**: {t('regulatory_update.eu_mdr_changed', articles=articles_str)}")
         else:
             lines.append(f"✅ 🇪🇺 **{agency}**: {t('regulatory_update.eu_mdr_no_change')}")
@@ -6368,8 +6385,10 @@ async def handle_regulatory_update_rescan(selected_regions: list):
                     _lang = cl.user_session.get("language", DEFAULT_LANG)
                     report_url = f"/api/report/page/{run_id}?lang={_lang}"
                     await cl.Message(
-                        content=f"\n\n📊 **[{t('report.open_realtime')}]({report_url})**\n\n"
-                        f"{t('report.page_online')}"
+                        content=(
+                            f"\n\n{_report_btn_html(report_url, t('report.open_realtime'))}\n\n"
+                            f"{t('report.page_online')}"
+                        )
                     ).send()
 
                 _pipeline_lang_update = cl.user_session.get("language", DEFAULT_LANG)
@@ -6498,13 +6517,15 @@ async def handle_regulatory_update_rescan(selected_regions: list):
         except Exception:
             pass
 
-        # Send report page link to user
+        # Send report page link to user (new-tab button, G5)
         try:
             _lang = cl.user_session.get("language", DEFAULT_LANG)
             report_url = f"/api/report/page/{pipeline_result.run_id}?lang={_lang}"
             await cl.Message(
-                content=f"\n\n📊 **[{t('report.open_interactive')}]({report_url})**\n\n"
-                f"{t('report.page_features')}"
+                content=(
+                    f"\n\n{_report_btn_html(report_url, t('report.open_interactive'))}\n\n"
+                    f"{t('report.page_features')}"
+                )
             ).send()
         except Exception:
             pass
@@ -10057,7 +10078,10 @@ async def on_message(message: cl.Message):
                     _status_icon = "✅" if _rd.get("status") == "completed" else "⚠️"
                     _done = _rd.get("completed_rows", 0)
                     _total = _rd.get("total_rows", 0)
-                    _lines.append(f"{_status_icon} {_ts} ({_done}/{_total}) — [📊 {t('report.view_report')}]({_url})")
+                    _lines.append(
+                        f"{_status_icon} {_ts} ({_done}/{_total}) — "
+                        + _report_btn_html(_url, t('report.view_report'))
+                    )
                     _found += 1
                     if _found >= 5:
                         break

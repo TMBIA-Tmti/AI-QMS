@@ -991,29 +991,45 @@ class LLMProviderManager:
             ))
             if provider["is_local"] and _is_conn_error and not stream:
                 _wait_for_local_service_ready(provider)
-                # Retry once after service recovers
-                try:
-                    _retry_params = dict(api_params)  # reuse the same params
-                    _retry_params.pop("stream", None)
-                    _retry_params["stream"] = False
-                    _retry_response = litellm.completion(**_retry_params)
-                    return {
-                        "content": _retry_response.choices[0].message.content,
-                        "usage": {
-                            "prompt_tokens": _retry_response.usage.prompt_tokens
-                            if _retry_response.usage else 0,
-                            "completion_tokens": _retry_response.usage.completion_tokens
-                            if _retry_response.usage else 0,
-                            "total_tokens": _retry_response.usage.total_tokens
-                            if _retry_response.usage else 0,
-                        },
-                        "model": _retry_response.model,
-                        "provider": provider["provider_id"],
-                        "reconnected": True,
-                    }
-                except Exception as retry_e:
-                    error_msg = str(retry_e)
-                    print(f"[ERROR] LLM retry after reconnect failed: {error_msg}")
+                # Retry with backoff after service recovers.
+                # The health check passes once the HTTP server is up, but the model
+                # may still be loading (especially on CPU-only machines). We try up to
+                # 3 times with increasing delays before giving up.
+                import time as _time
+                _reconnect_delays = [0, 15, 30]
+                for _r_idx, _r_delay in enumerate(_reconnect_delays):
+                    if _r_delay:
+                        print(
+                            f"[WAIT] {provider.get('display_name', 'Local LLM')} model "
+                            f"still loading — retrying in {_r_delay}s "
+                            f"(attempt {_r_idx + 1}/{len(_reconnect_delays)})"
+                        )
+                        _time.sleep(_r_delay)
+                    try:
+                        _retry_params = dict(api_params)
+                        _retry_params.pop("stream", None)
+                        _retry_params["stream"] = False
+                        _retry_response = litellm.completion(**_retry_params)
+                        return {
+                            "content": _retry_response.choices[0].message.content,
+                            "usage": {
+                                "prompt_tokens": _retry_response.usage.prompt_tokens
+                                if _retry_response.usage else 0,
+                                "completion_tokens": _retry_response.usage.completion_tokens
+                                if _retry_response.usage else 0,
+                                "total_tokens": _retry_response.usage.total_tokens
+                                if _retry_response.usage else 0,
+                            },
+                            "model": _retry_response.model,
+                            "provider": provider["provider_id"],
+                            "reconnected": True,
+                        }
+                    except Exception as retry_e:
+                        error_msg = str(retry_e)
+                        if _r_idx < len(_reconnect_delays) - 1:
+                            print(f"[WAIT] Reconnect retry {_r_idx + 1} failed: {error_msg[:120]}")
+                        else:
+                            print(f"[ERROR] LLM retry after reconnect failed: {error_msg}")
 
             # For streaming, yield an error message
             if stream:
@@ -1507,6 +1523,9 @@ def _wait_for_local_service_ready(provider: dict) -> None:
         if _is_local_service_up(provider):
             if attempt > 1:
                 print(f"[OK] {provider_name} reconnected after {waited}s (attempt {attempt})")
+                # Extra warm-up: service health endpoint responds before the model finishes
+                # loading into VRAM/RAM. Give it time to be actually ready for inference.
+                _t.sleep(10)
             return
         print(
             f"[WAIT] {provider_name} unreachable — retrying in {interval}s "
