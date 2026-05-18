@@ -4640,6 +4640,94 @@ def _build_qmsr_profile() -> RegulationProfile:
             notes="FDA Federal Register 89 FR 7496, Feb 2 2024",
         )
 
+    # G4: Within-clause deltas — QMSR imposes stricter timelines vs ISO 13485 baseline
+    iso_mapped["8.2.3"].within_clause_deltas = [
+        WithinClauseDelta(
+            delta_id="QMSR-WITHIN-8.2.3-001",
+            iso_clause="8.2.3",
+            title_en="MDR 30-Day Mandatory Reporting Timeline",
+            title_zh="MDR 強制30天通報時限",
+            title_ja="MDR 30日強制報告タイムライン",
+            iso_baseline_en="ISO 13485 Cl. 8.2.3 requires reporting to regulatory authorities but specifies no absolute timeline.",
+            iso_baseline_zh="ISO 13485 條款 8.2.3 要求向主管機關通報，但未規定絕對時限。",
+            iso_baseline_ja="ISO 13485 Cl. 8.2.3 は規制当局への報告を要求するが、絶対的なタイムラインは規定しない。",
+            country_specific_en=(
+                "21 CFR 803 Medical Device Reporting (MDR): manufacturers must report to FDA "
+                "within 30 calendar days of becoming aware of information that reasonably suggests "
+                "a device may have caused or contributed to a death or serious injury, or that a "
+                "device has malfunctioned that would likely cause or contribute to a death or serious "
+                "injury if the malfunction were to recur. 5-day reporting for events requiring "
+                "remedial action to prevent unreasonable risk of substantial harm to public health."
+            ),
+            country_specific_zh=(
+                "21 CFR 803 醫療器材通報（MDR）：製造業者在知悉器材可能造成或促成死亡或嚴重傷害，"
+                "或器材發生故障且若再次發生將可能造成死亡或嚴重傷害的資訊後，"
+                "必須在30個日曆日內向 FDA 通報。需採取補救措施以防止對公共健康造成重大傷害風險的"
+                "事件需在5個工作日內通報。"
+            ),
+            country_specific_ja=(
+                "21 CFR 803 医療機器報告（MDR）：製造業者は、機器が死亡または重傷を引き起こした、"
+                "または引き起こした可能性があることを示す情報を認識してから30暦日以内にFDAに報告しなければならない。"
+                "公衆衛生への重大な危害リスクを防ぐための是正措置が必要なイベントは5日以内に報告。"
+            ),
+            regulation_ref="21 CFR Part 803 (MDR)",
+            original_text=(
+                "21 CFR 803.50: Each manufacturer who receives or otherwise becomes aware of information "
+                "that reasonably suggests that one of its marketed devices... caused or contributed to a death "
+                "or serious injury... shall report such event to FDA within 30 calendar days."
+            ),
+            original_lang="en",
+            english_translation="",
+            delta_type="stricter_timeline",
+            audit_impact="critical",
+            expected_evidence=[
+                "MDR procedure covering 30-day reporting / 涵蓋30天通報之MDR程序書",
+                "MDR complaint evaluation records / MDR客訴評估記錄",
+                "eMDR submission records to FDA / 向FDA提交之eMDR記錄",
+                "5-day MDR tracking for urgent events / 緊急事件5日MDR追蹤",
+            ],
+            confidence=1.0,
+        ),
+    ]
+    iso_mapped["8.2.2"].within_clause_deltas = [
+        WithinClauseDelta(
+            delta_id="QMSR-WITHIN-8.2.2-001",
+            iso_clause="8.2.2",
+            title_en="Complaint Files — Mandatory Evaluation for MDR Reportability",
+            title_zh="客訴檔案 — 強制評估MDR通報性",
+            title_ja="苦情ファイル — MDR報告可能性の強制評価",
+            iso_baseline_en="ISO 13485 Cl. 8.2.2 requires complaint handling procedure with investigation and corrective action.",
+            iso_baseline_zh="ISO 13485 條款 8.2.2 要求含調查和矯正措施的客訴處理程序。",
+            iso_baseline_ja="ISO 13485 Cl. 8.2.2 は、調査および是正措置を含む苦情処理手順を要求する。",
+            country_specific_en=(
+                "§820.198(a): A formally designated unit must review, evaluate, and investigate all complaints. "
+                "Every complaint must be evaluated to determine if it represents an event that requires MDR reporting. "
+                "Records must include the decision-making trail for MDR reportability."
+            ),
+            country_specific_zh=(
+                "§820.198(a)：必須有正式指定的單位審查、評估和調查所有客訴。"
+                "每筆客訴必須評估是否代表需要MDR通報的事件。"
+                "記錄必須包含MDR通報性決策軌跡。"
+            ),
+            country_specific_ja=(
+                "§820.198(a)：すべての苦情を審査・評価・調査する正式に指定されたユニットが必要。"
+                "すべての苦情はMDR報告が必要なイベントかどうかを評価しなければならない。"
+            ),
+            regulation_ref="21 CFR §820.198(a) / §803",
+            original_text="21 CFR 820.198(a): Each manufacturer shall maintain complaint files. Each manufacturer shall establish and maintain procedures for receiving, reviewing, and evaluating complaints by a formally designated unit.",
+            original_lang="en",
+            english_translation="",
+            delta_type="additional_form",
+            audit_impact="major",
+            expected_evidence=[
+                "Complaint handling SOP with MDR evaluation step / 含MDR評估步驟之客訴處理SOP",
+                "MDR reportability determination records / MDR通報性判定記錄",
+                "Complaint unit designation / 客訴處理單位指定文件",
+            ],
+            confidence=0.95,
+        ),
+    ]
+
     # FDA-specific unique requirements (delta)
     unique_reqs = [
         UniqueRequirement(
@@ -5272,6 +5360,97 @@ def _build_eu_mdr_profile() -> RegulationProfile:
             confidence=0.85,
             notes="EN ISO 13485:2016/A11:2021 Annex ZA + ISO/TR 17223:2018",
         )
+
+    # G4: Within-clause deltas — EU MDR imposes stricter timelines vs ISO 13485
+    iso_mapped["8.2.3"].within_clause_deltas = [
+        WithinClauseDelta(
+            delta_id="EU-MDR-WITHIN-8.2.3-001",
+            iso_clause="8.2.3",
+            title_en="Vigilance Reporting — 15-Day / 2-Day Timelines",
+            title_zh="警戒通報 — 15天 / 2天時限",
+            title_ja="サーベイランス報告 — 15日/2日タイムライン",
+            iso_baseline_en="ISO 13485 Cl. 8.2.3 requires reporting to regulatory authorities but sets no explicit timeline.",
+            iso_baseline_zh="ISO 13485 條款 8.2.3 要求向主管機關通報，但未設定明確時限。",
+            iso_baseline_ja="ISO 13485 Cl. 8.2.3 は規制当局への報告を要求するが、明確なタイムラインは設定しない。",
+            country_specific_en=(
+                "EU MDR Art. 87: Serious incidents must be reported to the relevant competent authority "
+                "within 15 days of becoming aware. Incidents involving death or unanticipated serious "
+                "deterioration in health: 2 days. Field Safety Corrective Actions (FSCA) that could "
+                "benefit other Member States: immediately notified via EUDAMED. "
+                "EU MDR Art. 92: Trend reporting for non-serious incidents and expected side effects."
+            ),
+            country_specific_zh=(
+                "EU MDR 第87條：嚴重事故必須在知悉後15天內向相關主管機關通報。"
+                "涉及死亡或未預期嚴重健康惡化的事故：2天。"
+                "可能使其他成員國受益的現場安全矯正措施（FSCA）：通過EUDAMED立即通知。"
+                "EU MDR 第92條：非嚴重事故和預期副作用的趨勢通報。"
+            ),
+            country_specific_ja=(
+                "EU MDR Art. 87：重篤なインシデントは認識後15日以内に関係当局に報告。"
+                "死亡または予期せぬ重篤な健康悪化を伴うインシデントは2日以内。"
+                "FSCAはEUDAMEDを通じて即時通知。Art. 92：非重篤インシデントのトレンド報告。"
+            ),
+            regulation_ref="EU MDR Art. 87, 88, 89, 92",
+            original_text=(
+                "Article 87(1): Manufacturers shall report to the relevant competent authorities of the "
+                "Member States in which the device is made available and where the serious incident occurred "
+                "any serious incident involving devices made available in the Union within the timeframes "
+                "specified in Article 89."
+            ),
+            original_lang="en",
+            english_translation="",
+            delta_type="stricter_timeline",
+            audit_impact="critical",
+            expected_evidence=[
+                "EU Vigilance SOP with 15-day/2-day timelines / 含15天/2天時限之EU警戒SOP",
+                "EUDAMED registration / EUDAMED登錄",
+                "Incident evaluation and reporting records / 事故評估與通報記錄",
+                "FSCA notification procedure / FSCA通知程序",
+                "Trend reporting procedure (Art. 92) / 趨勢通報程序（第92條）",
+            ],
+            confidence=1.0,
+        ),
+    ]
+    iso_mapped["8.2.2"].within_clause_deltas = [
+        WithinClauseDelta(
+            delta_id="EU-MDR-WITHIN-8.2.2-001",
+            iso_clause="8.2.2",
+            title_en="Post-Market Surveillance (PMS) System — Integrated Vigilance",
+            title_zh="上市後監督（PMS）系統 — 整合警戒",
+            title_ja="市販後サーベイランス（PMS）システム — 統合サーベイランス",
+            iso_baseline_en="ISO 13485 Cl. 8.2.2 requires complaint handling. Post-market follow-up is addressed in 8.2.1.",
+            iso_baseline_zh="ISO 13485 條款 8.2.2 要求客訴處理。上市後跟蹤在 8.2.1 中涉及。",
+            iso_baseline_ja="ISO 13485 Cl. 8.2.2 は苦情処理を要求。市販後フォローアップはCl. 8.2.1に規定。",
+            country_specific_en=(
+                "EU MDR Art. 83/84: Manufacturers must establish and maintain a Post-Market Surveillance (PMS) "
+                "system integrated with the vigilance system. PMS plan (PMSP) must be updated proactively. "
+                "PMCF (Post-Market Clinical Follow-up) plan required as part of clinical evaluation. "
+                "Serious Incident Reports (SIRs) and Periodic Safety Update Reports (PSURs) linked to PMS data."
+            ),
+            country_specific_zh=(
+                "EU MDR 第83/84條：製造業者必須建立並維護與警戒系統整合的上市後監督（PMS）系統。"
+                "PMS計畫（PMSP）必須主動更新。上市後臨床追蹤（PMCF）計畫作為臨床評估的一部分。"
+                "嚴重事故報告（SIR）和定期安全更新報告（PSUR）與PMS數據關聯。"
+            ),
+            country_specific_ja=(
+                "EU MDR Art. 83/84：製造業者はサーベイランスシステムと統合されたPMSシステムを構築・維持しなければならない。"
+                "PMSPは積極的に更新。PMCFはCEの一部として要求。SIRとPSURはPMSデータと連携。"
+            ),
+            regulation_ref="EU MDR Art. 83, 84, 85, 86",
+            original_text="Article 83: Manufacturers of devices shall plan, establish, document, implement, maintain and update a post-market surveillance system that is appropriate for the risk class and type of device.",
+            original_lang="en",
+            english_translation="",
+            delta_type="scope_extension",
+            audit_impact="critical",
+            expected_evidence=[
+                "PMS Plan (PMSP) / 上市後監督計畫",
+                "PMCF plan linked to clinical evaluation / 與臨床評估關聯之PMCF計畫",
+                "PSUR for Class IIa+ devices / Class IIa+ 器材之PSUR",
+                "PMS report for Class I / Class I 器材之PMS報告",
+            ],
+            confidence=0.95,
+        ),
+    ]
 
     # EU MDR-specific unique requirements (delta)
     unique_reqs = [
@@ -6063,6 +6242,100 @@ def _build_tfda_profile() -> RegulationProfile:
             notes="醫療器材品質管理系統準則 (laws.moj.gov.tw/LawClass/LawAll.aspx?pcode=L0030097)",
         )
 
+    # G4: Within-clause deltas — TFDA imposes stricter timelines vs ISO 13485 baseline
+    iso_mapped["8.2.3"].within_clause_deltas = [
+        WithinClauseDelta(
+            delta_id="TFDA-WITHIN-8.2.3-001",
+            iso_clause="8.2.3",
+            title_en="Serious Adverse Event Reporting — 15-Day / 7-Day Timelines",
+            title_zh="嚴重不良事件通報 — 15天 / 7天時限",
+            title_ja="重篤な有害事象報告 — 15日/7日タイムライン",
+            iso_baseline_en="ISO 13485 Cl. 8.2.3 requires reporting to regulatory authorities but specifies no absolute timeline.",
+            iso_baseline_zh="ISO 13485 條款 8.2.3 要求向主管機關通報，但未規定絕對時限。",
+            iso_baseline_ja="ISO 13485 Cl. 8.2.3 は規制当局への報告を要求するが、絶対的なタイムラインは規定しない。",
+            country_specific_en=(
+                "醫療器材嚴重不良事件通報辦法 (Medical Device Serious Adverse Event Reporting Regulations): "
+                "Manufacturers must report serious adverse events to TFDA within 15 days of awareness. "
+                "Events involving death or life-threatening conditions must be reported within 7 days. "
+                "Initial report may be preliminary; full investigation report due within 30 days."
+            ),
+            country_specific_zh=(
+                "醫療器材嚴重不良事件通報辦法："
+                "製造業者必須在知悉嚴重不良事件後15天內向TFDA通報。"
+                "涉及死亡或危及生命情況的事件必須在7天內通報。"
+                "初始報告可為初步報告；完整調查報告應在30天內提交。"
+            ),
+            country_specific_ja=(
+                "醫療器材嚴重不良事件通報辦法：製造業者は重篤な有害事象を認識後15日以内にTFDAに報告。"
+                "死亡または生命を脅かす事象は7日以内。初期報告は暫定可、完全調査報告は30日以内。"
+            ),
+            regulation_ref="醫療器材嚴重不良事件通報辦法 第5條",
+            original_text=(
+                "醫療器材嚴重不良事件通報辦法第五條：製造業者或輸入業者知悉嚴重不良事件後，"
+                "應於七日內（死亡或危及生命）或十五日內（其他嚴重不良事件）通報主管機關。"
+            ),
+            original_lang="zh-TW",
+            english_translation=(
+                "Medical Device Serious Adverse Event Reporting Regulations Art. 5: "
+                "Manufacturers or importers, upon becoming aware of a serious adverse event, "
+                "shall notify the competent authority within 7 days (death or life-threatening) "
+                "or 15 days (other serious adverse events)."
+            ),
+            delta_type="stricter_timeline",
+            audit_impact="critical",
+            expected_evidence=[
+                "TFDA adverse event reporting procedure / TFDA不良事件通報程序書",
+                "Adverse event tracking log with timeline / 含時限追蹤之不良事件記錄",
+                "TFDA initial and full investigation reports / TFDA初始與完整調查報告",
+                "SAE evaluation criteria documentation / SAE評估準則文件",
+            ],
+            confidence=0.95,
+        ),
+    ]
+    iso_mapped["4.2.4"].within_clause_deltas = [
+        WithinClauseDelta(
+            delta_id="TFDA-WITHIN-4.2.4-001",
+            iso_clause="4.2.4",
+            title_en="Record Retention — 3-Year Minimum Floor",
+            title_zh="記錄保存 — 最少3年底限",
+            title_ja="記録保持 — 最低3年のフロア",
+            iso_baseline_en="ISO 13485 Cl. 4.2.4 requires record retention for at least the lifetime of the device, or minimum 2 years from product release.",
+            iso_baseline_zh="ISO 13485 條款 4.2.4 要求記錄保存至少為器材壽命期間，或產品放行後至少2年。",
+            iso_baseline_ja="ISO 13485 Cl. 4.2.4 は記録保持を少なくとも機器の寿命または製品リリース後最低2年を要求。",
+            country_specific_en=(
+                "TFDA QMS Regulations Art. 11: Quality records must be retained for at least the lifetime "
+                "of the medical device, but not less than 3 years from the date the product was released. "
+                "This 3-year floor is higher than ISO 13485's 2-year minimum and US QMSR §820.35."
+            ),
+            country_specific_zh=(
+                "醫療器材品質管理系統準則第11條：品質記錄必須保存至少醫療器材壽命期間，"
+                "但不少於產品放行日起3年。此3年底限高於ISO 13485的2年最低要求及美國QMSR §820.35。"
+            ),
+            country_specific_ja=(
+                "台湾QMS規制Art. 11：品質記録は医療機器の寿命期間以上、かつ製品リリース日から最低3年保持。"
+                "この3年フロアはISO 13485の2年最低要求および米国QMSR §820.35より高い。"
+            ),
+            regulation_ref="醫療器材品質管理系統準則 第11條",
+            original_text=(
+                "醫療器材品質管理系統準則第十一條：製造業者應將品質紀錄至少保存自產品放行日起三年"
+                "或醫療器材有效期限加一年（取較長者）。"
+            ),
+            original_lang="zh-TW",
+            english_translation=(
+                "TFDA QMS Regulations Article 11: Manufacturers shall retain quality records for at least "
+                "three years from the date of product release, or the expiry date of the medical device "
+                "plus one year, whichever is longer."
+            ),
+            delta_type="stricter_timeline",
+            audit_impact="major",
+            expected_evidence=[
+                "Record retention policy showing 3-year minimum / 顯示3年最低要求之記錄保存政策",
+                "Record retention schedule with product-specific retention periods / 含產品特定保存期限之記錄保存表",
+            ],
+            confidence=0.95,
+        ),
+    ]
+
     # Taiwan-specific unique requirements (delta)
     unique_reqs = [
         UniqueRequirement(
@@ -6723,6 +6996,91 @@ def _build_hc_profile() -> RegulationProfile:
             notes="CMDR SOR/98-282 (laws-lois.justice.gc.ca)",
         )
 
+    # G4 (extended): within-clause deltas for Health Canada
+    iso_mapped["8.2.3"].within_clause_deltas = [
+        WithinClauseDelta(
+            delta_id="HC-WITHIN-8.2.3-001",
+            iso_clause="8.2.3",
+            title_en="Mandatory Problem Reporting (MPR) — 30-Day / 72-Hour Timelines",
+            title_zh="強制問題通報（MPR）— 30天 / 72小時時限",
+            title_ja="強制問題報告（MPR）— 30日/72時間タイムライン",
+            iso_baseline_en="ISO 13485 Cl. 8.2.3 requires regulatory reporting but specifies no absolute timeline.",
+            iso_baseline_zh="ISO 13485 條款 8.2.3 要求法規通報，但未規定絕對時限。",
+            iso_baseline_ja="ISO 13485 Cl. 8.2.3 は規制報告を要求するが、絶対的なタイムラインは規定しない。",
+            country_specific_en=(
+                "Medical Devices Regulations SOR/98-282, Part 3 (s.59-62): Manufacturers must report "
+                "to Health Canada within 30 calendar days of becoming aware of a serious injury or death "
+                "linked to their device. Events posing an imminent risk to health must be reported within "
+                "72 hours. The mandatory problem reporting (MPR) system requires both an initial report "
+                "and a full investigation report."
+            ),
+            country_specific_zh=(
+                "醫療器材法規 SOR/98-282 第3部分（第59-62條）：製造業者在知悉與器材相關的嚴重傷害或死亡後，"
+                "必須在30個日曆日內向Health Canada通報。對健康構成迫切風險的事件必須在72小時內通報。"
+                "強制問題通報（MPR）系統需提交初始報告和完整調查報告。"
+            ),
+            country_specific_ja=(
+                "医療機器規制 SOR/98-282 第3部（s.59-62）：製造業者は機器に関連する重篤な傷害または死亡を"
+                "認識してから30暦日以内にHealth Canadaに報告。差し迫った健康リスクは72時間以内に報告。"
+            ),
+            regulation_ref="CMDR SOR/98-282 s.59-62",
+            original_text=(
+                "CMDR s.59(1): The manufacturer of a medical device shall, within 30 days after becoming aware "
+                "that the device may have caused or contributed to the death of, or a serious deterioration in "
+                "the state of health of, a patient, user or other person, report to the Minister..."
+            ),
+            original_lang="en",
+            english_translation="",
+            delta_type="stricter_timeline",
+            audit_impact="critical",
+            expected_evidence=[
+                "MPR procedure with 30-day and 72-hour tracking / 含30天及72小時追蹤之MPR程序書",
+                "Health Canada MPR submission records / 向Health Canada提交之MPR記錄",
+                "Initial and full investigation reports / 初始與完整調查報告",
+            ],
+            confidence=0.95,
+        ),
+    ]
+    iso_mapped["4.2.4"].within_clause_deltas = [
+        WithinClauseDelta(
+            delta_id="HC-WITHIN-4.2.4-001",
+            iso_clause="4.2.4",
+            title_en="Record Retention — 5 Years After Cessation of Production",
+            title_zh="記錄保存 — 停產後至少5年",
+            title_ja="記録保持 — 生産終了後5年",
+            iso_baseline_en="ISO 13485 Cl. 4.2.4 requires record retention for device lifetime, minimum 2 years from release.",
+            iso_baseline_zh="ISO 13485 條款 4.2.4 要求記錄保存至器材壽命期間，最少產品放行後2年。",
+            iso_baseline_ja="ISO 13485 Cl. 4.2.4 は記録保持を少なくとも機器寿命または製品リリース後2年を要求。",
+            country_specific_en=(
+                "CMDR SOR/98-282 s.52: Records required for compliance with the Regulations must be "
+                "maintained for at least 5 years after the date the manufacturer ceases to manufacture "
+                "the device, or the useful life of the device, whichever is greater."
+            ),
+            country_specific_zh=(
+                "CMDR SOR/98-282 第52條：符合法規要求的記錄必須保存至製造業者停止製造器材之日起至少5年，"
+                "或器材的使用壽命期間，取較長者。"
+            ),
+            country_specific_ja=(
+                "CMDR s.52：記録は製造業者が機器の製造を停止した日から少なくとも5年間、または機器の耐用年数、"
+                "いずれか長い期間保持。"
+            ),
+            regulation_ref="CMDR SOR/98-282 s.52",
+            original_text=(
+                "CMDR s.52: A manufacturer shall maintain the records required by these Regulations for "
+                "at least five years after the date on which the manufacturer ceases to manufacture the device."
+            ),
+            original_lang="en",
+            english_translation="",
+            delta_type="stricter_timeline",
+            audit_impact="major",
+            expected_evidence=[
+                "Record retention policy showing 5-year post-production minimum / 顯示停產後5年最低要求之記錄保存政策",
+                "Record retention schedule with device-specific timelines / 含器材特定期限之保存時程表",
+            ],
+            confidence=0.95,
+        ),
+    ]
+
     # HC-specific unique requirements (delta from ISO 13485)
     unique_reqs = [
         UniqueRequirement(
@@ -7292,6 +7650,97 @@ def _build_pmda_profile() -> RegulationProfile:
             notes="QMS省令 (MHLW Ordinance No.169)",
         )
 
+    # G4 (extended): within-clause deltas for Japan PMDA
+    iso_mapped["8.2.3"].within_clause_deltas = [
+        WithinClauseDelta(
+            delta_id="PMDA-WITHIN-8.2.3-001",
+            iso_clause="8.2.3",
+            title_en="Adverse Event Reporting — 15-Day (Death/Serious) / 30-Day Timelines",
+            title_zh="不良事件通報 — 死亡/重症15天 / 其他30天",
+            title_ja="不具合・感染症報告 — 死亡・重篤15日/その他30日",
+            iso_baseline_en="ISO 13485 Cl. 8.2.3 requires regulatory reporting but specifies no absolute timeline.",
+            iso_baseline_zh="ISO 13485 條款 8.2.3 要求法規通報，但未規定絕對時限。",
+            iso_baseline_ja="ISO 13485 Cl. 8.2.3 は規制報告を要求するが、絶対的なタイムラインは規定しない。",
+            country_specific_en=(
+                "PMD Act Art.68-10 / QMS省令 §56: Manufacturers must report to PMDA within 15 days "
+                "for adverse events involving death or serious deterioration in health, and within 30 days "
+                "for device malfunction that could lead to death or serious injury if it recurs. "
+                "Reports must use designated PMDA forms and be submitted via electronic system (FAIN)."
+            ),
+            country_specific_zh=(
+                "藥機法第68-10條 / QMS省令第56條：製造業者對於涉及死亡或嚴重健康惡化的不良事件，"
+                "必須在15天內向PMDA通報；對於可能再次發生且可能導致死亡或嚴重傷害的器材故障，"
+                "必須在30天內通報。報告必須使用指定的PMDA表格並通過電子系統（FAIN）提交。"
+            ),
+            country_specific_ja=(
+                "薬機法第68条の10 / QMS省令§56：死亡・重篤な健康被害は15日以内、再発時に死亡・重篤につながる"
+                "おそれのある不具合は30日以内にPMDAへ報告。指定書式をFAINシステムで提出。"
+            ),
+            regulation_ref="薬機法 Art.68-10 / QMS省令 §56",
+            original_text=(
+                "薬機法第68条の10：製造販売業者は、その製造販売をした医療機器について、"
+                "当該医療機器によるものと疑われる疾病、障害又は死亡の発生を知ったときは、"
+                "その旨を厚生労働省令で定めるところにより、厚生労働大臣に報告しなければならない。"
+            ),
+            original_lang="ja",
+            english_translation=(
+                "PMD Act Art.68-10: A marketing authorization holder who becomes aware of the occurrence "
+                "of a disease, disability, or death suspected to be caused by a medical device they market "
+                "must report this to the Minister of Health, Labour and Welfare as specified by MHLW ordinance."
+            ),
+            delta_type="stricter_timeline",
+            audit_impact="critical",
+            expected_evidence=[
+                "PMDA adverse event reporting procedure (15/30-day) / PMDA不良事件通報程序書（15/30天）",
+                "FAIN electronic submission records / FAIN電子提交記錄",
+                "Adverse event evaluation criteria documentation / 不良事件評估基準文件",
+            ],
+            confidence=0.95,
+        ),
+    ]
+    iso_mapped["4.2.4"].within_clause_deltas = [
+        WithinClauseDelta(
+            delta_id="PMDA-WITHIN-4.2.4-001",
+            iso_clause="4.2.4",
+            title_en="Record Retention — 5 Years (General) / Device Lifetime",
+            title_zh="記錄保存 — 一般5年 / 器材壽命",
+            title_ja="記録保持 — 一般5年/機器の耐用年数",
+            iso_baseline_en="ISO 13485 Cl. 4.2.4 requires record retention for device lifetime, minimum 2 years.",
+            iso_baseline_zh="ISO 13485 條款 4.2.4 要求記錄保存至器材壽命期間，最少2年。",
+            iso_baseline_ja="ISO 13485 Cl. 4.2.4 は記録保持を少なくとも機器寿命または2年を要求。",
+            country_specific_en=(
+                "QMS省令 Art.9: Quality records must be retained for at least 5 years from the date of "
+                "creation (or the expected useful life of the device if longer). For implantable devices, "
+                "retention must be at least 15 years."
+            ),
+            country_specific_zh=(
+                "QMS省令第9條：品質記錄必須從建立之日起保存至少5年（如器材預期使用壽命更長則取較長者）。"
+                "對於植入性器材，保存期限至少15年。"
+            ),
+            country_specific_ja=(
+                "QMS省令第9条：品質記録は作成日から少なくとも5年間保存（機器の予想耐用年数が長い場合はそちら）。"
+                "植込み型機器は少なくとも15年間保存。"
+            ),
+            regulation_ref="QMS省令 Art.9 (MHLW Ordinance No.169)",
+            original_text=(
+                "QMS省令第9条：製造販売業者等は、品質記録を少なくとも5年間（当該記録に係る医療機器等の"
+                "耐用年数（使用期限を含む。）が5年を超える場合においては、当該耐用年数に相当する期間）保管すること。"
+            ),
+            original_lang="ja",
+            english_translation=(
+                "QMS Ordinance Art.9: Marketing authorization holders must retain quality records for at least "
+                "5 years (or the useful life of the medical device if it exceeds 5 years)."
+            ),
+            delta_type="stricter_timeline",
+            audit_impact="major",
+            expected_evidence=[
+                "Record retention policy showing 5-year (15-year for implants) minimum / 顯示5年（植入物15年）最低要求之記錄保存政策",
+                "Retention schedule by device type / 依器材類型之保存時程表",
+            ],
+            confidence=0.90,
+        ),
+    ]
+
     # PMDA-specific unique requirements (delta from ISO 13485)
     unique_reqs = [
         UniqueRequirement(
@@ -7803,6 +8252,98 @@ def _build_anvisa_profile() -> RegulationProfile:
             confidence=0.85,
             notes="ANVISA RDC 665:2022 (gov.br/anvisa)",
         )
+
+    # G4 (extended): within-clause deltas for Brazil ANVISA
+    iso_mapped["8.2.3"].within_clause_deltas = [
+        WithinClauseDelta(
+            delta_id="ANVISA-WITHIN-8.2.3-001",
+            iso_clause="8.2.3",
+            title_en="Adverse Event Reporting — 72h (Imminent Risk) / 15 Days (Death) / 30 Days (Other)",
+            title_zh="不良事件通報 — 72小時（迫切風險）/ 15天（死亡）/ 30天（其他）",
+            title_ja="有害事象報告 — 72時間（差し迫ったリスク）/ 15日（死亡）/ 30日（その他）",
+            iso_baseline_en="ISO 13485 Cl. 8.2.3 requires regulatory reporting but specifies no absolute timeline.",
+            iso_baseline_zh="ISO 13485 條款 8.2.3 要求法規通報，但未規定絕對時限。",
+            iso_baseline_ja="ISO 13485 Cl. 8.2.3 は規制報告を要求するが、絶対的なタイムラインは規定しない。",
+            country_specific_en=(
+                "RDC 665/2022 Arts. 15-22: Three-tier reporting timeline: (1) 72 hours for events "
+                "posing imminent risk to public health; (2) 15 calendar days for death or serious "
+                "unexpected deterioration in health; (3) 30 calendar days for other serious adverse events "
+                "or malfunctions. Reports must be submitted via ANVISA's REDS electronic system."
+            ),
+            country_specific_zh=(
+                "RDC 665/2022 第15-22條：三級通報時限：(1) 對公共健康構成迫切風險的事件：72小時；"
+                "(2) 死亡或嚴重且非預期的健康惡化：15個日曆日；(3) 其他嚴重不良事件或故障：30個日曆日。"
+                "報告必須通過ANVISA的REDS電子系統提交。"
+            ),
+            country_specific_ja=(
+                "RDC 665/2022 第15-22条：3段階報告タイムライン：(1) 公衆衛生への差し迫ったリスク：72時間；"
+                "(2) 死亡・重篤な予期しない健康悪化：15暦日；(3) その他の重篤な有害事象・不具合：30暦日。"
+                "ANVISAのREDSシステムで提出。"
+            ),
+            regulation_ref="ANVISA RDC 665/2022 Art. 15-22",
+            original_text=(
+                "RDC 665/2022, Art. 15: O detentor do registro deve comunicar à Anvisa as suspeitas de "
+                "incidentes que possam ter causado ou contribuído para a ocorrência de morte, lesão grave "
+                "ou outros resultados adversos graves relacionados ao produto."
+            ),
+            original_lang="pt",
+            english_translation=(
+                "RDC 665/2022 Art. 15: The registration holder must notify ANVISA of suspected incidents "
+                "that may have caused or contributed to death, serious injury, or other serious adverse "
+                "outcomes related to the product."
+            ),
+            delta_type="stricter_timeline",
+            audit_impact="critical",
+            expected_evidence=[
+                "ANVISA vigilance procedure with 72h/15-day/30-day tiers / 含72小時/15天/30天三級制度之ANVISA警戒程序書",
+                "REDS electronic system registration / REDS電子系統登錄",
+                "Adverse event classification criteria / 不良事件分類準則",
+            ],
+            confidence=0.90,
+        ),
+    ]
+    iso_mapped["4.2.4"].within_clause_deltas = [
+        WithinClauseDelta(
+            delta_id="ANVISA-WITHIN-4.2.4-001",
+            iso_clause="4.2.4",
+            title_en="Record Retention — 5 Years After Cessation + Device Useful Life",
+            title_zh="記錄保存 — 停產後5年加上器材使用壽命",
+            title_ja="記録保持 — 生産終了後5年＋機器の耐用年数",
+            iso_baseline_en="ISO 13485 Cl. 4.2.4 requires record retention for device lifetime, minimum 2 years.",
+            iso_baseline_zh="ISO 13485 條款 4.2.4 要求記錄保存至器材壽命期間，最少2年。",
+            iso_baseline_ja="ISO 13485 Cl. 4.2.4 は少なくとも機器寿命または2年を要求。",
+            country_specific_en=(
+                "RDC 665/2022 Art. 80: Records must be retained for at least 5 years after the device "
+                "has been taken off the market, or for the useful life of the device plus 5 years, "
+                "whichever is greater."
+            ),
+            country_specific_zh=(
+                "RDC 665/2022 第80條：記錄必須保存至器材退出市場後至少5年，或器材使用壽命加5年，取較長者。"
+            ),
+            country_specific_ja=(
+                "RDC 665/2022 第80条：記録は製品が市場から撤退した後少なくとも5年間、または機器の耐用年数＋5年、"
+                "いずれか長い期間保持。"
+            ),
+            regulation_ref="ANVISA RDC 665/2022 Art. 80",
+            original_text=(
+                "RDC 665/2022, Art. 80: Os registros devem ser mantidos pelo prazo mínimo de 5 (cinco) "
+                "anos após a retirada do produto do mercado ou pela vida útil do produto acrescida de "
+                "5 (cinco) anos, o que for maior."
+            ),
+            original_lang="pt",
+            english_translation=(
+                "RDC 665/2022 Art. 80: Records must be maintained for a minimum period of 5 years after "
+                "the product is withdrawn from the market, or for the useful life of the product plus "
+                "5 years, whichever is greater."
+            ),
+            delta_type="stricter_timeline",
+            audit_impact="major",
+            expected_evidence=[
+                "Record retention policy showing 5-year post-market minimum / 顯示退市後5年最低要求之記錄保存政策",
+            ],
+            confidence=0.90,
+        ),
+    ]
 
     # ANVISA-specific unique requirements (delta from ISO 13485)
     unique_reqs = [
@@ -8325,6 +8866,53 @@ def _build_tga_profile() -> RegulationProfile:
             notes="TG(MD)R 2002 Schedule 3 (legislation.gov.au)",
         )
 
+    # G4 (extended): within-clause deltas for Australia TGA
+    iso_mapped["8.2.3"].within_clause_deltas = [
+        WithinClauseDelta(
+            delta_id="TGA-WITHIN-8.2.3-001",
+            iso_clause="8.2.3",
+            title_en="Adverse Event Reporting — 48 Hours (Death/Serious) / 30 Days (Other)",
+            title_zh="不良事件通報 — 48小時（死亡/嚴重）/ 30天（其他）",
+            title_ja="有害事象報告 — 48時間（死亡・重篤）/ 30日（その他）",
+            iso_baseline_en="ISO 13485 Cl. 8.2.3 requires regulatory reporting but specifies no absolute timeline.",
+            iso_baseline_zh="ISO 13485 條款 8.2.3 要求法規通報，但未規定絕對時限。",
+            iso_baseline_ja="ISO 13485 Cl. 8.2.3 は規制報告を要求するが、絶対的なタイムラインは規定しない。",
+            country_specific_en=(
+                "Therapeutic Goods Act 1989 s.41MP / TG(MD)R 2002 Schedule 3 Part 2: Manufacturers must "
+                "report to TGA within 48 hours of becoming aware of a death or serious deterioration in "
+                "health that may be related to the device. For other serious adverse events (malfunction "
+                "that could cause death/serious injury), reporting is required within 30 days. "
+                "Reports must be submitted via TGA's IRIS online reporting system."
+            ),
+            country_specific_zh=(
+                "治療性商品法1989年第41MP條 / TG(MD)R 2002附表3第2部分：製造業者在知悉可能與器材相關的"
+                "死亡或嚴重健康惡化後，必須在48小時內向TGA通報。對於其他嚴重不良事件（可能導致死亡/嚴重傷害的故障），"
+                "需在30天內通報。報告必須通過TGA的IRIS線上通報系統提交。"
+            ),
+            country_specific_ja=(
+                "治療用製品法1989 s.41MP / TG(MD)R 2002 Schedule 3 Part 2：死亡・重篤な健康悪化は48時間以内、"
+                "その他の重篤な有害事象は30日以内にTGAのIRISシステムで報告。"
+            ),
+            regulation_ref="Therapeutic Goods Act 1989 s.41MP",
+            original_text=(
+                "TG(MD)R 2002 Schedule 3 Part 2: A manufacturer of a medical device must, within 48 hours "
+                "of becoming aware of the occurrence of an adverse event that resulted in, or is likely to "
+                "result in, the death of, or a serious deterioration in the state of health of, a patient, "
+                "user or other person, give a report about the event to the Secretary."
+            ),
+            original_lang="en",
+            english_translation="",
+            delta_type="stricter_timeline",
+            audit_impact="critical",
+            expected_evidence=[
+                "TGA vigilance SOP with 48-hour and 30-day timelines / 含48小時及30天時限之TGA警戒SOP",
+                "IRIS system registration and submission records / IRIS系統登錄及提交記錄",
+                "Adverse event classification procedure / 不良事件分類程序",
+            ],
+            confidence=0.95,
+        ),
+    ]
+
     # TGA-specific unique requirements (delta from ISO 13485)
     unique_reqs = [
         UniqueRequirement(
@@ -8549,21 +9137,446 @@ def _init_predefined() -> None:
 
 _init_predefined()
 
+
+# ============================================================
+# G4 (extended): Static within-clause deltas for crawled profiles
+# Applied after _init_predefined() so crawled profiles already exist.
+# These inject pre-researched, citable delta data into profiles whose
+# ClauseMapping objects are created dynamically by LLM/crawler.
+# ============================================================
+
+def _inject_static_within_clause_deltas() -> None:
+    """Inject pre-researched WithinClauseDelta records into crawled profiles.
+
+    Called once after _init_predefined(). Safe to call multiple times
+    (idempotent: replaces list rather than appending).
+    """
+    _static: dict[str, dict[str, list[WithinClauseDelta]]] = {
+
+        # ── UK MHRA (post-Brexit) ─────────────────────────────────────────
+        "UK_MHRA": {
+            "8.2.3": [
+                WithinClauseDelta(
+                    delta_id="UK-WITHIN-8.2.3-001",
+                    iso_clause="8.2.3",
+                    title_en="Serious Incident Reporting — 15-Day / 2-Day Timelines (post-Brexit)",
+                    title_zh="嚴重事故通報 — 15天 / 2天時限（脫歐後）",
+                    title_ja="重篤インシデント報告 — 15日/2日タイムライン（Brexit後）",
+                    iso_baseline_en="ISO 13485 Cl. 8.2.3 requires regulatory reporting but specifies no absolute timeline.",
+                    iso_baseline_zh="ISO 13485 條款 8.2.3 要求法規通報，但未規定絕對時限。",
+                    iso_baseline_ja="ISO 13485 Cl. 8.2.3 は規制報告を要求するが、絶対的なタイムラインは規定しない。",
+                    country_specific_en=(
+                        "UK MDR 2002 (SI 2002/618) as amended by Medical Devices (Amendment etc.) "
+                        "(EU Exit) Regulations 2019: Manufacturers must report serious incidents to MHRA "
+                        "within 15 days of awareness. Events involving death or unanticipated serious "
+                        "deterioration in health must be reported within 2 days (immediate report). "
+                        "Field Safety Corrective Actions (FSCA) must be communicated immediately. "
+                        "Reports submitted via MHRA's Yellow Card / ICSR system."
+                    ),
+                    country_specific_zh=(
+                        "英國 MDR 2002（SI 2002/618）及2019年脫歐修正案：製造業者在知悉嚴重事故後15天內向MHRA通報。"
+                        "涉及死亡或未預期嚴重健康惡化的事件需在2天內通報（即時報告）。"
+                        "現場安全矯正措施（FSCA）必須立即告知。透過MHRA Yellow Card / ICSR系統提交。"
+                    ),
+                    country_specific_ja=(
+                        "UK MDR 2002（Brexit後修正）：重篤インシデントは15日以内、死亡・予期しない重篤健康悪化は"
+                        "2日以内にMHRAへ報告。FSCAは即時通知。MHRA Yellow Card/ICSRシステムで提出。"
+                    ),
+                    regulation_ref="UK MDR 2002 SI 2002/618 (as amended 2019)",
+                    original_text=(
+                        "UK MDR 2002 Regulation 16B: A manufacturer... must notify the Secretary of State "
+                        "of any serious incident as soon as possible and, in any event, not later than "
+                        "15 days after the manufacturer becomes aware of the incident."
+                    ),
+                    original_lang="en",
+                    english_translation="",
+                    delta_type="stricter_timeline",
+                    audit_impact="critical",
+                    expected_evidence=[
+                        "MHRA vigilance SOP with 15-day/2-day timelines / 含15天/2天時限之MHRA警戒SOP",
+                        "Yellow Card / ICSR system registration / Yellow Card/ICSR系統登錄",
+                        "FSCA communication procedure / FSCA通知程序",
+                    ],
+                    confidence=0.90,
+                ),
+            ],
+            "5.6.1": [
+                WithinClauseDelta(
+                    delta_id="UK-WITHIN-5.6.1-001",
+                    iso_clause="5.6.1",
+                    title_en="Annual Device Safety Update (ADSU) — Class IIb/III",
+                    title_zh="年度器材安全更新（ADSU）— Class IIb/III",
+                    title_ja="年次機器安全更新（ADSU）— クラスIIb/III",
+                    iso_baseline_en="ISO 13485 Cl. 5.6.1 requires management review at planned intervals.",
+                    iso_baseline_zh="ISO 13485 條款 5.6.1 要求按計畫間隔進行管理審查。",
+                    iso_baseline_ja="ISO 13485 Cl. 5.6.1 は計画的な間隔でのマネジメントレビューを要求。",
+                    country_specific_en=(
+                        "UK MDR 2002 (post-Brexit): Class IIb and III device manufacturers must prepare "
+                        "an Annual Device Safety Update (ADSU) summarising post-market surveillance data, "
+                        "complaints, vigilance reports, and regulatory intelligence. Equivalent to EU MDR "
+                        "PSUR requirement but specific to UK UKCA-marked devices."
+                    ),
+                    country_specific_zh=(
+                        "英國MDR 2002（脫歐後）：Class IIb 和 Class III 器材製造業者必須準備年度器材安全更新（ADSU），"
+                        "匯總上市後監督數據、客訴、警戒報告和法規情報。等同於EU MDR的PSUR要求，但專用於英國UKCA標記器材。"
+                    ),
+                    country_specific_ja=(
+                        "UK MDR 2002（Brexit後）：クラスIIb/IIIの製造業者はADSUを年次で作成。PMSデータ・苦情・"
+                        "サーベイランス報告・規制動向を要約。UKCAマーク機器に特有の要件。"
+                    ),
+                    regulation_ref="UK MDR 2002 (post-Brexit amendment)",
+                    original_text="UK MDR 2002 Regulation 16C: Annual Device Safety Update requirements for high-risk devices.",
+                    original_lang="en",
+                    english_translation="",
+                    delta_type="additional_form",
+                    audit_impact="major",
+                    expected_evidence=[
+                        "ADSU for Class IIb/III devices / Class IIb/III器材之ADSU",
+                        "UKCA marking documentation / UKCA標記文件",
+                    ],
+                    confidence=0.80,
+                ),
+            ],
+        },
+
+        # ── Korea MFDS ───────────────────────────────────────────────────
+        "KR_MFDS": {
+            "8.2.3": [
+                WithinClauseDelta(
+                    delta_id="KR-WITHIN-8.2.3-001",
+                    iso_clause="8.2.3",
+                    title_en="Adverse Event Reporting — 15-Day (Death/Serious) / 30-Day (Malfunction)",
+                    title_zh="不良事件通報 — 死亡/嚴重15天 / 故障30天",
+                    title_ja="有害事象報告 — 死亡・重篤15日/不具合30日",
+                    iso_baseline_en="ISO 13485 Cl. 8.2.3 requires regulatory reporting but specifies no absolute timeline.",
+                    iso_baseline_zh="ISO 13485 條款 8.2.3 要求法規通報，但未規定絕對時限。",
+                    iso_baseline_ja="ISO 13485 Cl. 8.2.3 は規制報告を要求するが、絶対的なタイムラインは規定しない。",
+                    country_specific_en=(
+                        "Medical Device Act Art.31 / 의료기기법 시행규칙 §28: Manufacturers must report to "
+                        "MFDS within 15 days for adverse events involving death or serious unexpected "
+                        "deterioration in health. Equipment malfunctions that could cause death or serious "
+                        "injury if they recur must be reported within 30 days. Reports submitted via "
+                        "MFDS MDR (의료기기 부작용 보고) system."
+                    ),
+                    country_specific_zh=(
+                        "醫療器材法第31條 / 醫療器材法施行規則第28條：製造業者對涉及死亡或嚴重且非預期健康惡化的不良事件，"
+                        "必須在15天內向食品醫藥品安全處（MFDS）通報。若再次發生可能導致死亡或嚴重傷害的設備故障，"
+                        "需在30天內通報。透過MFDS MDR系統提交。"
+                    ),
+                    country_specific_ja=(
+                        "医療機器法第31条 / 施行規則§28：死亡・重篤な予期しない健康悪化は15日以内、再発時に"
+                        "死亡・重篤につながる不具合は30日以内にMFDSへ報告。MFDS MDRシステムで提出。"
+                    ),
+                    regulation_ref="의료기기법 Art.31 / 시행규칙 §28",
+                    original_text=(
+                        "의료기기법 제31조: 의료기기의 제조업자는 그 의료기기를 사용하여 사망이나 신체 또는 "
+                        "정신에 중대한 장해가 발생하거나 발생하였다고 의심할 만한 사유가 있거나 발생 우려가 있는 경우 "
+                        "식품의약품안전처장에게 보고하여야 한다."
+                    ),
+                    original_lang="ko",
+                    english_translation=(
+                        "Medical Device Act Art.31: A medical device manufacturer must report to the "
+                        "Minister of Food and Drug Safety when death or serious physical or mental harm "
+                        "has occurred or is suspected to have occurred due to use of their medical device."
+                    ),
+                    delta_type="stricter_timeline",
+                    audit_impact="critical",
+                    expected_evidence=[
+                        "MFDS MDR reporting procedure (15/30-day) / MFDS MDR通報程序書（15/30天）",
+                        "MFDS MDR system registration / MFDS MDR系統登錄",
+                    ],
+                    confidence=0.85,
+                ),
+            ],
+            "4.2.4": [
+                WithinClauseDelta(
+                    delta_id="KR-WITHIN-4.2.4-001",
+                    iso_clause="4.2.4",
+                    title_en="Record Retention — 10 Years (Implantables) / 3 Years (Others)",
+                    title_zh="記錄保存 — 植入物10年 / 其他3年",
+                    title_ja="記録保持 — 植込み型10年/その他3年",
+                    iso_baseline_en="ISO 13485 Cl. 4.2.4 requires record retention for device lifetime, minimum 2 years.",
+                    iso_baseline_zh="ISO 13485 條款 4.2.4 要求記錄保存至器材壽命，最少2年。",
+                    iso_baseline_ja="ISO 13485 Cl. 4.2.4 は少なくとも機器寿命または2年を要求。",
+                    country_specific_en=(
+                        "의료기기법 시행규칙 §29: Quality records must be retained for at least 10 years "
+                        "after the device is taken off the market for implantable devices, and at least "
+                        "3 years for other medical devices. The retention period starts from the date "
+                        "the last product unit was released."
+                    ),
+                    country_specific_zh=(
+                        "醫療器材法施行規則第29條：植入性器材的品質記錄必須在器材退出市場後保存至少10年；"
+                        "其他醫療器材至少3年。保存期限從最後一批產品放行日起算。"
+                    ),
+                    country_specific_ja=(
+                        "施行規則§29：植込み型機器は退市後10年以上、その他の医療機器は3年以上記録保持。"
+                        "最終製品ロットの出荷日から起算。"
+                    ),
+                    regulation_ref="의료기기법 시행규칙 §29",
+                    original_text="의료기기법 시행규칙 제29조: 품질관리기록은 이식형 의료기기의 경우 10년, 그 외 의료기기는 3년 이상 보존.",
+                    original_lang="ko",
+                    english_translation="Quality records for implantable devices: 10 years; other medical devices: 3 years.",
+                    delta_type="stricter_timeline",
+                    audit_impact="major",
+                    expected_evidence=[
+                        "Record retention schedule showing 10-year (implants) / 3-year (others) / 顯示10年（植入物）/ 3年（其他）之保存時程",
+                    ],
+                    confidence=0.85,
+                ),
+            ],
+        },
+
+        # ── China NMPA ───────────────────────────────────────────────────
+        "CN_NMPA": {
+            "8.2.3": [
+                WithinClauseDelta(
+                    delta_id="CN-WITHIN-8.2.3-001",
+                    iso_clause="8.2.3",
+                    title_en="Adverse Event Reporting — 7-Day (Death/Life-Threatening) / 30-Day (Other Serious)",
+                    title_zh="不良事件通報 — 死亡/危及生命7天 / 其他嚴重30天",
+                    title_ja="不良事象報告 — 死亡・生命の危機7日/その他重篤30日",
+                    iso_baseline_en="ISO 13485 Cl. 8.2.3 requires regulatory reporting but specifies no absolute timeline.",
+                    iso_baseline_zh="ISO 13485 條款 8.2.3 要求法規通報，但未規定絕對時限。",
+                    iso_baseline_ja="ISO 13485 Cl. 8.2.3 は規制報告を要求するが、絶対的なタイムラインは規定しない。",
+                    country_specific_en=(
+                        "医疗器械不良事件监测和再评价管理办法 (2018) Arts. 22-25: "
+                        "Manufacturers must report to NMPA within 7 calendar days for adverse events "
+                        "involving death or life-threatening conditions. Other serious adverse events "
+                        "(serious injury, or malfunction likely to cause death/serious injury if recurred) "
+                        "must be reported within 30 days. Reports submitted via China NMPA MDR system "
+                        "(国家医疗器械不良事件监测信息系统)."
+                    ),
+                    country_specific_zh=(
+                        "醫療器材不良事件監測和再評價管理辦法（2018年）第22-25條："
+                        "製造業者對涉及死亡或危及生命的不良事件，必須在7個日曆日內向國家藥監局通報。"
+                        "其他嚴重不良事件（嚴重傷害，或若再次發生可能導致死亡/嚴重傷害的故障）必須在30天內通報。"
+                        "通過國家醫療器材不良事件監測信息系統提交。"
+                    ),
+                    country_specific_ja=(
+                        "医療機器不良事象監測和再評価管理办法（2018）第22-25条：死亡・生命の危機は7暦日以内、"
+                        "その他の重篤な不良事象は30日以内にNMPAへ報告。国家MDRシステムで提出。"
+                    ),
+                    regulation_ref="医疗器械不良事件监测和再评价管理办法 (2018) Art. 22-25",
+                    original_text=(
+                        "2018年《医疗器械不良事件监测和再评价管理办法》第二十二条：获知医疗器械不良事件后，"
+                        "导致死亡的，应当在7日内报告；导致严重伤害、可能导致严重伤害或死亡的，应当在30日内报告。"
+                    ),
+                    original_lang="zh",
+                    english_translation=(
+                        "2018 Adverse Event Monitoring and Re-evaluation Regulations Art. 22: "
+                        "Upon learning of a medical device adverse event resulting in death, report within 7 days; "
+                        "resulting in or likely to result in serious injury or death, report within 30 days."
+                    ),
+                    delta_type="stricter_timeline",
+                    audit_impact="critical",
+                    expected_evidence=[
+                        "NMPA MDR reporting procedure (7/30-day) / NMPA MDR通報程序書（7/30天）",
+                        "National MDR system registration / 國家MDR系統登錄",
+                    ],
+                    confidence=0.90,
+                ),
+            ],
+            "7.5.3": [
+                WithinClauseDelta(
+                    delta_id="CN-WITHIN-7.5.3-001",
+                    iso_clause="7.5.3",
+                    title_en="NMPA UDI System — Mandatory Since 2022 (Class III) / 2023 (Class II)",
+                    title_zh="國家藥監局 UDI 系統 — 2022年強制（III類）/ 2023年（II類）",
+                    title_ja="NMPA UDIシステム — 2022年強制（クラスIII）/ 2023年（クラスII）",
+                    iso_baseline_en="ISO 13485 Cl. 7.5.3 requires identification and traceability but does not mandate a specific UDI system.",
+                    iso_baseline_zh="ISO 13485 條款 7.5.3 要求識別和追溯性，但未強制規定特定的 UDI 系統。",
+                    iso_baseline_ja="ISO 13485 Cl. 7.5.3 は識別とトレーサビリティを要求するが、特定のUDIシステムを義務付けない。",
+                    country_specific_en=(
+                        "医疗器械唯一标识系统规则 (2019) / NMPA Announcement 2021 No.28: "
+                        "Class III medical devices must implement NMPA UDI system from 2022; "
+                        "Class II from 2023. Each device must have a UDI assigned through the "
+                        "NMPA UDI Database (UDID), using approved issuing agencies (GS1 China or equivalent). "
+                        "UDI must appear on device label and in the NMPA national database."
+                    ),
+                    country_specific_zh=(
+                        "醫療器材唯一標識系統規則（2019年）/ 國家藥監局公告2021年第28號："
+                        "III類醫療器材自2022年起、II類醫療器材自2023年起必須實施NMPA UDI系統。"
+                        "每個器材必須通過NMPA UDI資料庫（UDID）分配唯一識別碼，使用經核准的發碼機構（GS1中國或同等機構）。"
+                        "UDI必須出現在器材標籤上並收錄於NMPA國家資料庫。"
+                    ),
+                    country_specific_ja=(
+                        "医療機器固有識別システム規則（2019）/ NMPA公告2021年第28号：クラスIII機器は2022年から、"
+                        "クラスII機器は2023年からNMPA UDIシステムを実施。GS1中国等の認定機関を通じてUDIDに登録。"
+                    ),
+                    regulation_ref="医疗器械唯一标识系统规则 (2019)",
+                    original_text=(
+                        "《医疗器械唯一标识系统规则》第三条：医疗器械唯一标识由产品标识和生产标识组成。"
+                        "产品标识是识别注册人/备案人、医疗器械型号规格及包装的唯一代码。"
+                    ),
+                    original_lang="zh",
+                    english_translation=(
+                        "Medical Device UDI System Rules Art.3: The medical device UDI consists of a "
+                        "product identifier and a production identifier. The product identifier is a unique "
+                        "code identifying the registrant, device model/specification, and packaging."
+                    ),
+                    delta_type="additional_form",
+                    audit_impact="major",
+                    expected_evidence=[
+                        "NMPA UDI registration records / NMPA UDI登錄記錄",
+                        "UDID database entries for all marketed devices / 所有上市器材之UDID資料庫條目",
+                        "Device labels showing UDI / 顯示UDI之器材標籤",
+                    ],
+                    confidence=0.90,
+                ),
+            ],
+        },
+
+        # ── Singapore HSA ────────────────────────────────────────────────
+        "SG_HSA": {
+            "8.2.3": [
+                WithinClauseDelta(
+                    delta_id="SG-WITHIN-8.2.3-001",
+                    iso_clause="8.2.3",
+                    title_en="Adverse Event Reporting — 30-Day / Immediate (Imminent Risk)",
+                    title_zh="不良事件通報 — 30天 / 立即（迫切風險）",
+                    title_ja="有害事象報告 — 30日/即時（差し迫ったリスク）",
+                    iso_baseline_en="ISO 13485 Cl. 8.2.3 requires regulatory reporting but specifies no absolute timeline.",
+                    iso_baseline_zh="ISO 13485 條款 8.2.3 要求法規通報，但未規定絕對時限。",
+                    iso_baseline_ja="ISO 13485 Cl. 8.2.3 は規制報告を要求するが、絶対的なタイムラインは規定しない。",
+                    country_specific_en=(
+                        "Health Products Act (HPA) / Health Products (Medical Devices) Regulations 2010: "
+                        "Manufacturers must report to HSA within 30 days of becoming aware of a serious "
+                        "adverse event. Events posing an imminent public health risk require immediate "
+                        "notification. Field Safety Corrective Actions must be reported within 3 working days. "
+                        "Reports submitted via HSA's PRISM or MAVIG reporting portal."
+                    ),
+                    country_specific_zh=(
+                        "健康產品法（HPA）/ 健康產品（醫療器材）法規2010年：製造業者在知悉嚴重不良事件後30天內向HSA通報。"
+                        "對公共健康構成迫切風險的事件需立即通知。現場安全矯正措施必須在3個工作日內通報。"
+                        "通過HSA的PRISM或MAVIG通報入口提交。"
+                    ),
+                    country_specific_ja=(
+                        "健康製品法 / 健康製品（医療機器）規制2010：重篤な有害事象は30日以内にHSAへ報告。"
+                        "差し迫った公衆衛生リスクは即時通知。FSCAは3営業日以内に報告。PRISMまたはMAVIGで提出。"
+                    ),
+                    regulation_ref="Health Products (Medical Devices) Regulations 2010",
+                    original_text=(
+                        "Health Products (Medical Devices) Regulations Reg.20: A registrant must notify "
+                        "the Authority of any serious adverse event within 30 days after becoming aware "
+                        "of the event."
+                    ),
+                    original_lang="en",
+                    english_translation="",
+                    delta_type="stricter_timeline",
+                    audit_impact="critical",
+                    expected_evidence=[
+                        "HSA vigilance SOP with 30-day timeline / 含30天時限之HSA警戒SOP",
+                        "HSA PRISM/MAVIG system registration / HSA PRISM/MAVIG系統登錄",
+                    ],
+                    confidence=0.85,
+                ),
+            ],
+        },
+
+        # ── India CDSCO ──────────────────────────────────────────────────
+        "IN_CDSCO": {
+            "8.2.3": [
+                WithinClauseDelta(
+                    delta_id="IN-WITHIN-8.2.3-001",
+                    iso_clause="8.2.3",
+                    title_en="Adverse Event Reporting — 15-Day (Death/Serious) / 30-Day (Malfunction)",
+                    title_zh="不良事件通報 — 死亡/嚴重15天 / 故障30天",
+                    title_ja="有害事象報告 — 死亡・重篤15日/不具合30日",
+                    iso_baseline_en="ISO 13485 Cl. 8.2.3 requires regulatory reporting but specifies no absolute timeline.",
+                    iso_baseline_zh="ISO 13485 條款 8.2.3 要求法規通報，但未規定絕對時限。",
+                    iso_baseline_ja="ISO 13485 Cl. 8.2.3 は規制報告を要求するが、絶対的なタイムラインは規定しない。",
+                    country_specific_en=(
+                        "Medical Devices Rules 2017 Rule 15 / Schedule VII: Manufacturers must report to "
+                        "CDSCO within 15 days of awareness for adverse events resulting in or likely to "
+                        "result in death or serious deterioration in health. Device malfunctions that could "
+                        "cause death/serious injury if they recur must be reported within 30 days. "
+                        "Reports submitted via SUGAM portal (online CDSCO portal)."
+                    ),
+                    country_specific_zh=(
+                        "醫療器材規則2017年第15條 / 附表VII：製造業者對可能導致或已導致死亡或嚴重健康惡化的不良事件，"
+                        "必須在知悉後15天內向CDSCO通報。若再次發生可能導致死亡/嚴重傷害的器材故障，需在30天內通報。"
+                        "通過SUGAM入口（CDSCO線上入口）提交。"
+                    ),
+                    country_specific_ja=(
+                        "医療機器規則2017 Rule 15：死亡・重篤な健康悪化につながる有害事象は15日以内、"
+                        "再発時に死亡・重篤につながる不具合は30日以内にCDSCOへ報告。SUGAMポータルで提出。"
+                    ),
+                    regulation_ref="Medical Devices Rules 2017 Rule 15 / Schedule VII",
+                    original_text=(
+                        "Medical Devices Rules 2017, Schedule VII, Para 7: The manufacturer shall report "
+                        "to the Central Licencing Authority any serious adverse event... within 15 days "
+                        "from the date of occurrence or knowledge of such event."
+                    ),
+                    original_lang="en",
+                    english_translation="",
+                    delta_type="stricter_timeline",
+                    audit_impact="critical",
+                    expected_evidence=[
+                        "CDSCO MDR reporting procedure / CDSCO MDR通報程序書",
+                        "SUGAM portal registration / SUGAM入口登錄",
+                    ],
+                    confidence=0.85,
+                ),
+            ],
+        },
+    }
+
+    for profile_id, clause_map in _static.items():
+        profile = PREDEFINED_REGULATIONS.get(profile_id)
+        if profile is None:
+            continue
+        for clause_id, deltas in clause_map.items():
+            cm = profile.iso_mapped.get(clause_id)
+            if cm is None:
+                continue
+            cm.within_clause_deltas = deltas
+
+
+_inject_static_within_clause_deltas()
+
+
 # ============================================================
 # Region ↔ Profile ID Mapping (for crawler → profile resolution)
 # ============================================================
 
-# Static mapping for predefined 7-country profiles.
+# Static mapping for all 32 crawler regions → RegulationProfile IDs.
 # Key: REGION_SITES key (from regulatory_crawler.py)
 # Value: PREDEFINED_REGULATIONS key
 _REGION_TO_PROFILE_STATIC: dict[str, str] = {
-    "台灣 (Taiwan)": "TFDA",
-    "美國 (USA)": "QMSR",
-    "歐盟 (EU)": "EU_MDR",
-    "加拿大 (Canada)": "HC",
-    "日本 (Japan)": "PMDA",
-    "巴西 (Brazil)": "ANVISA",
+    # Original 7 predefined profiles
+    "台灣 (Taiwan)":    "TFDA",
+    "美國 (USA)":       "QMSR",
+    "歐盟 (EU)":        "EU_MDR",
+    "加拿大 (Canada)":  "HC",
+    "日本 (Japan)":     "PMDA",
+    "巴西 (Brazil)":    "ANVISA",
     "澳洲 (Australia)": "TGA",
+    # 25 additional regions (G3 expansion)
+    "英國 (UK)":                        "UK_MHRA",
+    "中國 (China)":                     "CN_NMPA",
+    "韓國 (Korea)":                     "KR_MFDS",
+    "瑞士 (Switzerland)":               "CH_SWISSMEDIC",
+    "MDSAP":                            "MDSAP",
+    "國際標準 (International Standard)": "INTL_STD",
+    "印度 (India)":                     "IN_CDSCO",
+    "新加坡 (Singapore)":               "SG_HSA",
+    "沙烏地阿拉伯 (Saudi Arabia)":       "SA_SFDA",
+    "泰國 (Thailand)":                  "TH_FDA",
+    "紐西蘭 (New Zealand)":             "NZ_MEDSAFE",
+    "墨西哥 (Mexico)":                  "MX_COFEPRIS",
+    "阿根廷 (Argentina)":               "AR_ANMAT",
+    "南非 (South Africa)":              "ZA_SAHPRA",
+    "土耳其 (Turkey)":                  "TR_TITCK",
+    "印尼 (Indonesia)":                 "ID_BPOM",
+    "馬來西亞 (Malaysia)":              "MY_MDA",
+    "以色列 (Israel)":                  "IL_AMAR",
+    "菲律賓 (Philippines)":             "PH_FDA",
+    "越南 (Vietnam)":                   "VN_MOH",
+    "哥倫比亞 (Colombia)":              "CO_INVIMA",
+    "俄羅斯 (Russia)":                  "RU_ROSZDRAVNADZOR",
+    "埃及 (Egypt)":                     "EG_EDA",
+    "智利 (Chile)":                     "CL_ISP",
+    "阿聯酋 (UAE)":                     "AE_MOHAP",
 }
 
 
@@ -10412,3 +11425,7 @@ try:
         )
 except Exception:
     pass  # Non-critical — predefined profiles still available
+
+# Re-run injection AFTER crawled profiles are loaded so static
+# within_clause_deltas also apply to crawled profile entries.
+_inject_static_within_clause_deltas()

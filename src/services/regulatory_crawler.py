@@ -3167,6 +3167,96 @@ def _html_to_markdown_bs4(html: str, url: str = "") -> str:
         return f"(HTML parsing failed: {e})"
 
 
+def _parse_rss_feed(xml_text: str, agency: str) -> tuple[str, str, list[dict]]:
+    """Parse RSS 2.0 / Atom 1.0 feed and return (markdown, channel_title, items).
+
+    G6: RSS monitoring support. Extracts up to 50 recent items and renders them
+    as a Markdown table with title, date, and link for downstream diff detection.
+
+    Returns:
+        markdown:      Structured Markdown summary of feed items
+        channel_title: Feed channel/title string
+        items:         List of dicts with keys: title, link, pubDate, description
+    """
+    try:
+        root = ET.fromstring(xml_text.strip())
+    except Exception:
+        # Try stripping XML declaration then re-parse
+        cleaned = re.sub(r"<\?xml[^?]*\?>", "", xml_text.strip(), count=1)
+        root = _stdlib_ET.fromstring(cleaned)
+
+    ns_atom = "http://www.w3.org/2005/Atom"
+    is_atom = root.tag == f"{{{ns_atom}}}feed" or root.tag == "feed"
+
+    items: list[dict] = []
+    channel_title = agency
+
+    if is_atom:
+        # Atom 1.0
+        title_el = root.find(f"{{{ns_atom}}}title") or root.find("title")
+        if title_el is not None and title_el.text:
+            channel_title = title_el.text.strip()
+        entry_tag = f"{{{ns_atom}}}entry" if f"{{{ns_atom}}}feed" in root.tag else "entry"
+        for entry in root.findall(entry_tag):
+            def _atom_text(tag: str) -> str:
+                el = entry.find(f"{{{ns_atom}}}{tag}") or entry.find(tag)
+                return (el.text or "").strip() if el is not None else ""
+            link_el = (
+                entry.find(f"{{{ns_atom}}}link[@rel='alternate']")
+                or entry.find(f"{{{ns_atom}}}link")
+                or entry.find("link")
+            )
+            link = link_el.get("href", "") if link_el is not None else ""
+            items.append({
+                "title":       _atom_text("title"),
+                "link":        link,
+                "pubDate":     _atom_text("updated") or _atom_text("published"),
+                "description": _atom_text("summary") or _atom_text("content"),
+            })
+    else:
+        # RSS 2.0
+        channel = root.find("channel") or root
+        title_el = channel.find("title")
+        if title_el is not None and title_el.text:
+            channel_title = title_el.text.strip()
+        for item in channel.findall("item"):
+            def _rss_text(tag: str) -> str:
+                el = item.find(tag)
+                return (el.text or "").strip() if el is not None else ""
+            items.append({
+                "title":       _rss_text("title"),
+                "link":        _rss_text("link"),
+                "pubDate":     _rss_text("pubDate"),
+                "description": _rss_text("description"),
+            })
+
+    items = items[:50]  # keep up to 50 most-recent entries
+
+    lines = [
+        f"# {channel_title}",
+        f"**Source**: {agency} RSS/Atom feed  ",
+        f"**Items**: {len(items)}  ",
+        "",
+        "| Date | Title | Link |",
+        "|------|-------|------|",
+    ]
+    for it in items:
+        date = it["pubDate"][:10] if it["pubDate"] else "—"
+        title = it["title"].replace("|", "\\|")[:120]
+        link = it["link"]
+        lines.append(f"| {date} | {title} | {link} |")
+
+    if items:
+        lines += ["", "## Summaries", ""]
+        for it in items[:10]:
+            if it["description"]:
+                desc = re.sub(r"<[^>]+>", "", it["description"])[:300].strip()
+                lines.append(f"### {it['title'][:80]}")
+                lines.append(f"{desc}\n")
+
+    return "\n".join(lines), channel_title, items
+
+
 def _json_to_markdown(data: dict, url: str = "") -> str:
     """Convert API JSON response to readable Markdown."""
     try:
@@ -3822,9 +3912,27 @@ async def _crawl_tier1_api(
             url, etag=etag, last_modified=last_mod, content_hash=content_hash
         )
 
-        # Parse JSON
+        # Parse JSON / RSS / Atom / HTML
         content_type = response.headers.get("content-type", "")
-        if "application/json" in content_type or site.get("strategy") == "api_json":
+        is_rss = (
+            "rss" in content_type
+            or "atom" in content_type
+            or site.get("strategy") in ("rss", "atom")
+            or (url.endswith(".rss") or url.endswith(".atom") or "rss" in url or "atom" in url)
+        )
+        if is_rss:
+            # G6: RSS/Atom feed parsing — extract items as structured Markdown
+            try:
+                rss_md, rss_title, rss_items = _parse_rss_feed(response.text, site["agency"])
+                result["content_markdown"] = rss_md
+                result["title"] = rss_title
+                result["_rss_items"] = rss_items  # list of {title, link, pubDate, description}
+                result["content_source"] = "rss"
+            except Exception as _rss_err:
+                result["content_markdown"] = _html_to_markdown(response.text, url)
+                result["title"] = f"{site['agency']} Feed"
+                logger.debug("RSS parse fallback for %s: %s", url, _rss_err)
+        elif "application/json" in content_type or site.get("strategy") == "api_json":
             try:
                 json_data = response.json()
                 result["content_markdown"] = _json_to_markdown(json_data, url)

@@ -284,6 +284,48 @@ class RegulatoryMarkdownStorage:
             region = r.get("region", "Unknown")
             agency = r.get("agency", "Unknown")
 
+            # Taiwan Bulk API: save each individual law as a separate document.
+            # _bulk_sub_results is a list of per-law crawl dicts (from taiwan_bulk_api).
+            # When present, skip saving the merged content and instead save each law
+            # individually so downstream analysis can process laws one at a time.
+            bulk_subs = r.get("_bulk_sub_results")
+            if bulk_subs:
+                for sub in bulk_subs:
+                    sub_content = sub.get("content_markdown", "")
+                    if not sub_content:
+                        continue
+                    meta = sub.get("_law_metadata", {})
+                    pcode = meta.get("pcode", "")
+                    sub_agency = sub.get("agency", agency)
+                    if _annotator_ok:
+                        try:
+                            sub_content = _annotate_qms(sub_content)
+                        except Exception:
+                            pass
+                    sub_result = self.save_regulatory_document(
+                        region=region,
+                        agency=sub_agency,
+                        agency_name=sub.get("name", sub_agency),
+                        title=sub.get("title", sub_agency),
+                        url=sub.get("url", r.get("url", "")),
+                        markdown_content=sub_content,
+                        crawl_status="success",
+                        note=sub.get("note", f"pcode={pcode}"),
+                    )
+                    if sub_result.get("success"):
+                        saved_count += 1
+                        doc_ids.append(sub_result["doc_id"])
+                        per_doc_changes.append({
+                            "region": region,
+                            "agency": sub_agency,
+                            "content_changed": False,
+                            "first_baseline": True,
+                            "changed_articles": [],
+                        })
+                    else:
+                        skipped_count += 1
+                continue  # skip saving merged bulk content
+
             # Retrieve previous body_hash before saving (for change detection)
             prev_doc = self.get_document_by_url(r.get("url", ""))
             prev_body_hash: Optional[str] = prev_doc.get("body_hash") if prev_doc else None

@@ -26,8 +26,9 @@ allow_origins = [
 follow_symlink = true
 
 [features]
-# Process and display HTML in messages
-unsafe_allow_html = false
+# Process and display HTML in messages. Enabled so report URLs can use
+# <a target="_blank"> to open the interactive report in a new browser tab.
+unsafe_allow_html = true
 
 # Process and display mathematical expressions
 latex = false

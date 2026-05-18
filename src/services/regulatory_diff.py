@@ -173,3 +173,110 @@ def build_change_summary(save_result: dict, crawl_results: dict) -> dict:
         "countries": countries,
         "has_any_change": has_any_change,
     }
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# G6: RSS Index Diff — detect added / removed items between two feed crawls
+# ──────────────────────────────────────────────────────────────────────────────
+
+def detect_rss_index_diff(
+    old_items: list[dict],
+    new_items: list[dict],
+    key: str = "link",
+) -> dict:
+    """Compare two lists of RSS/index items and return added / removed entries.
+
+    Each item is a dict with at least a ``key`` field (default: ``"link"``).
+    Falls back to ``"title"`` as key if ``"link"`` is empty.
+
+    Args:
+        old_items: Items from the previous crawl run.
+        new_items: Items from the current crawl run.
+        key:       Field used to uniquely identify items (default ``"link"``).
+
+    Returns:
+        {
+            "added":   [item, ...],   — items in new but not in old
+            "removed": [item, ...],   — items in old but not in new
+            "unchanged_count": int,
+            "has_change": bool,
+        }
+    """
+    def _item_key(item: dict) -> str:
+        v = item.get(key, "").strip()
+        if not v:
+            v = item.get("title", "").strip()
+        return v
+
+    old_keys: set[str] = {_item_key(i) for i in old_items if _item_key(i)}
+    new_keys: set[str] = {_item_key(i) for i in new_items if _item_key(i)}
+
+    added_keys   = new_keys - old_keys
+    removed_keys = old_keys - new_keys
+
+    added   = [i for i in new_items if _item_key(i) in added_keys]
+    removed = [i for i in old_items if _item_key(i) in removed_keys]
+
+    return {
+        "added":           added,
+        "removed":         removed,
+        "unchanged_count": len(old_keys & new_keys),
+        "has_change":      bool(added or removed),
+    }
+
+
+def detect_index_diff(old_content: str, new_content: str) -> dict:
+    """Detect document-index additions and removals between two Markdown crawl snapshots.
+
+    Scans both snapshots for Markdown table rows and hyperlinks to build a
+    title→link index, then diffs them to report added / removed entries.
+
+    This is the non-RSS variant: used when a site returns an HTML index page
+    (e.g., a MDCG guidance list, CDSCO notifications index) that the crawler
+    converts to Markdown.
+
+    Args:
+        old_content: Full Markdown from the previous crawl.
+        new_content: Full Markdown from the current crawl.
+
+    Returns:
+        {
+            "added":   [{"title": str, "link": str}, ...],
+            "removed": [{"title": str, "link": str}, ...],
+            "unchanged_count": int,
+            "has_change": bool,
+        }
+    """
+    _LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
+
+    def _extract_links(text: str) -> tuple[dict[str, str], dict[str, str]]:
+        """Return (key→link, key→original_title) from all Markdown hyperlinks.
+
+        Keys are lowercased for comparison; original_title preserves casing.
+        """
+        key_to_link: dict[str, str] = {}
+        key_to_title: dict[str, str] = {}
+        for m in _LINK_RE.finditer(text):
+            title = m.group(1).strip()
+            link  = m.group(2).strip()
+            if title and link and not link.startswith("#"):
+                k = title.lower()
+                key_to_link[k]  = link
+                key_to_title[k] = title
+        return key_to_link, key_to_title
+
+    old_index, old_titles = _extract_links(old_content)
+    new_index, new_titles = _extract_links(new_content)
+
+    added_keys   = set(new_index) - set(old_index)
+    removed_keys = set(old_index) - set(new_index)
+
+    added   = [{"title": new_titles[k], "link": new_index[k]} for k in sorted(added_keys)]
+    removed = [{"title": old_titles[k], "link": old_index[k]} for k in sorted(removed_keys)]
+
+    return {
+        "added":           added,
+        "removed":         removed,
+        "unchanged_count": len(set(old_index) & set(new_index)),
+        "has_change":      bool(added or removed),
+    }
