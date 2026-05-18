@@ -9145,12 +9145,48 @@ _init_predefined()
 # ClauseMapping objects are created dynamically by LLM/crawler.
 # ============================================================
 
-def _inject_static_within_clause_deltas() -> None:
-    """Inject pre-researched WithinClauseDelta records into crawled profiles.
+def _inject_static_within_clause_deltas() -> None:  # noqa: C901
+    """Inject pre-researched WithinClauseDelta records into ALL profiles.
 
-    Called once after _init_predefined(). Safe to call multiple times
-    (idempotent: replaces list rather than appending).
+    Uses a MERGE strategy: builder-set deltas (predefined profiles) are
+    preserved; only new delta_ids not already present are appended.
+    Called twice — once after _init_predefined() (predefined profiles) and
+    once after load_all_crawled_regulations() (crawled profiles).
+
+    Coverage: 32 countries × 12 clause categories ≈ 120+ entries.
     """
+    # ── Shared ISO 13485 baselines (reused across all deltas) ────────────
+    _AE_EN  = "ISO 13485 Cl. 8.2.3 requires regulatory reporting but specifies no absolute timeline."
+    _AE_ZH  = "ISO 13485 條款 8.2.3 要求法規通報，但未規定絕對時限。"
+    _AE_JA  = "ISO 13485 Cl. 8.2.3 は規制報告を要求するが、絶対的なタイムラインは規定しない。"
+    _REC_EN = "ISO 13485 Cl. 4.2.4 requires record retention for device lifetime, minimum 2 years."
+    _REC_ZH = "ISO 13485 條款 4.2.4 要求記錄保存至器材壽命，最少 2 年。"
+    _REC_JA = "ISO 13485 Cl. 4.2.4 は少なくとも機器寿命または2年を要求。"
+    _FSC_EN = "ISO 13485 Cl. 8.3.2 requires control of nonconforming product after delivery; no reporting timeline specified."
+    _FSC_ZH = "ISO 13485 條款 8.3.2 要求管制交付後不合格品，但未規定通報時限。"
+    _FSC_JA = "ISO 13485 Cl. 8.3.2 は出荷後不適合品の管理を要求するが、報告タイムラインは規定しない。"
+    _LBL_EN = "ISO 13485 Cl. 7.5.1 requires controlled production including labeling; no specific language mandated."
+    _LBL_ZH = "ISO 13485 條款 7.5.1 要求管制生產（含標示），但未規定特定語言。"
+    _LBL_JA = "ISO 13485 Cl. 7.5.1 は標示を含む生産管理を要求するが、特定言語は規定しない。"
+    _UDI_EN = "ISO 13485 Cl. 7.5.9.2 requires traceability for UDI-bearing devices; no national UDI system mandated."
+    _UDI_ZH = "ISO 13485 條款 7.5.9.2 要求具 UDI 器材的追溯性，但未強制特定國家 UDI 系統。"
+    _UDI_JA = "ISO 13485 Cl. 7.5.9.2 はUDI機器の追跡可能性を要求するが、特定国家UDIシステムは義務付けない。"
+    _CLN_EN = "ISO 13485 Cl. 7.3.6 requires design validation; clinical evaluation scope is not prescriptively defined."
+    _CLN_ZH = "ISO 13485 條款 7.3.6 要求設計驗證；未規定臨床評估的具體範疇。"
+    _CLN_JA = "ISO 13485 Cl. 7.3.6 は設計バリデーションを要求するが、臨床評価の範囲を規定しない。"
+
+    def _wd(did, clause, t_en, t_zh, t_ja, b_en, b_zh, b_ja,
+            cs_en, cs_zh, cs_ja, ref, orig, lang, eng, dtype, impact, evid, conf=0.85):
+        return WithinClauseDelta(
+            delta_id=did, iso_clause=clause,
+            title_en=t_en, title_zh=t_zh, title_ja=t_ja,
+            iso_baseline_en=b_en, iso_baseline_zh=b_zh, iso_baseline_ja=b_ja,
+            country_specific_en=cs_en, country_specific_zh=cs_zh, country_specific_ja=cs_ja,
+            regulation_ref=ref, original_text=orig, original_lang=lang,
+            english_translation=eng, delta_type=dtype, audit_impact=impact,
+            expected_evidence=evid, confidence=conf,
+        )
+
     _static: dict[str, dict[str, list[WithinClauseDelta]]] = {
 
         # ── UK MHRA (post-Brexit) ─────────────────────────────────────────
@@ -9519,9 +9555,1776 @@ def _inject_static_within_clause_deltas() -> None:
                 ),
             ],
         },
+
+        # ── Additional entries for predefined profiles (new clauses) ────────
+        # EU MDR additional clauses
+        "EU_MDR": {
+            "7.3.6": [_wd(
+                "EU-MDR-WITHIN-7.3.6-001", "7.3.6",
+                "Clinical Evaluation — CER + PMCF Mandatory (Art. 61 + Annex XIV)",
+                "臨床評估 — CER + PMCF 強制（Art.61 + Annex XIV）",
+                "臨床評価 — CER + PMCF 必須（Art.61 + Annex XIV）",
+                _CLN_EN, _CLN_ZH, _CLN_JA,
+                ("EU MDR Art. 61 + Annex XIV: Manufacturers must conduct and document a clinical evaluation (CE) "
+                 "for every device. A Clinical Evaluation Report (CER) is mandatory. Class IIa/IIb devices require "
+                 "a Post-Market Clinical Follow-up (PMCF) plan; Class III and implantable Class IIa/IIb require annual "
+                 "PMCF updates. Equivalence to another device can only be claimed if the manufacturer has contractual "
+                 "access to its full technical documentation. CER must be kept up to date throughout device lifecycle."),
+                ("EU MDR 第61條 + Annex XIV：製造業者必須為每個器材進行並記錄臨床評估（CE）。"
+                 "臨床評估報告（CER）為強制要求。Class IIa/IIb 需要上市後臨床追蹤（PMCF）計畫；"
+                 "Class III 及可植入 Class IIa/IIb 需年度 PMCF 更新。"
+                 "等同性主張需具備對應器材完整技術文件的合約存取權。CER 須在器材生命週期內持續更新。"),
+                ("EU MDR Art.61 + Annex XIV：すべての機器について臨床評価（CE）の実施・文書化が必須。"
+                 "CER（臨床評価報告）は強制。Class IIa/IIbはPMCF計画が必要；Class IIIおよび植込み型Class IIa/IIbは年次PMCF更新が必要。"),
+                "EU MDR Art. 61, 85, 86 / Annex XIV",
+                "EU MDR Article 61(1): A manufacturer shall plan, conduct and document a clinical evaluation.",
+                "en", "", "scope_extension", "critical",
+                ["Clinical Evaluation Report (CER) / 臨床評估報告",
+                 "PMCF plan for Class IIa+ / Class IIa+ 之PMCF計畫",
+                 "Clinical Evaluation Plan (CEP) / 臨床評估計畫",
+                 "Annual PMCF report update (Class III) / Class III 年度PMCF更新"],
+                0.98,
+            )],
+            "8.2.1": [_wd(
+                "EU-MDR-WITHIN-8.2.1-001", "8.2.1",
+                "Post-Market Clinical Follow-up (PMCF) — Systematic Proactive Surveillance",
+                "上市後臨床追蹤（PMCF）— 系統性主動監測",
+                "市販後臨床追跡（PMCF）— 系統的能動的サーベイランス",
+                "ISO 13485 Cl. 8.2.1 requires a feedback system from post-production; PMCF methodology not prescribed.",
+                "ISO 13485 條款 8.2.1 要求上市後回饋系統；未規定 PMCF 方法論。",
+                "ISO 13485 Cl. 8.2.1 は市販後フィードバックシステムを要求するが、PMCFの方法は規定しない。",
+                ("EU MDR Art. 83/84/85: Manufacturers must establish a Post-Market Surveillance (PMS) system "
+                 "that proactively collects and analyses post-market data. For Class IIa+ devices, a PMCF plan "
+                 "is mandatory. Class III and implantable Class IIa/IIb: Periodic Safety Update Report (PSUR) "
+                 "annually. Class IIa/IIb non-implantable: PSUR every 2 years. Class I: PMS Report. "
+                 "PMCF methods include systematic literature review, clinical investigations, registries."),
+                ("EU MDR 第83/84/85條：製造業者必須建立主動收集和分析上市後數據的 PMS 系統。"
+                 "Class IIa+ 器材強制要求 PMCF 計畫。Class III 及可植入 IIa/IIb：年度 PSUR。"
+                 "Class IIa/IIb（非植入）：每2年 PSUR。Class I：PMS 報告。"
+                 "PMCF 方法包括系統性文獻回顧、臨床調查、登錄資料庫。"),
+                ("EU MDR Art.83/84/85：製造業者はPMSシステムを構築し能動的にデータ収集・分析。"
+                 "Class IIa+は PMCF計画必須。Class III/植込み型Class IIa/IIb：年次PSUR。Class I：PMSレポート。"),
+                "EU MDR Art. 83, 84, 85",
+                "EU MDR Article 84(1): Manufacturers of class IIa, IIb and III devices shall prepare a periodic safety update report (PSUR).",
+                "en", "", "scope_extension", "critical",
+                ["PMS Plan (PMSP) per class / 依分類之PMS計畫",
+                 "PMCF Plan and Report / PMCF計畫與報告",
+                 "PSUR (Class IIa+ annual/biennial) / PSUR（Class IIa+年度/雙年度）",
+                 "PMS Report (Class I) / PMS報告（Class I）"],
+                0.98,
+            )],
+            "8.3.2": [_wd(
+                "EU-MDR-WITHIN-8.3.2-001", "8.3.2",
+                "FSCA Notification — Immediate / Field Safety Notice Mandatory",
+                "FSCA 通知 — 立即通知 / 現場安全通知強制",
+                "FSCA通知 — 即時/フィールド安全通知必須",
+                _FSC_EN, _FSC_ZH, _FSC_JA,
+                ("EU MDR Art. 89: Manufacturers must notify competent authorities and EUDAMED of any FSCA "
+                 "immediately (before the action is taken or simultaneously). A Field Safety Notice (FSN) "
+                 "must be issued and distributed to device users/customers before or during the FSCA. "
+                 "EUDAMED registration of the FSCA is mandatory."),
+                ("EU MDR 第89條：製造業者必須在採取 FSCA 前或同時立即通知主管機關和 EUDAMED。"
+                 "現場安全通知（FSN）必須在 FSCA 前或期間向器材用戶/客戶發布。強制在 EUDAMED 登錄 FSCA。"),
+                ("EU MDR Art.89：FSCAの実施前または同時に即時、関係当局とEUDAMEDへ通知。"
+                 "FSNはFSCA前または期間中にユーザー・顧客へ配布。EUDAMEDへのFSCA登録は必須。"),
+                "EU MDR Art. 89",
+                "EU MDR Article 89(3): Where a field safety corrective action is decided, the manufacturer shall without delay inform the relevant competent authorities.",
+                "en", "", "stricter_timeline", "critical",
+                ["FSCA notification to EUDAMED / FSCA通知至EUDAMED",
+                 "Field Safety Notice (FSN) template and distribution list / FSN範本與發布清單",
+                 "FSCA procedure / FSCA程序書"],
+                0.98,
+            )],
+            "7.3.10": [_wd(
+                "EU-MDR-WITHIN-7.3.10-001", "7.3.10",
+                "Software Lifecycle — MDCG 2019-16 + IEC 62304 Required",
+                "軟體生命週期 — MDCG 2019-16 + IEC 62304 強制",
+                "ソフトウェアライフサイクル — MDCG 2019-16 + IEC 62304 必須",
+                "ISO 13485 Cl. 7.3.10 requires documented software development; specific lifecycle standard not mandated.",
+                "ISO 13485 條款 7.3.10 要求文件化軟體開發；未強制規定特定生命週期標準。",
+                "ISO 13485 Cl. 7.3.10 は文書化されたソフトウェア開発を要求するが、特定のライフサイクル標準は義務付けない。",
+                ("EU MDR Annex I GSPR 17 + MDCG 2019-16: Software as a Medical Device (SaMD) must follow "
+                 "IEC 62304 software lifecycle processes. Class C/D software (per IEC 62304) requires Notified Body "
+                 "involvement. Software documentation must include: hazard analysis, software architecture, "
+                 "software requirements specification, verification and validation records, anomaly resolution. "
+                 "Security (IEC 81001-5-1) and usability (IEC 62366) are also required."),
+                ("EU MDR Annex I GSPR 17 + MDCG 2019-16：醫療器材軟體（SaMD）必須遵循 IEC 62304 軟體生命週期流程。"
+                 "Class C/D 軟體（依 IEC 62304）需 Notified Body 介入。"
+                 "軟體文件需包含：危害分析、軟體架構、軟體需求規格、驗證確效記錄、異常解決。"
+                 "安全（IEC 81001-5-1）和可用性（IEC 62366）也是要求。"),
+                ("EU MDR Annex I GSPR 17 + MDCG 2019-16：SaMDはIEC 62304に従う。"
+                 "クラスC/DはNBの関与が必要。ハザード分析・アーキテクチャ・要件仕様・V&V記録・異常解決が必須。"),
+                "EU MDR Annex I GSPR 17 / MDCG 2019-16 / IEC 62304",
+                "EU MDR Annex I §17: Devices that incorporate software or that are software shall be designed to ensure repeatability, reliability and performance.",
+                "en", "", "additional_form", "major",
+                ["IEC 62304 software lifecycle documentation / IEC 62304軟體生命週期文件",
+                 "Hazard analysis for software / 軟體危害分析",
+                 "Software V&V records / 軟體驗證確效記錄",
+                 "MDCG 2019-16 compliance evidence / MDCG 2019-16符合性證據"],
+                0.95,
+            )],
+            "4.2.5": [_wd(
+                "EU-MDR-WITHIN-4.2.5-001", "4.2.5",
+                "Technical Documentation — Annex II/III Format (Far Beyond ISO Device File)",
+                "技術文件 — Annex II/III 格式（遠超 ISO Device File）",
+                "技術文書 — Annex II/IIIフォーマット（ISOデバイスファイルを大きく超える）",
+                "ISO 13485 Cl. 4.2.5 requires a medical device file; format not prescribed.",
+                "ISO 13485 條款 4.2.5 要求器材主檔案；未規定格式。",
+                "ISO 13485 Cl. 4.2.5 は医療機器ファイルを要求するが、フォーマットは規定しない。",
+                ("EU MDR Annex II: Technical Documentation must include: (1) device description and specification; "
+                 "(2) labeling; (3) design/manufacturing information; (4) GSPR compliance documentation; "
+                 "(5) benefit-risk analysis; (6) product verification/validation; (7) post-market surveillance. "
+                 "Annex III: Post-Market Surveillance Technical Documentation (PMSS). Retention: 10 years minimum "
+                 "(15 years for implantables) from last device placed on market."),
+                ("EU MDR Annex II：技術文件必須包含：(1) 器材描述與規格；(2) 標示；(3) 設計/製造資訊；"
+                 "(4) GSPR 符合性文件；(5) 效益風險分析；(6) 產品驗證確效；(7) 上市後監督。"
+                 "Annex III：上市後監督技術文件（PMSS）。保存期限：自最後一批器材上市起至少10年（植入物15年）。"),
+                ("EU MDR Annex II：技術文書は(1)機器説明・仕様(2)表示(3)設計・製造情報(4)GSPR適合文書"
+                 "(5)便益・リスク分析(6)検証・バリデーション(7)PMSを含む。最低10年（植込み型15年）保持。"),
+                "EU MDR Annex II, Annex III, Art. 10(8)",
+                "EU MDR Article 10(8): Manufacturers shall retain the technical documentation and the EU declaration of conformity for a period of at least 10 years after the last device covered by the EU declaration of conformity has been made available on the market.",
+                "en", "", "scope_extension", "critical",
+                ["Technical Documentation per Annex II / Annex II格式技術文件",
+                 "PMSS per Annex III / Annex III之PMSS",
+                 "GSPR conformity checklist / GSPR符合性檢核表",
+                 "Benefit-risk analysis / 效益風險分析"],
+                0.98,
+            )],
+            "6.2": [_wd(
+                "EU-MDR-WITHIN-6.2-001", "6.2",
+                "Person Responsible for Regulatory Compliance (PRRC) — Qualifications",
+                "法規合規負責人（PRRC）— 資格要求",
+                "規制適合責任者（PRRC）— 資格要件",
+                "ISO 13485 Cl. 6.2 requires competence for personnel; specific regulatory compliance role not defined.",
+                "ISO 13485 條款 6.2 要求人員能力；未定義特定法規合規角色。",
+                "ISO 13485 Cl. 6.2 は要員の力量を要求するが、特定の規制適合責任者の役割は規定しない。",
+                ("EU MDR Art. 15: At least one Person Responsible for Regulatory Compliance (PRRC) must be "
+                 "designated. PRRC must have: (a) a diploma, certificate or other evidence of formal qualification "
+                 "in law, medicine, pharmacy, engineering or another relevant scientific discipline; AND "
+                 "(b) at least 1 year of professional experience in regulatory affairs or QMS areas. "
+                 "For SMEs/micro-enterprises: PRRC may be part-time but must be available."),
+                ("EU MDR 第15條：至少必須指定一名法規合規負責人（PRRC）。PRRC 須具備：(a) 法律、醫學、藥學、"
+                 "工程或其他相關科學領域的文憑、證書或其他正式資格證明；且 (b) 至少1年法規事務或 QMS 領域的專業經驗。"
+                 "對中小企業/微型企業：PRRC 可兼職但須隨時可聯繫。"),
+                ("EU MDR Art.15：少なくとも1名のPRRCを指定。PRRCは(a)法律・医学・薬学・工学等の正式資格と"
+                 "(b)法規制業務またはQMS分野での1年以上の経験が必要。"),
+                "EU MDR Art. 15",
+                "EU MDR Article 15(1): Manufacturers shall have available within their organisation at least one person responsible for regulatory compliance.",
+                "en", "", "local_authority_specific", "critical",
+                ["PRRC designation letter / PRRC指定信函",
+                 "PRRC qualification evidence (diploma + experience) / PRRC資格證明（學歷+經驗）",
+                 "PRRC job description and responsibilities / PRRC職位說明書與職責"],
+                0.98,
+            )],
+            "8.2.4": [_wd(
+                "EU-MDR-WITHIN-8.2.4-001", "8.2.4",
+                "Unannounced Audits by Notified Body (Art. 78)",
+                "Notified Body 不預告稽核（Art.78）",
+                "被通知機関による抜き打ち監査（Art.78）",
+                "ISO 13485 Cl. 8.2.4 requires internal audits; external unannounced audits not addressed.",
+                "ISO 13485 條款 8.2.4 要求內部稽核；未涉及外部不預告稽核。",
+                "ISO 13485 Cl. 8.2.4 は内部監査を要求するが、外部の抜き打ち監査については規定しない。",
+                ("EU MDR Art. 78: Notified Bodies shall perform unannounced audits of manufacturers at regular "
+                 "intervals. The manufacturer must facilitate the audit at any time, including access to "
+                 "production facilities, records, and personnel. Refusal of unannounced audit can result in "
+                 "suspension of the certificate. Manufacturers must ensure all production sites (including "
+                 "contract manufacturers) allow NB access. At least one unannounced audit per 5-year cycle."),
+                ("EU MDR 第78條：Notified Body 必須定期對製造業者進行不預告稽核。製造業者必須隨時配合稽核，"
+                 "包括提供生產設施、記錄和人員的存取。拒絕不預告稽核可能導致證書暫停。"
+                 "製造業者必須確保所有生產場所（包括委外製造商）允許 NB 進入。每5年週期至少一次不預告稽核。"),
+                ("EU MDR Art.78：NBは定期的に抜き打ち監査を実施。製造業者はいつでも監査を受け入れる義務。"
+                 "拒否は証明書停止の可能性。5年周期で少なくとも1回の抜き打ち監査。"),
+                "EU MDR Art. 78",
+                "EU MDR Article 78(1): Notified bodies shall perform unannounced factory inspections.",
+                "en", "", "scope_extension", "major",
+                ["Unannounced audit readiness procedure / 不預告稽核準備程序",
+                 "NB access authorization for all production sites / 所有生產場所NB存取授權",
+                 "Contract manufacturer NB access clause / 委外製造商NB存取條款"],
+                0.90,
+            )],
+            "7.5.9.2": [_wd(
+                "EU-MDR-WITHIN-7.5.9.2-001", "7.5.9.2",
+                "EUDAMED UDI Registration — Mandatory for All Devices",
+                "EUDAMED UDI 登錄 — 所有器材強制",
+                "EUDAMED UDI登録 — 全機器必須",
+                _UDI_EN, _UDI_ZH, _UDI_JA,
+                ("EU MDR Art. 27 + Annex VI: All devices placed on the EU market must have a UDI assigned "
+                 "by an accredited issuing entity (GS1, HIBCC, ICCBBA). The Basic UDI-DI and UDI-DI must be "
+                 "registered in EUDAMED before placing on market. UDI must appear on device label and all "
+                 "higher levels of packaging. For implantable devices: UDI on implant card. "
+                 "Class III/Class IIb implantable: UDI on label since May 2021; Class IIa/IIb: May 2023; Class I: May 2025."),
+                ("EU MDR 第27條 + Annex VI：所有在 EU 市場上市的器材必須由認可發碼機構（GS1/HIBCC/ICCBBA）"
+                 "指定 UDI。Basic UDI-DI 和 UDI-DI 必須在上市前在 EUDAMED 登錄。UDI 必須出現在器材標籤和所有"
+                 "更高層次的包裝上。植入性器材：UDI 需在植入卡上。分階段實施：Class III/IIb 植入性 2021年5月起；"
+                 "Class IIa/IIb 2023年5月起；Class I 2025年5月起。"),
+                ("EU MDR Art.27 + Annex VI：EU市場の全機器に認定発行機関（GS1等）のUDI付与が必須。"
+                 "Basic UDI-DIとUDI-DIは市場投入前にEUDAMED登録。ラベルと全包装レベルにUDI表示。"),
+                "EU MDR Art. 27, Annex VI Part C",
+                "EU MDR Article 27(1): The Basic UDI-DI assigned to a device shall appear on the label of the device.",
+                "en", "", "additional_form", "critical",
+                ["EUDAMED registration for all devices / 所有器材之EUDAMED登錄",
+                 "Basic UDI-DI and UDI-DI records / Basic UDI-DI與UDI-DI記錄",
+                 "UDI on device labels and packaging / 器材標籤與包裝上之UDI",
+                 "Implant card with UDI (if applicable) / 含UDI之植入卡（如適用）"],
+                0.98,
+            )],
+        },
+
+        # ── US FDA QMSR — additional clauses ──────────────────────────────
+        "QMSR": {
+            "7.5.9.2": [_wd(
+                "QMSR-WITHIN-7.5.9.2-001", "7.5.9.2",
+                "FDA UDI — GUDID Database Registration (Class II/III)",
+                "FDA UDI — GUDID 資料庫登錄（Class II/III）",
+                "FDA UDI — GUDIDデータベース登録（Class II/III）",
+                _UDI_EN, _UDI_ZH, _UDI_JA,
+                ("21 CFR Part 830 / FDA UDI Rule (2013): Labelers of Class III devices must comply with UDI "
+                 "requirements since September 2014; Class II since September 2015; Class I since September 2020. "
+                 "Each device label must bear a UDI in both human-readable (HRI) and automatic identification "
+                 "(AIDC) form. Labelers must register the device identifier in FDA's GUDID (Global Unique Device "
+                 "Identification Database) before placing device on the US market."),
+                ("21 CFR Part 830 / FDA UDI 法規（2013年）：Class III 器材標示方自2014年9月起須符合 UDI 要求；"
+                 "Class II 自2015年9月起；Class I 自2020年9月起。每個器材標籤必須同時有人類可讀（HRI）和"
+                 "自動識別（AIDC）形式的 UDI。標示方必須在器材在美國市場上市前將器材識別碼登錄至 FDA 的 GUDID。"),
+                ("21 CFR Part 830 / FDA UDI規則（2013）：ClassIIIは2014年9月から、ClassIIは2015年9月から、"
+                 "ClassIは2020年9月からUDI要件を遵守。ラベルにはHRIとAIDCの両形式でUDI表示。GUDIDへの登録必須。"),
+                "21 CFR Part 830 / FDA UDI Rule 2013",
+                "21 CFR 830.20: Each labeler of a device must submit the device identifier of each UDI to FDA's GUDID.",
+                "en", "", "additional_form", "critical",
+                ["GUDID registration for all Class I/II/III devices / 所有Class I/II/III器材之GUDID登錄",
+                 "UDI label compliance records / UDI標籤符合性記錄",
+                 "AIDC and HRI on device labels / 器材標籤上之AIDC與HRI"],
+                0.98,
+            )],
+            "8.3.2": [_wd(
+                "QMSR-WITHIN-8.3.2-001", "8.3.2",
+                "FDA Recall — 10-Day Notification (Class I/II) / 24-Hour (Class III)",
+                "FDA 回收 — 10天通知（Class I/II）/ 24小時（Class III）",
+                "FDA リコール — 10日通知（Class I/II）/ 24時間（Class III）",
+                _FSC_EN, _FSC_ZH, _FSC_JA,
+                ("21 CFR Part 806 (Medical Device Corrections and Removals): Manufacturers must notify FDA "
+                 "within 10 working days of initiating a Class I or Class II recall. Class III field corrections "
+                 "that pose serious risk require notification within 24 hours. A written report including device "
+                 "description, recall reason, population of devices affected, and corrective action must be submitted. "
+                 "Recall information is posted on FDA's public recall database."),
+                ("21 CFR Part 806（醫療器材矯正與回收）：製造業者在啟動 Class I 或 Class II 回收後，"
+                 "必須在10個工作日內通知 FDA。構成嚴重風險的 Class III 現場矯正需在24小時內通知。"
+                 "必須提交書面報告，包含器材描述、回收原因、受影響器材數量及矯正措施。"
+                 "回收資訊會發布在 FDA 的公開回收資料庫。"),
+                ("21 CFR Part 806：ClassIまたはClassIIリコール開始後10営業日以内にFDA通知。"
+                 "深刻なリスクのClassIIIフィールド是正は24時間以内。FDAの公開リコールDBに掲載。"),
+                "21 CFR Part 806",
+                "21 CFR 806.10: Each manufacturer or importer who initiates a correction or removal of a device shall report that correction or removal to FDA within 10 working days.",
+                "en", "", "stricter_timeline", "critical",
+                ["FDA recall notification within 10 days / 10天內FDA回收通知",
+                 "21 CFR Part 806 written report / 21 CFR Part 806書面報告",
+                 "Recall strategy and effectiveness check / 回收策略與有效性查核"],
+                0.98,
+            )],
+            "7.3.10": [_wd(
+                "QMSR-WITHIN-7.3.10-001", "7.3.10",
+                "Software Validation — 21 CFR 820.30(h) / FDA SaMD Framework",
+                "軟體驗證 — 21 CFR 820.30(h) / FDA SaMD 框架",
+                "ソフトウェアバリデーション — 21 CFR 820.30(h) / FDA SaMDフレームワーク",
+                "ISO 13485 Cl. 7.3.10 requires documented software development; specific FDA requirements not specified.",
+                "ISO 13485 條款 7.3.10 要求文件化軟體開發；未規定 FDA 特定要求。",
+                "ISO 13485 Cl. 7.3.10 は文書化されたソフトウェア開発を要求するが、FDA固有の要件は規定しない。",
+                ("21 CFR 820.30(h): Software used in production or as part of the QMS must be validated. "
+                 "Design verification and validation must include software validation before initial production use "
+                 "and after changes. FDA's 2005 guidance 'Software as a Medical Device (SAMD)': software must "
+                 "include hazard analysis, architecture, software design specification, traceability matrix, "
+                 "and verification/validation test records. FDA SaMD Action Plan (2021) aligns with IMDRF framework."),
+                ("21 CFR 820.30(h)：用於生產或 QMS 的軟體必須進行驗證。設計驗證確效必須包含軟體驗證，"
+                 "在初始生產使用前及變更後執行。FDA 2005年指引「軟體即醫療器材」：軟體必須包含危害分析、"
+                 "架構、軟體設計規格、追溯性矩陣及驗證/確效測試記錄。FDA SaMD 行動計畫（2021）與 IMDRF 框架一致。"),
+                ("21 CFR 820.30(h)：生産またはQMSで使用するソフトウェアはバリデーション必須。"
+                 "ハザード分析・アーキテクチャ・設計仕様・トレーサビリティマトリクス・V&Vテスト記録が必要。"),
+                "21 CFR 820.30(h) / FDA Guidance 2005",
+                "21 CFR 820.30(h): Software used in production or as part of the quality system shall be validated for its intended use.",
+                "en", "", "additional_form", "major",
+                ["Software validation plan and report / 軟體驗證計畫與報告",
+                 "Hazard analysis for software / 軟體危害分析",
+                 "Traceability matrix (requirements ↔ tests) / 追溯性矩陣（需求↔測試）",
+                 "Software change control records / 軟體變更管制記錄"],
+                0.95,
+            )],
+            "8.5.2": [_wd(
+                "QMSR-WITHIN-8.5.2-001", "8.5.2",
+                "CAPA — 21 CFR 820.100 Prescriptive Requirements",
+                "CAPA — 21 CFR 820.100 具體步驟強制",
+                "CAPA — 21 CFR 820.100 規定的要件",
+                "ISO 13485 Cl. 8.5.2 requires corrective action procedure; specific steps not enumerated.",
+                "ISO 13485 條款 8.5.2 要求矯正措施程序；未列舉具體步驟。",
+                "ISO 13485 Cl. 8.5.2 は是正処置手順を要求するが、具体的なステップは列挙しない。",
+                ("21 CFR 820.100: The CAPA procedure must specifically include: (a) analyzing sources of quality "
+                 "data to identify non-conformities; (b) investigating the cause of non-conformities; "
+                 "(c) identifying the action to correct and prevent recurrence; (d) verifying/validating "
+                 "the corrective and preventive action; (e) implementing changes to procedures to correct "
+                 "and prevent identified quality problems; (f) ensuring information is disseminated; "
+                 "(g) submitting for management review. FDA inspectors specifically audit CAPA systems."),
+                ("21 CFR 820.100：CAPA 程序必須具體包含：(a) 分析品質數據來源識別不符合項；"
+                 "(b) 調查不符合項的原因；(c) 識別矯正和防止再發的行動；(d) 驗證確效矯正和預防措施；"
+                 "(e) 實施程序變更以矯正和防止品質問題；(f) 確保資訊傳播；(g) 提交管理審查。"
+                 "FDA 稽查員會特別稽核 CAPA 系統。"),
+                ("21 CFR 820.100：CAPA手順は(a)品質データ分析(b)原因調査(c)是正・予防措置(d)検証・バリデーション"
+                 "(e)手順変更(f)情報伝達(g)マネジメントレビュー提出を具体的に含む必要。"),
+                "21 CFR 820.100",
+                "21 CFR 820.100(a): Each manufacturer shall establish and maintain procedures for implementing corrective and preventive action.",
+                "en", "", "additional_form", "critical",
+                ["CAPA procedure covering all 820.100 elements / 涵蓋所有820.100要素之CAPA程序",
+                 "Root cause analysis records / 根本原因分析記錄",
+                 "CAPA effectiveness verification records / CAPA有效性查核記錄",
+                 "CAPA trend analysis submitted to management review / 提交管理審查之CAPA趨勢分析"],
+                0.98,
+            )],
+            "8.2.4": [_wd(
+                "QMSR-WITHIN-8.2.4-001", "8.2.4",
+                "FDA Inspection Access — Unrestricted Document Access Beyond Internal Audit",
+                "FDA 查廠存取 — 超越內部稽核的無限制文件存取",
+                "FDA査察アクセス — 内部監査を超えた無制限の文書アクセス",
+                "ISO 13485 Cl. 8.2.4 defines internal audit scope; FDA inspection authority is additional.",
+                "ISO 13485 條款 8.2.4 定義內部稽核範疇；FDA 查廠權限為額外要求。",
+                "ISO 13485 Cl. 8.2.4 は内部監査の範囲を定義するが、FDA査察権限はそれに加わる。",
+                ("21 CFR 820.180: All records required by QMSR shall be made readily available for FDA inspection. "
+                 "QMSR-005 unique_req already notes this, but within internal audit planning: manufacturers must "
+                 "ensure all QMS records, design history files, device master records, and production records are "
+                 "immediately available during FDA inspection (no prior notice required). "
+                 "FDA-483 observations from inspections directly trigger CAPA requirements."),
+                ("21 CFR 820.180：QMSR 要求的所有記錄必須隨時供 FDA 查閱。"
+                 "在內部稽核規劃中：製造業者必須確保所有 QMS 記錄、設計歷史檔案、器材主記錄和生產記錄"
+                 "在 FDA 查廠期間（無需事先通知）立即可用。FDA-483 觀察事項直接觸發 CAPA 要求。"),
+                ("21 CFR 820.180：QMSR要求の全記録はFDA査察のためにすぐに入手可能でなければならない。"
+                 "FDA-483の指摘事項はCAPAを直接トリガーする。"),
+                "21 CFR 820.180",
+                "21 CFR 820.180: All records required by this part shall be maintained at the manufacturing establishment or other location that is reasonably accessible to responsible officials of the manufacturer and to employees of FDA.",
+                "en", "", "scope_extension", "major",
+                ["Document accessibility procedure for FDA inspections / FDA查廠文件存取程序",
+                 "FDA-483 response and CAPA records / FDA-483回應與CAPA記錄",
+                 "Inspection readiness checklist / 查廠準備檢核表"],
+                0.95,
+            )],
+        },
+
+        # ── Taiwan TFDA — additional clauses ──────────────────────────────
+        "TFDA": {
+            "8.3.2": [_wd(
+                "TFDA-WITHIN-8.3.2-001", "8.3.2",
+                "Device Recall Notification — 30-Day TFDA Notification",
+                "器材回收通報 — 30天 TFDA 通報",
+                "機器リコール通報 — 30日TFDA通報",
+                _FSC_EN, _FSC_ZH, _FSC_JA,
+                ("醫療器材回收處理辦法 Art. 7: Manufacturers initiating a device recall must notify TFDA within "
+                 "30 days of the recall decision. Initial notification must include: recall reason, device scope, "
+                 "distribution records, and corrective action plan. A final recall report must be submitted "
+                 "within 30 days of recall completion. TFDA may require public announcement for Class III recalls."),
+                ("醫療器材回收處理辦法第7條：製造業者啟動器材回收後，必須在30天內通報 TFDA。"
+                 "初始通報必須包含：回收原因、器材範圍、流向記錄及矯正行動計畫。"
+                 "回收完成後30天內需提交最終回收報告。TFDA 可要求 Class III 器材回收公告。"),
+                ("醫療器材回収処理辦法第7条：リコール決定後30日以内にTFDAへ通報。"
+                 "初期通報：理由・範囲・流通記録・是正措置計画を含む。完了後30日以内に最終報告提出。"),
+                "醫療器材回收處理辦法 Art. 7",
+                "醫療器材回收處理辦法第七條：製造業者或輸入業者應於知悉須執行回收後三十日內，向主管機關通報。",
+                "zh-TW", "Medical Device Recall Handling Regulations Art. 7: Manufacturers or importers must notify the competent authority within 30 days of learning that a recall must be conducted.",
+                "stricter_timeline", "critical",
+                ["TFDA recall notification record / TFDA回收通報記錄",
+                 "Recall plan and distribution list / 回收計畫與流向清單",
+                 "Final recall completion report / 回收完成最終報告"],
+                0.90,
+            )],
+        },
+
+        # ── Canada Health Canada — additional clauses ──────────────────────
+        "HC": {
+            "8.3.2": [_wd(
+                "HC-WITHIN-8.3.2-001", "8.3.2",
+                "Recall — 3-Business-Day Notification to Health Canada",
+                "回收 — 3個工作日內通知 Health Canada",
+                "リコール — 3営業日以内にHealth Canadaへ通知",
+                _FSC_EN, _FSC_ZH, _FSC_JA,
+                ("CMDR SOR/98-282 s.64: Manufacturers must notify Health Canada within 3 business days of "
+                 "initiating a recall. The notification must include: device identification, lot/serial numbers, "
+                 "reason for recall, health risk assessment, recall strategy, and distribution records. "
+                 "A recall effectiveness check must be documented. Final recall report due within 30 days."),
+                ("CMDR SOR/98-282 第64條：製造業者在啟動回收後，必須在3個工作日內通知 Health Canada。"
+                 "通知必須包含：器材識別、批號/序號、回收原因、健康風險評估、回收策略及流向記錄。"
+                 "必須記錄回收有效性查核。30天內提交最終回收報告。"),
+                ("CMDR s.64：リコール開始後3営業日以内にHealth Canadaへ通知。"
+                 "機器識別・ロット番号・理由・健康リスク評価・戦略・流通記録を含む。30日以内に最終報告。"),
+                "CMDR SOR/98-282 s.64",
+                "CMDR s.64: Where a manufacturer initiates a recall of a device, the manufacturer shall notify the Minister within 3 business days.",
+                "en", "", "stricter_timeline", "critical",
+                ["Health Canada recall notification within 3 business days / 3個工作日內Health Canada回收通知",
+                 "Recall effectiveness check records / 回收有效性查核記錄"],
+                0.95,
+            )],
+        },
+
+        # ── Japan PMDA — additional clauses ──────────────────────────────
+        "PMDA": {
+            "7.3.6": [_wd(
+                "PMDA-WITHIN-7.3.6-001", "7.3.6",
+                "Clinical Data — Japan-Specific Trial or Prior Approval Data Required",
+                "臨床數據 — 日本特有臨床試驗或先前核准數據",
+                "臨床データ — 日本固有の治験または承認済みデータが必要",
+                _CLN_EN, _CLN_ZH, _CLN_JA,
+                ("PMD Act Art.14/23-2: For medical devices requiring clinical data (Class III/IV), "
+                 "PMDA typically requires clinical data that includes Japanese patients (bridging study or "
+                 "full Japanese clinical trial). Foreign clinical data may be accepted for bridging if "
+                 "MHLW determines race/ethnic differences are unlikely to affect efficacy/safety. "
+                 "Manufacturers must submit a Pharmaceutical Affairs Application (承認申請) using specified formats."),
+                ("藥機法第14/23-2條：對於需要臨床數據的醫療器材（Class III/IV），"
+                 "PMDA 通常要求包含日本患者的臨床數據（橋接研究或完整日本臨床試驗）。"
+                 "若 MHLW 確定種族/民族差異不可能影響有效性/安全性，可接受境外臨床數據用於橋接。"
+                 "製造業者必須使用指定格式提交藥事許可申請（承認申請）。"),
+                ("薬機法第14/23-2条：ClassIII/IVは日本人患者を含む臨床データが必要（ブリッジング試験または"
+                 "日本での治験）。MHLW が人種・民族差の影響がないと判断した場合は外国データのブリッジングも可。"),
+                "PMD Act Art.14, 23-2 (薬機法)",
+                "薬機法第14条：医療機器の製造販売の承認を受けようとする者は、品質、有効性及び安全性に関する資料を添付して申請しなければならない。",
+                "ja", "PMD Act Article 14: An applicant for marketing authorization must submit data on quality, efficacy, and safety.",
+                "scope_extension", "critical",
+                ["Japan clinical trial data or bridging study / 日本臨床試驗數據或橋接研究",
+                 "PMDA consultation records / PMDA事前相談記錄",
+                 "承認申請 (marketing authorization application) data package / 承認申請資料包"],
+                0.85,
+            )],
+            "8.2.1": [_wd(
+                "PMDA-WITHIN-8.2.1-001", "8.2.1",
+                "GPSP — Good Post-marketing Study Practice (Using-Results Survey)",
+                "GPSP — 優良上市後研究規範（使用成績調查）",
+                "GPSP — 医薬品等の製造販売後調査及び試験の実施の基準",
+                "ISO 13485 Cl. 8.2.1 requires feedback from post-production; GPSP methodology not specified.",
+                "ISO 13485 條款 8.2.1 要求上市後回饋；未規定 GPSP 方法論。",
+                "ISO 13485 Cl. 8.2.1 は市販後フィードバックを要求するが、GPSPは規定しない。",
+                ("QMS省令 §63 / GPSP 省令: Manufacturers must conduct Post-Marketing Surveillance Studies "
+                 "per Good Post-marketing Study Practice (GPSP). For designated devices (承認条件付き): "
+                 "Using-Results Survey (使用成績調査) is mandatory, covering all patients using the device "
+                 "over a specified period. Periodic Safety Update Reports (定期安全性更新報告) must be submitted "
+                 "to PMDA per schedule."),
+                ("QMS省令第63條 / GPSP 省令：製造業者必須依優良上市後研究規範（GPSP）進行上市後監視研究。"
+                 "對於指定器材（承認條件付き）：使用成績調查（使用成績調査）為強制，涵蓋指定期間內所有使用器材的患者。"
+                 "定期安全性更新報告（定期安全性更新報告）必須按照時程提交給 PMDA。"),
+                ("QMS省令§63 / GPSP省令：GPSPに基づき市販後調査研究の実施が必要。"
+                 "指定機器（承認条件付き）：使用成績調査は強制。定期安全性更新報告をPMDAへ提出。"),
+                "QMS省令 §63 / GPSP省令",
+                "QMS省令第六十三条：製造販売業者は、市販後の製品の安全性確保のため、使用成績評価等の調査を行わなければならない。",
+                "ja", "QMS Ordinance §63: Marketing authorization holders must conduct post-marketing evaluation studies including post-use evaluation.",
+                "scope_extension", "major",
+                ["GPSP post-marketing study protocol / GPSP上市後研究方案",
+                 "使用成績調査 records / 使用成績調查記錄",
+                 "Periodic Safety Update Report to PMDA / 向PMDA提交之定期安全性更新報告"],
+                0.85,
+            )],
+            "8.3.2": [_wd(
+                "PMDA-WITHIN-8.3.2-001", "8.3.2",
+                "Device Recall — Immediate MHLW Notification (薬機法 Art.68-11)",
+                "器材回收 — 立即通報厚生勞動省（薬機法 Art.68-11）",
+                "機器リコール — 即時MHLW通知（薬機法 Art.68-11）",
+                _FSC_EN, _FSC_ZH, _FSC_JA,
+                ("PMD Act Art.68-11 (薬機法第68条の11): Manufacturers must immediately notify MHLW when "
+                 "deciding to recall a device. FSCN (Field Safety Corrective Action Notice) must be distributed "
+                 "to all healthcare facilities that received the device. Recall progress reports must be submitted "
+                 "monthly until completion. Final recall report within 30 days of completion."),
+                ("藥機法第68-11條：製造業者在決定回收器材時必須立即通報厚生勞動省。"
+                 "FSCN（現場安全矯正行動通知）必須發布給所有收到器材的醫療機構。"
+                 "回收進度報告必須每月提交直至完成。完成後30天內提交最終回收報告。"),
+                ("薬機法第68条の11：リコール決定時は即時MHLWへ通知。"
+                 "FSCNは受領した全医療機関へ配布。完了まで月次進捗報告。完了後30日以内に最終報告。"),
+                "薬機法 Art. 68-11",
+                "薬機法第六十八条の十一：製造販売業者等は、その製造販売した医療機器等を回収するときは、あらかじめ、厚生労働大臣に届け出なければならない。",
+                "ja", "PMD Act Art.68-11: Marketing authorization holders must notify the Minister of Health, Labour and Welfare in advance when recalling medical devices.",
+                "stricter_timeline", "critical",
+                ["MHLW recall notification / MHLW回收通報",
+                 "FSCN distribution records to healthcare facilities / FSCN向醫療機構發布記錄",
+                 "Monthly recall progress reports / 月度回收進度報告"],
+                0.90,
+            )],
+            "6.2": [_wd(
+                "PMDA-WITHIN-6.2-001", "6.2",
+                "総括製造販売責任者 — Qualified Person with Specific Qualifications",
+                "総括製造販売責任者 — 具特定資格的法定負責人",
+                "総括製造販売責任者 — 特定資格を持つ法定責任者",
+                "ISO 13485 Cl. 6.2 requires competence for personnel; specific statutory qualified person not defined.",
+                "ISO 13485 條款 6.2 要求人員能力；未定義特定法定負責人。",
+                "ISO 13485 Cl. 6.2 は要員の力量を要求するが、特定の法定資格者は規定しない。",
+                ("PMD Act Art.23-2-14 (薬機法第23-2-14条): Every marketing authorization holder must employ "
+                 "a 総括製造販売責任者 (General Manager for Regulatory Affairs). Qualifications: "
+                 "(a) graduation from pharmacy, medicine, or relevant scientific discipline; OR equivalent "
+                 "knowledge recognized by MHLW; AND (b) at least 3 years of experience in quality control or "
+                 "regulatory affairs for medical devices."),
+                ("藥機法第23-2-14條：每個製造販售業者必須設置一名総括製造販売責任者。資格要求："
+                 "(a) 藥學、醫學或相關科學領域畢業；或具有MHLW認可的同等知識；且 "
+                 "(b) 至少3年醫療器材品質管制或法規事務經驗。"),
+                ("薬機法第23-2-14条：すべての製造販売業者は総括製造販売責任者を設置。"
+                 "資格：(a)薬学・医学等関連科学分野の卒業またはMHLW認定の同等知識(b)医療機器のQCまたは法規制業務3年以上の経験。"),
+                "薬機法 Art. 23-2-14",
+                "薬機法第23条の2の14：医療機器の製造販売業者は、総括製造販売責任者を置かなければならない。",
+                "ja", "PMD Act Art.23-2-14: Medical device marketing authorization holders must employ a General Manager for Regulatory Affairs.",
+                "local_authority_specific", "critical",
+                ["総括製造販売責任者 appointment record / 総括製造販売責任者設置記錄",
+                 "Qualification evidence (degree + experience) / 資格證明（學歷+經驗）",
+                 "Job description for 総括製造販売責任者 / 総括製造販売責任者職位說明書"],
+                0.90,
+            )],
+            "7.5.1": [_wd(
+                "PMDA-WITHIN-7.5.1-001", "7.5.1",
+                "Japanese Language — Mandatory for Labels and IFU",
+                "日文 — 標籤與使用說明書強制",
+                "日本語 — ラベル・添付文書の必須表示",
+                _LBL_EN, _LBL_ZH, _LBL_JA,
+                ("PMD Act Art.52 / 薬機法第52条: Labels and Instructions for Use (添付文書) must be provided "
+                 "in Japanese. The 添付文書 must include: device name, ingredients/components, efficacy/effects, "
+                 "dosage/usage, precautions, storage conditions, and manufacturer information. "
+                 "English-only labeling is not acceptable. Japanese IFU must be updated when safety information changes."),
+                ("藥機法第52條：標籤和使用說明書（添付文書）必須以日文提供。"
+                 "添付文書必須包含：器材名稱、成分/構成要素、功效/效果、用法/用量、注意事項、"
+                 "保存條件及製造業者資訊。純英文標示不可接受。安全資訊變更時必須更新日文 IFU。"),
+                ("薬機法第52条：ラベルと添付文書は日本語で提供必須。"
+                 "添付文書には名称・成分・効能・用法・注意事項・保管条件・製造者情報を含む。英語のみ不可。"),
+                "薬機法 Art. 52",
+                "薬機法第52条：医療機器には、定められた事項が日本語で記載された添付文書を添付しなければならない。",
+                "ja", "PMD Act Art.52: Medical devices must be accompanied by instructions for use with specified items written in Japanese.",
+                "local_authority_specific", "major",
+                ["Japanese-language labels / 日文標籤",
+                 "Japanese IFU (添付文書) / 日文使用說明書",
+                 "Japanese IFU update records upon safety changes / 安全資訊變更之日文IFU更新記錄"],
+                0.95,
+            )],
+        },
+
+        # ── Brazil ANVISA — additional clauses ────────────────────────────
+        "ANVISA": {
+            "8.3.2": [_wd(
+                "ANVISA-WITHIN-8.3.2-001", "8.3.2",
+                "Recall — 15-Day ANVISA Notification (RDC 665/2022)",
+                "回收 — 15天 ANVISA 通報（RDC 665/2022）",
+                "リコール — 15日ANVISA通知（RDC 665/2022）",
+                _FSC_EN, _FSC_ZH, _FSC_JA,
+                ("RDC 665/2022 Arts. 29-35: Manufacturers must notify ANVISA within 15 calendar days of "
+                 "the recall decision. The notification must include: device identification, affected batches, "
+                 "health risk level, corrective action, and recall strategy. ANVISA may require public communication "
+                 "for Class III recalls. Final report within 30 days of completion."),
+                ("RDC 665/2022 第29-35條：製造業者在回收決定後，必須在15個日曆日內通報 ANVISA。"
+                 "通報必須包含：器材識別、受影響批次、健康風險等級、矯正行動及回收策略。"
+                 "ANVISA 可要求 Class III 器材回收的公告。完成後30天內提交最終報告。"),
+                ("RDC 665/2022 第29-35条：リコール決定後15暦日以内にANVISAへ通知。"
+                 "機器識別・対象ロット・健康リスクレベル・是正措置・戦略を含む。完了後30日以内に最終報告。"),
+                "ANVISA RDC 665/2022 Arts. 29-35",
+                "RDC 665/2022, Art. 29: O detentor do registro deve comunicar à Anvisa a decisão de recolhimento no prazo de 15 dias.",
+                "pt", "RDC 665/2022 Art. 29: The registration holder must notify ANVISA of the recall decision within 15 days.",
+                "stricter_timeline", "critical",
+                ["ANVISA recall notification within 15 days / 15天內ANVISA回收通報",
+                 "Recall strategy document / 回收策略文件",
+                 "Final recall report / 最終回收報告"],
+                0.90,
+            )],
+        },
+
+        # ── Australia TGA — additional clauses ────────────────────────────
+        "TGA": {
+            "4.2.4": [_wd(
+                "TGA-WITHIN-4.2.4-001", "4.2.4",
+                "Record Retention — Useful Life + 5 Years",
+                "記錄保存 — 使用壽命 + 5 年",
+                "記録保持 — 耐用年数＋5年",
+                _REC_EN, _REC_ZH, _REC_JA,
+                ("TG(MD)R 2002 Schedule 3 Part 1: Quality system records must be retained for the expected "
+                 "useful life of the device plus 5 years, or at least 15 years for implantable devices. "
+                 "This ensures records are available throughout the device's lifecycle and for any adverse "
+                 "event investigation that may arise after the device has ceased to be marketed."),
+                ("TG(MD)R 2002 附表3第1部分：品質系統記錄必須保存器材預期使用壽命加5年，"
+                 "或植入性器材至少15年。這確保記錄在器材生命週期內及器材停止上市後的任何不良事件調查中均可獲取。"),
+                ("TG(MD)R 2002 Schedule 3 Part 1：品質記録は機器の予想耐用年数＋5年、"
+                 "または植込み型機器は少なくとも15年保持。"),
+                "TG(MD)R 2002 Schedule 3 Part 1",
+                "TG(MD)R 2002 Schedule 3 Part 1: Records must be retained for the expected useful life of the device plus 5 years.",
+                "en", "", "stricter_timeline", "major",
+                ["Record retention policy showing useful life + 5 years / 顯示使用壽命+5年之記錄保存政策",
+                 "15-year retention for implantables / 植入物15年保存記錄"],
+                0.90,
+            )],
+            "7.5.9.2": [_wd(
+                "TGA-WITHIN-7.5.9.2-001", "7.5.9.2",
+                "TGA UDI — Mandatory from 2025 (Phased by Risk Class)",
+                "TGA UDI — 2025年起強制（依風險分類分階段）",
+                "TGA UDI — 2025年から必須（リスククラス別に段階的）",
+                _UDI_EN, _UDI_ZH, _UDI_JA,
+                ("TGA Therapeutic Goods (Medical Devices — UDI) Amendment Rules 2023: Class 3 implantable "
+                 "devices and AIMDs: UDI mandatory from 1 January 2025. Class 3 active devices and IVDs: "
+                 "UDI from 2026. Class 2b, 2a, 1: phased 2026-2028. UDI must be registered in TGA's "
+                 "Australian Register of Therapeutic Goods (ARTG). Issuing agencies: GS1, HIBCC."),
+                ("TGA 治療性商品（醫療器材 — UDI）修訂規則2023：Class 3 植入性器材和 AIMD：2025年1月1日起強制 UDI。"
+                 "Class 3 主動式器材和 IVD：2026年起。Class 2b/2a/1：2026-2028年分階段。"
+                 "UDI 必須在 TGA 的澳洲治療性商品登記（ARTG）中登錄。發碼機構：GS1、HIBCC。"),
+                ("TGA 修訂規則2023：Class 3植込み型・AIMD：2025年1月から必須。Class 3能動型・IVD：2026年から。"
+                 "Class 2b/2a/1：2026-2028年に段階的。ARTGへのUDI登録必須。"),
+                "TGA UDI Amendment Rules 2023",
+                "TGA Therapeutic Goods (Medical Devices — UDI) Amendment Rules 2023: UDI registration mandatory from 2025.",
+                "en", "", "additional_form", "major",
+                ["TGA ARTG UDI registration / TGA ARTG UDI登錄",
+                 "UDI implementation plan by device class / 依器材分類之UDI實施計畫",
+                 "GS1/HIBCC issuing agency registration / GS1/HIBCC發碼機構登錄"],
+                0.85,
+            )],
+            "8.3.2": [_wd(
+                "TGA-WITHIN-8.3.2-001", "8.3.2",
+                "Recall — 2-Day (Class 1) / 5-Day (Class 2/3) TGA Notification",
+                "回收 — 2天（Class 1）/ 5天（Class 2/3）TGA 通報",
+                "リコール — 2日（Class 1）/ 5日（Class 2/3）TGA通知",
+                _FSC_EN, _FSC_ZH, _FSC_JA,
+                ("TG Act 1989 s.41MNA / TG(MD)R Schedule 3: Sponsors and manufacturers must notify TGA of "
+                 "a Class 1 recall (most serious) within 2 working days of the recall decision. "
+                 "Class 2 recalls must be notified within 5 working days. Class 3 recalls within 10 working days. "
+                 "Recall information is published on TGA's website. A Field Safety Notice (FSN) or equivalent "
+                 "communication must be distributed to affected customers."),
+                ("TG Act 1989 第41MNA條 / TG(MD)R 附表3：代理商和製造業者必須在 Class 1 回收（最嚴重）"
+                 "決定後2個工作日內通知 TGA。Class 2 回收必須在5個工作日內通知。Class 3 回收在10個工作日內。"
+                 "回收資訊會在 TGA 網站上發布。必須向受影響客戶分發現場安全通知（FSN）或同等通知。"),
+                ("TG Act s.41MNA：Class 1は2営業日以内、Class 2は5営業日以内、Class 3は10営業日以内にTGA通知。"
+                 "TGAウェブサイトに公開。FSNまたは同等の通知を顧客に配布。"),
+                "TG Act 1989 s.41MNA / TG(MD)R Schedule 3",
+                "TG(MD)R Schedule 3 Part 2: A sponsor must notify the Secretary of a recall of a Class 1 device within 2 working days.",
+                "en", "", "stricter_timeline", "critical",
+                ["TGA recall notification timeline records / TGA回收通報時限記錄",
+                 "FSN distribution records / FSN發布記錄",
+                 "TGA recall classification procedure / TGA回收分類程序"],
+                0.90,
+            )],
+        },
+
+        # ── UK MHRA additional clauses (post-Brexit) ──────────────────────
+        "UK_MHRA_extra": {  # placeholder — merged manually below
+        },
+
+        # ── Korea MFDS additional clauses ─────────────────────────────────
+        "KR_MFDS_extra": {
+        },
+
+        # ── China NMPA additional clauses ─────────────────────────────────
+        "CN_NMPA_extra": {
+        },
+
+        # ──────────────────────────────────────────────────────────────────
+        # Crawled profiles — 8.2.3 adverse event timelines (20 countries)
+        # ──────────────────────────────────────────────────────────────────
+        "IL_AMAR": {
+            "8.2.3": [_wd(
+                "IL-WITHIN-8.2.3-001", "8.2.3",
+                "Adverse Event Reporting — 30-Day Timeline",
+                "不良事件通報 — 30天時限",
+                "有害事象報告 — 30日タイムライン",
+                _AE_EN, _AE_ZH, _AE_JA,
+                "Ministry of Health (MOH) medical device adverse event reporting requires notification within 30 days of awareness of a serious adverse event. Events posing immediate public health risk require urgent notification. Reports submitted to MOH via the national pharmacovigilance system.",
+                "以色列衛生部醫療器材不良事件通報規定：知悉嚴重不良事件後30天內通報。對公共健康構成立即風險的事件需緊急通報。透過國家藥物警戒系統提交。",
+                "イスラエル保健省：重篤な有害事象は認識後30日以内に報告。即時の公衆衛生リスクは緊急報告。",
+                "Israel MOH Medical Device Adverse Event Reporting Guidelines",
+                "Israeli MOH regulation requires adverse event reports within 30 days of manufacturer awareness.",
+                "en", "", "stricter_timeline", "critical",
+                ["MOH adverse event report within 30 days / 30天內MOH不良事件報告",
+                 "Adverse event evaluation procedure / 不良事件評估程序"],
+                0.80,
+            )],
+            "4.2.4": [_wd(
+                "IL-WITHIN-4.2.4-001", "4.2.4",
+                "Record Retention — 5 Years Minimum",
+                "記錄保存 — 最少5年",
+                "記録保持 — 最低5年",
+                _REC_EN, _REC_ZH, _REC_JA,
+                "Israeli MOH medical device regulations require quality records retention for at least 5 years from the date of product release or the device useful life, whichever is greater.",
+                "以色列衛生部醫療器材法規要求品質記錄保存至少5年（從產品放行日起或器材使用壽命，取較長者）。",
+                "イスラエル保健省：品質記録は製品リリース日または機器耐用年数のいずれか長い方から少なくとも5年保持。",
+                "Israel MOH Medical Device Regulations",
+                "Israeli MOH regulations: quality records must be retained for at least 5 years.",
+                "en", "", "stricter_timeline", "major",
+                ["Record retention policy showing 5-year minimum / 5年最低要求記錄保存政策"],
+                0.75,
+            )],
+            "8.3.2": [_wd(
+                "IL-WITHIN-8.3.2-001", "8.3.2",
+                "Recall Notification — 15-Day MOH Notification",
+                "回收通報 — 15天衛生部通報",
+                "リコール通報 — 15日MOH通知",
+                _FSC_EN, _FSC_ZH, _FSC_JA,
+                "Israeli MOH medical device recall regulations require manufacturers to notify the Ministry of Health within 15 days of initiating a recall action.",
+                "以色列衛生部醫療器材回收法規要求製造業者在啟動回收行動後15天內通報衛生部。",
+                "イスラエル保健省：リコール開始後15日以内にMOHへ通知。",
+                "Israel MOH Medical Device Recall Regulations",
+                "Israeli MOH regulations: recall notification within 15 days.",
+                "en", "", "stricter_timeline", "critical",
+                ["MOH recall notification within 15 days / 15天內MOH回收通報"],
+                0.75,
+            )],
+        },
+
+        "RU_ROSZDRAVNADZOR": {
+            "8.2.3": [_wd(
+                "RU-WITHIN-8.2.3-001", "8.2.3",
+                "Adverse Event Reporting — 10-Day (Urgent) / 30-Day Timelines",
+                "不良事件通報 — 緊急10天 / 一般30天",
+                "有害事象報告 — 緊急10日/通常30日",
+                _AE_EN, _AE_ZH, _AE_JA,
+                "Federal Law No.323-FZ 'On the fundamentals of protection of citizens' health' and Roszdravnadzor orders: Manufacturers must report urgent adverse events (death/life-threatening) to Roszdravnadzor within 10 calendar days. Other serious adverse events must be reported within 30 calendar days. Reports submitted via Roszdravnadzor's automated information system.",
+                "俄羅斯聯邦法律第323-FZ號及Roszdravnadzor命令：製造業者必須在10個日曆日內向Roszdravnadzor通報緊急不良事件（死亡/危及生命）。其他嚴重不良事件在30個日曆日內通報。透過Roszdravnadzor自動資訊系統提交。",
+                "連邦法律323-FZ：緊急有害事象（死亡・生命の危機）は10暦日以内、その他の重篤な有害事象は30暦日以内にRoszdravnadzorへ報告。",
+                "Federal Law No.323-FZ / Roszdravnadzor Orders",
+                "Russian Federal Law 323-FZ requires adverse event reporting within specified timelines.",
+                "en", "", "stricter_timeline", "critical",
+                ["Roszdravnadzor AE report within 10/30 days / 10/30天內Roszdravnadzor不良事件報告",
+                 "AIS system registration / AIS系統登錄"],
+                0.80,
+            )],
+            "4.2.4": [_wd(
+                "RU-WITHIN-4.2.4-001", "4.2.4",
+                "Record Retention — 5 Years Minimum",
+                "記錄保存 — 最少5年",
+                "記録保持 — 最低5年",
+                _REC_EN, _REC_ZH, _REC_JA,
+                "Russian medical device regulations require quality records retention for at least 5 years from product release.",
+                "俄羅斯醫療器材法規要求品質記錄保存至少5年。",
+                "ロシア医療機器規制：品質記録は少なくとも5年保持。",
+                "Russian Medical Device Regulations",
+                "Russian regulations: records retained at least 5 years.",
+                "en", "", "stricter_timeline", "major",
+                ["5-year record retention policy / 5年記錄保存政策"],
+                0.75,
+            )],
+            "7.5.1": [_wd(
+                "RU-WITHIN-7.5.1-001", "7.5.1",
+                "Russian Language — Mandatory for Labels and IFU",
+                "俄文 — 標籤與使用說明書強制",
+                "ロシア語 — ラベル・添付文書の必須表示",
+                _LBL_EN, _LBL_ZH, _LBL_JA,
+                "Russian Federal Law and EAEU Technical Regulation TR CU 017/2011 / TR EAEU 017/2011: All labels, instructions for use, and packaging must be provided in Russian. Additional languages of EAEU member states may be included but Russian is mandatory.",
+                "俄羅斯聯邦法律及歐亞經濟聯盟技術法規 TR CU 017/2011：所有標籤、使用說明書和包裝必須以俄文提供。可包含其他歐亞經濟聯盟成員國語言，但俄文為強制要求。",
+                "ロシア連邦法律およびEAEU技術規制：ラベル・添付文書・包装はロシア語必須。EAEU加盟国の言語を追加可。",
+                "TR EAEU 017/2011 / Russian Federal Regulations",
+                "TR EAEU 017/2011 requires mandatory Russian language labeling for medical devices.",
+                "en", "", "local_authority_specific", "major",
+                ["Russian-language labels / 俄文標籤",
+                 "Russian IFU / 俄文使用說明書"],
+                0.85,
+            )],
+        },
+
+        "ZA_SAHPRA": {
+            "8.2.3": [_wd(
+                "ZA-WITHIN-8.2.3-001", "8.2.3",
+                "Adverse Event Reporting — 30-Day SAHPRA Notification",
+                "不良事件通報 — 30天 SAHPRA 通報",
+                "有害事象報告 — 30日SAHPRA通知",
+                _AE_EN, _AE_ZH, _AE_JA,
+                "SAHPRA Medical Device Vigilance Guidelines (MDG0063): Manufacturers must report serious adverse events to SAHPRA within 30 calendar days. Events posing immediate threat to life require expedited reporting. Reports submitted via SAHPRA's MedSafety reporting portal.",
+                "SAHPRA 醫療器材警戒指引（MDG0063）：製造業者必須在30個日曆日內向 SAHPRA 通報嚴重不良事件。對生命構成立即威脅的事件需加速通報。透過 SAHPRA MedSafety 通報入口提交。",
+                "SAHPRA MDG0063：重篤な有害事象は30暦日以内にSAHPRAへ報告。生命への即時脅威は迅速報告。",
+                "SAHPRA MDG0063 / Medical Devices Act No.101",
+                "SAHPRA MDG0063: serious adverse events must be reported within 30 days.",
+                "en", "", "stricter_timeline", "critical",
+                ["SAHPRA AE report within 30 days / 30天內SAHPRA不良事件報告",
+                 "MedSafety portal registration / MedSafety入口登錄"],
+                0.80,
+            )],
+            "4.2.4": [_wd(
+                "ZA-WITHIN-4.2.4-001", "4.2.4",
+                "Record Retention — Device Lifetime + 5 Years",
+                "記錄保存 — 器材壽命 + 5 年",
+                "記録保持 — 機器耐用年数＋5年",
+                _REC_EN, _REC_ZH, _REC_JA,
+                "SAHPRA medical device regulations require quality records to be retained for the useful life of the device plus at least 5 years.",
+                "SAHPRA 醫療器材法規要求品質記錄保存器材使用壽命加至少5年。",
+                "SAHPRA：品質記録は機器の耐用年数＋少なくとも5年保持。",
+                "SAHPRA Medical Device Regulations",
+                "SAHPRA: records retained for device lifetime + 5 years.",
+                "en", "", "stricter_timeline", "major",
+                ["Retention policy: device lifetime + 5 years / 器材壽命+5年保存政策"],
+                0.75,
+            )],
+        },
+
+        "ID_BPOM": {
+            "8.2.3": [_wd(
+                "ID-WITHIN-8.2.3-001", "8.2.3",
+                "Adverse Event Reporting — 30-Day BPOM Notification",
+                "不良事件通報 — 30天 BPOM 通報",
+                "有害事象報告 — 30日BPOM通知",
+                _AE_EN, _AE_ZH, _AE_JA,
+                "BPOM Regulation No. 29 Year 2020 on the Standards for Pharmaceutical and Medical Device Establishments: Manufacturers must report serious adverse events to BPOM within 30 calendar days of awareness. Report submitted via BPOM's e-MESO (electronic Medical Device Safety Monitoring) system.",
+                "BPOM 第29號法規（2020年）：製造業者必須在知悉後30個日曆日內向 BPOM 通報嚴重不良事件。透過 BPOM 的 e-MESO（電子醫療器材安全監控）系統提交。",
+                "BPOM規制No.29/2020：重篤な有害事象は認識後30暦日以内にBPOMへ報告。e-MESOシステムで提出。",
+                "BPOM Regulation No. 29/2020",
+                "BPOM Regulation No.29/2020: serious adverse events reported within 30 days.",
+                "en", "", "stricter_timeline", "critical",
+                ["BPOM e-MESO system registration / BPOM e-MESO系統登錄",
+                 "AE report within 30 days / 30天內不良事件報告"],
+                0.80,
+            )],
+            "4.2.4": [_wd(
+                "ID-WITHIN-4.2.4-001", "4.2.4",
+                "Record Retention — 5 Years Minimum",
+                "記錄保存 — 最少5年",
+                "記録保持 — 最低5年",
+                _REC_EN, _REC_ZH, _REC_JA,
+                "BPOM medical device regulations require quality records retention for at least 5 years after product release.",
+                "BPOM 醫療器材法規要求品質記錄保存至少5年。",
+                "BPOM：品質記録は少なくとも5年保持。",
+                "BPOM Medical Device Regulations",
+                "BPOM: records retained at least 5 years.",
+                "en", "", "stricter_timeline", "major",
+                ["5-year record retention policy / 5年記錄保存政策"],
+                0.75,
+            )],
+            "7.5.1": [_wd(
+                "ID-WITHIN-7.5.1-001", "7.5.1",
+                "Bahasa Indonesia — Mandatory for Labels and IFU",
+                "印尼文 — 標籤與使用說明書強制",
+                "インドネシア語 — ラベル・添付文書の必須表示",
+                _LBL_EN, _LBL_ZH, _LBL_JA,
+                "BPOM Regulation: Labels and Instructions for Use (IFU) for medical devices sold in Indonesia must be provided in Bahasa Indonesia. English or other language versions may be included but Bahasa Indonesia is mandatory.",
+                "BPOM 法規：在印尼銷售的醫療器材標籤和使用說明書必須以印尼文（Bahasa Indonesia）提供。可包含英文或其他語言版本，但印尼文為強制要求。",
+                "BPOM規制：インドネシア国内販売医療機器のラベル・IFUはバハサ・インドネシア語必須。",
+                "BPOM Medical Device Labeling Regulations",
+                "BPOM: Bahasa Indonesia mandatory for medical device labels.",
+                "en", "", "local_authority_specific", "major",
+                ["Bahasa Indonesia labels and IFU / 印尼文標籤與使用說明書"],
+                0.80,
+            )],
+        },
+
+        "CO_INVIMA": {
+            "8.2.3": [_wd(
+                "CO-WITHIN-8.2.3-001", "8.2.3",
+                "Adverse Event Reporting — 72h / 15-Day / 30-Day Tiered Timelines",
+                "不良事件通報 — 72小時 / 15天 / 30天三級時限",
+                "有害事象報告 — 72時間/15日/30日の段階的タイムライン",
+                _AE_EN, _AE_ZH, _AE_JA,
+                "Resolution 4816/2008 Arts. 35-40: Three-tier reporting: (1) Events with imminent risk to public health: 72 hours; (2) Events resulting in death or life-threatening conditions: 15 calendar days; (3) Other serious adverse events: 30 calendar days. Reports submitted via INVIMA's VIGILFARMED system.",
+                "第4816/2008號決議第35-40條：三級時限：(1) 對公共健康構成迫切風險事件：72小時；(2) 導致死亡或危及生命情況事件：15個日曆日；(3) 其他嚴重不良事件：30個日曆日。透過 INVIMA 的 VIGILFARMED 系統提交。",
+                "Resolution 4816/2008：(1)差し迫った公衆衛生リスク：72時間(2)死亡・生命の危機：15暦日(3)その他重篤：30暦日。VIGILFARMEDで提出。",
+                "Colombia Resolution 4816/2008 Arts. 35-40",
+                "Resolution 4816/2008: adverse event reporting within 72h/15/30 days depending on severity.",
+                "en", "", "stricter_timeline", "critical",
+                ["INVIMA VIGILFARMED registration / INVIMA VIGILFARMED登錄",
+                 "Tiered AE reporting procedure / 分級不良事件通報程序"],
+                0.80,
+            )],
+            "4.2.4": [_wd(
+                "CO-WITHIN-4.2.4-001", "4.2.4",
+                "Record Retention — 5 Years Post-Commercialization",
+                "記錄保存 — 商業化後5年",
+                "記録保持 — 市場投入後5年",
+                _REC_EN, _REC_ZH, _REC_JA,
+                "Colombian medical device regulations require quality records retention for at least 5 years after the device is withdrawn from the market.",
+                "哥倫比亞醫療器材法規要求品質記錄保存至器材退出市場後至少5年。",
+                "コロンビア：品質記録は市場撤退後少なくとも5年保持。",
+                "Colombia Medical Device Regulations",
+                "Colombia: records retained 5 years post-commercialization.",
+                "en", "", "stricter_timeline", "major",
+                ["5-year post-commercialization retention policy / 商業化後5年保存政策"],
+                0.75,
+            )],
+            "7.5.1": [_wd(
+                "CO-WITHIN-7.5.1-001", "7.5.1",
+                "Spanish Language — Mandatory for Labels and IFU",
+                "西班牙文 — 標籤與使用說明書強制",
+                "スペイン語 — ラベル・添付文書の必須表示",
+                _LBL_EN, _LBL_ZH, _LBL_JA,
+                "Colombian Decree 4725/2005 and INVIMA regulations: All labels and IFU for medical devices sold in Colombia must be in Spanish.",
+                "哥倫比亞 Decree 4725/2005 及 INVIMA 法規：所有在哥倫比亞銷售的醫療器材標籤和使用說明書必須以西班牙文提供。",
+                "コロンビア：医療機器のラベル・IFUはスペイン語必須。",
+                "Colombia Decree 4725/2005 / INVIMA Regulations",
+                "Colombia: Spanish language mandatory for medical device labels.",
+                "en", "", "local_authority_specific", "major",
+                ["Spanish-language labels and IFU / 西班牙文標籤與使用說明書"],
+                0.80,
+            )],
+        },
+
+        "TR_TITCK": {
+            "8.2.3": [_wd(
+                "TR-WITHIN-8.2.3-001", "8.2.3",
+                "Serious Incident Reporting — 15-Day / 2-Day Timelines (EU MDR Equivalent)",
+                "嚴重事故通報 — 15天 / 2天時限（EU MDR 等同）",
+                "重篤インシデント報告 — 15日/2日（EU MDR相当）",
+                _AE_EN, _AE_ZH, _AE_JA,
+                "Turkish Medical Devices Regulation (Tıbbi Cihaz Yönetmeliği, 2021) — EU MDR equivalent: Manufacturers must report serious incidents within 15 days; death/life-threatening within 2 days. FSCA notification to TITCK required immediately. Turkey adopted the EU MDR framework, making its vigilance requirements largely identical.",
+                "土耳其醫療器材法規（2021年）— EU MDR 等同：製造業者必須在15天內通報嚴重事故；死亡/危及生命2天內。FSCA 需立即通知 TITCK。土耳其採用 EU MDR 框架，使其警戒要求基本相同。",
+                "トルコ医療機器規制（2021）— EU MDR相当：重篤インシデントは15日以内、死亡・生命の危機は2日以内にTITCKへ報告。",
+                "Tıbbi Cihaz Yönetmeliği (2021) / Turkish MDR",
+                "Turkish Medical Devices Regulation (2021) mirrors EU MDR vigilance requirements.",
+                "en", "", "stricter_timeline", "critical",
+                ["TITCK serious incident report within 15 days / 15天內TITCK嚴重事故報告",
+                 "FSCA notification to TITCK / FSCA通知TITCK"],
+                0.85,
+            )],
+            "4.2.4": [_wd(
+                "TR-WITHIN-4.2.4-001", "4.2.4",
+                "Technical Documentation Retention — 10 Years (EU MDR Equivalent)",
+                "技術文件保存 — 10年（EU MDR 等同）",
+                "技術文書保持 — 10年（EU MDR相当）",
+                _REC_EN, _REC_ZH, _REC_JA,
+                "Turkish Medical Devices Regulation (2021) — EU MDR equivalent: Technical documentation must be retained for at least 10 years after the last device has been placed on the market (15 years for implantables).",
+                "土耳其醫療器材法規（2021年）— EU MDR 等同：技術文件必須在最後一批器材上市後保存至少10年（植入物15年）。",
+                "トルコMDR（2021）— EU MDR相当：技術文書は最終製品市場投入後10年（植込み型15年）保持。",
+                "Tıbbi Cihaz Yönetmeliği (2021)",
+                "Turkish MDR: technical documentation retained 10 years (15 for implantables).",
+                "en", "", "stricter_timeline", "major",
+                ["10-year (15-year implants) record retention policy / 10年（植入物15年）記錄保存政策"],
+                0.85,
+            )],
+            "7.5.1": [_wd(
+                "TR-WITHIN-7.5.1-001", "7.5.1",
+                "Turkish Language — Mandatory for Labels and IFU",
+                "土耳其文 — 標籤與使用說明書強制",
+                "トルコ語 — ラベル・添付文書の必須表示",
+                _LBL_EN, _LBL_ZH, _LBL_JA,
+                "Turkish Medical Devices Regulation: All labels and IFU must be provided in Turkish for devices sold in Turkey.",
+                "土耳其醫療器材法規：所有在土耳其銷售的器材標籤和使用說明書必須以土耳其文提供。",
+                "トルコMDR：トルコ国内販売医療機器のラベル・IFUはトルコ語必須。",
+                "Tıbbi Cihaz Yönetmeliği (2021)",
+                "Turkish MDR: Turkish language mandatory for labels and IFU.",
+                "en", "", "local_authority_specific", "major",
+                ["Turkish-language labels and IFU / 土耳其文標籤與使用說明書"],
+                0.85,
+            )],
+        },
+
+        "EG_EDA": {
+            "8.2.3": [_wd(
+                "EG-WITHIN-8.2.3-001", "8.2.3",
+                "Adverse Event Reporting — 30-Day EDA Notification",
+                "不良事件通報 — 30天 EDA 通報",
+                "有害事象報告 — 30日EDA通知",
+                _AE_EN, _AE_ZH, _AE_JA,
+                "Egyptian Drug Authority (EDA) medical device vigilance guidelines: Manufacturers must report serious adverse events to EDA within 30 calendar days of awareness.",
+                "埃及藥物管理局（EDA）醫療器材警戒指引：製造業者必須在知悉後30個日曆日內向 EDA 通報嚴重不良事件。",
+                "EDA：重篤な有害事象は認識後30暦日以内に報告。",
+                "EDA Medical Device Vigilance Guidelines",
+                "EDA: adverse events reported within 30 days.",
+                "en", "", "stricter_timeline", "critical",
+                ["EDA AE report within 30 days / 30天內EDA不良事件報告"],
+                0.75,
+            )],
+            "4.2.4": [_wd(
+                "EG-WITHIN-4.2.4-001", "4.2.4",
+                "Record Retention — 5 Years Minimum",
+                "記錄保存 — 最少5年",
+                "記録保持 — 最低5年",
+                _REC_EN, _REC_ZH, _REC_JA,
+                "Egyptian medical device regulations require quality records retention for at least 5 years.",
+                "埃及醫療器材法規要求品質記錄保存至少5年。",
+                "エジプト：品質記録は少なくとも5年保持。",
+                "EDA Medical Device Regulations",
+                "EDA: records retained at least 5 years.",
+                "en", "", "stricter_timeline", "major",
+                ["5-year record retention policy / 5年記錄保存政策"],
+                0.70,
+            )],
+            "7.5.1": [_wd(
+                "EG-WITHIN-7.5.1-001", "7.5.1",
+                "Arabic Language — Mandatory for Labels and IFU",
+                "阿拉伯文 — 標籤與使用說明書強制",
+                "アラビア語 — ラベル・添付文書の必須表示",
+                _LBL_EN, _LBL_ZH, _LBL_JA,
+                "EDA regulations require all labels and IFU for medical devices sold in Egypt to include Arabic language.",
+                "EDA 法規要求所有在埃及銷售的醫療器材標籤和使用說明書包含阿拉伯文。",
+                "EDA規制：エジプト国内販売医療機器のラベル・IFUはアラビア語必須。",
+                "EDA Medical Device Labeling Regulations",
+                "EDA: Arabic language required for labels.",
+                "en", "", "local_authority_specific", "major",
+                ["Arabic-language labels and IFU / 阿拉伯文標籤與使用說明書"],
+                0.80,
+            )],
+        },
+
+        "MX_COFEPRIS": {
+            "8.2.3": [_wd(
+                "MX-WITHIN-8.2.3-001", "8.2.3",
+                "Adverse Event Reporting — 3 Working Days (Urgent) / 5 / 15 Days",
+                "不良事件通報 — 3工作日（緊急）/ 5天 / 15天",
+                "有害事象報告 — 3営業日（緊急）/ 5日 / 15日",
+                _AE_EN, _AE_ZH, _AE_JA,
+                "NOM-241-SSA1-2012 Art. 15.6: Three-tier reporting: (1) Death or life-threatening events: 3 working days; (2) Serious adverse events: 5 working days; (3) Other adverse events requiring action: 15 calendar days. Reports submitted to COFEPRIS via the national pharmacovigilance system.",
+                "NOM-241-SSA1-2012 第15.6條：三級時限：(1) 死亡或危及生命事件：3個工作日；(2) 嚴重不良事件：5個工作日；(3) 需採取行動的其他不良事件：15個日曆日。透過 COFEPRIS 國家藥物警戒系統提交。",
+                "NOM-241-SSA1-2012 第15.6条：(1)死亡・生命の危機：3営業日(2)重篤：5営業日(3)その他：15暦日。COFEPRISへ報告。",
+                "NOM-241-SSA1-2012 Art. 15.6",
+                "NOM-241-SSA1-2012: adverse event reporting within 3/5/15 days depending on severity.",
+                "en", "", "stricter_timeline", "critical",
+                ["COFEPRIS AE report within 3/5/15 days / 3/5/15天內COFEPRIS不良事件報告"],
+                0.85,
+            )],
+            "4.2.4": [_wd(
+                "MX-WITHIN-4.2.4-001", "4.2.4",
+                "Record Retention — 5 Years After Product Expiry",
+                "記錄保存 — 產品有效期後5年",
+                "記録保持 — 製品の有効期限後5年",
+                _REC_EN, _REC_ZH, _REC_JA,
+                "NOM-241-SSA1-2012: Quality records must be retained for at least 5 years after the device's expiry date or intended useful life.",
+                "NOM-241-SSA1-2012：品質記錄必須在器材有效期或預期使用壽命後保存至少5年。",
+                "NOM-241-SSA1-2012：品質記録は機器の有効期限または耐用年数後少なくとも5年保持。",
+                "NOM-241-SSA1-2012",
+                "NOM-241: records retained at least 5 years after expiry.",
+                "en", "", "stricter_timeline", "major",
+                ["5-year post-expiry record retention policy / 有效期後5年保存政策"],
+                0.85,
+            )],
+            "7.5.1": [_wd(
+                "MX-WITHIN-7.5.1-001", "7.5.1",
+                "Spanish Language — Mandatory for Labels and IFU",
+                "西班牙文 — 標籤與使用說明書強制",
+                "スペイン語 — ラベル・添付文書の必須表示",
+                _LBL_EN, _LBL_ZH, _LBL_JA,
+                "NOM-241-SSA1-2012 and COFEPRIS regulations: All labels and IFU must be in Spanish for devices sold in Mexico. Health registration number (registro sanitario) must be included.",
+                "NOM-241-SSA1-2012 及 COFEPRIS 法規：所有在墨西哥銷售的器材標籤和使用說明書必須以西班牙文提供。必須包含衛生登記號碼。",
+                "NOM-241・COFEPRIS：メキシコ国内販売はスペイン語必須。registro sanitario番号も必要。",
+                "NOM-241-SSA1-2012 / COFEPRIS",
+                "NOM-241: Spanish language mandatory; health registration number required on label.",
+                "en", "", "local_authority_specific", "major",
+                ["Spanish-language labels and IFU / 西班牙文標籤與使用說明書",
+                 "COFEPRIS registration number on label / 標籤上之COFEPRIS登記號"],
+                0.85,
+            )],
+        },
+
+        "CL_ISP": {
+            "8.2.3": [_wd(
+                "CL-WITHIN-8.2.3-001", "8.2.3",
+                "Adverse Event Reporting — 15-Day (Serious) / 30-Day ISP Notification",
+                "不良事件通報 — 嚴重15天 / 一般30天 ISP 通報",
+                "有害事象報告 — 重篤15日/一般30日のISP通知",
+                _AE_EN, _AE_ZH, _AE_JA,
+                "Chilean ISP Circular No.14/2018: Manufacturers must report serious adverse events (death or serious injury) to ISP within 15 calendar days. Other adverse events requiring action: 30 calendar days.",
+                "智利 ISP 第14/2018號通告：製造業者必須在15個日曆日內向 ISP 通報嚴重不良事件（死亡或嚴重傷害）。需採取行動的其他不良事件：30個日曆日。",
+                "智利ISP Circular 14/2018：重篤（死亡・重傷）は15暦日以内、その他は30暦日以内にISPへ報告。",
+                "ISP Circular No.14/2018",
+                "ISP Circular 14/2018: adverse event reporting within 15/30 days.",
+                "en", "", "stricter_timeline", "critical",
+                ["ISP AE report within 15/30 days / 15/30天內ISP不良事件報告"],
+                0.75,
+            )],
+            "4.2.4": [_wd(
+                "CL-WITHIN-4.2.4-001", "4.2.4",
+                "Record Retention — 5 Years Minimum",
+                "記錄保存 — 最少5年",
+                "記録保持 — 最低5年",
+                _REC_EN, _REC_ZH, _REC_JA,
+                "Chilean medical device regulations require quality records retention for at least 5 years.",
+                "智利醫療器材法規要求品質記錄保存至少5年。",
+                "チリ：品質記録は少なくとも5年保持。",
+                "Chile Medical Device Regulations / ISP",
+                "ISP: records retained at least 5 years.",
+                "en", "", "stricter_timeline", "major",
+                ["5-year record retention policy / 5年記錄保存政策"],
+                0.70,
+            )],
+            "7.5.1": [_wd(
+                "CL-WITHIN-7.5.1-001", "7.5.1",
+                "Spanish Language — Mandatory for Labels and IFU",
+                "西班牙文 — 標籤與使用說明書強制",
+                "スペイン語 — ラベル・添付文書の必須表示",
+                _LBL_EN, _LBL_ZH, _LBL_JA,
+                "Chilean Decree No.825 and ISP regulations: labels and IFU must be in Spanish.",
+                "智利 Decree No.825 及 ISP 法規：標籤和使用說明書必須以西班牙文提供。",
+                "チリ：ラベル・IFUはスペイン語必須。",
+                "Chile Decree No.825 / ISP Regulations",
+                "ISP: Spanish language mandatory for labels.",
+                "en", "", "local_authority_specific", "major",
+                ["Spanish-language labels and IFU / 西班牙文標籤與使用說明書"],
+                0.80,
+            )],
+        },
+
+        "SA_SFDA": {
+            "8.2.3": [_wd(
+                "SA-WITHIN-8.2.3-001", "8.2.3",
+                "Adverse Event Reporting — 15-Day (Serious) / 30-Day SFDA Notification",
+                "不良事件通報 — 嚴重15天 / 一般30天 SFDA 通報",
+                "有害事象報告 — 重篤15日/一般30日のSFDA通知",
+                _AE_EN, _AE_ZH, _AE_JA,
+                "SFDA Medical Device Vigilance Guideline MDS-G031: Manufacturers must report serious adverse events (death or serious injury) within 15 calendar days; events posing immediate health risk within 72 hours. Other adverse events: 30 calendar days. Reports via SFDA's Noor medical device registration system.",
+                "SFDA 醫療器材警戒指引 MDS-G031：製造業者必須在15個日曆日內通報嚴重不良事件（死亡或嚴重傷害）；對健康構成立即風險的事件72小時內。其他不良事件：30個日曆日。透過 SFDA 的 Noor 醫療器材登記系統提交。",
+                "SFDA MDS-G031：重篤（死亡・重傷）は15暦日以内、即時健康リスクは72時間以内、その他は30暦日以内。Noorシステムで提出。",
+                "SFDA MDS-G031",
+                "SFDA MDS-G031: adverse event reporting within 72h/15/30 days.",
+                "en", "", "stricter_timeline", "critical",
+                ["SFDA Noor system registration / SFDA Noor系統登錄",
+                 "AE report within 15/30 days / 15/30天內不良事件報告"],
+                0.80,
+            )],
+            "4.2.4": [_wd(
+                "SA-WITHIN-4.2.4-001", "4.2.4",
+                "Record Retention — 10 Years Minimum",
+                "記錄保存 — 最少10年",
+                "記録保持 — 最低10年",
+                _REC_EN, _REC_ZH, _REC_JA,
+                "SFDA medical device regulations require quality records retention for at least 10 years from the date of manufacture or the useful life of the device, whichever is greater.",
+                "SFDA 醫療器材法規要求品質記錄從製造日期起或器材使用壽命（取較長者）保存至少10年。",
+                "SFDA：品質記録は製造日または機器耐用年数のいずれか長い方から少なくとも10年保持。",
+                "SFDA Medical Device Regulations",
+                "SFDA: records retained at least 10 years.",
+                "en", "", "stricter_timeline", "major",
+                ["10-year record retention policy / 10年記錄保存政策"],
+                0.80,
+            )],
+            "7.5.1": [_wd(
+                "SA-WITHIN-7.5.1-001", "7.5.1",
+                "Arabic Language — Mandatory for Labels and IFU",
+                "阿拉伯文 — 標籤與使用說明書強制",
+                "アラビア語 — ラベル・添付文書の必須表示",
+                _LBL_EN, _LBL_ZH, _LBL_JA,
+                "SFDA Medical Device Regulations: All labels and IFU must include Arabic language for devices sold in Saudi Arabia.",
+                "SFDA 醫療器材法規：所有在沙烏地阿拉伯銷售的器材標籤和使用說明書必須包含阿拉伯文。",
+                "SFDA：サウジアラビア国内販売医療機器のラベル・IFUはアラビア語必須。",
+                "SFDA Medical Device Labeling Regulations",
+                "SFDA: Arabic language mandatory for labels.",
+                "en", "", "local_authority_specific", "major",
+                ["Arabic-language labels and IFU / 阿拉伯文標籤與使用說明書"],
+                0.85,
+            )],
+        },
+
+        "TH_FDA": {
+            "8.2.3": [_wd(
+                "TH-WITHIN-8.2.3-001", "8.2.3",
+                "Adverse Event Reporting — 30-Day Thai FDA Notification",
+                "不良事件通報 — 30天泰國 FDA 通報",
+                "有害事象報告 — 30日Thai FDA通知",
+                _AE_EN, _AE_ZH, _AE_JA,
+                "Thai FDA Notification on Medical Device Adverse Events: Manufacturers must report serious adverse events to Thai FDA within 30 calendar days of awareness.",
+                "泰國 FDA 醫療器材不良事件通知：製造業者必須在知悉後30個日曆日內向泰國 FDA 通報嚴重不良事件。",
+                "タイFDA：重篤な有害事象は認識後30暦日以内に報告。",
+                "Thai FDA Notification on Medical Device Adverse Events",
+                "Thai FDA: adverse events reported within 30 days.",
+                "en", "", "stricter_timeline", "critical",
+                ["Thai FDA AE report within 30 days / 30天內泰國FDA不良事件報告"],
+                0.75,
+            )],
+            "4.2.4": [_wd(
+                "TH-WITHIN-4.2.4-001", "4.2.4",
+                "Record Retention — 3 Years Minimum (Same as TFDA, Stricter than ISO 2yr)",
+                "記錄保存 — 最少3年",
+                "記録保持 — 最低3年",
+                _REC_EN, _REC_ZH, _REC_JA,
+                "Thai FDA medical device regulations require quality records retention for at least 3 years from product release.",
+                "泰國 FDA 醫療器材法規要求品質記錄從產品放行起保存至少3年。",
+                "タイFDA：品質記録は製品リリースから少なくとも3年保持。",
+                "Thai FDA Medical Device Regulations",
+                "Thai FDA: records retained at least 3 years.",
+                "en", "", "stricter_timeline", "major",
+                ["3-year record retention policy / 3年記錄保存政策"],
+                0.75,
+            )],
+            "7.5.1": [_wd(
+                "TH-WITHIN-7.5.1-001", "7.5.1",
+                "Thai Language — Mandatory for Labels and IFU",
+                "泰文 — 標籤與使用說明書強制",
+                "タイ語 — ラベル・添付文書の必須表示",
+                _LBL_EN, _LBL_ZH, _LBL_JA,
+                "Thai FDA Notification: Labels and IFU for medical devices sold in Thailand must include Thai language.",
+                "泰國 FDA 通知：在泰國銷售的醫療器材標籤和使用說明書必須包含泰文。",
+                "タイFDA：タイ国内販売医療機器のラベル・IFUはタイ語必須。",
+                "Thai FDA Medical Device Labeling Notification",
+                "Thai FDA: Thai language mandatory for labels.",
+                "en", "", "local_authority_specific", "major",
+                ["Thai-language labels and IFU / 泰文標籤與使用說明書"],
+                0.80,
+            )],
+        },
+
+        "CH_SWISSMEDIC": {
+            "8.2.3": [_wd(
+                "CH-WITHIN-8.2.3-001", "8.2.3",
+                "Serious Incident Reporting — 15-Day / 2-Day (EU MDR Equivalent via MepV)",
+                "嚴重事故通報 — 15天 / 2天（EU MDR 等同，依 MepV）",
+                "重篤インシデント報告 — 15日/2日（MepV経由EU MDR相当）",
+                _AE_EN, _AE_ZH, _AE_JA,
+                "Swiss Medical Devices Ordinance (MepV/ODim, SR 812.213) — aligned with EU MDR: Manufacturers must report serious incidents to Swissmedic within 15 days; death/life-threatening within 2 days. Field Safety Corrective Actions must be communicated immediately. Swissmedic adopted the EU MDR vigilance framework.",
+                "瑞士醫療器材條例（MepV，SR 812.213）— 對齊 EU MDR：製造業者必須在15天內向 Swissmedic 通報嚴重事故；死亡/危及生命2天內。現場安全矯正措施必須立即通知。Swissmedic 採用 EU MDR 警戒框架。",
+                "瑞士MepV（EU MDR相当）：重篤インシデントは15日以内、死亡・生命の危機は2日以内にSwissmedic報告。FSCAは即時通知。",
+                "Swiss MepV / ODim SR 812.213",
+                "Swiss MepV: mirrors EU MDR vigilance requirements — 15/2-day reporting timelines.",
+                "en", "", "stricter_timeline", "critical",
+                ["Swissmedic serious incident report within 15/2 days / 15/2天內Swissmedic嚴重事故報告"],
+                0.85,
+            )],
+            "4.2.4": [_wd(
+                "CH-WITHIN-4.2.4-001", "4.2.4",
+                "Technical Documentation Retention — 10 Years (EU MDR Equivalent)",
+                "技術文件保存 — 10年（EU MDR 等同）",
+                "技術文書保持 — 10年（EU MDR相当）",
+                _REC_EN, _REC_ZH, _REC_JA,
+                "Swiss MepV (EU MDR equivalent): Technical documentation must be retained for at least 10 years after the last device has been placed on the market (15 years for implantables).",
+                "瑞士 MepV（EU MDR 等同）：技術文件必須在最後一批器材上市後保存至少10年（植入物15年）。",
+                "瑞士MepV（EU MDR相当）：技術文書は最終製品市場投入後10年（植込み型15年）保持。",
+                "Swiss MepV SR 812.213",
+                "Swiss MepV: technical documentation retained 10 years (15 for implantables).",
+                "en", "", "stricter_timeline", "major",
+                ["10-year (15-year implants) record retention / 10年（植入物15年）記錄保存"],
+                0.85,
+            )],
+            "7.3.6": [_wd(
+                "CH-WITHIN-7.3.6-001", "7.3.6",
+                "Clinical Evaluation — CER + PMCF Required (EU MDR Equivalent)",
+                "臨床評估 — CER + PMCF 強制（EU MDR 等同）",
+                "臨床評価 — CER + PMCF 必須（EU MDR相当）",
+                _CLN_EN, _CLN_ZH, _CLN_JA,
+                "Swiss MepV (EU MDR equivalent): Clinical Evaluation Report (CER) is mandatory for all devices. PMCF plan required for Class IIa+ devices. Switzerland's MepV mirrors EU MDR clinical evaluation requirements.",
+                "瑞士 MepV（EU MDR 等同）：所有器材強制要求臨床評估報告（CER）。Class IIa+ 器材需 PMCF 計畫。瑞士 MepV 仿效 EU MDR 臨床評估要求。",
+                "瑞士MepV（EU MDR相当）：全機器にCER必須。Class IIa+はPMCFが必要。",
+                "Swiss MepV SR 812.213 / EU MDR Art. 61",
+                "Swiss MepV: CER mandatory; PMCF for Class IIa+.",
+                "en", "", "scope_extension", "critical",
+                ["CER per EU MDR equivalent / EU MDR等同之CER",
+                 "PMCF plan for Class IIa+ / Class IIa+之PMCF計畫"],
+                0.85,
+            )],
+            "7.5.1": [_wd(
+                "CH-WITHIN-7.5.1-001", "7.5.1",
+                "Official Swiss Languages — German/French/Italian Mandatory as Applicable",
+                "瑞士官方語言 — 適用時德/法/義文強制",
+                "スイス公用語 — 該当する場合ドイツ語/フランス語/イタリア語必須",
+                _LBL_EN, _LBL_ZH, _LBL_JA,
+                "Swiss MepV: Labels and IFU must be provided in the official Swiss language(s) of the cantons where the device is sold. Typically German, French, and/or Italian versions are required. English-only is not acceptable.",
+                "瑞士 MepV：標籤和使用說明書必須以器材銷售州的瑞士官方語言提供。通常需要德文、法文和/或義大利文版本。純英文不可接受。",
+                "瑞士MepV：販売地域の公用語（ドイツ語・フランス語・イタリア語）でラベル・IFU必須。英語のみ不可。",
+                "Swiss MepV SR 812.213",
+                "Swiss MepV: labels in German/French/Italian as applicable.",
+                "en", "", "local_authority_specific", "major",
+                ["German/French/Italian labels and IFU as applicable / 德/法/義文標籤與使用說明書（依適用）"],
+                0.85,
+            )],
+        },
+
+        "NZ_MEDSAFE": {
+            "8.2.3": [_wd(
+                "NZ-WITHIN-8.2.3-001", "8.2.3",
+                "Adverse Event Reporting — 48-Hour (Serious) / 30-Day (TGA Equivalent via TTMRA)",
+                "不良事件通報 — 48小時（嚴重）/ 30天（同 TGA，依 TTMRA）",
+                "有害事象報告 — 48時間（重篤）/30日（TGA相当・TTMRA経由）",
+                _AE_EN, _AE_ZH, _AE_JA,
+                "Medicines Act 1981 / New Zealand Medical Device Regulations: NZ follows TGA equivalent requirements via the Trans-Tasman Mutual Recognition Arrangement (TTMRA). Serious adverse events (death/serious deterioration): 48 hours; other serious events: 30 days. Reports to Medsafe via WAND (Watchdog Adverse Notification Database).",
+                "1981年藥品法 / 紐西蘭醫療器材法規：紐西蘭依跨塔斯曼互認安排（TTMRA）遵循 TGA 等同要求。嚴重不良事件（死亡/嚴重惡化）：48小時；其他嚴重事件：30天。透過 WAND 向 Medsafe 提交。",
+                "NZはTTMRA経由でTGA相当要件：重篤（死亡・重篤健康悪化）は48時間、その他は30日以内にMedsafeのWANDで報告。",
+                "NZ Medicines Act 1981 / TTMRA",
+                "NZ via TTMRA mirrors TGA requirements: 48h/30-day reporting.",
+                "en", "", "stricter_timeline", "critical",
+                ["WAND system registration / WAND系統登錄",
+                 "AE report within 48h/30 days / 48小時/30天內不良事件報告"],
+                0.80,
+            )],
+            "4.2.4": [_wd(
+                "NZ-WITHIN-4.2.4-001", "4.2.4",
+                "Record Retention — Useful Life + 5 Years (TGA Equivalent)",
+                "記錄保存 — 使用壽命 + 5 年（同 TGA）",
+                "記録保持 — 耐用年数＋5年（TGA相当）",
+                _REC_EN, _REC_ZH, _REC_JA,
+                "New Zealand medical device regulations (via TTMRA/TGA alignment): Quality records must be retained for the useful life of the device plus at least 5 years.",
+                "紐西蘭醫療器材法規（透過 TTMRA/TGA 一致性）：品質記錄必須保存器材使用壽命加至少5年。",
+                "NZ（TGA相当）：品質記録は耐用年数＋少なくとも5年保持。",
+                "NZ Medical Device Regulations / TTMRA",
+                "NZ via TTMRA: records retained for device lifetime + 5 years.",
+                "en", "", "stricter_timeline", "major",
+                ["Device lifetime + 5 years retention / 器材壽命+5年保存"],
+                0.80,
+            )],
+        },
+
+        "PH_FDA": {
+            "8.2.3": [_wd(
+                "PH-WITHIN-8.2.3-001", "8.2.3",
+                "Adverse Event Reporting — 30-Day Philippine FDA Notification",
+                "不良事件通報 — 30天菲律賓 FDA 通報",
+                "有害事象報告 — 30日フィリピンFDA通知",
+                _AE_EN, _AE_ZH, _AE_JA,
+                "FDA Philippines Administrative Order 2014-0029: Manufacturers must report serious adverse events to Philippine FDA within 30 calendar days of awareness.",
+                "菲律賓 FDA 行政命令 2014-0029：製造業者必須在知悉後30個日曆日內向菲律賓 FDA 通報嚴重不良事件。",
+                "フィリピンFDA：重篤な有害事象は認識後30暦日以内に報告。",
+                "FDA Philippines AO 2014-0029",
+                "Philippine FDA AO 2014-0029: adverse events reported within 30 days.",
+                "en", "", "stricter_timeline", "critical",
+                ["Philippine FDA AE report within 30 days / 30天內菲律賓FDA不良事件報告"],
+                0.75,
+            )],
+            "4.2.4": [_wd(
+                "PH-WITHIN-4.2.4-001", "4.2.4",
+                "Record Retention — Device Lifetime + 5 Years",
+                "記錄保存 — 器材壽命 + 5 年",
+                "記録保持 — 機器耐用年数＋5年",
+                _REC_EN, _REC_ZH, _REC_JA,
+                "Philippine FDA medical device regulations require quality records retention for the device's useful life plus at least 5 years.",
+                "菲律賓 FDA 醫療器材法規要求品質記錄保存器材使用壽命加至少5年。",
+                "フィリピンFDA：品質記録は機器耐用年数＋少なくとも5年保持。",
+                "FDA Philippines Medical Device Regulations",
+                "Philippine FDA: records retained device lifetime + 5 years.",
+                "en", "", "stricter_timeline", "major",
+                ["Device lifetime + 5 years retention / 器材壽命+5年保存"],
+                0.75,
+            )],
+        },
+
+        "VN_MOH": {
+            "8.2.3": [_wd(
+                "VN-WITHIN-8.2.3-001", "8.2.3",
+                "Adverse Event Reporting — 10-Day (Death) / 30-Day (Other Serious)",
+                "不良事件通報 — 死亡10天 / 其他嚴重30天",
+                "有害事象報告 — 死亡10日/その他重篤30日",
+                _AE_EN, _AE_ZH, _AE_JA,
+                "Circular 05/2021/TT-BYT Art. 18: Manufacturers must report adverse events causing death within 10 calendar days. Other serious adverse events must be reported within 30 calendar days. Reports submitted to Ministry of Health via Vietnam's pharmacovigilance portal.",
+                "第05/2021/TT-BYT號通告第18條：製造業者必須在10個日曆日內通報導致死亡的不良事件。其他嚴重不良事件在30個日曆日內通報。透過越南藥物警戒入口向衛生部提交。",
+                "通達05/2021/TT-BYT第18条：死亡を引き起こした有害事象は10暦日以内、その他の重篤は30暦日以内に報告。",
+                "Circular 05/2021/TT-BYT Art. 18",
+                "Circular 05/2021: adverse event reporting within 10 days (death) / 30 days (other).",
+                "en", "", "stricter_timeline", "critical",
+                ["Vietnam MOH AE report within 10/30 days / 10/30天內越南衛生部不良事件報告"],
+                0.80,
+            )],
+            "4.2.4": [_wd(
+                "VN-WITHIN-4.2.4-001", "4.2.4",
+                "Record Retention — 5 Years After Last Batch Release",
+                "記錄保存 — 最後一批放行後5年",
+                "記録保持 — 最終ロットリリース後5年",
+                _REC_EN, _REC_ZH, _REC_JA,
+                "Vietnam MOH medical device regulations require quality records retention for at least 5 years after the last product batch is released.",
+                "越南衛生部醫療器材法規要求品質記錄在最後一批產品放行後保存至少5年。",
+                "ベトナム保健省：品質記録は最終ロットリリース後少なくとも5年保持。",
+                "Vietnam MOH Medical Device Regulations",
+                "Vietnam MOH: records retained 5 years after last batch.",
+                "en", "", "stricter_timeline", "major",
+                ["5-year post-release record retention / 放行後5年保存政策"],
+                0.75,
+            )],
+            "7.5.1": [_wd(
+                "VN-WITHIN-7.5.1-001", "7.5.1",
+                "Vietnamese Language — Mandatory for Labels and IFU",
+                "越南文 — 標籤與使用說明書強制",
+                "ベトナム語 — ラベル・添付文書の必須表示",
+                _LBL_EN, _LBL_ZH, _LBL_JA,
+                "Vietnam's medical device labeling regulations (Circular 05/2021/TT-BYT): Labels and IFU must be provided in Vietnamese. Foreign language versions may be included alongside Vietnamese.",
+                "越南醫療器材標示法規（第05/2021/TT-BYT號通告）：標籤和使用說明書必須以越南文提供。可在越南文旁附上外文版本。",
+                "ベトナム（通達05/2021）：ラベル・IFUはベトナム語必須。外国語版を併記可。",
+                "Circular 05/2021/TT-BYT",
+                "Circular 05/2021: Vietnamese language mandatory for labels.",
+                "en", "", "local_authority_specific", "major",
+                ["Vietnamese-language labels and IFU / 越南文標籤與使用說明書"],
+                0.80,
+            )],
+        },
+
+        "AR_ANMAT": {
+            "8.2.3": [_wd(
+                "AR-WITHIN-8.2.3-001", "8.2.3",
+                "Adverse Event Reporting — 72h / 15-Day / 30-Day Tiered (ANVISA-Equivalent)",
+                "不良事件通報 — 72小時 / 15天 / 30天三級",
+                "有害事象報告 — 72時間/15日/30日の段階的",
+                _AE_EN, _AE_ZH, _AE_JA,
+                "ANMAT Disposición 5421/2009: Three-tier reporting: (1) Imminent public health risk: 72 hours; (2) Death or life-threatening events: 15 calendar days; (3) Other serious adverse events: 30 calendar days. Reports via ANMAT's Telemedicamentos/RAVE system.",
+                "ANMAT 第5421/2009號處置：三級時限：(1) 對公共健康構成迫切風險：72小時；(2) 死亡或危及生命事件：15個日曆日；(3) 其他嚴重不良事件：30個日曆日。透過 ANMAT 的 Telemedicamentos/RAVE 系統提交。",
+                "ANMAT Disposición 5421/2009：(1)差し迫った公衆衛生リスク：72時間(2)死亡・生命の危機：15暦日(3)その他重篤：30暦日。",
+                "ANMAT Disposición 5421/2009",
+                "ANMAT 5421/2009: 72h/15/30-day tiered adverse event reporting.",
+                "en", "", "stricter_timeline", "critical",
+                ["ANMAT AE report within 72h/15/30 days / 72小時/15/30天內ANMAT不良事件報告"],
+                0.80,
+            )],
+            "4.2.4": [_wd(
+                "AR-WITHIN-4.2.4-001", "4.2.4",
+                "Record Retention — 5 Years After Market Withdrawal",
+                "記錄保存 — 退出市場後5年",
+                "記録保持 — 市場撤退後5年",
+                _REC_EN, _REC_ZH, _REC_JA,
+                "ANMAT medical device regulations require quality records retention for at least 5 years after the device is withdrawn from the market.",
+                "ANMAT 醫療器材法規要求品質記錄在器材退出市場後保存至少5年。",
+                "ANMAT：品質記録は市場撤退後少なくとも5年保持。",
+                "ANMAT Medical Device Regulations",
+                "ANMAT: records retained 5 years after market withdrawal.",
+                "en", "", "stricter_timeline", "major",
+                ["5-year post-withdrawal record retention / 退市後5年保存政策"],
+                0.75,
+            )],
+            "7.5.1": [_wd(
+                "AR-WITHIN-7.5.1-001", "7.5.1",
+                "Spanish Language — Mandatory for Labels and IFU",
+                "西班牙文 — 標籤與使用說明書強制",
+                "スペイン語 — ラベル・添付文書の必須表示",
+                _LBL_EN, _LBL_ZH, _LBL_JA,
+                "ANMAT regulations: Labels and IFU must be in Spanish for devices sold in Argentina.",
+                "ANMAT 法規：在阿根廷銷售的器材標籤和使用說明書必須以西班牙文提供。",
+                "ANMAT：アルゼンチン国内販売はスペイン語必須。",
+                "ANMAT Medical Device Regulations",
+                "ANMAT: Spanish mandatory for labels.",
+                "en", "", "local_authority_specific", "major",
+                ["Spanish-language labels and IFU / 西班牙文標籤與使用說明書"],
+                0.80,
+            )],
+        },
+
+        "AE_MOHAP": {
+            "8.2.3": [_wd(
+                "AE-WITHIN-8.2.3-001", "8.2.3",
+                "Adverse Event Reporting — 10-Day (Death/Serious) / 30-Day MOHAP Notification",
+                "不良事件通報 — 死亡/嚴重10天 / 一般30天",
+                "有害事象報告 — 死亡・重篤10日/一般30日",
+                _AE_EN, _AE_ZH, _AE_JA,
+                "UAE MOHAP Medical Device Vigilance Guidelines: Manufacturers must report adverse events causing death or serious injury to MOHAP within 10 calendar days. Other serious adverse events: 30 calendar days. Reports submitted via MOHAP's EMARATAC electronic system.",
+                "阿聯酋 MOHAP 醫療器材警戒指引：製造業者必須在10個日曆日內向 MOHAP 通報導致死亡或嚴重傷害的不良事件。其他嚴重不良事件：30個日曆日。透過 MOHAP 的 EMARATAC 電子系統提交。",
+                "UAE MOHAP：死亡・重傷は10暦日以内、その他重篤は30暦日以内にEMARATACで報告。",
+                "UAE MOHAP Medical Device Vigilance Guidelines",
+                "MOHAP: adverse events reported within 10 days (death/serious) / 30 days (other).",
+                "en", "", "stricter_timeline", "critical",
+                ["MOHAP EMARATAC system registration / MOHAP EMARATAC系統登錄",
+                 "AE report within 10/30 days / 10/30天內不良事件報告"],
+                0.80,
+            )],
+            "4.2.4": [_wd(
+                "AE-WITHIN-4.2.4-001", "4.2.4",
+                "Record Retention — 10 Years Minimum",
+                "記錄保存 — 最少10年",
+                "記録保持 — 最低10年",
+                _REC_EN, _REC_ZH, _REC_JA,
+                "UAE MOHAP medical device regulations require quality records retention for at least 10 years.",
+                "阿聯酋 MOHAP 醫療器材法規要求品質記錄保存至少10年。",
+                "UAE MOHAP：品質記録は少なくとも10年保持。",
+                "UAE MOHAP Medical Device Regulations",
+                "MOHAP: records retained at least 10 years.",
+                "en", "", "stricter_timeline", "major",
+                ["10-year record retention policy / 10年記錄保存政策"],
+                0.80,
+            )],
+            "7.5.1": [_wd(
+                "AE-WITHIN-7.5.1-001", "7.5.1",
+                "Arabic Language — Mandatory for Labels and IFU",
+                "阿拉伯文 — 標籤與使用說明書強制",
+                "アラビア語 — ラベル・添付文書の必須表示",
+                _LBL_EN, _LBL_ZH, _LBL_JA,
+                "UAE MOHAP regulations: All labels and IFU must include Arabic language for devices sold in the UAE.",
+                "阿聯酋 MOHAP 法規：所有在阿聯酋銷售的器材標籤和使用說明書必須包含阿拉伯文。",
+                "UAE MOHAP：UAE国内販売医療機器のラベル・IFUはアラビア語必須。",
+                "UAE MOHAP Medical Device Labeling Regulations",
+                "MOHAP: Arabic language mandatory for labels.",
+                "en", "", "local_authority_specific", "major",
+                ["Arabic-language labels and IFU / 阿拉伯文標籤與使用說明書"],
+                0.80,
+            )],
+        },
+
+        "MY_MDA": {
+            "8.2.3": [_wd(
+                "MY-WITHIN-8.2.3-001", "8.2.3",
+                "Adverse Event Reporting — 30-Day MDA Notification",
+                "不良事件通報 — 30天 MDA 通報",
+                "有害事象報告 — 30日MDA通知",
+                _AE_EN, _AE_ZH, _AE_JA,
+                "Medical Device Act 2012 / MDA Guidelines: Manufacturers must report serious adverse events to Malaysia's Medical Device Authority (MDA) within 30 calendar days of awareness.",
+                "2012年醫療器材法 / MDA 指引：製造業者必須在知悉後30個日曆日內向馬來西亞醫療器材局（MDA）通報嚴重不良事件。",
+                "医療機器法2012 / MDA指針：重篤な有害事象は認識後30暦日以内にMDAへ報告。",
+                "Medical Device Act 2012 / MDA Guidelines",
+                "MDA: adverse events reported within 30 days.",
+                "en", "", "stricter_timeline", "critical",
+                ["MDA AE report within 30 days / 30天內MDA不良事件報告"],
+                0.80,
+            )],
+            "4.2.4": [_wd(
+                "MY-WITHIN-4.2.4-001", "4.2.4",
+                "Record Retention — 5 Years or Device Lifetime (Whichever Greater)",
+                "記錄保存 — 5年或器材壽命取較長者",
+                "記録保持 — 5年または機器耐用年数のいずれか長い方",
+                _REC_EN, _REC_ZH, _REC_JA,
+                "Malaysian Medical Device Act 2012 and MDA regulations require quality records retention for at least 5 years or the device's useful life, whichever is greater.",
+                "馬來西亞 2012年醫療器材法及 MDA 法規要求品質記錄保存至少5年或器材使用壽命，取較長者。",
+                "マレーシア医療機器法2012：品質記録は少なくとも5年または機器耐用年数のいずれか長い方保持。",
+                "Medical Device Act 2012 / MDA Regulations",
+                "MDA: records retained 5 years or device lifetime.",
+                "en", "", "stricter_timeline", "major",
+                ["5-year or device lifetime retention policy / 5年或器材壽命保存政策"],
+                0.80,
+            )],
+            "7.5.1": [_wd(
+                "MY-WITHIN-7.5.1-001", "7.5.1",
+                "Bahasa Malaysia or English — Labeling Requirements",
+                "馬來文或英文 — 標示要求",
+                "マレー語または英語 — ラベル要件",
+                _LBL_EN, _LBL_ZH, _LBL_JA,
+                "Malaysian MDA regulations: Labels and IFU must be provided in Bahasa Malaysia or English. Bahasa Malaysia is preferred; both languages are acceptable.",
+                "馬來西亞 MDA 法規：標籤和使用說明書必須以馬來文或英文提供。馬來文為優先；兩種語言均可接受。",
+                "マレーシアMDA：ラベル・IFUはバハサ・マレーシア語または英語で提供。",
+                "Malaysian MDA Regulations",
+                "MDA: Bahasa Malaysia or English acceptable for labels.",
+                "en", "", "local_authority_specific", "minor",
+                ["Bahasa Malaysia or English labels / 馬來文或英文標籤"],
+                0.80,
+            )],
+        },
+
+        # ── EU MDR 4.2.4 (retention 10 years) ────────────────────────────
+        "EU_MDR_rec": {  # merged below into EU_MDR
+        },
+
     }
 
-    for profile_id, clause_map in _static.items():
+    # ── Post-process: extend existing UK_MHRA, KR_MFDS, CN_NMPA entries ──────
+    # These profiles already have 8.2.3 and other deltas from the first section.
+    # We add additional clause deltas here by direct manipulation.
+    _extra: dict[str, dict[str, list]] = {
+        "UK_MHRA": {
+            "4.2.4": [_wd(
+                "UK-WITHIN-4.2.4-001", "4.2.4",
+                "Technical Documentation Retention — 10 Years (EU MDR Equivalent)",
+                "技術文件保存 — 10年（EU MDR 等同）",
+                "技術文書保持 — 10年（EU MDR相当）",
+                _REC_EN, _REC_ZH, _REC_JA,
+                "UK MDR 2002 (post-Brexit, EU MDR equivalent): Technical documentation must be retained for 10 years after the last device has been placed on the UK market (15 years for implantables).",
+                "英國 MDR 2002（脫歐後，EU MDR 等同）：技術文件必須在最後一批器材在英國市場上市後保存10年（植入物15年）。",
+                "UK MDR 2002（EU MDR相当）：技術文書は最終製品市場投入後10年（植込み型15年）保持。",
+                "UK MDR 2002 (post-Brexit amendment)",
+                "UK MDR 2002: technical documentation retained 10 years (15 for implantables).",
+                "en", "", "stricter_timeline", "major",
+                ["10-year (15-year implants) technical documentation retention / 10年（植入物15年）技術文件保存"],
+                0.85,
+            )],
+            "7.5.9.2": [_wd(
+                "UK-WITHIN-7.5.9.2-001", "7.5.9.2",
+                "UKCA UDI — Mandatory from 2025 (Class III First)",
+                "UKCA UDI — 2025年起強制（Class III 優先）",
+                "UKCA UDI — 2025年から必須（Class IIIから）",
+                _UDI_EN, _UDI_ZH, _UDI_JA,
+                "UK MDR 2002 (Annex XI post-Brexit): UKCA-marked devices require UDI. Class III and Class IIb implantable: mandatory from 2025. Class IIb non-implantable, Class IIa: 2026. Class I: 2027. Must be registered in UK's national UDI database.",
+                "英國 MDR 2002（脫歐後 Annex XI）：UKCA 標記器材需要 UDI。Class III 和 Class IIb 植入物：2025年起強制。Class IIb 非植入物、Class IIa：2026年。Class I：2027年。必須在英國國家 UDI 資料庫登錄。",
+                "UK MDR 2002（Brexit後）：UKCAマーク機器にUDI必須。Class III/IIb植込み型は2025年から。",
+                "UK MDR 2002 Annex XI (post-Brexit)",
+                "UK MDR 2002: UKCA UDI mandatory from 2025 (phased by class).",
+                "en", "", "additional_form", "major",
+                ["UK national UDI database registration / 英國國家UDI資料庫登錄",
+                 "UDI implementation timeline plan / UDI實施時程計畫"],
+                0.80,
+            )],
+            "8.3.2": [_wd(
+                "UK-WITHIN-8.3.2-001", "8.3.2",
+                "FSCA Notification — 15-Day / Field Safety Notice Mandatory",
+                "FSCA 通知 — 15天 / 現場安全通知強制",
+                "FSCA通知 — 15日/フィールド安全通知必須",
+                _FSC_EN, _FSC_ZH, _FSC_JA,
+                "UK MDR 2002 Regulation 16B (post-Brexit): FSCA must be notified to MHRA within 15 days. Field Safety Notice (FSN) must be distributed to affected users before or during FSCA.",
+                "英國 MDR 2002 Regulation 16B（脫歐後）：FSCA 必須在15天內通知 MHRA。現場安全通知（FSN）必須在 FSCA 前或期間向受影響用戶分發。",
+                "UK MDR 2002 Reg.16B：FSCAは15日以内にMHRAへ通知。FSNはFSCA前または期間中にユーザーへ配布。",
+                "UK MDR 2002 Regulation 16B",
+                "UK MDR 2002: FSCA notification within 15 days; FSN mandatory.",
+                "en", "", "stricter_timeline", "critical",
+                ["MHRA FSCA notification within 15 days / 15天內MHRA FSCA通知",
+                 "FSN distribution records / FSN發布記錄"],
+                0.85,
+            )],
+        },
+        "KR_MFDS": {
+            "7.5.9.2": [_wd(
+                "KR-WITHIN-7.5.9.2-001", "7.5.9.2",
+                "K-UDI — Mandatory Since 2019 (Class 4) / 2021 (Class 3)",
+                "K-UDI — 2019年起強制（Class 4）/ 2021年（Class 3）",
+                "K-UDI — 2019年から必須（Class 4）/2021年（Class 3）",
+                _UDI_EN, _UDI_ZH, _UDI_JA,
+                "의료기기법 §26-2 / MFDS Notice 2019-112: Korea UDI (K-UDI) mandatory for Class 4 (highest risk) devices since January 2019; Class 3 since January 2021; Class 2 since January 2023. Devices must be registered in MFDS's K-UDI database (udiportal.mfds.go.kr). Issuing agencies: GS1 Korea, HIBCC.",
+                "醫療器材法第26-2條 / MFDS 通知 2019-112：韓國 UDI（K-UDI）對 Class 4（最高風險）器材自2019年1月起強制；Class 3 自2021年1月起；Class 2 自2023年1月起。器材必須在 MFDS 的 K-UDI 資料庫登錄。發碼機構：GS1 Korea、HIBCC。",
+                "의료기기법§26-2：K-UDIはClass 4が2019年1月から、Class 3が2021年1月から、Class 2が2023年1月から必須。MFDS K-UDIデータベースへの登録必要。",
+                "의료기기법 §26-2 / MFDS Notice 2019-112",
+                "Korean Medical Device Act §26-2: K-UDI mandatory since 2019 for Class 4, 2021 for Class 3, 2023 for Class 2.",
+                "en", "", "additional_form", "major",
+                ["K-UDI database registration / K-UDI資料庫登錄",
+                 "K-UDI implementation plan by device class / 依器材分類之K-UDI實施計畫"],
+                0.90,
+            )],
+            "8.3.2": [_wd(
+                "KR-WITHIN-8.3.2-001", "8.3.2",
+                "Recall Notification — 15-Day MFDS Notification",
+                "回收通報 — 15天 MFDS 通報",
+                "リコール通報 — 15日MFDS通知",
+                _FSC_EN, _FSC_ZH, _FSC_JA,
+                "의료기기법 §31-2: Manufacturers must notify MFDS within 15 calendar days of initiating a recall action.",
+                "醫療器材法第31-2條：製造業者在啟動回收行動後，必須在15個日曆日內通報 MFDS。",
+                "의료기기법§31-2：リコール開始後15暦日以内にMFDSへ通知。",
+                "의료기기법 §31-2",
+                "Korean Medical Device Act §31-2: recall notification within 15 days.",
+                "en", "", "stricter_timeline", "critical",
+                ["MFDS recall notification within 15 days / 15天內MFDS回收通報"],
+                0.85,
+            )],
+            "6.2": [_wd(
+                "KR-WITHIN-6.2-001", "6.2",
+                "Quality Manager (품질책임자) — Specific Qualifications Required",
+                "品質負責人（품질책임자）— 特定資格要求",
+                "品質責任者 — 特定資格が必要",
+                "ISO 13485 Cl. 6.2 requires competence for personnel; specific statutory quality manager role not defined.",
+                "ISO 13485 條款 6.2 要求人員能力；未定義特定法定品質負責人。",
+                "ISO 13485 Cl. 6.2 は要員の力量を要求するが、特定の法定品質責任者は規定しない。",
+                "의료기기법 §6: Every manufacturer must designate a 품질책임자 (Quality Manager). Qualifications: (a) relevant science/engineering degree or equivalent; AND (b) at least 2 years of experience in medical device QMS.",
+                "醫療器材法第6條：每個製造業者必須指定一名品質負責人（품질책임자）。資格：(a) 相關科學/工程學歷或同等；且 (b) 至少2年醫療器材 QMS 經驗。",
+                "의료기기법§6：全製造業者は품질책임자（品質責任者）を設置。関連学歴または同等＋医療機器QMS2年以上の経験が必要。",
+                "의료기기법 §6",
+                "Korean Medical Device Act §6: quality manager designation with specific qualifications.",
+                "en", "", "local_authority_specific", "critical",
+                ["품질책임자 designation record / 品質負責人設置記錄",
+                 "Qualification evidence (degree + experience) / 資格證明（學歷+經驗）"],
+                0.85,
+            )],
+        },
+        "CN_NMPA": {
+            "4.2.4": [_wd(
+                "CN-WITHIN-4.2.4-001", "4.2.4",
+                "Record Retention — 10 Years (Class III) / 5 Years (Class II) / 3 Years (Class I)",
+                "記錄保存 — III類10年 / II類5年 / I類3年",
+                "記録保持 — クラスIII: 10年/クラスII: 5年/クラスI: 3年",
+                _REC_EN, _REC_ZH, _REC_JA,
+                "醫療器材監督管理條例 Art.21: Quality records retention by device class: Class III implantable/high-risk: at least 10 years after last production; Class II: at least 5 years; Class I: at least 3 years. Implantable device records must be retained for the device's useful life plus at least 10 years.",
+                "醫療器材監督管理條例第21條：依器材分類的記錄保存：III類植入性/高風險：最後生產後至少10年；II類：至少5年；I類：至少3年。植入性器材記錄必須保存器材使用壽命加至少10年。",
+                "医療機器監督管理条例第21条：Class III植込み型・高リスク：最終生産後10年以上；Class II：5年以上；Class I：3年以上。",
+                "醫療器材監督管理條例 Art. 21",
+                "醫療器材監督管理條例第二十一條：醫療器材記錄保存期限按照器材分類確定。",
+                "zh", "NMPA regulations Art.21: records retained 10/5/3 years by device class.",
+                "stricter_timeline", "major",
+                ["Class-stratified record retention schedule / 依分類之記錄保存時程",
+                 "10-year retention for Class III / Class III的10年保存記錄"],
+                0.90,
+            )],
+            "8.3.2": [_wd(
+                "CN-WITHIN-8.3.2-001", "8.3.2",
+                "Recall Notification — 1-Day (Class III) / 3-Day (Class II) / 10-Day (Class I)",
+                "回收通報 — III類1天 / II類3天 / I類10天",
+                "リコール通報 — Class III: 1日/Class II: 3日/Class I: 10日",
+                _FSC_EN, _FSC_ZH, _FSC_JA,
+                "醫療器材召回管理辦法 Art. 17: After deciding on a recall, manufacturers must notify the provincial drug regulatory authority within: Class I recall (highest risk): 1 calendar day; Class II recall: 3 calendar days; Class III recall: 10 calendar days. Notification must include recall reason, scope, and corrective action.",
+                "醫療器材召回管理辦法第17條：決定回收後，製造業者必須在以下時限內通報省級藥品監督管理局：I類回收（最高風險）：1個日曆日；II類回收：3個日曆日；III類回收：10個日曆日。通報必須包含回收原因、範圍及矯正行動。",
+                "医療機器召回管理办法第17条：I類（最高リスク）は1暦日以内、II類は3暦日以内、III類は10暦日以内に省級薬品監督管理局へ通知。",
+                "醫療器材召回管理辦法 Art. 17",
+                "醫療器材召回管理辦法第十七條：召回啟動後，按召回分類在規定時限內通知省級主管部門。",
+                "zh", "NMPA recall regulations Art.17: recall notification within 1/3/10 days by recall class.",
+                "stricter_timeline", "critical",
+                ["Tiered recall notification procedure (1/3/10 days) / 分級回收通報程序（1/3/10天）",
+                 "Provincial authority notification records / 省級機關通報記錄"],
+                0.90,
+            )],
+            "6.2": [_wd(
+                "CN-WITHIN-6.2-001", "6.2",
+                "质量负责人 — Specific Qualifications (Degree + 5-Year Experience)",
+                "質量負責人 — 特定資格（學歷 + 5年經驗）",
+                "品質責任者 — 特定資格（学歴＋5年経験）",
+                "ISO 13485 Cl. 6.2 requires competence for personnel; specific statutory quality manager not defined.",
+                "ISO 13485 條款 6.2 要求人員能力；未定義特定法定品質負責人。",
+                "ISO 13485 Cl. 6.2 は要員の力量を要求するが、特定の法定品質責任者は規定しない。",
+                "醫療器材監督管理條例 Art.20: Every manufacturer must designate a 质量负责人 (Quality Responsible Person). Qualifications: relevant medical/pharmaceutical/engineering degree; AND at least 5 years of experience in medical device quality management.",
+                "醫療器材監督管理條例第20條：每個製造業者必須指定一名質量負責人。資格：相關醫學/藥學/工程學歷；且至少5年醫療器材品質管理經驗。",
+                "医療機器監督管理条例第20条：全製造業者は质量负责人を指定。関連学歴＋医療機器QM5年以上の経験が必要。",
+                "醫療器材監督管理條例 Art. 20",
+                "医疗器械监督管理条例第二十条：质量负责人应具备相关学历背景和五年以上质量管理经验。",
+                "zh", "NMPA regulations Art.20: quality responsible person with degree + 5-year QM experience.",
+                "local_authority_specific", "critical",
+                ["质量负责人 appointment document / 質量負責人設置文件",
+                 "Qualification evidence / 資格證明"],
+                0.90,
+            )],
+            "7.5.9.2": [_wd(
+                "CN-WITHIN-7.5.9.2-001", "7.5.9.2",
+                "NMPA UDI System — Mandatory Since 2022 (Class III) / 2023 (Class II)",
+                "NMPA UDI 系統 — 2022年起強制（III類）/ 2023年起（II類）",
+                "NMPA UDIシステム — 2022年から必須（ClassIII）/2023年（ClassII）",
+                _UDI_EN, _UDI_ZH, _UDI_JA,
+                "醫療器材唯一標識系統規則 (2019) + NMPA Announcement 2021 No.28: Class III devices mandatory since 2022; Class II since 2023. UDI must be registered in NMPA UDID (Unique Device Identifier Database). GS1 China or approved issuing agency. UDI must appear on device label and NMPA national database.",
+                "醫療器材唯一標識系統規則（2019年）+ NMPA公告2021年第28號：III類器材自2022年起強制；II類自2023年起。UDI必須在NMPA UDID登錄。GS1中國或核准發碼機構。UDI必須出現在器材標籤及NMPA國家資料庫。",
+                "医療機器固有識別システム規則（2019）：Class IIIは2022年、Class IIは2023年から必須。NMPA UDIDへ登録。",
+                "醫療器材唯一標識系統規則 (2019) / NMPA公告 2021 No.28",
+                "医疗器械唯一标识系统规则（2019）：三类医疗器械自2022年起实施UDI制度。",
+                "zh", "NMPA UDI system: mandatory for Class III from 2022, Class II from 2023.",
+                "additional_form", "major",
+                ["NMPA UDID registration / NMPA UDID登錄",
+                 "UDI on device labels / 器材標籤上之UDI",
+                 "UDI implementation records by class / 依分類之UDI實施記錄"],
+                0.90,
+            )],
+        },
+        "SG_HSA": {
+            "4.2.4": [_wd(
+                "SG-WITHIN-4.2.4-001", "4.2.4",
+                "Record Retention — 5 Years Minimum",
+                "記錄保存 — 最少5年",
+                "記録保持 — 最低5年",
+                _REC_EN, _REC_ZH, _REC_JA,
+                "Health Products (Medical Devices) Regulations 2010: Quality records must be retained for at least 5 years from the date of manufacture or the device's useful life, whichever is greater.",
+                "健康產品（醫療器材）法規2010年：品質記錄必須保存至少5年（從製造日起或器材使用壽命，取較長者）。",
+                "健康製品（医療機器）規制2010：品質記録は製造日または機器耐用年数のいずれか長い方から少なくとも5年保持。",
+                "Health Products (Medical Devices) Regulations 2010",
+                "HSA: records retained at least 5 years.",
+                "en", "", "stricter_timeline", "major",
+                ["5-year record retention policy / 5年記錄保存政策"],
+                0.80,
+            )],
+            "8.3.2": [_wd(
+                "SG-WITHIN-8.3.2-001", "8.3.2",
+                "Recall Notification — 3 Working Days to HSA",
+                "回收通報 — 3個工作日內通報 HSA",
+                "リコール通報 — 3営業日以内にHSAへ通知",
+                _FSC_EN, _FSC_ZH, _FSC_JA,
+                "Health Products Act / HSA Guidelines: Manufacturers must notify HSA within 3 working days of initiating a recall or taking a field safety corrective action.",
+                "健康產品法 / HSA 指引：製造業者在啟動回收或採取現場安全矯正措施後，必須在3個工作日內通報 HSA。",
+                "健康製品法 / HSA指針：リコールまたはFSCA開始後3営業日以内にHSAへ通知。",
+                "Health Products Act / HSA Guidelines",
+                "HSA: recall notification within 3 working days.",
+                "en", "", "stricter_timeline", "critical",
+                ["HSA recall notification within 3 working days / 3個工作日內HSA回收通報"],
+                0.80,
+            )],
+        },
+        "IN_CDSCO": {
+            "4.2.4": [_wd(
+                "IN-WITHIN-4.2.4-001", "4.2.4",
+                "Record Retention — 5 Years or Device Lifetime (Whichever Greater)",
+                "記錄保存 — 5年或器材壽命取較長者",
+                "記録保持 — 5年または機器耐用年数のいずれか長い方",
+                _REC_EN, _REC_ZH, _REC_JA,
+                "Medical Devices Rules 2017 Schedule IX: Quality records must be retained for at least 5 years from the date of manufacture, or the useful life of the device, whichever is greater.",
+                "醫療器材規則2017年附表IX：品質記錄必須保存至少5年（從製造日起或器材使用壽命，取較長者）。",
+                "医療機器規則2017 Schedule IX：品質記録は製造日または機器耐用年数のいずれか長い方から少なくとも5年保持。",
+                "Medical Devices Rules 2017 Schedule IX",
+                "India MDR 2017: records retained 5 years or device lifetime.",
+                "en", "", "stricter_timeline", "major",
+                ["5-year or device lifetime retention policy / 5年或器材壽命保存政策"],
+                0.80,
+            )],
+            "8.3.2": [_wd(
+                "IN-WITHIN-8.3.2-001", "8.3.2",
+                "Recall Notification — CDSCO Notification Required",
+                "回收通報 — 強制通報 CDSCO",
+                "リコール通報 — CDSCO通知が必要",
+                _FSC_EN, _FSC_ZH, _FSC_JA,
+                "Medical Devices Rules 2017 Rule 62: Manufacturers must notify the Central Licensing Authority (CDSCO) before or immediately upon initiating a recall. A recall report must be submitted within 15 days.",
+                "醫療器材規則2017年第62條：製造業者在啟動回收前或立即之後必須通報中央許可機關（CDSCO）。必須在15天內提交回收報告。",
+                "医療機器規則2017 Rule 62：リコール開始前または直後にCDSCOへ通知。15日以内に報告提出。",
+                "Medical Devices Rules 2017 Rule 62",
+                "India MDR 2017 Rule 62: recall notification to CDSCO; report within 15 days.",
+                "en", "", "stricter_timeline", "critical",
+                ["CDSCO recall notification / CDSCO回收通報",
+                 "Recall report within 15 days / 15天內回收報告"],
+                0.80,
+            )],
+        },
+        "EU_MDR": {
+            "4.2.4": [_wd(
+                "EU-MDR-WITHIN-4.2.4-001", "4.2.4",
+                "Technical Documentation Retention — 10 Years (15 Years for Implantables)",
+                "技術文件保存 — 10年（植入物15年）",
+                "技術文書保持 — 10年（植込み型15年）",
+                _REC_EN, _REC_ZH, _REC_JA,
+                "EU MDR Art. 10(8): Manufacturers must retain the technical documentation and EU declaration of conformity for at least 10 years after the last device has been placed on the market. For implantable devices: at least 15 years. This is significantly stricter than ISO 13485's 2-year minimum.",
+                "EU MDR 第10(8)條：製造業者必須在最後一批器材上市後至少保存技術文件和歐盟符合性聲明10年。對於植入性器材：至少15年。這遠嚴格於 ISO 13485 的2年最低要求。",
+                "EU MDR Art.10(8)：技術文書とEU適合宣言書は最終製品市場投入後10年（植込み型は15年）保持。ISO 13485の2年最低を大きく超える。",
+                "EU MDR Art. 10(8)",
+                "EU MDR Article 10(8): technical documentation retained 10 years (15 for implantables) after last device placed on market.",
+                "en", "", "stricter_timeline", "critical",
+                ["Technical documentation retention schedule showing 10/15-year period / 顯示10/15年期間之技術文件保存時程",
+                 "EU Declaration of Conformity retention records / EU符合性聲明保存記錄"],
+                0.98,
+            )],
+        },
+    }
+
+    # ── Merge strategy: add deltas without replacing existing ones ────────
+    for profile_id, clause_map in {**_static, **_extra}.items():
+        # Skip placeholder keys
+        if profile_id.endswith("_extra") or profile_id.endswith("_rec"):
+            continue
         profile = PREDEFINED_REGULATIONS.get(profile_id)
         if profile is None:
             continue
@@ -9529,7 +11332,13 @@ def _inject_static_within_clause_deltas() -> None:
             cm = profile.iso_mapped.get(clause_id)
             if cm is None:
                 continue
-            cm.within_clause_deltas = deltas
+            if cm.within_clause_deltas:
+                existing_ids = {d.delta_id for d in cm.within_clause_deltas}
+                cm.within_clause_deltas = cm.within_clause_deltas + [
+                    d for d in deltas if d.delta_id not in existing_ids
+                ]
+            else:
+                cm.within_clause_deltas = list(deltas)
 
 
 _inject_static_within_clause_deltas()
