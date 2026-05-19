@@ -37,3 +37,9 @@ $md.Add('```')
 $md | Out-File -FilePath $outputFile -Encoding UTF8 -Force
 
 Remove-Item $TranscriptPath -Force -ErrorAction SilentlyContinue
+
+# Snapshot service logs (Ollama, LM Studio, Phoenix) at the same session boundary
+$serviceScript = "$projectDir\scripts\snapshot_service_logs.ps1"
+if (Test-Path $serviceScript) {
+    try { & $serviceScript } catch { }
+}

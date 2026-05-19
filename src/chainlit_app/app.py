@@ -72,6 +72,18 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional
 
+# Session logging: persist Chainlit app output to logs/sessions/chainlit/
+_chainlit_log_dir = Path(__file__).parent.parent.parent / "logs" / "sessions" / "chainlit"
+_chainlit_log_dir.mkdir(parents=True, exist_ok=True)
+_chainlit_fh = logging.FileHandler(
+    _chainlit_log_dir / (datetime.now().strftime("%Y-%m-%d") + "_chainlit.log"),
+    encoding="utf-8",
+)
+_chainlit_fh.setLevel(logging.INFO)
+_chainlit_fh.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
+logging.getLogger().setLevel(logging.INFO)
+logging.getLogger().addHandler(_chainlit_fh)
+
 # ============================================================
 # Dependency Check — Auto-install missing packages on startup
 # ============================================================
