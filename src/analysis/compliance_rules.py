@@ -14747,6 +14747,36 @@ def generate_cross_exam_questions(
                     }
                 )
 
+        # Priority 1b: WithinClauseDeltas — country-specific differences within ISO 13485 clauses
+        # These are the ~155 entries from _inject_extra2_deltas() that were previously unused.
+        mapping_for_delta = reg.iso_mapped.get(baseline_clause)
+        if mapping_for_delta and mapping_for_delta.within_clause_deltas:
+            existing_delta_ids = {q["req_id"] for q in questions if q.get("regulation_id") == reg_id}
+            for wd in mapping_for_delta.within_clause_deltas:
+                if wd.delta_id in existing_delta_ids:
+                    continue
+                questions.append(
+                    {
+                        "priority": 1,
+                        "regulation_id": reg_id,
+                        "regulation_name": reg.name_zh,
+                        "country": reg.country_name_zh,
+                        "question_type": "delta",
+                        "iso_clause": baseline_clause,
+                        "req_id": wd.delta_id,
+                        "title_zh": wd.title_zh,
+                        "title_en": wd.title_en,
+                        "question_zh": wd.country_specific_zh,
+                        "question_en": wd.country_specific_en,
+                        "expected_evidence": list(wd.expected_evidence) if wd.expected_evidence else [],
+                        "audit_impact": wd.audit_impact,
+                        "rationale_zh": wd.iso_baseline_zh,
+                        "rationale_en": wd.iso_baseline_en,
+                        "method": wd.delta_type,
+                        "confidence": wd.confidence,
+                    }
+                )
+
         # Priority 2 & 3: Mapped clauses (exceeds vs full overlap)
         mapping = reg.iso_mapped.get(baseline_clause)
         if mapping:
@@ -15341,3 +15371,240 @@ _inject_extra2_deltas()  # re-run gap-fill for crawled profiles
 # Re-run injection AFTER crawled profiles are loaded so static
 # within_clause_deltas also apply to crawled profile entries.
 _inject_static_within_clause_deltas()
+
+
+# ============================================================
+# Problem G fix: Static UniqueRequirements for 9 countries
+# whose profiles previously had unique_requirements=[]
+# Strategy: static_baseline — if a crawled profile later has
+# more non-N/A clauses, it overwrites via load_crawled_regulation().
+# ============================================================
+
+def _inject_static_unique_requirements() -> None:  # noqa: C901
+    """Inject pre-researched UniqueRequirements into 9 country profiles.
+
+    These are known, citable regulatory requirements that exist OUTSIDE
+    ISO 13485 scope. Marked source='static_baseline'. Crawled profiles
+    override these if they provide richer data.
+    """
+    from src.analysis.compliance_rules import (
+        PREDEFINED_REGULATIONS, UniqueRequirement, MappingMethod, map_unique_to_iso_clause
+    )
+
+    def _ur(rid, ref, t_en, t_zh, req_en, req_zh, q_en, q_zh,
+            iso_clauses, impact, evid, conf=0.80):
+        return UniqueRequirement(
+            req_id=rid, regulation_ref=ref,
+            title_en=t_en, title_zh=t_zh,
+            requirement_en=req_en, requirement_zh=req_zh,
+            related_iso_clauses=iso_clauses,
+            audit_impact=impact,
+            audit_question_en=q_en, audit_question_zh=q_zh,
+            expected_evidence=evid,
+            rationale_en=f"{t_en}: not required by ISO 13485.",
+            rationale_zh=f"{t_zh}：ISO 13485 未要求。",
+            method=MappingMethod.OFFICIAL_CROSSREF, confidence=conf,
+        )
+
+    def _merge_ur(profile_id: str, reqs: list) -> None:
+        profile = PREDEFINED_REGULATIONS.get(profile_id)
+        if not profile:
+            return
+        existing_ids = {r.req_id for r in (profile.unique_requirements or [])}
+        new_reqs = [r for r in reqs if r.req_id not in existing_ids]
+        if profile.unique_requirements:
+            profile.unique_requirements = profile.unique_requirements + new_reqs
+        else:
+            profile.unique_requirements = new_reqs
+
+    # ── UK (UK_MHRA) ──────────────────────────────────────────────────────
+    _merge_ur("UK_MHRA", [
+        _ur("UK-001", "UK MDR 2002 / MHRA Guidance 2021",
+            "UKCA Marking — Mandatory for UK Market",
+            "UKCA 標誌 — 英國市場強制",
+            "Medical devices placed on the UK market after 30 June 2023 require UKCA marking. CE marking is no longer accepted unless the device was placed on the market before the transition deadline. UKCA marking requires a UK Approved Body assessment for higher-risk devices.",
+            "2023年6月30日後在英國上市的醫療器材需要UKCA標誌。除過渡期前上市的裝置外，CE標誌不再被接受。較高風險裝置的UKCA標誌需要英國核准機構評估。",
+            "Do devices placed on the UK market carry UKCA marking, and is there a valid UK Approved Body certificate where required?",
+            "在英國市場銷售的裝置是否具有UKCA標誌？是否在需要時持有有效的英國核准機構憑證？",
+            ["4.2.3", "7.5.11"], "critical",
+            ["UKCA declaration of conformity / UKCA符合性聲明", "UK Approved Body certificate / 英國核准機構憑證"], 0.90),
+        _ur("UK-002", "UK MDR 2002 SI 2002/618 Regulation 41B",
+            "UK Responsible Person (UKRP) — Mandatory for Non-UK Manufacturers",
+            "英國負責人 (UKRP) — 非英國製造商強制",
+            "Non-UK manufacturers must appoint a UK Responsible Person (UKRP) established in Great Britain. The UKRP must be named on the device label and registered with MHRA. Equivalent to EU MDR Article 11 Authorised Representative.",
+            "非英國製造商必須在大不列顛設立英國負責人（UKRP）。UKRP必須在裝置標示上列名並在MHRA登記。相當於EU MDR第11條授權代表。",
+            "Has a UK Responsible Person (UKRP) been appointed and registered with MHRA? Is the UKRP named on the device label?",
+            "是否已指定英國負責人（UKRP）並在MHRA登記？裝置標示上是否列有UKRP名稱？",
+            ["6.2", "7.5.11"], "critical",
+            ["UKRP appointment contract / UKRP任命合約", "MHRA UKRP registration confirmation / MHRA UKRP登記確認"], 0.88),
+    ])
+
+    # ── Korea (KR_MFDS) ───────────────────────────────────────────────────
+    _merge_ur("KR_MFDS", [
+        _ur("KR-001", "의료기기법 제15조 (Medical Device Act Article 15)",
+            "KGMP Certification — Korean GMP Mandatory",
+            "KGMP 認證 — 韓國 GMP 強制",
+            "Foreign manufacturers exporting medical devices to Korea must obtain KGMP (Korean Good Manufacturing Practice) certification from MFDS or through on-site inspection. KGMP is separate from ISO 13485 and requires local inspection by MFDS officials.",
+            "向韓國出口醫療器材的境外製造商必須從MFDS獲得KGMP（韓國優良製造規範）認證或通過現場稽查。KGMP獨立於ISO 13485，需要MFDS官員現場稽查。",
+            "Does the manufacturer hold a valid KGMP certification from MFDS? When was the last KGMP inspection conducted?",
+            "製造商是否持有MFDS核發的有效KGMP認證？最近一次KGMP稽查是何時進行？",
+            ["4.1", "6.3"], "critical",
+            ["KGMP certificate / KGMP憑證", "MFDS inspection report / MFDS稽查報告"], 0.90),
+        _ur("KR-002", "의료기기법 제17조 / 의료기기 표시·기재 기준",
+            "Korean Language Labeling — Mandatory",
+            "韓語標示 — 強制",
+            "All medical device labels, IFU, and packaging must be in Korean (Hangul). Foreign language content requires Korean translation. Labels must include the Korean Health Permission Number and Korean Importer information.",
+            "所有醫療器材標示、IFU及包裝必須使用韓語（韓文）。外語內容需要韓語翻譯。標示必須包含韓國衛生許可號碼及韓國進口商資訊。",
+            "Are all device labels, IFU and packaging in Korean? Do labels include the Korean Health Permission Number and Korean importer information?",
+            "所有裝置標示、IFU和包裝是否使用韓語？標示是否包含韓國衛生許可號碼及韓國進口商資訊？",
+            ["7.5.11", "7.5.1"], "major",
+            ["Korean label / 韓語標示", "Korean IFU / 韓語使用說明書"], 0.88),
+    ])
+
+    # ── Saudi Arabia (SA_SFDA) ────────────────────────────────────────────
+    _merge_ur("SA_SFDA", [
+        _ur("SA-001", "SFDA MD Regulations / MDMA Guidelines",
+            "National Authorized Representative (NAR) — Mandatory",
+            "國家授權代表 (NAR) — 強制",
+            "Foreign manufacturers must appoint a Saudi National Authorized Representative (NAR) registered with SFDA. The NAR is responsible for device registration, post-market surveillance reporting, and regulatory communications. NAR must be a Saudi-based entity.",
+            "境外製造商必須指定在SFDA登記的沙烏地國家授權代表（NAR）。NAR負責裝置登記、上市後監督報告及法規溝通。NAR必須是沙烏地本地實體。",
+            "Has a Saudi National Authorized Representative (NAR) been appointed and registered with SFDA? Can you provide the NAR appointment agreement?",
+            "是否已指定在SFDA登記的沙烏地國家授權代表（NAR）？是否能提供NAR任命協議？",
+            ["6.2", "8.2.1"], "critical",
+            ["NAR appointment agreement / NAR任命協議", "SFDA NAR registration / SFDA NAR登記"], 0.85),
+        _ur("SA-002", "SFDA Medical Device Interim Regulation",
+            "SFDA Product Registration (MDMA) — Mandatory",
+            "SFDA 產品登記 (MDMA) — 強制",
+            "All medical devices must be registered with SFDA through the MDMA (Medical Device Market Authorization) system before being placed on the Saudi market. Class B/C/D devices require full technical documentation review.",
+            "所有醫療器材必須在上市前通過MDMA（醫療器材市場授權）系統在SFDA完成登記。B/C/D類裝置需要完整技術文件審查。",
+            "Are all devices marketed in Saudi Arabia registered with SFDA via the MDMA system? Is the registration current and valid?",
+            "在沙烏地阿拉伯銷售的所有裝置是否已透過MDMA系統在SFDA完成登記？登記是否當前有效？",
+            ["4.2.3", "7.5.11"], "critical",
+            ["SFDA MDMA registration certificate / SFDA MDMA登記憑證"], 0.85),
+    ])
+
+    # ── Thailand (TH_FDA) ─────────────────────────────────────────────────
+    _merge_ur("TH_FDA", [
+        _ur("TH-001", "Medical Device Act B.E. 2562 (2019) Section 26",
+            "Thai FDA Local Agent — Mandatory for Importers",
+            "泰國 FDA 本地代理人 — 進口商強制",
+            "Foreign manufacturers must appoint a Thai-based importer/agent licensed by Thai FDA to act as the local responsible party. The local agent must hold a medical device import license. The agent's name must appear on device labels.",
+            "境外製造商必須指定持有泰國FDA許可的泰國本地進口商/代理人作為當地負責方。本地代理人必須持有醫療器材進口許可。代理人名稱必須出現在裝置標示上。",
+            "Has a Thai FDA-licensed local agent been appointed? Does the agent hold a valid medical device import license? Is the agent's name on device labels?",
+            "是否指定持有泰國FDA許可的本地代理人？代理人是否持有有效的醫療器材進口許可？裝置標示上是否有代理人名稱？",
+            ["6.2", "7.5.11"], "critical",
+            ["Thai agent license / 泰國代理人許可", "Import license / 進口許可"], 0.82),
+        _ur("TH-002", "Thai Medical Device Act B.E. 2562 / e-Submission System",
+            "Thai FDA e-Submission Registration — Mandatory",
+            "泰國 FDA e-Submission 線上登記 — 強制",
+            "Medical devices must be registered with Thai FDA through the e-Submission online system before placement on the Thai market. Class 2 and 3 devices require full technical file review. Registration is tied to the local agent.",
+            "醫療器材在進入泰國市場前必須透過e-Submission線上系統向泰國FDA登記。第2類和第3類裝置需要完整技術文件審查。登記與本地代理人掛鉤。",
+            "Are all devices marketed in Thailand registered with Thai FDA via e-Submission? Is the registration current and linked to the appointed local agent?",
+            "在泰國銷售的所有裝置是否已透過e-Submission向泰國FDA登記？登記是否當前有效並與指定本地代理人掛鉤？",
+            ["4.2.3", "7.5.11"], "critical",
+            ["Thai FDA registration certificate / 泰國FDA登記憑證", "e-Submission confirmation / e-Submission確認"], 0.82),
+    ])
+
+    # ── New Zealand (NZ_MEDSAFE) ──────────────────────────────────────────
+    _merge_ur("NZ_MEDSAFE", [
+        _ur("NZ-001", "Medicines Act 1981 / Medsafe Database",
+            "Essential Principles Compliance — Mandatory for WAND Registration",
+            "基本原則符合性 — WAND 登記強制",
+            "Medical devices intended for the New Zealand market must comply with Medsafe's Essential Principles (equivalent to EU MDR Annex I GSPR). Manufacturers must prepare a Declaration of Conformity referencing the Essential Principles. Devices are notified on the Medsafe WAND database.",
+            "進入紐西蘭市場的醫療器材必須符合Medsafe的基本原則（相當於EU MDR附件I GSPR）。製造商必須準備引用基本原則的符合性聲明。裝置需在Medsafe WAND資料庫通報。",
+            "Is there a Declaration of Conformity referencing Medsafe's Essential Principles? Is the device notified on the WAND database?",
+            "是否有引用Medsafe基本原則的符合性聲明？裝置是否已在WAND資料庫通報？",
+            ["4.2.3", "7.3.6"], "critical",
+            ["Declaration of Conformity / 符合性聲明", "WAND notification confirmation / WAND通報確認"], 0.82),
+    ])
+
+    # ── South Africa (ZA_SAHPRA) ──────────────────────────────────────────
+    _merge_ur("ZA_SAHPRA", [
+        _ur("ZA-001", "Medicines and Related Substances Act 101 of 1965 / SAHPRA Guidance",
+            "SAHPRA Device Registration — Section 21 Authorization",
+            "SAHPRA 裝置登記 — 第21條授權",
+            "Medical devices must be registered with SAHPRA before being placed on the South African market. Unregistered devices may only be imported under Section 21 authorization for specific compassionate use. SAHPRA uses a risk-based classification aligned with GHTF principles.",
+            "醫療器材在進入南非市場前必須在SAHPRA登記。未登記裝置只能在特定同情使用的第21條授權下進口。SAHPRA採用與GHTF原則一致的風險分類。",
+            "Are all devices marketed in South Africa registered with SAHPRA or authorized under Section 21? Is the registration/authorization current?",
+            "在南非銷售的所有裝置是否已在SAHPRA登記或獲得第21條授權？登記/授權是否當前有效？",
+            ["4.2.3", "7.5.11"], "critical",
+            ["SAHPRA registration certificate / SAHPRA登記憑證", "Section 21 authorization (if applicable) / 第21條授權（如適用）"], 0.82),
+        _ur("ZA-002", "Medicines and Related Substances Act / SAHPRA",
+            "South African Responsible Person / Local Distributor",
+            "南非負責人 / 本地配銷商",
+            "Foreign manufacturers must appoint a South African Responsible Person or authorized distributor registered with SAHPRA. The local responsible person is accountable for post-market surveillance and adverse event reporting to SAHPRA.",
+            "境外製造商必須指定在SAHPRA登記的南非負責人或授權配銷商。本地負責人對上市後監督及向SAHPRA通報不良事件負責。",
+            "Has a South African Responsible Person or authorized distributor been appointed and registered with SAHPRA?",
+            "是否已指定在SAHPRA登記的南非負責人或授權配銷商？",
+            ["6.2", "8.2.1"], "major",
+            ["SAHPRA authorized distributor registration / SAHPRA授權配銷商登記"], 0.80),
+    ])
+
+    # ── Russia (RU_ROSZDRAVNADZOR) ────────────────────────────────────────
+    _merge_ur("RU_ROSZDRAVNADZOR", [
+        _ur("RU-001", "Federal Law No. 323-FZ / Roszdravnadzor Order",
+            "Russian Local Representative — Mandatory for Foreign Manufacturers",
+            "俄羅斯本地代表 — 境外製造商強制",
+            "Foreign manufacturers must appoint a Russian Representative registered with Roszdravnadzor. The representative is responsible for device registration (via GRLS/EAEU system), adverse event reporting, and regulatory communications.",
+            "境外製造商必須指定在Roszdravnadzor登記的俄羅斯代表。代表負責裝置登記（透過GRLS/EAEU系統）、不良事件通報及法規溝通。",
+            "Has a Russian Representative been appointed and registered with Roszdravnadzor? What is the representative's registration number?",
+            "是否已指定在Roszdravnadzor登記的俄羅斯代表？代表的登記號碼是什麼？",
+            ["6.2", "8.2.1"], "critical",
+            ["Russian Representative appointment / 俄羅斯代表任命", "Roszdravnadzor registration number / Roszdravnadzor登記號碼"], 0.85),
+        _ur("RU-002", "Federal Law No. 323-FZ / Roszdravnadzor Adverse Event Reporting Order",
+            "Adverse Event Reporting — 10 Days (Serious) / 30 Days (Other)",
+            "不良事件通報 — 10天（嚴重）/ 30天（其他）",
+            "Manufacturers must report serious adverse events (death/life-threatening) to Roszdravnadzor within 10 calendar days. Other serious adverse events must be reported within 30 calendar days. Reports submitted via Roszdravnadzor's automated information system.",
+            "製造業者必須在10個日曆日內向Roszdravnadzor通報嚴重不良事件（死亡/危及生命）。其他嚴重不良事件在30個日曆日內通報。透過Roszdravnadzor自動資訊系統提交。",
+            "Does the adverse event reporting procedure specify 10-day (death/life-threatening) and 30-day (other serious) reporting timelines to Roszdravnadzor?",
+            "不良事件報告程序是否規定向Roszdravnadzor的10天（死亡/危及生命）和30天（其他嚴重）通報時效？",
+            ["8.2.3", "8.3.2"], "critical",
+            ["Adverse event reporting SOP / 不良事件通報SOP", "Roszdravnadzor submission records / Roszdravnadzor提交記錄"], 0.85),
+    ])
+
+    # ── Egypt (EG_EDA) ────────────────────────────────────────────────────
+    _merge_ur("EG_EDA", [
+        _ur("EG-001", "Egyptian Drug Authority (EDA) Medical Device Regulation",
+            "EDA Registration — Mandatory Before Market Access",
+            "EDA 登記 — 市場准入前強制",
+            "Medical devices must be registered with the Egyptian Drug Authority (EDA) before being placed on the Egyptian market. Foreign manufacturers must appoint a local Egyptian agent or distributor as the responsible party for registration.",
+            "醫療器材在進入埃及市場前必須向埃及藥品管理局（EDA）登記。境外製造商必須指定本地埃及代理人或配銷商作為登記的負責方。",
+            "Are all devices marketed in Egypt registered with EDA? Has a local Egyptian agent been appointed for registration purposes?",
+            "在埃及銷售的所有裝置是否已在EDA登記？是否指定本地埃及代理人負責登記？",
+            ["4.2.3", "7.5.11"], "critical",
+            ["EDA registration certificate / EDA登記憑證", "Egyptian agent appointment / 埃及代理人任命"], 0.80),
+        _ur("EG-002", "EDA Labeling Requirements / Arabic Language Requirements",
+            "Arabic Labeling — Mandatory for Egyptian Market",
+            "阿拉伯語標示 — 埃及市場強制",
+            "Device labels, IFU, and packaging materials for the Egyptian market must include Arabic language content. The EDA registration number must appear on labels. Labels without Arabic text will be rejected at import inspection.",
+            "埃及市場的裝置標示、IFU及包裝材料必須包含阿拉伯語內容。EDA登記號碼必須出現在標示上。沒有阿拉伯文的標示在進口檢查時將被拒絕。",
+            "Do device labels and IFU include Arabic language content and the EDA registration number?",
+            "裝置標示和IFU是否包含阿拉伯語內容和EDA登記號碼？",
+            ["7.5.11", "7.5.1"], "major",
+            ["Arabic label / 阿拉伯語標示", "Arabic IFU / 阿拉伯語使用說明書"], 0.80),
+    ])
+
+    # ── India (IN_CDSCO) ──────────────────────────────────────────────────
+    _merge_ur("IN_CDSCO", [
+        _ur("IN-001", "Medical Devices Rules 2017 Rule 43-44",
+            "CDSCO Import License — Form MD-9 Mandatory",
+            "CDSCO 進口許可 — Form MD-9 強制",
+            "Foreign manufacturers must obtain an import license (Form MD-9) from CDSCO before importing medical devices into India. The application requires ISO 13485 certification, free sale certificate, technical documentation, and appointment of an Indian Authorized Agent.",
+            "境外製造商在將醫療器材進口到印度前，必須從CDSCO獲得進口許可（Form MD-9）。申請需要ISO 13485認證、自由銷售憑證、技術文件及指定印度授權代理人。",
+            "Does the manufacturer hold a valid CDSCO import license (Form MD-9) for all devices marketed in India? Is the Indian Authorized Agent properly appointed?",
+            "製造商是否為在印度銷售的所有裝置持有有效的CDSCO進口許可（Form MD-9）？是否正確指定印度授權代理人？",
+            ["4.2.3", "7.5.11"], "critical",
+            ["CDSCO Form MD-9 import license / CDSCO Form MD-9進口許可", "Indian Authorized Agent appointment / 印度授權代理人任命"], 0.85),
+        _ur("IN-002", "Medical Devices Rules 2017 / CDSCO",
+            "Indian Authorized Agent — Mandatory for Foreign Manufacturers",
+            "印度授權代理人 — 境外製造商強制",
+            "Foreign manufacturers must appoint an Indian Authorized Agent registered with CDSCO. The agent is responsible for regulatory submissions, post-market surveillance, adverse event reporting to CDSCO, and recall coordination.",
+            "境外製造商必須指定在CDSCO登記的印度授權代理人。代理人負責法規提交、上市後監督、向CDSCO通報不良事件及回收協調。",
+            "Has an Indian Authorized Agent been appointed and registered with CDSCO? What are the agent's CDSCO registration details?",
+            "是否已指定在CDSCO登記的印度授權代理人？代理人的CDSCO登記詳情是什麼？",
+            ["6.2", "8.2.1", "8.3.2"], "critical",
+            ["Indian Authorized Agent CDSCO registration / 印度授權代理人CDSCO登記"], 0.85),
+    ])
+
+
+_inject_static_unique_requirements()

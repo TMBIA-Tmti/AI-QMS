@@ -708,6 +708,47 @@ async def get_crossref_table(
     )
 
 
+@report_router.get("/crossref/clause-questions")
+async def get_clause_questions(
+    clause_id: str = Query(..., description="ISO 13485 clause ID, e.g. 8.2.3"),
+    lang: str = Query("en-US", description="UI language code"),
+):
+    """Return all static audit questions for a single ISO 13485 clause.
+
+    Used by the HTML detail modal to display the full 7-question pool
+    and highlight which one was selected (Side A rotation).
+    """
+    from src.analysis.compliance_rules import ISO_13485_CHECKLIST
+    from src.chainlit_app.lang_config import lang_key as _lk
+    lk = _lk(lang)
+    clause_info = ISO_13485_CHECKLIST.get(clause_id)
+    if not clause_info:
+        raise HTTPException(status_code=404, detail=f"Clause '{clause_id}' not found")
+
+    if lk == "ja":
+        questions = clause_info.get("audit_questions_ja") or []
+        single = clause_info.get("audit_question_ja", "")
+        if not questions and not single:
+            questions = clause_info.get("audit_questions_en") or []
+            single = clause_info.get("audit_question_en", "")
+    elif lk == "en":
+        questions = clause_info.get("audit_questions_en") or []
+        single = clause_info.get("audit_question_en", "")
+    else:
+        questions = clause_info.get("audit_questions") or []
+        single = clause_info.get("audit_question", "")
+
+    if not questions and single:
+        questions = [single]
+
+    return JSONResponse(content={
+        "clause_id": clause_id,
+        "lang": lang,
+        "total": len(questions),
+        "questions": questions,
+    })
+
+
 @report_router.get("/crossref/questions")
 async def get_crossref_questions(
     doc_id: str = Query(..., description="Document ID, e.g. QP-852"),

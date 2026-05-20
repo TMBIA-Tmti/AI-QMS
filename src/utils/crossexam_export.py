@@ -993,11 +993,58 @@ def export_crossexam_record_word(record_dict: dict, lang: str = "zh-TW") -> Path
         )
     )
 
-    # Load ISO checklist for expected_evidence lookup
+    # Load ISO checklist and cross-exam question generator for country sections
     try:
-        from src.analysis.compliance_rules import ISO_13485_CHECKLIST as _ISO_CL
+        from src.analysis.compliance_rules import ISO_13485_CHECKLIST as _ISO_CL, generate_cross_exam_questions as _gen_cxq
     except Exception:
         _ISO_CL = {}
+        _gen_cxq = None
+
+    _selected_regs = record_dict.get("selected_regulations", [])
+
+    # Problem E fix: Country-Specific Questions section (before clause-by-clause details)
+    if _selected_regs and _gen_cxq:
+        _cxq_heading = {"zh": "各國特有稽核問題彙整", "en": "Country-Specific Audit Questions Summary", "ja": "各国固有の監査質問まとめ"}
+        doc.add_heading(_cxq_heading.get(lk, _cxq_heading["en"]), level=2)
+        _cxq_intro = {
+            "zh": "以下各節列出每個選定市場中超越 ISO 13485 標準的特有稽核問題，LLM 驗證者將在交叉詰問時重點檢查這些要求。",
+            "en": "The following sections list country-specific audit questions that exceed ISO 13485 requirements for each selected market. The LLM Verifier will focus on these during cross-examination.",
+            "ja": "以下の各節では、選択した各市場においてISO 13485の要件を超える固有の監査質問をリストします。LLM検証者は交差検証時にこれらに重点を置きます。",
+        }
+        doc.add_paragraph(_cxq_intro.get(lk, _cxq_intro["en"]))
+        # Get all clause IDs from this run
+        _all_clause_ids = list({c.get("clause_id", "") for c in record_dict.get("clauses", []) if c.get("clause_id")})
+        # Build per-regulation country-specific questions
+        _by_reg: dict[str, list] = {}
+        for _cid in _all_clause_ids:
+            try:
+                _qs = _gen_cxq(doc_id="", doc_title="", baseline_clause=_cid, selected_regulations=_selected_regs)
+            except Exception:
+                continue
+            for _q in _qs:
+                if _q.get("question_type") not in ("delta",):
+                    continue
+                _rid = _q.get("regulation_id", "")
+                if _rid not in _by_reg:
+                    _by_reg[_rid] = []
+                _by_reg[_rid].append(_q)
+        # Render per-country sections
+        _country_heading = {"zh": "特有要求", "en": "Specific Requirements", "ja": "固有の要件"}
+        _q_label = {"zh": "問題", "en": "Question", "ja": "質問"}
+        _ref_label = {"zh": "法規依據", "en": "Regulatory Basis", "ja": "法規根拠"}
+        _impact_label = {"zh": "影響等級", "en": "Impact", "ja": "影響レベル"}
+        for _rid, _qlist in _by_reg.items():
+            if not _qlist:
+                continue
+            _country = _qlist[0].get("country", _rid)
+            _reg_name = _qlist[0].get("regulation_name", _rid)
+            doc.add_heading(f"{_country} — {_reg_name}", level=3)
+            for _q in _qlist:
+                _q_text = (_q.get("question_zh") if lk == "zh" else (_q.get("question_en") or _q.get("question_zh", "")))
+                _title_text = (_q.get("title_zh") if lk == "zh" else (_q.get("title_en") or _q.get("title_zh", "")))
+                doc.add_paragraph(f"[{_q.get('audit_impact', '').upper()}] {_title_text}")
+                doc.add_paragraph(f"  {_q_label[lk]}: {_q_text}", style="Quote")
+                doc.add_paragraph(f"  {_ref_label[lk]}: {_q.get('method', '')}  {_impact_label[lk]}: {_q.get('audit_impact', '')}")
 
     # Clause details
     doc.add_heading(h["clause_details"], level=2)
@@ -1242,6 +1289,49 @@ def export_crossexam_record_excel(record_dict: dict, lang: str = "zh-TW") -> Pat
     for col in ws_detail.columns:
         max_len = max((len(str(c.value or "")) for c in col), default=8)
         ws_detail.column_dimensions[col[0].column_letter].width = min(max_len + 2, 60)
+
+    # Problem E fix: Country-Specific Questions sheet in Excel
+    _ex_sel_regs = record_dict.get("selected_regulations", [])
+    try:
+        from src.analysis.compliance_rules import generate_cross_exam_questions as _excxq
+        if _ex_sel_regs and _excxq:
+            _cxq_sheet_title = {"zh": "各國特殊問題", "en": "Country Questions", "ja": "各国固有質問"}
+            ws_cxq = wb.create_sheet(_cxq_sheet_title.get(_lk, "Country Questions"))
+            _cxq_hdrs = {
+                "zh": ["條款ID", "國家", "Profile ID", "問題標題(zh)", "問題標題(en)", "影響等級", "問題(zh)", "問題(en)", "法規依據", "Delta類型"],
+                "en": ["Clause ID", "Country", "Profile ID", "Title (zh)", "Title (en)", "Impact", "Question (zh)", "Question (en)", "Regulation Ref", "Delta Type"],
+                "ja": ["条項ID", "国", "Profile ID", "タイトル(zh)", "タイトル(en)", "影響", "質問(zh)", "質問(en)", "法規根拠", "Deltaタイプ"],
+            }
+            for ci, hdr in enumerate(_cxq_hdrs.get(_lk, _cxq_hdrs["en"]), 1):
+                c = ws_cxq.cell(row=1, column=ci, value=hdr)
+                c.fill = header_fill
+                c.font = header_font
+            _all_cids = list({cl.get("clause_id", "") for cl in record_dict.get("clauses", []) if cl.get("clause_id")})
+            _ri = 2
+            for _cid in sorted(_all_cids):
+                try:
+                    _qs = _excxq(doc_id="", doc_title="", baseline_clause=_cid, selected_regulations=_ex_sel_regs)
+                except Exception:
+                    continue
+                for _q in _qs:
+                    if _q.get("question_type") not in ("delta",):
+                        continue
+                    ws_cxq.cell(row=_ri, column=1, value=_cid)
+                    ws_cxq.cell(row=_ri, column=2, value=_q.get("country", ""))
+                    ws_cxq.cell(row=_ri, column=3, value=_q.get("regulation_id", ""))
+                    ws_cxq.cell(row=_ri, column=4, value=_q.get("title_zh", ""))
+                    ws_cxq.cell(row=_ri, column=5, value=_q.get("title_en", ""))
+                    ws_cxq.cell(row=_ri, column=6, value=_q.get("audit_impact", ""))
+                    ws_cxq.cell(row=_ri, column=7, value=_q.get("question_zh", ""))
+                    ws_cxq.cell(row=_ri, column=8, value=_q.get("question_en", ""))
+                    ws_cxq.cell(row=_ri, column=9, value=_q.get("method", ""))
+                    ws_cxq.cell(row=_ri, column=10, value=_q.get("regulation_name", ""))
+                    _ri += 1
+            for col in ws_cxq.columns:
+                max_len = max((len(str(c.value or "")) for c in col), default=8)
+                ws_cxq.column_dimensions[col[0].column_letter].width = min(max_len + 2, 60)
+    except Exception:
+        pass
 
     try:
         _append_crawl_status_excel(wb, _load_crawl_results(), lang)

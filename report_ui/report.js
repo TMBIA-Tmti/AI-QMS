@@ -1279,13 +1279,62 @@
                     <span class="detail-label">${_i18nT("detail.auditImpact")}</span>
                     <span class="detail-value">${escapeHtml(row.audit_impact)}</span>
                     <span class="detail-label">${_i18nT("detail.auditQuestion")}</span>
-                    <span class="detail-value">${escapeHtml(row.audit_question || "—")}</span>
+                    <span class="detail-value">
+                        ${row.question_source === "B" ? '<span class="badge badge-side-b" title="LLM-generated question">🤖 Side B</span> ' : '<span class="badge badge-side-a" title="Static question pool">📋 Side A</span> '}
+                        ${escapeHtml(row.audit_question || "—")}
+                    </span>
                     <span class="detail-label">${_i18nT("detail.verdict")}</span>
                     <span class="detail-value">${getVerdictBadge(row.verdict, row.verdict_icon, row.verdict ? t("verdict." + row.verdict) : "", !!row.ra_override)}</span>
                     <span class="detail-label">${_i18nT("detail.riskLevel")}</span>
                     <span class="detail-value">${getRiskBadge(row.risk_level, row.risk_icon, row.risk_level ? t("risk." + row.risk_level) : "")}</span>
                 </div>
             </div>`;
+
+            // D-1 fix: Show all 7 questions from the static pool (collapsible)
+            html += `<div class="detail-section question-pool-section">
+                <h3>📚 ${_i18nT("detail.allQuestions") || "Complete Question Pool (ISO 13485)"}</h3>
+                <div id="questionPoolDetail_${escapeAttr(rowId)}" class="question-pool-list">
+                    <div class="loading-cell">${_i18nT("ui.loading") || "Loading..."}</div>
+                </div>
+            </div>`;
+            // Async-load all questions for this clause
+            (function(clauseId, containerId) {
+                fetch(`${API_BASE}/../locales/${window.__LANG__ || 'en-US'}.json`).catch(()=>{});
+                // Use existing clause data from ISO 13485 checklist via API
+                fetch(`${API_BASE}/crossref/questions?doc_id=${encodeURIComponent(row.doc_id)}&doc_title=${encodeURIComponent(row.doc_title)}&baseline_clause=${encodeURIComponent(clauseId)}&regulations=`)
+                    .then(r => r.json()).then(data => {
+                        // questions API with empty regulations returns an empty list — fall back to displaying known question
+                        // Instead, fetch the full clause questions directly
+                    }).catch(() => {});
+                // Render static question pool from row data stored in ISO checklist
+                // We build a simulated pool using the audit_question as Q1 and pad with known info
+                const container = document.getElementById(containerId);
+                if (!container) return;
+                // Make a dedicated API call to get all clause questions
+                fetch(`/api/report/crossref/clause-questions?clause_id=${encodeURIComponent(clauseId)}&lang=${encodeURIComponent(window.__UI_LANG__ || 'en-US')}`)
+                    .then(r => r.ok ? r.json() : null)
+                    .then(data => {
+                        if (!data || !data.questions || !data.questions.length) {
+                            container.innerHTML = `<p class="no-data">${escapeHtml(row.audit_question || '—')}</p>`;
+                            return;
+                        }
+                        const currentQ = row.audit_question || '';
+                        const qs = data.questions;
+                        let qHtml = '<ol class="question-pool-ol">';
+                        qs.forEach((q, i) => {
+                            const isActive = q === currentQ;
+                            qHtml += `<li class="question-pool-item${isActive ? ' active-question' : ''}">
+                                ${isActive ? '<span class="q-active-badge">▶ ' + (_i18nT('detail.selectedQuestion') || 'Selected') + '</span> ' : ''}
+                                ${escapeHtml(q)}
+                            </li>`;
+                        });
+                        qHtml += '</ol>';
+                        container.innerHTML = qHtml;
+                    })
+                    .catch(() => {
+                        if (container) container.innerHTML = `<p class="no-data">${escapeHtml(row.audit_question || '—')}</p>`;
+                    });
+            })(row.clause_id, `questionPoolDetail_${rowId}`);
 
             // Risk reasoning section — show formula and evidence stats
             if (row.risk_level && row.gap_severity) {
@@ -2479,16 +2528,96 @@
 
             els.countryCheckboxes.innerHTML = html;
 
-            // Toggle checked class on click
+            // Toggle checked class on click + trigger question preview refresh (Problem F)
             els.countryCheckboxes.querySelectorAll(".country-check-item").forEach((item) => {
                 const cb = item.querySelector("input[type=checkbox]");
                 cb.addEventListener("change", () => {
                     item.classList.toggle("checked", cb.checked);
+                    refreshQuestionPreview();
                 });
                 item.classList.toggle("checked", cb.checked);
             });
+
+            // Initial preview load
+            refreshQuestionPreview();
         } catch (err) {
             els.countryCheckboxes.innerHTML = `<div class="loading-cell">❌ ${t('toast.loadFailed', {msg: escapeHtml(err.message)})}</div>`;
+        }
+    }
+
+    // Problem F: Question preview panel — refreshed whenever country selection changes
+    async function refreshQuestionPreview() {
+        const panel = document.getElementById("questionPreviewPanel");
+        const container = document.getElementById("questionPreviewContainer");
+        const meta = document.getElementById("questionPreviewMeta");
+        if (!panel || !container) return;
+
+        const checked = els.countryCheckboxes ? els.countryCheckboxes.querySelectorAll("input[type=checkbox]:checked") : [];
+        const regIds = Array.from(checked).map(cb => cb.value).filter(v => v && !["toggleOriginalText","toggleMdsapVerify"].includes(v));
+
+        if (regIds.length === 0) {
+            panel.style.display = "none";
+            return;
+        }
+
+        panel.style.display = "";
+        container.innerHTML = `<div class="loading-cell">${t("ui.loading") || "Loading..."}</div>`;
+        if (meta) meta.textContent = `${t("crossref.selectedRegs") || "Selected"}: ${regIds.join(", ")}`;
+
+        try {
+            // Fetch questions for the first available clause (8.2.3 as representative example)
+            // In practice, questions are clause-specific; we show UniqueRequirements across all clauses
+            const url = `${API_BASE}/crossref/regulations`;
+            const regsResp = await fetch(url);
+            const regsData = await regsResp.json();
+            const allRegs = (regsData.regulations || []);
+            const selectedRegs = allRegs.filter(r => regIds.includes(r.regulation_id));
+
+            const _isZh = (window.__UI_LANG__ || "en-US").startsWith("zh");
+            const _isJa = (window.__UI_LANG__ || "en-US").startsWith("ja");
+
+            // Group unique requirements by country
+            const byCountry = {};
+            for (const reg of selectedRegs) {
+                const regId = reg.regulation_id;
+                // Fetch full profile to get unique_requirements with audit_question
+                const detailUrl = `${API_BASE}/crossref/questions?doc_id=preview&baseline_clause=8.2.3&regulations=${encodeURIComponent(regId)}`;
+                // We use a single representative call; real usage is per-clause during analysis
+            }
+
+            // Build the preview from unique_requirements_count + country info
+            let html = "";
+            for (const reg of selectedRegs) {
+                const flag = FLAG_EMOJIS[reg.country] || "🏳️";
+                const countryName = _isZh ? reg.country_name_zh : (_isJa ? reg.country_name_en : reg.country_name_en);
+                const regName = _isZh ? reg.name_zh : reg.name_en;
+                const uCount = reg.unique_requirements_count || 0;
+                if (uCount === 0) continue;
+                html += `<div class="qp-country-block">
+                    <div class="qp-country-header">${flag} <strong>${escapeHtml(countryName)}</strong> — ${escapeHtml(regName)}</div>
+                    <div class="qp-country-note">${escapeHtml(uCount + " " + (t("crossref.uniqueReqs") || "unique requirements beyond ISO 13485"))}</div>
+                    <div class="qp-fetch-note" style="font-size:11px;color:var(--text-muted)">
+                        ${t("crossref.questionPreviewNote") || "Exact questions shown per clause during document analysis"}
+                    </div>
+                </div>`;
+            }
+
+            // Also show delta summary from WithinClauseDeltas count
+            const withDeltaRegs = selectedRegs.filter(r => (r.status_counts && (r.status_counts.full || 0) + (r.status_counts.partial || 0) + (r.status_counts.exceeds || 0) > 0));
+            if (withDeltaRegs.length > 0) {
+                html += `<div class="qp-delta-note">
+                    <strong>📋 ${t("crossref.withinClauseDeltaNote") || "Within-Clause Delta Questions"}</strong><br>
+                    ${escapeHtml(t("crossref.withinClauseDeltaDesc") || "Country-specific differences within ISO 13485 clauses (e.g. 30-day vs 7-day reporting timelines) will be shown as ⚠️ priority questions during cross-examination.")}
+                </div>`;
+            }
+
+            if (!html) {
+                html = `<p class="no-data">${t("crossref.noUniqueReqs") || "Selected countries have no unique requirements beyond ISO 13485."}</p>`;
+            }
+
+            container.innerHTML = html;
+        } catch (err) {
+            container.innerHTML = `<div class="loading-cell">❌ ${escapeHtml(err.message)}</div>`;
         }
     }
 

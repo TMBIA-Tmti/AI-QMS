@@ -224,6 +224,8 @@ class RowState:
     clause_title: str = ""
     audit_impact: str = ""  # "critical" | "major" | "minor"
     audit_question: str = ""
+    question_source: str = "A"  # "A" = static pool, "B" = LLM-generated
+    question_en: str = ""       # English version of Side B question (empty for Side A)
     expected_evidence: list[str] = field(default_factory=list)
 
     # Current phase tracking

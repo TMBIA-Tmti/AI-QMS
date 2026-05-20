@@ -25,6 +25,7 @@ from src.analysis.state import (
     PhaseStatus,
 )
 from src.analysis.compliance_rules import get_checklist, list_clauses, get_audit_question
+from src.analysis.question_generator import get_audit_question_hybrid
 from src.chainlit_app.lang_config import lang_key as _lang_key
 from src.analysis.risk_matrix import (
     VERDICT_DISPLAY,
@@ -182,6 +183,15 @@ class ComparisonTable:
 
             for clause_id in matched_clauses:
                 clause_info = checklist.get(clause_id, {})
+                # D-2 fix: use hybrid A/B selector — Side B for critical clauses when LLM available
+                _q_result = get_audit_question_hybrid(
+                    clause_id=clause_id,
+                    doc_id=doc_id,
+                    doc_title=doc_title,
+                    llm_completion_fn=llm_completion_fn,
+                    model=model,
+                    lang=lang,
+                )
                 row = RowState(
                     clause_id=clause_id,
                     standard=standard,
@@ -189,12 +199,10 @@ class ComparisonTable:
                     doc_title=doc_title,
                     clause_title=clause_info.get("title", ""),
                     audit_impact=clause_info.get("audit_impact", "minor"),
-                    audit_question=get_audit_question(clause_info, lang=lang),
-                    expected_evidence=(
-                        clause_info.get("expected_evidence_ja") if _lang_key(lang) == "ja"
-                        else clause_info.get("expected_evidence_en") if _lang_key(lang) != "zh"
-                        else clause_info.get("expected_evidence")
-                    ) or clause_info.get("expected_evidence", []),
+                    audit_question=_q_result["question"],
+                    question_source=_q_result["source"],
+                    question_en=_q_result.get("question_en", ""),
+                    expected_evidence=_q_result["expected_evidence"],
                 )
                 self._state.add_row(row)
                 row_count += 1
@@ -220,6 +228,14 @@ class ComparisonTable:
                 )
                 for clause_id in matched_clauses:
                     clause_info = checklist.get(clause_id, {})
+                    _q_result2 = get_audit_question_hybrid(
+                        clause_id=clause_id,
+                        doc_id=doc_id,
+                        doc_title=doc_title,
+                        llm_completion_fn=llm_completion_fn,
+                        model=model,
+                        lang=lang,
+                    )
                     row = RowState(
                         clause_id=clause_id,
                         standard=standard,
@@ -227,12 +243,10 @@ class ComparisonTable:
                         doc_title=doc_title,
                         clause_title=clause_info.get("title", ""),
                         audit_impact=clause_info.get("audit_impact", "minor"),
-                        audit_question=get_audit_question(clause_info, lang=lang),
-                        expected_evidence=(
-                            clause_info.get("expected_evidence_ja") if lang.startswith("ja")
-                            else clause_info.get("expected_evidence_en") if not lang.startswith("zh")
-                            else clause_info.get("expected_evidence")
-                        ) or clause_info.get("expected_evidence", []),
+                        audit_question=_q_result2["question"],
+                        question_source=_q_result2["source"],
+                        question_en=_q_result2.get("question_en", ""),
+                        expected_evidence=_q_result2["expected_evidence"],
                     )
                     self._state.add_row(row)
                     row_count += 1

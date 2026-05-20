@@ -125,7 +125,7 @@ _ANALYZER_INITIAL_TEMPLATES: dict[str, str] = {
 
 ### 證據項目
 {evidence_summary}
-
+{multi_reg_context}
 請以 JSON 格式說明你的評估立場（「position」字段詳細論述，上限 2000 字，確保內容完整）：
 
 ```json
@@ -145,7 +145,7 @@ _ANALYZER_INITIAL_TEMPLATES: dict[str, str] = {
 
 ### Evidence Items
 {evidence_summary}
-
+{multi_reg_context}
 Please state your assessment position in JSON format ("position" field detailed argument, up to 2000 words):
 
 ```json
@@ -165,7 +165,7 @@ Please state your assessment position in JSON format ("position" field detailed 
 
 ### 証拠項目
 {evidence_summary}
-
+{multi_reg_context}
 JSON形式で評価立場を述べてください（「position」フィールドは詳細な論述、最大2000語）：
 
 ```json
@@ -268,7 +268,7 @@ Your responsibilities:
 _VERIFIER_SYSTEM_PROMPT = _VERIFIER_SYSTEM_PROMPTS["zh"]
 
 _VERIFIER_CHALLENGE_TEMPLATES: dict[str, str] = {
-    "zh": """## 分析者的評估
+    "zh": """{multi_reg_context}## 分析者的評估
 
 {analyzer_position}
 
@@ -280,7 +280,8 @@ _VERIFIER_CHALLENGE_TEMPLATES: dict[str, str] = {
 
 {audit_question}
 
-請以 JSON 格式提出你的驗證意見（每條 challenges[].point 上限 2000 字，overall_assessment 上限 1000 字）：
+請以 JSON 格式提出你的驗證意見（每條 challenges[].point 上限 2000 字，overall_assessment 上限 1000 字）。
+若上方有「多國法規特殊要求」，每個 ⚠️ 項目必須在 challenges[] 中各有一個對應的條目：
 
 ```json
 {{
@@ -296,7 +297,7 @@ _VERIFIER_CHALLENGE_TEMPLATES: dict[str, str] = {
   "overall_assessment": "整體評語（300-1000 字）：需涵蓋本次稽核問題的整體合規狀況評估、重點落差摘要、及後續 RA 建議方向"
 }}
 ```""",
-    "en": """## Analyzer's Assessment
+    "en": """{multi_reg_context}## Analyzer's Assessment
 
 {analyzer_position}
 
@@ -308,7 +309,8 @@ _VERIFIER_CHALLENGE_TEMPLATES: dict[str, str] = {
 
 {audit_question}
 
-Please state your verification opinion in JSON format (each challenges[].point up to 2000 words, overall_assessment up to 1000 words):
+Please state your verification opinion in JSON format (each challenges[].point up to 2000 words, overall_assessment up to 1000 words).
+If "Multi-Country Regulatory Requirements" appear above, each ⚠️ item MUST have a corresponding entry in challenges[]:
 
 ```json
 {{
@@ -324,7 +326,7 @@ Please state your verification opinion in JSON format (each challenges[].point u
   "overall_assessment": "Overall assessment (up to 1000 words): covers the overall compliance status for this audit question, key gap summary, and recommended RA action direction"
 }}
 ```""",
-    "ja": """## 分析者の評価
+    "ja": """{multi_reg_context}## 分析者の評価
 
 {analyzer_position}
 
@@ -336,7 +338,8 @@ Please state your verification opinion in JSON format (each challenges[].point u
 
 {audit_question}
 
-JSON形式で検証意見を述べてください（各challenges[].pointは最大2000語、overall_assessmentは最大1000語）：
+JSON形式で検証意見を述べてください（各challenges[].pointは最大2000語、overall_assessmentは最大1000語）。
+上記に「多国籍規制要件」が記載されている場合、各⚠️項目はchallenges[]に対応エントリが必須です：
 
 ```json
 {{
@@ -755,6 +758,8 @@ def run_verification_row(
                     },
                 )
 
+        # Problem C fix: Analyzer now sees multi_reg_context upfront
+        _mrc_analyzer = (f"\n\n{multi_reg_context}\n" if multi_reg_context else "")
         analyzer_prompt = _ANALYZER_INITIAL_TEMPLATES[lk].format(
             clause_id=row_state.clause_id,
             clause_title=row_state.clause_title,
@@ -762,6 +767,7 @@ def run_verification_row(
             current_verdict=verdict_label,
             gap_severity=row_state.gap_severity or _NOT_ASSESSED[lk],
             evidence_summary=evidence_summary,
+            multi_reg_context=_mrc_analyzer,
         )
         if human_injection_block:
             analyzer_prompt += human_injection_block
@@ -800,16 +806,17 @@ def run_verification_row(
                 },
             )
 
-        # Verifier challenges — append multi-regulation context if available
+        # Problem B fix: multi_reg_context is now INSIDE the template (at the top),
+        # so every ⚠️ item appears before the JSON format block and forces challenges[].
+        _mrc_verifier = (f"{multi_reg_context}\n\n" if multi_reg_context else "")
         verifier_prompt = _VERIFIER_CHALLENGE_TEMPLATES[lk].format(
+            multi_reg_context=_mrc_verifier,
             analyzer_position=json.dumps(
                 analyzer_response, ensure_ascii=False, indent=2
             ),
             regulation_text=regulation_text,
             audit_question=row_state.audit_question,
         )
-        if multi_reg_context:
-            verifier_prompt += f"\n\n{multi_reg_context}"
         if human_injection_block:
             verifier_prompt += human_injection_block
 
@@ -1230,7 +1237,8 @@ def run_verification_document(
                     },
                 )
 
-            # Round 1: Analyzer initial position
+            # Round 1: Analyzer initial position (Problem C: Analyzer sees multi_reg_context)
+            _mrc_analyzer2 = (f"\n\n{multi_reg_context}\n" if multi_reg_context else "")
             analyzer_prompt = _ANALYZER_INITIAL_TEMPLATES[lk].format(
                 clause_id=row.clause_id,
                 clause_title=row.clause_title,
@@ -1238,6 +1246,7 @@ def run_verification_document(
                 current_verdict=verdict_label,
                 gap_severity=row.gap_severity or _NOT_ASSESSED[lk],
                 evidence_summary=evidence_summary,
+                multi_reg_context=_mrc_analyzer2,
             )
 
             if run_id:
@@ -1272,16 +1281,16 @@ def run_verification_document(
                     },
                 )
 
-            # Verifier challenges
+            # Problem B fix: multi_reg_context now inside template at top
+            _mrc_verifier2 = (f"{multi_reg_context}\n\n" if multi_reg_context else "")
             verifier_prompt = _VERIFIER_CHALLENGE_TEMPLATES[lk].format(
+                multi_reg_context=_mrc_verifier2,
                 analyzer_position=json.dumps(
                     analyzer_response, ensure_ascii=False, indent=2
                 ),
                 regulation_text=regulation_text,
                 audit_question=row.audit_question,
             )
-            if multi_reg_context:
-                verifier_prompt += f"\n\n{multi_reg_context}"
 
             verifier_response, usage = _call_llm(
                 llm_completion_fn,
