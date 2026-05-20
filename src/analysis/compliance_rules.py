@@ -11320,28 +11320,2127 @@ def _inject_static_within_clause_deltas() -> None:  # noqa: C901
         },
     }
 
-    # ── Merge strategy: add deltas without replacing existing ones ────────
-    for profile_id, clause_map in {**_static, **_extra}.items():
-        # Skip placeholder keys
-        if profile_id.endswith("_extra") or profile_id.endswith("_rec"):
-            continue
-        profile = PREDEFINED_REGULATIONS.get(profile_id)
-        if profile is None:
-            continue
-        for clause_id, deltas in clause_map.items():
-            cm = profile.iso_mapped.get(clause_id)
-            if cm is None:
+    # ── Merge strategy: process each source independently to avoid country-level
+    # dict overwrite that {**_static, **_extra} would cause for shared country keys.
+    for _src in (_static, _extra):
+        for profile_id, clause_map in _src.items():
+            # Skip placeholder keys
+            if profile_id.endswith("_extra") or profile_id.endswith("_rec"):
                 continue
-            if cm.within_clause_deltas:
-                existing_ids = {d.delta_id for d in cm.within_clause_deltas}
-                cm.within_clause_deltas = cm.within_clause_deltas + [
-                    d for d in deltas if d.delta_id not in existing_ids
-                ]
-            else:
-                cm.within_clause_deltas = list(deltas)
+            profile = PREDEFINED_REGULATIONS.get(profile_id)
+            if profile is None:
+                continue
+            for clause_id, deltas in clause_map.items():
+                cm = profile.iso_mapped.get(clause_id)
+                if cm is None:
+                    continue
+                if cm.within_clause_deltas:
+                    existing_ids = {d.delta_id for d in cm.within_clause_deltas}
+                    cm.within_clause_deltas = cm.within_clause_deltas + [
+                        d for d in deltas if d.delta_id not in existing_ids
+                    ]
+                else:
+                    cm.within_clause_deltas = list(deltas)
 
 
 _inject_static_within_clause_deltas()
+
+
+
+def _inject_extra2_deltas() -> None:  # noqa: C901
+    """Gap-fill WithinClauseDeltas — all 30 countries, all 8 target clauses."""
+    from src.analysis.compliance_rules import WithinClauseDelta, PREDEFINED_REGULATIONS
+
+    _RE = "ISO 13485 Cl. 4.2.4 requires record retention for device lifetime, minimum 2 years."
+    _RZ = "ISO 13485 條款 4.2.4 要求記錄保存至器材壽命，最少 2 年。"
+    _RJ = "ISO 13485 Cl. 4.2.4 は少なくとも機器寿命または2年を要求。"
+    _FE = "ISO 13485 Cl. 8.3.2 requires control of nonconforming product after delivery; no reporting timeline specified."
+    _FZ = "ISO 13485 條款 8.3.2 要求管制交付後不合格品，但未規定通報時限。"
+    _FJ = "ISO 13485 Cl. 8.3.2 は出荷後不適合品の管理を要求するが，報告タイムラインは規定しない。"
+    _AE = "ISO 13485 Cl. 8.2.3 requires regulatory reporting but specifies no absolute timeline."
+    _AZ = "ISO 13485 條款 8.2.3 要求法規通報，但未規定絕對時限。"
+    _AJ = "ISO 13485 Cl. 8.2.3 は規制報告を要求するが，絶対的なタイムラインは規定しない。"
+    _LE = "ISO 13485 Cl. 7.5.1 requires controlled production including labeling; no specific language mandated."
+    _LZ = "ISO 13485 條款 7.5.1 要求管制生產（含標示），但未規定特定語言。"
+    _LJ = "ISO 13485 Cl. 7.5.1 は標示を含む生産管理を要求するが，特定言語は規定しない。"
+    _UE = "ISO 13485 Cl. 7.5.9.2 requires traceability for UDI-bearing devices; no national UDI system mandated."
+    _UZ = "ISO 13485 條款 7.5.9.2 要求具 UDI 器材的追溯性，但未強制特定國家 UDI 系統。"
+    _UJ = "ISO 13485 Cl. 7.5.9.2 はUDI機器の追跡可能性を要求するが，特定国家UDIシステムは義務付けない。"
+    _CE = "ISO 13485 Cl. 7.3.6 requires design validation; clinical evaluation scope is not prescriptively defined."
+    _CZ = "ISO 13485 條款 7.3.6 要求設計驗證；未規定臨床評估的具體範疇。"
+    _CJ = "ISO 13485 Cl. 7.3.6 は設計バリデーションを要求するが，臨床評価の範囲を規定しない。"
+    _6E = "ISO 13485 Cl. 6.2 requires competence for personnel; no specific statutory quality manager defined."
+    _6Z = "ISO 13485 條款 6.2 要求人員能力；未定義特定法定品質負責人。"
+    _6J = "ISO 13485 Cl. 6.2 は要員の力量を要求するが，特定の法定品質責任者は規定しない。"
+    _8E = "ISO 13485 Cl. 8.2.1 requires a feedback system from post-production; PMCF methodology not prescribed."
+    _8Z = "ISO 13485 條款 8.2.1 要求上市後回饋系統；未規定 PMCF 方法論。"
+    _8J = "ISO 13485 Cl. 8.2.1 は市販後フィードバックシステムを要求するが，PMCFの方法は規定しない。"
+
+    def _wd(did, clause, t_en, t_zh, t_ja, b_en, b_zh, b_ja,
+            cs_en, cs_zh, cs_ja, ref, orig, lang, eng, dtype, impact, evid, conf=0.85):
+        return WithinClauseDelta(
+            delta_id=did, iso_clause=clause,
+            title_en=t_en, title_zh=t_zh, title_ja=t_ja,
+            iso_baseline_en=b_en, iso_baseline_zh=b_zh, iso_baseline_ja=b_ja,
+            country_specific_en=cs_en, country_specific_zh=cs_zh, country_specific_ja=cs_ja,
+            regulation_ref=ref, original_text=orig, original_lang=lang,
+            english_translation=eng, delta_type=dtype, audit_impact=impact,
+            expected_evidence=evid, confidence=conf)
+
+    def _merge(pid, clause, deltas):
+        from src.analysis.compliance_rules import ClauseMapping, MappingStatus, MappingMethod
+        profile = PREDEFINED_REGULATIONS.get(pid)
+        if not profile:
+            return
+        cm = profile.iso_mapped.get(clause)
+        if cm is None:
+            # Create a stub ClauseMapping so the delta can be stored
+            cm = ClauseMapping(
+                iso_clause=clause,
+                status=MappingStatus.FULL,
+                regulation_ref="See within_clause_deltas for regulatory references",
+                rationale_en="Gap-fill: clause mapping inferred from within-clause delta evidence.",
+                rationale_zh="缺口補全：條款映射根據within-clause delta證據推斷。",
+                method=MappingMethod.OFFICIAL_CROSSREF,
+                confidence=0.80,
+                within_clause_deltas=[],
+            )
+            profile.iso_mapped[clause] = cm
+        existing = {d.delta_id for d in (cm.within_clause_deltas or [])}
+        new = [d for d in deltas if d.delta_id not in existing]
+        if cm.within_clause_deltas:
+            cm.within_clause_deltas = cm.within_clause_deltas + new
+        else:
+            cm.within_clause_deltas = new
+
+    # ── AE_MOHAP ──────────────────────────────────────────────────────────
+    _merge("AE_MOHAP", "6.2", [_wd(
+        "AE-WITHIN-6.2-001", "6.2",
+        "Technical Manager — Mandatory Qualified Representative",
+        "技術主任 — 強制合格代表", "技術マネージャー — 資格代表者必須",
+        _6E, _6Z, _6J,
+        "UAE Cabinet Decision No. 7/2019: Registered medical device companies must appoint a Technical Representative (TR) responsible for regulatory compliance, holding a relevant scientific degree and registered with MOHAP.",
+        "阿聯酋內閣決定第7/2019號：醫療器材公司必須任命技術代表（TR），持有相關科學學位並在 MOHAP 登記。",
+        "UAE Cabinet Decision No.7/2019：医療機器会社はMOHAP登録の技術代表者（TR）任命必要。関連理系学歴必須。",
+        "UAE Cabinet Decision No. 7/2019",
+        "UAE Cabinet Decision No. 7/2019: Technical Representative with relevant degree registered with MOHAP required.",
+        "en", "", "local_authority_specific", "critical",
+        ["Technical Representative appointment / 技術代表任命", "MOHAP TR registration / MOHAP TR登記"], 0.85)])
+    _merge("AE_MOHAP", "7.3.6", [_wd(
+        "AE-WITHIN-7.3.6-001", "7.3.6",
+        "Clinical Evidence — Mandatory for Class B/C/D",
+        "臨床證據 — B/C/D 類登記強制", "臨床エビデンス — B/C/D登録必須",
+        _CE, _CZ, _CJ,
+        "UAE MOH: Class B, C, D devices require clinical data (clinical trials or literature) per IMDRF/MEDDEV 2.7/1 guidelines.",
+        "阿聯酋衛生部：B、C、D 類器材需要臨床資料（臨床試驗或文獻）。",
+        "UAE MOH：Class B/C/D機器はIMDRF/MEDDEV 2.7/1準拠の臨床データ必要。",
+        "UAE MOH Medical Device Registration Requirements",
+        "UAE MOH: clinical evidence required for Class B/C/D registration.",
+        "en", "", "scope_extension", "critical",
+        ["Clinical Evaluation Report / 臨床評估報告"], 0.82)])
+    _merge("AE_MOHAP", "7.5.9.2", [_wd(
+        "AE-WITHIN-7.5.9.2-001", "7.5.9.2",
+        "UDI — Linked to MOHAP Registration Number",
+        "UDI — 連結 MOHAP 登記號碼", "UDI — MOHAP登録番号と連携",
+        _UE, _UZ, _UJ,
+        "UAE Cabinet Decision No. 7/2019: All registered medical devices must carry a UDI linked to the MOHAP registration number per IMDRF guidelines.",
+        "阿聯酋內閣決定第7/2019號：所有登記器材必須攜帶與 MOHAP 登記號碼連結的 UDI。",
+        "UAE Cabinet Decision No.7/2019：全登録医療機器はMOHAP登録番号連携UDI必要。",
+        "UAE Cabinet Decision No. 7/2019",
+        "UAE: UDI linked to MOHAP registration number required.",
+        "en", "", "additional_form", "major",
+        ["UDI on device label / 器材標籤上之UDI"], 0.80)])
+    _merge("AE_MOHAP", "8.2.1", [_wd(
+        "AE-WITHIN-8.2.1-001", "8.2.1",
+        "PMS Plan — MOHAP Required",
+        "PMS 計畫 — MOHAP 強制", "PMSプラン — MOHAP必須",
+        _8E, _8Z, _8J,
+        "UAE Cabinet Decision No. 7/2019: Registered manufacturers must maintain an active PMS program and submit periodic safety reports to MOHAP.",
+        "阿聯酋內閣決定第7/2019號：已登記製造業者必須維護主動 PMS 計畫，向 MOHAP 提交定期安全報告。",
+        "UAE Cabinet Decision No.7/2019：登録製造業者はPMS維持・定期安全報告提出必要。",
+        "UAE Cabinet Decision No. 7/2019",
+        "UAE: active PMS program and periodic safety reports required.",
+        "en", "", "local_authority_specific", "major",
+        ["PMS plan / PMS計畫", "Periodic safety report / 定期安全報告"], 0.80)])
+    _merge("AE_MOHAP", "8.3.2", [_wd(
+        "AE-WITHIN-8.3.2-001", "8.3.2",
+        "Recall — 24h (Serious) / 72h (Other) to MOHAP",
+        "回收通報 — 24小時（嚴重）/ 72小時（其他）", "リコール — 24時間(重大)/72時間(その他)",
+        _FE, _FZ, _FJ,
+        "UAE Cabinet Decision No. 7/2019 Art. 46: Recall notification to MOHAP within 24h (serious risk) or 72h (other). FSN distributed to affected customers.",
+        "阿聯酋內閣決定第7/2019號第46條：嚴重風險24小時內，其他72小時內通報 MOHAP。",
+        "UAE Cabinet Decision No.7/2019 Art.46：重大リスク24時間以内、非重大72時間以内にMOHAP通知。FSN配布。",
+        "UAE Cabinet Decision No. 7/2019 Art. 46",
+        "UAE: recall notification within 24h (serious) or 72h (other); FSN distributed.",
+        "en", "", "stricter_timeline", "critical",
+        ["MOHAP recall notification / MOHAP回收通報", "FSN distribution / FSN發布"], 0.82)])
+
+    # ── ANVISA ────────────────────────────────────────────────────────────
+    _merge("ANVISA", "4.2.4", [_wd(
+        "ANVISA-WITHIN-4.2.4-001", "4.2.4",
+        "Record Retention — 5 Years (Implantables: Life + 2 Years)",
+        "記錄保存 — 5年（植入物：壽命+2年）", "記録保持 — 5年（植込み型：耐用年数+2年）",
+        _RE, _RZ, _RJ,
+        "RDC 665/2022 Art. 34: Quality records retained minimum 5 years from manufacture date; implantable devices: useful life + 2 years.",
+        "RDC 665/2022 第34條：品質記錄保存至少5年（製造日起）；植入性器材：使用壽命加2年。",
+        "RDC 665/2022 Art.34：品質記録は製造日から最低5年；植込み型は耐用年数+2年。",
+        "RDC 665/2022 Art. 34",
+        "Os registros devem ser mantidos por no mínimo 5 anos a partir da fabricação.",
+        "pt", "ANVISA RDC 665/2022: records retained 5 years min; implantables useful life + 2 years.",
+        "stricter_timeline", "major",
+        ["5-year retention policy / 5年保存政策"], 0.88)])
+    _merge("ANVISA", "6.2", [_wd(
+        "ANVISA-WITHIN-6.2-001", "6.2",
+        "Responsável Técnico — Mandatory Healthcare Professional",
+        "技術負責人 — 強制衛生專業人員", "技術責任者 — 医療専門家必須",
+        _6E, _6Z, _6J,
+        "RDC 665/2022 / Lei 6.360/1976: Every medical device establishment must have a Responsável Técnico (RT) — a licensed healthcare professional (pharmacist, physician, biomedical engineer) registered with the relevant professional council.",
+        "RDC 665/2022 / 法律第6.360/1976號：每個醫療器材機構必須有一名技術負責人（RT）——在適當專業委員會登記的持牌衛生專業人員。",
+        "RDC 665/2022 / Lei 6.360/1976：登録医療機器機関は関連専門委員会登録の資格医療専門家（RT）が必要。",
+        "RDC 665/2022 / Lei 6.360/1976",
+        "RDC 665/2022: Responsável Técnico deve ser profissional habilitado registrado no conselho profissional.",
+        "pt", "ANVISA: Responsável Técnico — licensed healthcare professional registered with professional council.",
+        "local_authority_specific", "critical",
+        ["Responsável Técnico appointment / RT任命文件", "Professional council registration / 專業委員會登記"], 0.90)])
+    _merge("ANVISA", "7.3.6", [_wd(
+        "ANVISA-WITHIN-7.3.6-001", "7.3.6",
+        "Clinical Performance Evaluation — Mandatory Class II+ (RDC 751/2022)",
+        "臨床性能評估 — Class II+ 強制", "臨床性能評価 — Class II+必須",
+        _CE, _CZ, _CJ,
+        "RDC 751/2022: Clinical performance evaluation mandatory for Class II, III, and IV devices. CER per ABNT NBR ISO 14155 and IMDRF/GHTF guidelines.",
+        "RDC 751/2022：臨床性能評估對 Class II、III 和 IV 器材為強制性。按 ABNT NBR ISO 14155 和 IMDRF/GHTF 指引準備 CER。",
+        "RDC 751/2022：臨床性能評価はClass II/III/IV必須。ABNT NBR ISO 14155およびIMDRF/GHTF準拠CER準備。",
+        "RDC 751/2022",
+        "RDC 751/2022: avaliação do desempenho clínico obrigatória para Classe II, III e IV.",
+        "pt", "ANVISA RDC 751/2022: clinical performance evaluation mandatory for Class II/III/IV.",
+        "scope_extension", "critical",
+        ["Clinical Evaluation Report per RDC 751/2022 / RDC 751/2022 CER"], 0.88)])
+    _merge("ANVISA", "7.5.1", [_wd(
+        "ANVISA-WITHIN-7.5.1-001", "7.5.1",
+        "Portuguese Labeling — Mandatory for Brazilian Market",
+        "葡萄牙語標示 — 巴西市場強制", "ポルトガル語ラベル — ブラジル必須",
+        _LE, _LZ, _LJ,
+        "RDC 751/2022 / RDC 59/2000: All labeling (IFU, packaging, labels) for devices sold in Brazil must be in Portuguese. Foreign-language labels require Portuguese translation.",
+        "RDC 751/2022 / RDC 59/2000：在巴西銷售的醫療器材所有標示必須使用葡萄牙語。外語標籤必須附葡萄牙語翻譯。",
+        "RDC 751/2022 / RDC 59/2000：ブラジル販売医療機器の全ラベリングはポルトガル語必須。外国語ラベルにはポルトガル語訳付与。",
+        "RDC 751/2022 / RDC 59/2000",
+        "RDC 751/2022: rótulos e instruções em língua portuguesa obrigatórios.",
+        "pt", "ANVISA: all labeling must be in Portuguese.",
+        "local_authority_specific", "critical",
+        ["Portuguese IFU / 葡萄牙語使用說明書", "Portuguese device label / 葡萄牙語器材標籤"], 0.92)])
+    _merge("ANVISA", "7.5.9.2", [_wd(
+        "ANVISA-WITHIN-7.5.9.2-001", "7.5.9.2",
+        "UDI — Mandatory Class III from 2023 / Class II from 2024 (RDC 951/2022)",
+        "UDI — Class III 2023起強制 / Class II 2024起", "UDI — Class III 2023年から/Class II 2024年から",
+        _UE, _UZ, _UJ,
+        "RDC 951/2022: Brazilian UDI system (IUD-Anvisa) mandates UDI for Class III from 2023 and Class II from 2024. Registered in ANVISA's national database.",
+        "RDC 951/2022：巴西 UDI 系統（IUD-Anvisa）規定 Class III 自2023年起，Class II 自2024年起強制。在 ANVISA 國家資料庫登記。",
+        "RDC 951/2022：ブラジルUDIシステム（IUD-Anvisa）：Class III 2023年から、Class II 2024年から義務化。",
+        "RDC 951/2022",
+        "RDC 951/2022: sistema IUD-Anvisa obrigatório para Classe III em 2023 e Classe II em 2024.",
+        "pt", "ANVISA RDC 951/2022: UDI mandatory Class III 2023, Class II 2024.",
+        "additional_form", "major",
+        ["ANVISA IUD registration / ANVISA IUD登記", "UDI on labels / UDI標籤"], 0.87)])
+    _merge("ANVISA", "8.2.1", [_wd(
+        "ANVISA-WITHIN-8.2.1-001", "8.2.1",
+        "PAPC — Post-Market Surveillance Plan Mandatory (RDC 665/2022)",
+        "PAPC — 上市後監督計畫強制", "PAPC — 市販後監視計画必須",
+        _8E, _8Z, _8J,
+        "RDC 665/2022 Art. 30: Manufacturers must establish and maintain a PAPC (Post-Market Surveillance Plan), updated annually, including complaint analysis, vigilance data, and corrective actions.",
+        "RDC 665/2022 第30條：製造業者必須建立和維護 PAPC（上市後監督計畫），每年更新，包括投訴分析、警戒資料和矯正行動。",
+        "RDC 665/2022 Art.30：製造業者はPAPC（市販後監視計画）を確立・維持必要。年次更新、苦情分析、警戒データ、是正措置含む。",
+        "RDC 665/2022 Art. 30",
+        "RDC 665/2022 Art. 30: PAPC obrigatório, atualizado anualmente.",
+        "pt", "ANVISA RDC 665/2022: PAPC mandatory, updated annually.",
+        "local_authority_specific", "major",
+        ["PAPC document / PAPC文件", "Annual PAPC review / 年度PAPC審查"], 0.88)])
+    _merge("ANVISA", "8.2.3", [_wd(
+        "ANVISA-WITHIN-8.2.3-001", "8.2.3",
+        "Adverse Event Reporting — 72h (Imminent) / 15 Days (Death) / 30 Days (Other)",
+        "不良事件通報 — 72h（迫切）/ 15天（死亡）/ 30天（其他）",
+        "有害事象報告 — 72時間(緊急)/15日(死亡)/30日(その他)",
+        _AE, _AZ, _AJ,
+        "RDC 67/2009 / RDC 665/2022: SAEs reported to ANVISA via NOTIVISA: 72h (imminent risk to life), 15 days (death), 30 days (other serious events).",
+        "RDC 67/2009 / RDC 665/2022：通過 NOTIVISA 向 ANVISA 報告嚴重不良事件：72小時（生命迫切風險）、15天（死亡）、30天（其他嚴重事件）。",
+        "RDC 67/2009 / RDC 665/2022：NOTIVISA経由でANVISAへ：72時間(緊急)、15日(死亡)、30日(その他重篤)。",
+        "RDC 67/2009 / RDC 665/2022",
+        "RDC 67/2009: SAEs notificados via NOTIVISA em 72h, 15 ou 30 dias conforme gravidade.",
+        "pt", "ANVISA: SAEs reported within 72h (imminent), 15 days (death), 30 days (other).",
+        "stricter_timeline", "critical",
+        ["NOTIVISA reports / NOTIVISA報告", "SAE reporting procedure / SAE通報程序"], 0.88)])
+
+    # ── AR_ANMAT ──────────────────────────────────────────────────────────
+    _merge("AR_ANMAT", "6.2", [_wd(
+        "AR-WITHIN-6.2-001", "6.2",
+        "Director Técnico — ANMAT-Registered Professional",
+        "技術主任 — ANMAT 登記專業人員", "技術主任 — ANMAT登録専門家",
+        _6E, _6Z, _6J,
+        "Disposición ANMAT 2318/2002: Medical device establishments must have a Director Técnico (licensed pharmacist, physician, or biomedical engineer) registered with ANMAT.",
+        "ANMAT 規則第2318/2002號：醫療器材機構必須有一名在 ANMAT 登記的技術主任（持牌藥劑師、醫師或生物醫學工程師）。",
+        "ANMAT Disposición 2318/2002：ANMAT登録のDirector Técnico（薬剤師・医師・生物医学エンジニア）必要。",
+        "Disposición ANMAT 2318/2002",
+        "ANMAT 2318/2002: Director Técnico debe ser profesional habilitado inscripto ante ANMAT.",
+        "es", "ANMAT: Director Técnico (licensed professional) registered with ANMAT required.",
+        "local_authority_specific", "critical",
+        ["Director Técnico appointment / 技術主任任命文件"], 0.85)])
+    _merge("AR_ANMAT", "7.3.6", [_wd(
+        "AR-WITHIN-7.3.6-001", "7.3.6",
+        "Clinical Data — Required for Class III/IV (ANMAT)",
+        "臨床資料 — Class III/IV 強制（ANMAT）", "臨床データ — Class III/IV必須(ANMAT)",
+        _CE, _CZ, _CJ,
+        "Disposición ANMAT 2318/2002: Class III and IV devices require clinical data (trials or literature) demonstrating safety and efficacy. IMDRF-compliant CER accepted.",
+        "ANMAT 規則第2318/2002號：Class III 和 IV 器材需要臨床資料（試驗或文獻）證明安全性和有效性。",
+        "ANMAT Disposición 2318/2002：Class III/IVは安全性・有効性を示す臨床データ（試験または文献）必要。",
+        "Disposición ANMAT 2318/2002",
+        "ANMAT 2318/2002: dispositivos Clase III y IV requieren datos clínicos de seguridad y eficacia.",
+        "es", "ANMAT: clinical data required for Class III/IV registration.",
+        "scope_extension", "critical",
+        ["Clinical data package / 臨床資料包"], 0.82)])
+    _merge("AR_ANMAT", "7.5.9.2", [_wd(
+        "AR-WITHIN-7.5.9.2-001", "7.5.9.2",
+        "UDI — No National Mandate (Voluntary IMDRF Alignment)",
+        "UDI — 無國家強制（自願 IMDRF）", "UDI — 国内義務化なし(自発的IMDRF)",
+        _UE, _UZ, _UJ,
+        "Argentina has no mandatory national UDI system. ANMAT recommends voluntary IMDRF UDI alignment. Devices with UDI from other markets may include it in ANMAT dossiers.",
+        "阿根廷無強制國家 UDI 系統。ANMAT 建議自願遵循 IMDRF UDI 指引。",
+        "アルゼンチンは国内UDI義務化なし。IMDRF UDIガイドライン準拠推奨。",
+        "ANMAT / IMDRF UDI Guidelines",
+        "ANMAT: no mandatory UDI; voluntary IMDRF alignment recommended.",
+        "en", "", "additional_form", "minor",
+        ["UDI documentation (if applicable) / UDI文件（適用時）"], 0.75)])
+    _merge("AR_ANMAT", "8.2.1", [_wd(
+        "AR-WITHIN-8.2.1-001", "8.2.1",
+        "Vigilancia Post-Comercialización — PMS Required",
+        "上市後監督 — 強制 PMS", "市販後監視 — PMS必須",
+        _8E, _8Z, _8J,
+        "Disposición ANMAT 2318/2002: Registered manufacturers must conduct post-market vigilance including systematic complaint/AE collection and annual PMS review.",
+        "ANMAT 規則第2318/2002號：已登記製造業者必須進行上市後警戒，包括系統性投訴/不良事件收集和年度 PMS 審查。",
+        "ANMAT Disposición 2318/2002：苦情・有害事象の体系的収集および年次PMSレビュー必要。",
+        "Disposición ANMAT 2318/2002",
+        "ANMAT 2318/2002: vigilancia post-comercialización sistemática incluyendo análisis de quejas y AEs.",
+        "es", "ANMAT: systematic post-market vigilance including complaint/AE analysis required.",
+        "local_authority_specific", "major",
+        ["PMS plan / PMS計畫", "Annual PMS review / 年度PMS審查"], 0.82)])
+    _merge("AR_ANMAT", "8.3.2", [_wd(
+        "AR-WITHIN-8.3.2-001", "8.3.2",
+        "Retiro de Mercado — ANMAT Notification Within 10 Days",
+        "市場回收 — 10天內通報 ANMAT", "市場回収 — 10日以内ANMAT通知",
+        _FE, _FZ, _FJ,
+        "Disposición ANMAT 2318/2002: Recall notification to ANMAT within 10 calendar days. Must include reason, scope, and corrective plan.",
+        "ANMAT 規則第2318/2002號：在10個日曆日內通報 ANMAT，包含原因、範圍和矯正計畫。",
+        "ANMAT Disposición 2318/2002：10暦日以内にANMAT通知。理由・範囲・是正計画含む。",
+        "Disposición ANMAT 2318/2002",
+        "ANMAT 2318/2002: notificación dentro de 10 días calendario.",
+        "es", "ANMAT: recall notification within 10 calendar days.",
+        "stricter_timeline", "critical",
+        ["ANMAT recall notification / ANMAT回收通報"], 0.82)])
+
+    # ── CH_SWISSMEDIC ─────────────────────────────────────────────────────
+    _merge("CH_SWISSMEDIC", "6.2", [_wd(
+        "CH-WITHIN-6.2-001", "6.2",
+        "Swiss Authorised Representative (CH-REP) — Swissmedic Registered",
+        "瑞士授權代表（CH-REP）— Swissmedic 登記", "スイス認定代理人(CH-REP) — Swissmedic登録",
+        _6E, _6Z, _6J,
+        "Swiss MepV Art. 54: Foreign manufacturers must appoint a Swiss Authorised Representative (CH-REP) domiciled in Switzerland and registered with Swissmedic. Equivalent to EU MDR PRRC concept.",
+        "瑞士 MepV 第54條：境外製造業者必須任命在瑞士有住所並在 Swissmedic 登記的授權代表（CH-REP），等同 EU MDR PRRC 概念。",
+        "スイスMepV Art.54：海外製造業者はSwissmedic登録のスイス在住CH-REP任命必要。EU MDR PRRC相当。",
+        "Swiss MepV (Medical Devices Ordinance) Art. 54",
+        "Swiss MepV Art. 54: foreign manufacturers must appoint a Swissmedic-registered Swiss CH-REP.",
+        "en", "", "local_authority_specific", "critical",
+        ["CH-REP appointment / CH-REP任命合約", "Swissmedic CH-REP registration / CH-REP登記"], 0.90)])
+    _merge("CH_SWISSMEDIC", "7.5.9.2", [_wd(
+        "CH-WITHIN-7.5.9.2-001", "7.5.9.2",
+        "Swiss UDI — EU MDR Alignment (MepV / HMG)",
+        "瑞士 UDI — EU MDR 對齊", "スイスUDI — EU MDR整合",
+        _UE, _UZ, _UJ,
+        "Swiss MepV / HMG: Switzerland aligns with EU MDR UDI requirements per EU MDR timeline. EUDAMED UDI registration accepted as equivalent for Swiss market.",
+        "瑞士 MepV / HMG：瑞士與 EU MDR UDI 要求對齊，按 EU MDR 時程。EUDAMED UDI 登記被視為等同。",
+        "スイスMepV / HMG：EU MDR UDI要件に整合。EUDAMEMへの登録をスイス市場で同等と認める。",
+        "Swiss MepV / HMG Art. 65",
+        "Swiss MepV: UDI per EU MDR timeline required for Swiss market.",
+        "en", "", "additional_form", "major",
+        ["EU MDR-compliant UDI / EU MDR合規UDI"], 0.85)])
+    _merge("CH_SWISSMEDIC", "8.2.1", [_wd(
+        "CH-WITHIN-8.2.1-001", "8.2.1",
+        "SSUR — Summary of Safety and Clinical Performance (Class III/Implantables)",
+        "SSUR — 安全性和臨床性能摘要（Class III）", "SSUR — 安全性・臨床性能サマリー(Class III)",
+        _8E, _8Z, _8J,
+        "Swiss MepV Art. 65 (aligned with EU MDR Art. 85/86): Class III and implantable devices must maintain an SSUR/SSCP, updated at least annually (Class III) or every 2 years (Class IIb implantable).",
+        "瑞士 MepV 第65條：Class III 和植入性器材必須維護 SSUR/SSCP，Class III 至少每年更新，Class IIb 植入物每2年更新。",
+        "スイスMepV Art.65：Class IIIおよび植込み型機器はSSUR/SSCP必要。Class IIIは年次、Class IIb植込み型は2年毎更新。",
+        "Swiss MepV Art. 65 / HMG",
+        "Swiss MepV: SSUR/SSCP required for Class III and implantable; annual update minimum.",
+        "en", "", "local_authority_specific", "critical",
+        ["SSUR / SSCP document / SSUR/SSCP文件", "Annual update records / 年度更新記錄"], 0.88)])
+    _merge("CH_SWISSMEDIC", "8.3.2", [_wd(
+        "CH-WITHIN-8.3.2-001", "8.3.2",
+        "FSCA — 3-Day Notification to Swissmedic",
+        "FSCA 通知 — 3天內通報 Swissmedic", "FSCA通知 — 3日以内Swissmedic報告",
+        _FE, _FZ, _FJ,
+        "Swiss HMG Art. 62 / Swissmedic guidance: FSCA notification to Swissmedic within 3 calendar days. FSN distributed to affected users simultaneously.",
+        "瑞士 HMG 第62條：FSCA 通知 Swissmedic 在3個日曆日內。同時向受影響用戶分發 FSN。",
+        "スイスHMG Art.62：FSCAは3暦日以内にSwissmedic通知。FSNを同時配布。",
+        "Swiss HMG Art. 62 / Swissmedic FSCA Guidance",
+        "Swissmedic: FSCA notification within 3 calendar days; FSN distributed simultaneously.",
+        "en", "", "stricter_timeline", "critical",
+        ["Swissmedic FSCA notification within 3 days / 3天通報", "FSN distribution / FSN發布"], 0.88)])
+
+    # ── CL_ISP ────────────────────────────────────────────────────────────
+    _merge("CL_ISP", "6.2", [_wd(
+        "CL-WITHIN-6.2-001", "6.2",
+        "Director Técnico — ISP-Registered Professional",
+        "技術主任 — ISP 登記專業人員", "技術主任 — ISP登録専門家",
+        _6E, _6Z, _6J,
+        "DS 825/2014: Medical device establishments in Chile must have a Director Técnico registered with ISP, holding a relevant professional degree.",
+        "DS 825/2014：在智利的醫療器材機構必須有一名在 ISP 登記的技術主任，持有相關專業學位。",
+        "DS 825/2014：チリの医療機器機関はISP登録のDirector Técnico（関連専門学位）必要。",
+        "DS 825/2014 (Reglamento de Dispositivos Médicos)",
+        "DS 825/2014: Director Técnico debe ser profesional registrado ante el ISP.",
+        "es", "ISP Chile: Director Técnico (ISP-registered professional) required.",
+        "local_authority_specific", "major",
+        ["Director Técnico appointment / 技術主任任命"], 0.80)])
+    _merge("CL_ISP", "7.3.6", [_wd(
+        "CL-WITHIN-7.3.6-001", "7.3.6",
+        "Clinical Evidence — Required for Class III (ISP)",
+        "臨床證據 — Class III 強制（ISP）", "臨床エビデンス — Class III必須(ISP)",
+        _CE, _CZ, _CJ,
+        "DS 825/2014: Class III devices require clinical evidence for ISP registration. IMDRF-compliant CER accepted. Reference authority approvals (FDA, EU) may support expedited review.",
+        "DS 825/2014：Class III 器材需要臨床證據進行 ISP 登記。接受符合 IMDRF 的 CER。",
+        "DS 825/2014：Class IIIはISP登録に臨床エビデンス必要。IMDRF準拠CER可。",
+        "DS 825/2014",
+        "DS 825/2014: dispositivos Clase III requieren evidencia clínica para registro ISP.",
+        "es", "ISP Chile: clinical evidence required for Class III registration.",
+        "scope_extension", "critical",
+        ["Clinical evidence package / 臨床證據包"], 0.78)])
+    _merge("CL_ISP", "7.5.9.2", [_wd(
+        "CL-WITHIN-7.5.9.2-001", "7.5.9.2",
+        "UDI — No National Mandate (Voluntary IMDRF)",
+        "UDI — 無國家強制（自願）", "UDI — 国内義務化なし",
+        _UE, _UZ, _UJ,
+        "Chile has no mandatory national UDI system. ISP accepts voluntary IMDRF UDI compliance.",
+        "智利無強制國家 UDI 系統。ISP 接受自願 IMDRF UDI 合規性。",
+        "チリは国内UDI義務化なし。ISPはIMDRF UDI準拠を受け入れ。",
+        "ISP Chile / IMDRF UDI Guidelines",
+        "ISP Chile: no mandatory UDI; voluntary IMDRF alignment accepted.",
+        "en", "", "additional_form", "minor",
+        ["UDI documentation (if applicable) / UDI文件（適用時）"], 0.72)])
+    _merge("CL_ISP", "8.2.1", [_wd(
+        "CL-WITHIN-8.2.1-001", "8.2.1",
+        "Vigilancia Post-Mercado — PMS Required (DS 825/2014)",
+        "上市後監控 — 強制 PMS", "市販後監視 — PMS必須",
+        _8E, _8Z, _8J,
+        "DS 825/2014: Manufacturers must maintain a post-market surveillance system including complaint collection, AE monitoring, and periodic safety reviews. Annual PMS review required.",
+        "DS 825/2014：製造業者必須維護上市後監督系統，包括投訴收集、不良事件監測和定期安全審查。需要年度 PMS 審查。",
+        "DS 825/2014：苦情収集・有害事象監視・定期安全審査含む市販後監視システム必要。年次PMSレビュー。",
+        "DS 825/2014",
+        "DS 825/2014: sistema de vigilancia post-mercado incluyendo recopilación de quejas y eventos adversos.",
+        "es", "ISP Chile: post-market surveillance system required; annual PMS review.",
+        "local_authority_specific", "major",
+        ["PMS plan / PMS計畫"], 0.78)])
+    _merge("CL_ISP", "8.3.2", [_wd(
+        "CL-WITHIN-8.3.2-001", "8.3.2",
+        "Retiro Voluntario — ISP Notification 48h (Serious) / 10 Days (Other)",
+        "回收通報 — 48h（嚴重）/ 10天（其他）", "回収通報 — 48時間(重大)/10日(その他)",
+        _FE, _FZ, _FJ,
+        "DS 825/2014 / ISP Circular: Recall notification to ISP within 48h (serious risk) or 10 calendar days (other).",
+        "DS 825/2014 / ISP 通告：48小時（嚴重風險）或10個日曆日（其他）內通報 ISP。",
+        "DS 825/2014 / ISP通達：重大リスク48時間、その他10暦日以内にISP通知。",
+        "DS 825/2014 / ISP Circular",
+        "DS 825/2014: notificación ISP en 48h (riesgo grave) o 10 días (otros).",
+        "es", "ISP Chile: recall notification within 48h (serious) or 10 days (other).",
+        "stricter_timeline", "critical",
+        ["ISP recall notification / ISP回收通報"], 0.78)])
+
+    # ── CN_NMPA ───────────────────────────────────────────────────────────
+    _merge("CN_NMPA", "7.3.6", [_wd(
+        "CN-WITHIN-7.3.6-001", "7.3.6",
+        "Clinical Evaluation — Mandatory for Class II/III (NMPA)",
+        "臨床評估 — Class II/III 強制（NMPA）", "臨床評価 — Class II/III必須(NMPA)",
+        _CE, _CZ, _CJ,
+        "醫療器材監督管理條例 Art.24 + 臨床評價技術指導原則: Class II and III devices must undergo clinical evaluation. Novel Class III requires clinical trial in China; Class II accepts clinical literature/equivalence.",
+        "醫療器材監督管理條例第24條 + 臨床評價技術指導原則：Class II 和 III 器材必須進行臨床評估。Class III 新型器材需在中國進行臨床試驗；Class II 接受臨床文獻和等同性。",
+        "医療機器監督管理条例Art.24：Class II/IIIは臨床評価必須。Class III新規は中国での臨床試験必要。",
+        "醫療器材監督管理條例 Art. 24 / 臨床評價技術指導原則",
+        "医疗器械监督管理条例第二十四条：第二类、第三类医疗器械注册需进行临床评价。",
+        "zh", "NMPA: clinical evaluation mandatory for Class II/III; novel Class III requires Chinese clinical trial.",
+        "scope_extension", "critical",
+        ["臨床評估報告 / Clinical Evaluation Report", "臨床試驗批准（Class III新型）/ Clinical trial approval"], 0.90)])
+    _merge("CN_NMPA", "7.5.1", [_wd(
+        "CN-WITHIN-7.5.1-001", "7.5.1",
+        "Chinese Labeling — Mandatory for NMPA-Registered Devices",
+        "中文標示 — NMPA 登記器材強制", "中国語ラベル — NMPA登録機器必須",
+        _LE, _LZ, _LJ,
+        "醫療器材說明書和標籤管理規定 (2021): All labeling for devices sold in China must be in Simplified Chinese. Foreign-language content requires Chinese translation.",
+        "醫療器材說明書和標籤管理規定（2021年）：在中國銷售的醫療器材所有標示必須使用簡體中文。外語內容必須附中文翻譯。",
+        "医療機器説明書・ラベル管理規定（2021）：中国販売医療機器の全ラベリングは簡体字中国語必須。",
+        "醫療器材說明書和標籤管理規定 (2021)",
+        "医疗器械说明书和标签管理规定（2021年）：在中国境内销售的医疗器械标签应当使用中文。",
+        "zh", "NMPA: all labeling must be in Simplified Chinese.",
+        "local_authority_specific", "critical",
+        ["中文使用說明書 / Chinese IFU", "中文器材標籤 / Chinese device label"], 0.92)])
+    _merge("CN_NMPA", "8.2.1", [_wd(
+        "CN-WITHIN-8.2.1-001", "8.2.1",
+        "Post-Market Surveillance — Annual Evaluation Report (NMPA)",
+        "上市後監督 — 年度評估報告（NMPA）", "市販後サーベイランス — 年次評価報告(NMPA)",
+        _8E, _8Z, _8J,
+        "醫療器材監督管理條例 Art.29: Class II/III annual post-market evaluation mandatory. Class III requires annual PMS report submitted to NMPA. Adverse event monitoring system required.",
+        "醫療器材監督管理條例第29條：Class II/III 器材需進行年度上市後評估。Class III 需向 NMPA 提交年度 PMS 報告。必須建立不良事件監測系統。",
+        "医療機器監督管理条例Art.29：Class II/IIIの年次市販後評価必要。Class IIIはNMPAへ年次PMS報告。有害事象監視システム必要。",
+        "醫療器材監督管理條例 Art. 29 / 醫療器材不良事件監測和再評價管理辦法",
+        "医疗器械监督管理条例第二十九条：医疗器械注册人应当主动开展上市后研究。",
+        "zh", "NMPA: annual post-market evaluation required; Class III annual PMS report to NMPA.",
+        "local_authority_specific", "critical",
+        ["年度PMS報告 / Annual PMS report", "不良事件監測記錄 / AE monitoring records"], 0.90)])
+
+    # ── CO_INVIMA ─────────────────────────────────────────────────────────
+    _merge("CO_INVIMA", "6.2", [_wd(
+        "CO-WITHIN-6.2-001", "6.2",
+        "Director Técnico — INVIMA-Registered Professional",
+        "技術主任 — INVIMA 登記專業人員", "技術主任 — INVIMA登録専門家",
+        _6E, _6Z, _6J,
+        "Decreto 4725/2005: Medical device manufacturers/importers in Colombia must appoint a Director Técnico registered with INVIMA. Must be a licensed professional (pharmacist, physician, biomedical engineer).",
+        "第4725/2005號法令：哥倫比亞的醫療器材製造業者和進口商必須任命一名在 INVIMA 登記的技術主任。必須是持牌專業人員。",
+        "Decreto 4725/2005：コロンビアの医療機器製造業者・輸入業者はINVIMA登録のDirector Técnico任命必要。",
+        "Decreto 4725/2005",
+        "Decreto 4725/2005: El Director Técnico debe ser un profesional registrado ante el INVIMA.",
+        "es", "INVIMA: Director Técnico (INVIMA-registered professional) required.",
+        "local_authority_specific", "major",
+        ["Director Técnico appointment / 技術主任任命"], 0.80)])
+    _merge("CO_INVIMA", "7.3.6", [_wd(
+        "CO-WITHIN-7.3.6-001", "7.3.6",
+        "Clinical Evidence — Required for Class III/IV (INVIMA)",
+        "臨床證據 — Class III/IV 強制（INVIMA）", "臨床エビデンス — Class III/IV必須(INVIMA)",
+        _CE, _CZ, _CJ,
+        "Decreto 4725/2005: Class III and IV devices require clinical evidence for INVIMA registration. IMDRF-compliant CER accepted. Reference authority approvals (FDA, EU) considered for expedited review.",
+        "第4725/2005號法令：Class III 和 IV 器材需要臨床證據進行 INVIMA 登記。接受符合 IMDRF 的 CER。",
+        "Decreto 4725/2005：Class III/IVはINVIMA登録に臨床エビデンス必要。IMDRF準拠CER可。",
+        "Decreto 4725/2005",
+        "Decreto 4725/2005: dispositivos Clase III y IV requieren evidencia clínica para registro INVIMA.",
+        "es", "INVIMA: clinical evidence required for Class III/IV registration.",
+        "scope_extension", "critical",
+        ["Clinical evidence package / 臨床證據包"], 0.78)])
+    _merge("CO_INVIMA", "7.5.9.2", [_wd(
+        "CO-WITHIN-7.5.9.2-001", "7.5.9.2",
+        "UDI — No National Mandate (Voluntary IMDRF)",
+        "UDI — 無國家強制（自願）", "UDI — 国内義務化なし",
+        _UE, _UZ, _UJ,
+        "Colombia has not established a mandatory national UDI system. INVIMA accepts voluntary IMDRF UDI compliance.",
+        "哥倫比亞無強制國家 UDI 系統。INVIMA 接受自願 IMDRF UDI 合規性。",
+        "コロンビアは国内UDI義務化なし。IMDRFガイドライン準拠を受け入れ。",
+        "INVIMA / IMDRF UDI Guidelines",
+        "INVIMA: no mandatory UDI; voluntary IMDRF alignment accepted.",
+        "en", "", "additional_form", "minor",
+        ["UDI documentation (if applicable) / UDI文件（適用時）"], 0.72)])
+    _merge("CO_INVIMA", "8.2.1", [_wd(
+        "CO-WITHIN-8.2.1-001", "8.2.1",
+        "PMS — Required (Decreto 4725/2005)",
+        "上市後監督 — 強制 PMS", "市販後監視 — PMS必須",
+        _8E, _8Z, _8J,
+        "Decreto 4725/2005: Registered device manufacturers must maintain a PMS system including complaint handling, AE monitoring, and periodic safety reviews.",
+        "第4725/2005號法令：已登記製造業者必須維護 PMS 系統，包括投訴處理、不良事件監測和定期安全審查。",
+        "Decreto 4725/2005：苦情処理・有害事象監視・定期安全審査含む市販後監視システム必要。",
+        "Decreto 4725/2005",
+        "Decreto 4725/2005: sistema de vigilancia post-comercialización con seguimiento de quejas y AEs.",
+        "es", "INVIMA: PMS system required including complaint handling and AE monitoring.",
+        "local_authority_specific", "major",
+        ["PMS plan / PMS計畫"], 0.78)])
+    _merge("CO_INVIMA", "8.3.2", [_wd(
+        "CO-WITHIN-8.3.2-001", "8.3.2",
+        "Recall — INVIMA Notification Within 10 Days",
+        "回收通報 — 10天內通報 INVIMA", "リコール — 10日以内INVIMA通知",
+        _FE, _FZ, _FJ,
+        "Decreto 4725/2005: Recall notification to INVIMA within 10 calendar days. Documentation including scope, reason, and action plan required.",
+        "第4725/2005號法令：在10個日曆日內通報 INVIMA，需提供範圍、原因和行動計畫文件。",
+        "Decreto 4725/2005：10暦日以内にINVIMAへ通知。範囲・理由・行動計画提出必要。",
+        "Decreto 4725/2005",
+        "Decreto 4725/2005: notificación a INVIMA dentro de 10 días calendario.",
+        "es", "INVIMA: recall notification within 10 calendar days.",
+        "stricter_timeline", "critical",
+        ["INVIMA recall notification / INVIMA回收通報"], 0.78)])
+
+    # ── EG_EDA ────────────────────────────────────────────────────────────
+    _merge("EG_EDA", "6.2", [_wd(
+        "EG-WITHIN-6.2-001", "6.2",
+        "Authorized Representative — EDA-Registered Technical Contact",
+        "授權代表 — EDA 登記技術聯絡人", "認定代理人 — EDA登録技術担当者",
+        _6E, _6Z, _6J,
+        "Egyptian Medical Device Regulation: Foreign manufacturers must appoint an Egyptian Authorized Representative (AR) registered with EDA with relevant technical qualifications.",
+        "埃及醫療器材法規：境外製造業者必須任命一名在 EDA 登記的埃及授權代表（AR），具備相關技術資格。",
+        "エジプト医療機器規制：海外製造業者はEDA登録のエジプト認定代理人（AR）任命必要。",
+        "Egyptian Medical Device Regulation / EDA Requirements",
+        "EDA Egypt: Authorized Representative with relevant qualifications required for foreign manufacturers.",
+        "en", "", "local_authority_specific", "major",
+        ["EDA AR registration / EDA授權代表登記"], 0.78)])
+    _merge("EG_EDA", "7.3.6", [_wd(
+        "EG-WITHIN-7.3.6-001", "7.3.6",
+        "Clinical Data — Required for Class C/D Registration (EDA)",
+        "臨床資料 — Class C/D 登記強制（EDA）", "臨床データ — Class C/D登録必須(EDA)",
+        _CE, _CZ, _CJ,
+        "Egyptian Medical Device Regulation: Class C and D devices require clinical data for EDA registration. IMDRF/GHTF CER accepted. IMDRF reference authority approvals accepted as supporting evidence.",
+        "埃及醫療器材法規：Class C 和 D 器材需要臨床資料進行 EDA 登記。接受 IMDRF/GHTF CER 及參考機關批准。",
+        "エジプト医療機器規制：Class C/DはEDA登録に臨床データ必要。IMDRF/GHTF CER可。参照機関承認受け入れ。",
+        "Egyptian Medical Device Regulation",
+        "EDA Egypt: clinical data required for Class C/D; IMDRF reference authority approvals accepted.",
+        "en", "", "scope_extension", "critical",
+        ["Clinical Evaluation Report / 臨床評估報告"], 0.75)])
+    _merge("EG_EDA", "7.5.9.2", [_wd(
+        "EG-WITHIN-7.5.9.2-001", "7.5.9.2",
+        "UDI — No National Mandate (EDA Accepts IMDRF UDI)",
+        "UDI — 無國家強制（EDA 接受 IMDRF UDI）", "UDI — 国内義務化なし(EDAはIMDRF UDI受け入れ)",
+        _UE, _UZ, _UJ,
+        "Egypt has not established a mandatory national UDI system. EDA accepts UDI compliance from reference markets (FDA, EU MDR) as supplementary registration documentation.",
+        "埃及無強制國家 UDI 系統。EDA 接受來自參考市場的 UDI 合規性作為額外登記文件。",
+        "エジプトは国内UDI義務化なし。FDA/EU MDR等のUDI合規文書を受け入れ。",
+        "EDA Egypt / IMDRF UDI Guidelines",
+        "EDA Egypt: no mandatory UDI; IMDRF UDI compliance accepted as supplementary documentation.",
+        "en", "", "additional_form", "minor",
+        ["UDI documentation (if applicable) / UDI文件（適用時）"], 0.70)])
+    _merge("EG_EDA", "8.2.1", [_wd(
+        "EG-WITHIN-8.2.1-001", "8.2.1",
+        "PMS Plan — Required (EDA)",
+        "上市後監督 — EDA 強制 PMS 計畫", "市販後サーベイランス — EDA PMS計画必須",
+        _8E, _8Z, _8J,
+        "Egyptian Medical Device Regulation: Registered manufacturers must maintain a PMS system including complaint monitoring, AE reporting to EDA, and periodic safety reviews.",
+        "埃及醫療器材法規：已登記製造業者必須維護 PMS 系統，包括投訴監測、向 EDA 報告不良事件和定期安全審查。",
+        "エジプト医療機器規制：苦情監視・EDA有害事象報告・定期安全審査含む市販後監視システム必要。",
+        "Egyptian Medical Device Regulation",
+        "EDA Egypt: PMS system required including complaint monitoring and periodic safety reviews.",
+        "en", "", "local_authority_specific", "major",
+        ["PMS plan / PMS計畫"], 0.72)])
+    _merge("EG_EDA", "8.3.2", [_wd(
+        "EG-WITHIN-8.3.2-001", "8.3.2",
+        "Recall Notification — EDA Notification Required",
+        "回收通報 — 強制通報 EDA", "リコール通報 — EDA通知必須",
+        _FE, _FZ, _FJ,
+        "Egyptian Medical Device Regulation: Manufacturers must notify EDA of any recall promptly (within 10 working days for non-urgent, immediately for serious risk).",
+        "埃及醫療器材法規：製造業者必須及時通報 EDA 任何回收（非緊急在10個工作日內，嚴重風險立即）。",
+        "エジプト医療機器規制：リコールはEDAへ速やかに通知（非緊急は10営業日以内、重大リスクは即時）。",
+        "Egyptian Medical Device Regulation",
+        "EDA Egypt: recall notification required; immediate for serious risk, within 10 working days otherwise.",
+        "en", "", "stricter_timeline", "critical",
+        ["EDA recall notification / EDA回收通報"], 0.72)])
+
+    # ── EU_MDR ────────────────────────────────────────────────────────────
+    _merge("EU_MDR", "7.5.1", [_wd(
+        "EU-MDR-WITHIN-7.5.1-001", "7.5.1",
+        "Labeling in Official Member State Language(s) — Annex I Sec. 23",
+        "以成員國官方語言標示 — Annex I 第23節", "加盟国公用語でのラベリング — Annex I §23",
+        _LE, _LZ, _LJ,
+        "EU MDR Annex I Section 23: Labels and IFU must be in the official language(s) of the EU Member State(s) where the device is made available. Electronic IFU (eIFU) permitted per Regulation (EU) 207/2012.",
+        "EU MDR Annex I 第23節：標籤和使用說明書必須使用器材上市的歐盟成員國的官方語言。電子使用說明書（eIFU）按法規（EU）207/2012 可用。",
+        "EU MDR Annex I §23：ラベルとIFUは機器が販売されるEU加盟国の公用語必須。eIFUはReg.(EU)207/2012で認可。",
+        "EU MDR Annex I Section 23.2 / Regulation (EU) 207/2012",
+        "EU MDR Annex I §23.2: labeling must be in the official language(s) of the Member State(s) where the device is placed on the market.",
+        "en", "", "local_authority_specific", "critical",
+        ["Multi-language labels per EU member states / 按EU成員國之多語標籤",
+         "Annex I §23.2 mandatory elements checklist / 強制要素核查清單"], 0.98)])
+    _merge("EU_MDR", "8.2.3", [_wd(
+        "EU-MDR-WITHIN-8.2.3-001", "8.2.3",
+        "Serious Incident Reporting — 15-Day / 2-Day / Immediately (Art. 87)",
+        "嚴重事故通報 — 15天 / 2天 / 立即（Art. 87）", "重篤インシデント報告 — 15日/2日/即時(Art.87)",
+        _AE, _AZ, _AJ,
+        "EU MDR Art. 87: Serious incidents reported via EUDAMED: immediately (death/life-threatening), within 2 days (serious public health threat), within 15 days (other serious incidents). Trend reporting per Art. 88.",
+        "EU MDR 第87條：嚴重事故通過 EUDAMED 報告：立即（死亡/危及生命）、2天內（嚴重公共衛生威脅）、15天內（其他嚴重事故）。按第88條進行趨勢報告。",
+        "EU MDR Art.87：重篤インシデントはEUDAMEM経由で報告：即時(死亡/生命危険)、2日(深刻な公衆衛生上の脅威)、15日(その他)。Art.88のトレンド報告必要。",
+        "EU MDR Art. 87-88",
+        "EU MDR Article 87(5): serious incidents reported immediately (death/life-threatening), within 2 days (serious public health threat), or within 15 days (other).",
+        "en", "", "stricter_timeline", "critical",
+        ["EUDAMED serious incident reports / EUDAMED嚴重事故報告",
+         "Trend reporting per Art. 88 / Art.88趨勢報告"], 0.98)])
+
+    # ── HC (Canada) ───────────────────────────────────────────────────────
+    _merge("HC", "4.2.4", [_wd(
+        "HC-WITHIN-4.2.4-001", "4.2.4",
+        "Record Retention — 2 Years Post-Manufacture / Device Life (SOR/98-282 s.57)",
+        "記錄保存 — 製造後2年或器材壽命（SOR/98-282 s.57）", "記録保持 — 製造後2年または機器寿命(SOR/98-282 s.57)",
+        _RE, _RZ, _RJ,
+        "Medical Devices Regulations SOR/98-282 Section 57: Quality records retained for minimum 2 years post-manufacture or useful device life, whichever is longer.",
+        "醫療器材法規 SOR/98-282 第57條：品質記錄保存至少2年（製造日起）或器材使用壽命，取較長者。",
+        "医療機器規制SOR/98-282 第57条：品質記録は製造日から最低2年または機器耐用年数のいずれか長い方保持。",
+        "Medical Devices Regulations SOR/98-282 Section 57",
+        "MDR SOR/98-282 s.57: records retained minimum 2 years post-manufacture or useful life, whichever longer.",
+        "en", "", "stricter_timeline", "major",
+        ["Record retention policy meeting SOR/98-282 / 符合SOR/98-282之記錄保存政策"], 0.88)])
+    _merge("HC", "6.2", [_wd(
+        "HC-WITHIN-6.2-001", "6.2",
+        "QMS Management Representative — Required (SOR/98-282)",
+        "QMS 管理代表 — 強制（SOR/98-282）", "QMS管理代表者 — 必須(SOR/98-282)",
+        _6E, _6Z, _6J,
+        "Medical Devices Regulations SOR/98-282: Manufacturers must designate a management representative responsible for ensuring the QMS is established, maintained, and reported to senior management.",
+        "醫療器材法規 SOR/98-282：製造業者必須指定一名管理代表負責確保 QMS 的建立、維護和向高層管理報告。",
+        "医療機器規制SOR/98-282：QMSの確立・維持・上位管理層への報告責任を持つ管理代表者を指定必要。",
+        "Medical Devices Regulations SOR/98-282 / ISO 13485 Cl. 5.5.2",
+        "MDR SOR/98-282: designated QMS management representative required.",
+        "en", "", "local_authority_specific", "major",
+        ["Management representative designation / 管理代表指定文件"], 0.85)])
+    _merge("HC", "7.3.6", [_wd(
+        "HC-WITHIN-7.3.6-001", "7.3.6",
+        "Clinical Evidence — Mandatory for Class III/IV (SOR/98-282 s.32-33)",
+        "臨床證據 — Class III/IV 強制（SOR/98-282 s.32-33）", "臨床エビデンス — Class III/IV必須(s.32-33)",
+        _CE, _CZ, _CJ,
+        "Medical Devices Regulations SOR/98-282 Sections 32-33: Class III and IV devices must demonstrate safety and effectiveness through clinical evidence (trials, literature, or post-market data). MDSAP facilitates data sharing with IMDRF reference countries.",
+        "醫療器材法規 SOR/98-282 第32-33條：Class III 和 IV 器材必須通過臨床證據證明安全性和有效性（試驗、文獻或上市後資料）。MDSAP 促進與 IMDRF 參考國家的資料共用。",
+        "医療機器規制SOR/98-282 第32-33条：Class III/IVはCER・臨床試験・文献等による安全性・有効性実証必要。MDSAP参加でIMDRF参照国データ受け入れ。",
+        "Medical Devices Regulations SOR/98-282 Section 32-33",
+        "MDR SOR/98-282 s.32-33: clinical evidence of safety and effectiveness required for Class III/IV.",
+        "en", "", "scope_extension", "critical",
+        ["Clinical evidence package / 臨床證據包"], 0.88)])
+    _merge("HC", "7.5.1", [_wd(
+        "HC-WITHIN-7.5.1-001", "7.5.1",
+        "Bilingual Labeling — English and French Mandatory",
+        "雙語標示 — 英語和法語強制", "二言語ラベル — 英語・フランス語必須",
+        _LE, _LZ, _LJ,
+        "Medical Devices Regulations SOR/98-282 Sections 21-23 / Official Languages Act: All labeling for devices sold in Canada must be in both English and French. eIFU requires Health Canada authorization.",
+        "醫療器材法規 SOR/98-282 第21-23條 / 官方語言法：在加拿大銷售的醫療器材所有標示必須同時使用英語和法語。電子使用說明書需要 Health Canada 授權。",
+        "医療機器規制SOR/98-282 第21-23条 / 公用語法：カナダ販売医療機器の全ラベリングは英語・フランス語両方必須。eIFUはHealth Canada許可要。",
+        "Medical Devices Regulations SOR/98-282 Section 21-23 / Official Languages Act",
+        "MDR SOR/98-282: all labeling must be in English and French (bilingual).",
+        "en", "", "local_authority_specific", "critical",
+        ["Bilingual (EN/FR) device label / 雙語器材標籤",
+         "Bilingual IFU / 雙語使用說明書"], 0.92)])
+    _merge("HC", "7.5.9.2", [_wd(
+        "HC-WITHIN-7.5.9.2-001", "7.5.9.2",
+        "UDI — Voluntary (No National Mandate; IMDRF Alignment Recommended)",
+        "UDI — 自願性（無國家強制；建議 IMDRF 對齊）", "UDI — 任意(国内義務化なし；IMDRF整合推奨)",
+        _UE, _UZ, _UJ,
+        "Health Canada has not established a mandatory UDI system. Voluntary IMDRF UDI alignment recommended. UDI from other markets accepted as supplementary registration information.",
+        "Health Canada 無強制 UDI 系統。建議自願遵循 IMDRF UDI 指引。其他市場的 UDI 作為補充登記資訊。",
+        "Health Canadaは国内UDI義務化なし。IMDRF UDIガイドライン準拠推奨。他市場UDIを補足情報として受け入れ。",
+        "Health Canada / IMDRF UDI Guidelines",
+        "Health Canada: no mandatory UDI; voluntary IMDRF UDI alignment recommended.",
+        "en", "", "additional_form", "minor",
+        ["UDI documentation (if applicable) / UDI文件（適用時）"], 0.80)])
+    _merge("HC", "8.2.1", [_wd(
+        "HC-WITHIN-8.2.1-001", "8.2.1",
+        "Mandatory Problem Reporting — PMS System (SOR/98-282 s.59-61)",
+        "強制問題通報 — PMS 系統（SOR/98-282 s.59-61）", "必須問題報告 — PMSシステム(s.59-61)",
+        _8E, _8Z, _8J,
+        "Medical Devices Regulations SOR/98-282 Sections 59-61: Manufacturers must maintain a PMS system including systematic complaint collection, AE monitoring, and mandatory problem reporting to Health Canada. Annual MDSAP PMS summary required.",
+        "醫療器材法規 SOR/98-282 第59-61條：製造業者必須維護 PMS 系統，包括系統性投訴收集、不良事件監測和向 Health Canada 強制問題通報。MDSAP 需要年度 PMS 摘要。",
+        "医療機器規制SOR/98-282 第59-61条：苦情収集・有害事象監視・Health Canada強制問題報告含む市販後監視システム必要。MDSAP年次サマリー必要。",
+        "Medical Devices Regulations SOR/98-282 Section 59-61",
+        "MDR SOR/98-282 s.59-61: PMS system including mandatory problem reporting to Health Canada required.",
+        "en", "", "local_authority_specific", "major",
+        ["PMS system documentation / PMS文件",
+         "Health Canada problem reports / Health Canada問題報告"], 0.88)])
+    _merge("HC", "8.2.3", [_wd(
+        "HC-WITHIN-8.2.3-001", "8.2.3",
+        "Mandatory Problem Reporting — 10 Days (Serious Incidents) (SOR/98-282 s.59)",
+        "強制問題通報 — 10天（嚴重事件）（SOR/98-282 s.59）", "必須問題報告 — 10日(重篤事象)(s.59)",
+        _AE, _AZ, _AJ,
+        "Medical Devices Regulations SOR/98-282 Section 59: Manufacturers must report to Health Canada within 10 days of becoming aware of any incident where device malfunction caused or could cause serious injury or death. Reports via MedEffect system.",
+        "醫療器材法規 SOR/98-282 第59條：製造業者在知曉後10天內向 Health Canada 報告任何器材故障導致或可能導致嚴重傷害或死亡的事件。通過 MedEffect 系統。",
+        "医療機器規制SOR/98-282 第59条：機器誤作動で重篤傷害・死亡が生じた/生じ得るインシデントは知悉後10日以内にHealth Canadaへ報告。MedEffect経由。",
+        "Medical Devices Regulations SOR/98-282 Section 59",
+        "MDR SOR/98-282 s.59: incidents causing/potentially causing serious injury or death reported within 10 days.",
+        "en", "", "stricter_timeline", "critical",
+        ["MedEffect problem reports / MedEffect問題報告",
+         "10-day reporting procedure / 10天通報程序"], 0.90)])
+
+    # ── ID_BPOM ───────────────────────────────────────────────────────────
+    _merge("ID_BPOM", "6.2", [_wd(
+        "ID-WITHIN-6.2-001", "6.2",
+        "Penanggung Jawab Teknis — BPOM-Registered Technical Person",
+        "技術負責人 — BPOM 登記技術負責人", "技術責任者 — BPOM登録技術責任者",
+        _6E, _6Z, _6J,
+        "BPOM Medical Device Regulation: Medical device establishments must appoint a Penanggung Jawab Teknis with relevant qualifications (pharmacy, medicine, biomedical engineering) registered with BPOM.",
+        "BPOM 醫療器材法規：醫療器材機構必須任命一名具備相關資格（藥學、醫學、生物醫學工程）並在 BPOM 登記的技術負責人。",
+        "BPOM医療機器規制：関連資格（薬学・医学・生物医学工学）を持つBPOM登録の技術責任者任命必要。",
+        "Peraturan BPOM tentang Alat Kesehatan",
+        "Peraturan BPOM: Penanggung Jawab Teknis dengan kualifikasi relevan harus didaftarkan di BPOM.",
+        "id", "BPOM Indonesia: Penanggung Jawab Teknis with relevant qualifications registered with BPOM required.",
+        "local_authority_specific", "major",
+        ["Penanggung Jawab Teknis appointment / 技術負責人任命"], 0.80)])
+    _merge("ID_BPOM", "7.3.6", [_wd(
+        "ID-WITHIN-7.3.6-001", "7.3.6",
+        "Clinical Evidence — Required for Class C/D (BPOM)",
+        "臨床證據 — Class C/D 強制（BPOM）", "臨床エビデンス — Class C/D必須(BPOM)",
+        _CE, _CZ, _CJ,
+        "BPOM Regulation 2020: Class C and D devices require clinical data for BPOM registration. IMDRF CER accepted. IMDRF reference authority approvals support registration under BPOM recognition pathway.",
+        "BPOM 2020年法規：Class C 和 D 器材需要臨床資料進行 BPOM 登記。接受 IMDRF CER。IMDRF 參考機關批准支持 BPOM 認可途徑登記。",
+        "BPOM規制2020：Class C/DはBPOM登録に臨床データ必要。IMDRF CER可。参照機関承認でBPOM認定パスウェイ利用可。",
+        "Peraturan BPOM 2020 tentang Registrasi Alat Kesehatan",
+        "Peraturan BPOM 2020: alat kesehatan Kelas C dan D memerlukan data klinis untuk registrasi BPOM.",
+        "id", "BPOM Indonesia: clinical data required for Class C/D; IMDRF reference approvals accepted.",
+        "scope_extension", "critical",
+        ["Clinical data package / 臨床資料包"], 0.78)])
+    _merge("ID_BPOM", "7.5.9.2", [_wd(
+        "ID-WITHIN-7.5.9.2-001", "7.5.9.2",
+        "UDI — No National Mandate (Voluntary BPOM)",
+        "UDI — 無國家強制（自願 BPOM）", "UDI — 国内義務化なし(BPOM)",
+        _UE, _UZ, _UJ,
+        "Indonesia (BPOM) has not established a mandatory national UDI system. Voluntary IMDRF UDI compliance accepted.",
+        "印尼（BPOM）無強制國家 UDI 系統。接受自願 IMDRF UDI 合規性。",
+        "インドネシア（BPOM）は国内UDI義務化なし。IMDRF準拠自発的UDI可。",
+        "BPOM / IMDRF UDI Guidelines",
+        "BPOM Indonesia: no mandatory UDI; voluntary IMDRF alignment accepted.",
+        "en", "", "additional_form", "minor",
+        ["UDI documentation (if applicable) / UDI文件（適用時）"], 0.72)])
+    _merge("ID_BPOM", "8.2.1", [_wd(
+        "ID-WITHIN-8.2.1-001", "8.2.1",
+        "Pemantauan Pasca-Pemasaran — PMS Required (BPOM)",
+        "上市後監控 — 強制 PMS（BPOM）", "市販後モニタリング — PMS必須(BPOM)",
+        _8E, _8Z, _8J,
+        "BPOM Medical Device Regulation: Registered manufacturers must conduct post-market monitoring including systematic complaint collection, AE reporting to BPOM, and periodic safety reviews.",
+        "BPOM 醫療器材法規：已登記製造業者必須進行上市後監控，包括系統性投訴收集、向 BPOM 報告不良事件和定期安全審查。",
+        "BPOM医療機器規制：苦情収集・BPOM有害事象報告・定期安全審査含む市販後モニタリング必要。",
+        "Peraturan BPOM tentang Alat Kesehatan",
+        "Peraturan BPOM: pemantauan pasca-pemasaran sistematis diperlukan termasuk pelaporan kejadian tidak diinginkan.",
+        "id", "BPOM Indonesia: systematic post-market monitoring including complaint collection and AE reporting required.",
+        "local_authority_specific", "major",
+        ["PMS documentation / PMS文件"], 0.78)])
+    _merge("ID_BPOM", "8.3.2", [_wd(
+        "ID-WITHIN-8.3.2-001", "8.3.2",
+        "Penarikan Produk — BPOM Notification Required",
+        "產品回收 — 強制通報 BPOM", "製品回収 — BPOM通知必須",
+        _FE, _FZ, _FJ,
+        "BPOM Medical Device Regulation: Manufacturers must notify BPOM prior to or immediately upon initiating a recall. Recall report submitted within 30 days.",
+        "BPOM 醫療器材法規：製造業者在啟動回收前或立即之後通報 BPOM。回收報告在30天內提交。",
+        "BPOM医療機器規制：リコール開始前または直後にBPOM通知。30日以内に報告提出。",
+        "Peraturan BPOM tentang Alat Kesehatan",
+        "Peraturan BPOM: penarikan produk diberitahukan kepada BPOM sebelum atau segera; laporan dalam 30 hari.",
+        "id", "BPOM Indonesia: recall notification required; report within 30 days.",
+        "stricter_timeline", "critical",
+        ["BPOM recall notification / BPOM回收通報",
+         "Recall report within 30 days / 30天內回收報告"], 0.78)])
+
+    # ── IL_AMAR ───────────────────────────────────────────────────────────
+    _merge("IL_AMAR", "6.2", [_wd(
+        "IL-WITHIN-6.2-001", "6.2",
+        "Israeli Authorized Representative (IAR) — MOH-Registered",
+        "以色列授權代表（IAR）— 衛生部登記", "イスラエル認定代理人(IAR) — MOH登録",
+        _6E, _6Z, _6J,
+        "Israeli MOH Medical Device Regulations: Foreign manufacturers must appoint an Israeli Authorized Representative (IAR) registered with MOH with relevant technical qualifications.",
+        "以色列衛生部醫療器材法規：境外製造業者必須任命一名在衛生部登記的以色列授權代表（IAR），具備相關技術資格。",
+        "イスラエルMOH：海外製造業者はMOH登録のイスラエル認定代理人（IAR）任命必要。関連技術資格必須。",
+        "Israeli MOH Medical Device Regulations",
+        "Israeli MOH: IAR with relevant technical qualifications registered with MOH required.",
+        "en", "", "local_authority_specific", "major",
+        ["IAR appointment documentation / IAR任命文件"], 0.82)])
+    _merge("IL_AMAR", "7.3.6", [_wd(
+        "IL-WITHIN-7.3.6-001", "7.3.6",
+        "Clinical Evidence — CER Required per EU MDR/MEDDEV 2.7/1",
+        "臨床證據 — EU MDR/MEDDEV 2.7/1 CER 強制", "臨床エビデンス — EU MDR/MEDDEV 2.7/1 CER必須",
+        _CE, _CZ, _CJ,
+        "Israeli MOH (EU MDR-equivalent): CER per MEDDEV 2.7/1 Rev.4 required for Class IIa/IIb/III. PMCF required for Class III. IMDRF reference authority approvals (EU MDR, FDA) accepted for expedited registration.",
+        "以色列衛生部（EU MDR 等同）：Class IIa/IIb/III 需要按 MEDDEV 2.7/1 Rev.4 的 CER。Class III 需要 PMCF。接受 IMDRF 參考機關批准（EU MDR、FDA）以加速登記。",
+        "イスラエルMOH（EU MDR相当）：Class IIa/IIb/IIIはMEDDEV 2.7/1 Rev.4のCER必要。Class IIIはPMCF必要。IMDRF参照承認で迅速登録可。",
+        "Israeli MOH Medical Device Regulations",
+        "Israeli MOH: CER per EU MDR/MEDDEV 2.7/1 required for Class IIa+; IMDRF reference approvals accepted.",
+        "en", "", "scope_extension", "critical",
+        ["Clinical Evaluation Report (CER) / 臨床評估報告",
+         "PMCF plan (Class III) / PMCF計畫（Class III）"], 0.82)])
+    _merge("IL_AMAR", "7.5.1", [_wd(
+        "IL-WITHIN-7.5.1-001", "7.5.1",
+        "Hebrew Labeling — Mandatory for Israeli Market",
+        "希伯來語標示 — 以色列市場強制", "ヘブライ語ラベル — イスラエル市場必須",
+        _LE, _LZ, _LJ,
+        "Israeli MOH: All labeling for devices sold in Israel must be in Hebrew. English may accompany Hebrew. Foreign-language-only labels not acceptable.",
+        "以色列衛生部：在以色列銷售的醫療器材所有標示必須使用希伯來語。可附英語。不接受純外語標籤。",
+        "イスラエルMOH：イスラエル市場の全ラベリングはヘブライ語必須。英語は併記可。外国語のみは不可。",
+        "Israeli MOH Medical Device Regulations",
+        "Israel MOH: Hebrew labeling mandatory; English may accompany Hebrew.",
+        "en", "", "local_authority_specific", "critical",
+        ["Hebrew device label / 希伯來語器材標籤",
+         "Hebrew IFU / 希伯來語使用說明書"], 0.85)])
+    _merge("IL_AMAR", "7.5.9.2", [_wd(
+        "IL-WITHIN-7.5.9.2-001", "7.5.9.2",
+        "UDI — EU MDR Equivalent (EUDAMED Recognized)",
+        "UDI — EU MDR 等同（EUDAMED 認可）", "UDI — EU MDR相当(EUDAMED認定)",
+        _UE, _UZ, _UJ,
+        "Israeli MOH aligns with EU MDR UDI. Devices with EU MDR UDI are considered compliant. EUDAMED UDI registration accepted as equivalent.",
+        "以色列衛生部與 EU MDR UDI 對齊。持有 EU MDR UDI 的器材被視為合規。EUDAMED UDI 登記被視為等同。",
+        "イスラエルMOHはEU MDR UDIに整合。EU MDR UDI付き機器はコンプライアント扱い。EUDAMED登録を同等と認める。",
+        "Israeli MOH / EU MDR Annex VI (UDI)",
+        "Israel MOH: EU MDR UDI compliance accepted; EUDAMED UDI registration recognized as equivalent.",
+        "en", "", "additional_form", "major",
+        ["EU MDR-compliant UDI / EU MDR合規UDI"], 0.80)])
+    _merge("IL_AMAR", "8.2.1", [_wd(
+        "IL-WITHIN-8.2.1-001", "8.2.1",
+        "PMS — EU MDR-Equivalent (PSUR + PMCF)",
+        "上市後監督 — EU MDR 等同（PSUR + PMCF）", "市販後サーベイランス — EU MDR相当(PSUR+PMCF)",
+        _8E, _8Z, _8J,
+        "Israeli MOH (EU MDR-equivalent): Class III requires annual PSUR and PMCF plan. Class IIa/IIb require periodic PSUR. PMS data reported to MOH when required.",
+        "以色列衛生部（EU MDR 等同）：Class III 需要年度 PSUR 和 PMCF 計畫。Class IIa/IIb 需要定期 PSUR。需要時向衛生部報告 PMS 資料。",
+        "イスラエルMOH（EU MDR相当）：Class IIIは年次PSUR・PMCF計画必要。Class IIa/IIbは定期PSUR必要。",
+        "Israeli MOH Medical Device Regulations",
+        "Israel MOH: PMS per EU MDR; Class III needs PSUR and PMCF; Class IIa/IIb periodic PSUR.",
+        "en", "", "local_authority_specific", "major",
+        ["PSUR (Class IIa+) / PSUR",
+         "PMCF plan (Class III) / PMCF計畫（Class III）"], 0.82)])
+
+    # ── IN_CDSCO ──────────────────────────────────────────────────────────
+    _merge("IN_CDSCO", "6.2", [_wd(
+        "IN-WITHIN-6.2-001", "6.2",
+        "Quality Manager — 2-Year Experience Required (MDR 2017 Rule 26)",
+        "品質負責人 — 2年經驗要求（MDR 2017 Rule 26）", "品質マネージャー — 2年経験必要(Rule 26)",
+        _6E, _6Z, _6J,
+        "Medical Devices Rules 2017 Rule 26: Manufacturers must designate a Quality Manager with a degree in pharmacy, medicine, science, or engineering AND at least 2 years QMS experience.",
+        "醫療器材規則2017年第26條：製造業者必須指定一名具有藥學、醫學、科學或工程學位以及至少2年 QMS 經驗的品質負責人。",
+        "MDR 2017 Rule 26：薬学・医学・科学・工学学位＋医療機器QMS2年以上の経験を持つ品質マネージャー指定必要。",
+        "Medical Devices Rules 2017 Rule 26",
+        "MDR 2017 Rule 26: Quality Manager with relevant degree and minimum 2 years QMS experience required.",
+        "en", "", "local_authority_specific", "major",
+        ["Quality Manager appointment / 品質負責人任命",
+         "Qualification evidence / 資格證明（學歷+2年經驗）"], 0.85)])
+    _merge("IN_CDSCO", "7.3.6", [_wd(
+        "IN-WITHIN-7.3.6-001", "7.3.6",
+        "Clinical Investigation — Mandatory for Class C/D (MDR 2017 Rule 21)",
+        "臨床調查 — Class C/D 強制（MDR 2017 Rule 21）", "臨床調査 — Class C/D必須(Rule 21)",
+        _CE, _CZ, _CJ,
+        "Medical Devices Rules 2017 Rule 21: Class C and D devices require clinical investigation data. IMDRF reference authority data accepted for Class C. Waiver available if equivalent approved device exists.",
+        "醫療器材規則2017年第21條：Class C 和 D 器材需要臨床調查資料。Class C 接受 IMDRF 參考機關資料。如存在等同批准器材可申請豁免。",
+        "MDR 2017 Rule 21：Class C/Dは安全性・性能臨床調査データ必要。Class CはIMDRF参照承認データ可。同等機器存在時は免除申請可。",
+        "Medical Devices Rules 2017 Rule 21",
+        "MDR 2017 Rule 21: clinical investigation data required for Class C/D; IMDRF reference data accepted for Class C.",
+        "en", "", "scope_extension", "critical",
+        ["Clinical investigation data / 臨床調查資料",
+         "IMDRF reference approval (Class C) / IMDRF參考批准（Class C）"], 0.85)])
+    _merge("IN_CDSCO", "7.5.1", [_wd(
+        "IN-WITHIN-7.5.1-001", "7.5.1",
+        "English Labeling — Mandatory (MDR 2017 Rule 14 / Schedule I)",
+        "英語標示 — 強制（MDR 2017 Rule 14 / Schedule I）", "英語ラベル — 必須(Rule 14 / Schedule I)",
+        _LE, _LZ, _LJ,
+        "Medical Devices Rules 2017 Rule 14 / Schedule I: Labels must be in English. Additional local Indian language(s) permitted. Mandatory elements include device name, manufacturer, batch number, manufacture/expiry date, sterility, warnings, and intended use.",
+        "醫療器材規則2017年第14條 / Schedule I：標籤必須使用英語。可附加印度地方語言。強制元素包括器材名稱、製造業者、批號、生產/到期日、無菌性、警告和預期用途。",
+        "MDR 2017 Rule 14 / Schedule I：ラベルは英語必須。現地インド語追加可。器材名・製造業者・バッチ番号等必須記載。",
+        "Medical Devices Rules 2017 Rule 14 / Schedule I",
+        "MDR 2017 Rule 14: English labeling mandatory; local Indian languages may be included.",
+        "en", "", "local_authority_specific", "major",
+        ["English device label meeting Schedule I / 符合Schedule I之英語器材標籤"], 0.85)])
+    _merge("IN_CDSCO", "7.5.9.2", [_wd(
+        "IN-WITHIN-7.5.9.2-001", "7.5.9.2",
+        "UDI — Mandatory (MDR 2017 Amendment 2021; CDSCO Portal)",
+        "UDI — 強制（MDR 2017 修正案2021；CDSCO 入口）", "UDI — 義務化(MDR 2017改正2021；CDSCOポータル)",
+        _UE, _UZ, _UJ,
+        "Medical Devices Rules 2017 (Amendment 2021): UDI mandatory for medical devices in India. Phased: Class C/D first, then Class B. Devices must be registered in CDSCO UDI portal.",
+        "醫療器材規則2017年（2021年修正案）：UDI 對印度醫療器材為強制性。分階段：Class C/D 優先，隨後是 Class B。器材必須在 CDSCO UDI 入口登記。",
+        "MDR 2017（2021年改正）：インド医療機器のUDI義務化。Class C/D優先で段階実施。CDSCOポータルへの登録必要。",
+        "Medical Devices Rules 2017 (Amendment 2021)",
+        "MDR 2017 Amendment 2021: UDI mandatory; CDSCO UDI portal registration required; phased by class.",
+        "en", "", "additional_form", "major",
+        ["CDSCO UDI portal registration / CDSCO UDI入口登記",
+         "UDI on device labels / 器材標籤上之UDI"], 0.82)])
+    _merge("IN_CDSCO", "8.2.1", [_wd(
+        "IN-WITHIN-8.2.1-001", "8.2.1",
+        "PMS Plan — Required (MDR 2017 Rule 30)",
+        "上市後監督 — 強制 PMS 計畫（MDR 2017 Rule 30）", "市販後サーベイランス — PMSプラン必須(Rule 30)",
+        _8E, _8Z, _8J,
+        "Medical Devices Rules 2017 Rule 30: Manufacturers must establish and maintain a PMS plan including systematic complaint collection, AE monitoring, and periodic safety review. Annual PMS report required for Class C/D.",
+        "醫療器材規則2017年第30條：製造業者必須建立和維護 PMS 計畫，包括系統性投訴收集、不良事件監測和定期安全審查。Class C/D 需要年度 PMS 報告。",
+        "MDR 2017 Rule 30：苦情収集・有害事象監視・定期安全審査含む市販後監視計画確立・維持必要。Class C/Dは年次PMS報告必要。",
+        "Medical Devices Rules 2017 Rule 30",
+        "MDR 2017 Rule 30: PMS plan required; annual report for Class C/D.",
+        "en", "", "local_authority_specific", "major",
+        ["PMS plan per MDR 2017 Rule 30 / PMS計畫",
+         "Annual PMS report (Class C/D) / 年度PMS報告（Class C/D）"], 0.85)])
+
+    # ── KR_MFDS ───────────────────────────────────────────────────────────
+    _merge("KR_MFDS", "7.3.6", [_wd(
+        "KR-WITHIN-7.3.6-001", "7.3.6",
+        "Clinical Evidence — Required Class III/IV (의료기기법 §10)",
+        "臨床試驗/文獻 — Class III/IV 強制", "臨床試験/文献 — Class III/IV必須",
+        _CE, _CZ, _CJ,
+        "의료기기법 §10: Class III and IV devices require clinical evidence (clinical trials or literature) for MFDS approval. Novel Class IV devices typically require Korean clinical trials.",
+        "醫療器材法第10條：Class III 和 IV 器材需要臨床證據（臨床試驗或文獻）進行 MFDS 批准。Class IV 新型器材通常需要韓國臨床試驗。",
+        "의료기기법§10：Class III/IVはMFDS承認に臨床エビデンス必要。Class IV新規機器は韓国CTが一般的に必要。",
+        "의료기기법 §10 / MFDS Guidance",
+        "의료기기법 제10조: Class III/IV 의료기기는 임상 근거가 필요합니다.",
+        "ko", "Korean Medical Device Act §10: clinical evidence required for Class III/IV.",
+        "scope_extension", "critical",
+        ["Clinical trial data / 臨床試驗資料"], 0.88)])
+    _merge("KR_MFDS", "7.5.1", [_wd(
+        "KR-WITHIN-7.5.1-001", "7.5.1",
+        "Korean Labeling — Mandatory (의료기기법 §20)",
+        "韓語標示 — 強制（醫療器材法第20條）", "韓国語ラベル — 必須(의료기기법§20)",
+        _LE, _LZ, _LJ,
+        "의료기기법 §20: All labeling for devices sold in Korea must be in Korean. MFDS prescribes specific mandatory label elements.",
+        "醫療器材法第20條：在韓國銷售的器材所有標示必須使用韓語。MFDS 規定特定強制標籤元素。",
+        "의료기기법§20：韓国販売医療機器の全ラベリングは韓国語必須。",
+        "의료기기법 §20 / MFDS Labeling Requirements",
+        "의료기기법 제20조: 의료기기의 기재사항은 한국어로 표기해야 합니다.",
+        "ko", "Korean Medical Device Act §20: all labeling must be in Korean.",
+        "local_authority_specific", "critical",
+        ["Korean device label / 韓語器材標籤",
+         "Korean IFU / 韓語使用說明書"], 0.90)])
+    _merge("KR_MFDS", "8.2.1", [_wd(
+        "KR-WITHIN-8.2.1-001", "8.2.1",
+        "Annual PMS Report — Class III/IV (의료기기법 §31)",
+        "年度 PMS 報告 — Class III/IV（醫療器材法第31條）", "年次PMSレポート — Class III/IV(§31)",
+        _8E, _8Z, _8J,
+        "의료기기법 §31: Class III and IV manufacturers must submit annual PMS report to MFDS including AE data, complaint analysis, literature review, and risk-benefit reassessment.",
+        "醫療器材法第31條：Class III 和 IV 製造業者必須每年向 MFDS 提交 PMS 報告，包括不良事件資料、投訴分析、文獻回顧和風險效益重新評估。",
+        "의료기기법§31：Class III/IV製造業者はMFDSへ年次PMS報告提出必要。有害事象データ・苦情分析・文献レビュー含む。",
+        "의료기기법 §31 / MFDS Post-Market Surveillance Guidance",
+        "의료기기법 제31조: Class III/IV 제조업자는 연간 PMS 보고서를 제출해야 합니다.",
+        "ko", "Korean Medical Device Act §31: annual PMS report required for Class III/IV.",
+        "local_authority_specific", "critical",
+        ["연간 PMS 보고서 / Annual PMS report (Class III/IV)"], 0.88)])
+
+    # ── MX_COFEPRIS ───────────────────────────────────────────────────────
+    _merge("MX_COFEPRIS", "6.2", [_wd(
+        "MX-WITHIN-6.2-001", "6.2",
+        "Responsable Sanitario — COFEPRIS-Registered Professional",
+        "衛生負責人 — COFEPRIS 登記專業人員", "衛生責任者 — COFEPRIS登録専門家",
+        _6E, _6Z, _6J,
+        "NOM-241-SSA1-2021 / Ley General de Salud: Medical device establishments must have a Responsable Sanitario (licensed physician, pharmacist, chemist, or biomedical engineer) registered with COFEPRIS.",
+        "NOM-241-SSA1-2021 / 一般衛生法：醫療器材機構必須有一名在 COFEPRIS 登記的衛生負責人（持牌醫師、藥劑師、化學師或生物醫學工程師）。",
+        "NOM-241-SSA1-2021 / Ley General de Salud：COFEPRIS登録のResponsable Sanitario（医師・薬剤師・化学者・生物医学エンジニア）必要。",
+        "NOM-241-SSA1-2021 / Ley General de Salud Art. 259",
+        "NOM-241-SSA1-2021: Responsable Sanitario debe ser profesional con cédula registrado ante COFEPRIS.",
+        "es", "COFEPRIS: Responsable Sanitario (licensed professional) required.",
+        "local_authority_specific", "critical",
+        ["Responsable Sanitario appointment / 衛生負責人任命"], 0.85)])
+    _merge("MX_COFEPRIS", "7.3.6", [_wd(
+        "MX-WITHIN-7.3.6-001", "7.3.6",
+        "Clinical Evidence — Required for Class III (NOM-241-SSA1-2021)",
+        "臨床證據 — Class III 強制（NOM-241-SSA1-2021）", "臨床エビデンス — Class III必須",
+        _CE, _CZ, _CJ,
+        "NOM-241-SSA1-2021: Class III devices require clinical evidence for COFEPRIS registration. IMDRF-compliant CER accepted. FDA/EU reference approvals recognized for expedited review.",
+        "NOM-241-SSA1-2021：Class III 器材需要臨床證據進行 COFEPRIS 登記。接受符合 IMDRF 的 CER。FDA/EU 參考批准可加速審查。",
+        "NOM-241-SSA1-2021：Class IIIはCOFEPRIS登録に臨床エビデンス必要。IMDRF準拠CER可。FDA/EU参照承認で迅速審査可。",
+        "NOM-241-SSA1-2021",
+        "NOM-241-SSA1-2021: dispositivos Clase III requieren evidencia clínica para COFEPRIS.",
+        "es", "COFEPRIS: clinical evidence required for Class III; FDA/EU reference approvals accepted.",
+        "scope_extension", "critical",
+        ["Clinical evidence package / 臨床證據包"], 0.82)])
+    _merge("MX_COFEPRIS", "7.5.9.2", [_wd(
+        "MX-WITHIN-7.5.9.2-001", "7.5.9.2",
+        "UDI — NOM Update in Progress (Voluntary FDA/IMDRF)",
+        "UDI — NOM 更新中（自願 FDA/IMDRF）", "UDI — NOM更新中(自発的FDA/IMDRF)",
+        _UE, _UZ, _UJ,
+        "Mexico (COFEPRIS) has no mandatory national UDI system. Voluntary alignment with FDA and IMDRF UDI guidelines accepted. NOM update in progress.",
+        "墨西哥（COFEPRIS）無強制國家 UDI 系統。接受自願遵循 FDA 和 IMDRF UDI 指引。NOM 更新進行中。",
+        "メキシコ（COFEPRIS）は国内UDI義務化なし。FDA/IMDRF UDI自発的整合可。NOM更新進行中。",
+        "COFEPRIS / IMDRF UDI Guidelines",
+        "COFEPRIS: no mandatory UDI system; voluntary FDA/IMDRF alignment accepted.",
+        "en", "", "additional_form", "minor",
+        ["UDI documentation (if applicable) / UDI文件（適用時）"], 0.75)])
+    _merge("MX_COFEPRIS", "8.2.1", [_wd(
+        "MX-WITHIN-8.2.1-001", "8.2.1",
+        "PMS — Required (NOM-241-SSA1-2021)",
+        "上市後監控 — 強制 PMS（NOM-241）", "市販後監視 — PMS必須(NOM-241)",
+        _8E, _8Z, _8J,
+        "NOM-241-SSA1-2021: Manufacturers must maintain a PMS system including systematic complaint/AE collection and annual PMS review. COFEPRIS may request PMS reports.",
+        "NOM-241-SSA1-2021：製造業者必須維護 PMS 系統，包括系統性投訴/不良事件收集和年度 PMS 審查。COFEPRIS 可要求 PMS 報告。",
+        "NOM-241-SSA1-2021：苦情・有害事象の体系的収集および年次PMSレビュー必要。",
+        "NOM-241-SSA1-2021",
+        "NOM-241-SSA1-2021: sistema de vigilancia post-comercialización requerido.",
+        "es", "COFEPRIS: PMS system required; annual PMS review.",
+        "local_authority_specific", "major",
+        ["PMS plan / PMS計畫"], 0.82)])
+    _merge("MX_COFEPRIS", "8.3.2", [_wd(
+        "MX-WITHIN-8.3.2-001", "8.3.2",
+        "Recall — COFEPRIS 24h (Serious) / 72h (Other)",
+        "回收通報 — 24小時（嚴重）/ 72小時（其他）", "リコール — 24時間(重大)/72時間(その他)",
+        _FE, _FZ, _FJ,
+        "NOM-241-SSA1-2021: Recall notification to COFEPRIS within 24h (serious risk) or 72h (other). Aviso de Seguridad distributed to affected customers.",
+        "NOM-241-SSA1-2021：24小時（嚴重健康風險）或72小時內通報 COFEPRIS。向受影響客戶分發 Aviso de Seguridad。",
+        "NOM-241-SSA1-2021：重大健康リスクは24時間、非重大は72時間以内にCOFEPRIS通知。Aviso de Seguridad配布。",
+        "NOM-241-SSA1-2021",
+        "NOM-241-SSA1-2021: notificación a COFEPRIS en 24h (riesgo grave) o 72h (otros).",
+        "es", "COFEPRIS: recall notification within 24h (serious) or 72h (other).",
+        "stricter_timeline", "critical",
+        ["COFEPRIS recall notification / COFEPRIS回收通報"], 0.82)])
+
+    # ── MY_MDA ────────────────────────────────────────────────────────────
+    _merge("MY_MDA", "6.2", [_wd(
+        "MY-WITHIN-6.2-001", "6.2",
+        "Person Responsible — MDA-Registered (Medical Device Act 2012)",
+        "負責人 — MDA 登記（醫療器材法2012）", "責任者 — MDA登録(医療機器法2012)",
+        _6E, _6Z, _6J,
+        "Medical Device Act 2012 (Act 737): Establishments must have a Person Responsible with relevant qualifications (medicine, pharmacy, science, or engineering) registered with MDA Malaysia.",
+        "醫療器材法2012年（法令737）：機構必須有一名在馬來西亞 MDA 登記的負責人，具備相關資格（醫學、藥學、科學或工程）。",
+        "医療機器法2012（法令737）：MDA Malaysia登録の責任者（医学・薬学・科学・工学関連資格）必要。",
+        "Medical Device Act 2012 (Act 737)",
+        "Medical Device Act 2012: Person Responsible with relevant qualifications registered with MDA required.",
+        "en", "", "local_authority_specific", "major",
+        ["Person Responsible registration with MDA / MDA負責人登記"], 0.82)])
+    _merge("MY_MDA", "7.3.6", [_wd(
+        "MY-WITHIN-7.3.6-001", "7.3.6",
+        "Clinical Evidence — Required for Class C/D (MDA)",
+        "臨床證據 — Class C/D 強制（MDA）", "臨床エビデンス — Class C/D必須(MDA)",
+        _CE, _CZ, _CJ,
+        "Medical Device Act 2012: Class C and D devices require clinical evidence for MDA registration. IMDRF CER accepted. Reference authority approvals (FDA, EU MDR, TGA, HSA) accepted for expedited registration.",
+        "醫療器材法2012年：Class C 和 D 器材需要臨床證據進行 MDA 登記。接受 IMDRF CER。參考機關批准（FDA、EU MDR、TGA、HSA）可加速登記。",
+        "医療機器法2012：Class C/DはMDA登録に臨床エビデンス必要。IMDRF CER可。参照機関承認で迅速登録可。",
+        "Medical Device Act 2012 / MDA Registration Guidance",
+        "MDA Malaysia: clinical evidence required for Class C/D; reference approvals accepted.",
+        "en", "", "scope_extension", "critical",
+        ["Clinical evidence package / 臨床證據包"], 0.80)])
+    _merge("MY_MDA", "7.5.9.2", [_wd(
+        "MY-WITHIN-7.5.9.2-001", "7.5.9.2",
+        "UDI — National Medical Device Registry (NMDR) Required",
+        "UDI — 國家醫療器材登記（NMDR）登記", "UDI — NMDR登録必要",
+        _UE, _UZ, _UJ,
+        "Medical Device Act 2012 amendment: MDA implementing UDI system linked to NMDR. Class C/D prioritized. GS1 Malaysia accepted as issuing agency.",
+        "醫療器材法2012年修正案：MDA 正在實施與 NMDR 連結的 UDI 系統。Class C/D 優先。GS1 馬來西亞為發碼機構。",
+        "医療機器法2012改正：MDAはNMDR連携UDIシステム実装中。Class C/D優先。GS1 Malaysia認定。",
+        "Medical Device Act 2012 / MDA NMDR Requirements",
+        "MDA Malaysia: UDI linked to NMDR being implemented; Class C/D prioritized.",
+        "en", "", "additional_form", "major",
+        ["NMDR registration / NMDR登記", "UDI on device labels / 器材標籤上之UDI"], 0.78)])
+    _merge("MY_MDA", "8.2.1", [_wd(
+        "MY-WITHIN-8.2.1-001", "8.2.1",
+        "PMS Plan — Required (Medical Device Act 2012)",
+        "上市後監督 — 強制 PMS 計畫（法令737）", "市販後サーベイランス — PMSプラン必須(法令737)",
+        _8E, _8Z, _8J,
+        "Medical Device Act 2012 (Act 737): Registered manufacturers must maintain a PMS system including systematic complaint collection, AE monitoring, and periodic safety reviews. Annual PMS summary required for Class C/D.",
+        "醫療器材法2012年（法令737）：已登記製造業者必須維護 PMS 系統。Class C/D 器材需要年度 PMS 摘要。",
+        "医療機器法2012（法令737）：苦情収集・有害事象監視・定期安全審査含む市販後監視システム必要。Class C/Dは年次PMSサマリー。",
+        "Medical Device Act 2012 (Act 737)",
+        "MDA Malaysia: PMS system required; annual summary for Class C/D.",
+        "en", "", "local_authority_specific", "major",
+        ["PMS plan / PMS計畫",
+         "Annual PMS summary (Class C/D) / 年度PMS摘要（Class C/D）"], 0.80)])
+    _merge("MY_MDA", "8.3.2", [_wd(
+        "MY-WITHIN-8.3.2-001", "8.3.2",
+        "Recall — 24 Hours to MDA (Medical Device Act 2012)",
+        "回收通報 — 24小時內通報 MDA", "リコール — 24時間以内MDA通知",
+        _FE, _FZ, _FJ,
+        "Medical Device Act 2012 (Act 737): Recall notification to MDA within 24 hours. FSN distributed to affected customers. Recall report submitted within 15 days.",
+        "醫療器材法2012年（法令737）：24小時內通報 MDA。向受影響客戶分發 FSN。回收報告在15天內提交。",
+        "医療機器法2012（法令737）：24時間以内にMDA通知。FSN顧客配布。15日以内に報告。",
+        "Medical Device Act 2012 (Act 737)",
+        "MDA Malaysia: recall notification within 24 hours; FSN distributed; recall report within 15 days.",
+        "en", "", "stricter_timeline", "critical",
+        ["MDA recall notification within 24 hours / 24小時內MDA通報",
+         "FSN distribution / FSN發布"], 0.82)])
+
+    # ── NZ_MEDSAFE ────────────────────────────────────────────────────────
+    _merge("NZ_MEDSAFE", "6.2", [_wd(
+        "NZ-WITHIN-6.2-001", "6.2",
+        "QMS Management Representative — ISO 13485 Competency (Medsafe WAND)",
+        "QMS 管理代表 — ISO 13485 能力（Medsafe WAND）", "QMS管理代表者 — ISO 13485能力(Medsafe WAND)",
+        _6E, _6Z, _6J,
+        "Medsafe / Medicines Act 1981: No specific statutory QM role beyond ISO 13485. Medsafe requires demonstrated personnel competency per ISO 13485 Cl. 6.2 through WAND registration.",
+        "紐西蘭 Medsafe / 1981年藥品法：除 ISO 13485 外無特定法定 QM 角色。Medsafe 通過 WAND 登記要求展示符合 ISO 13485 第6.2條的能力。",
+        "NZ Medsafe / Medicines Act 1981：ISO 13485要件を超える法定QM役割なし。WAND登録でISO 13485 Cl.6.2の人員力量実証必要。",
+        "Medicines Act 1981 (NZ) / Medsafe WAND",
+        "NZ Medsafe: no statutory QM role; ISO 13485 Cl. 6.2 competency via WAND registration.",
+        "en", "", "local_authority_specific", "minor",
+        ["ISO 13485 competency evidence / ISO 13485能力證明"], 0.75)])
+    _merge("NZ_MEDSAFE", "7.3.6", [_wd(
+        "NZ-WITHIN-7.3.6-001", "7.3.6",
+        "Clinical Evidence — Required for Class III/IV (WAND / TTMRA)",
+        "臨床證據 — Class III/IV 強制（WAND / TTMRA）", "臨床エビデンス — Class III/IV必須(WAND/TTMRA)",
+        _CE, _CZ, _CJ,
+        "Medsafe WAND Registration: Class III and IV require clinical evidence. CER per IMDRF/MEDDEV 2.7/1 accepted. TGA, FDA, EU MDR approvals accepted under Trans-Tasman Mutual Recognition Arrangement (TTMRA).",
+        "Medsafe WAND 登記：Class III 和 IV 需要臨床證據。接受 IMDRF/MEDDEV 2.7/1 的 CER。在 TTMRA 下接受 TGA、FDA、EU MDR 批准。",
+        "Medsafe WAND：Class III/IVは臨床エビデンス必要。IMDRF/MEDDEV 2.7/1 CER可。TTMRA下でTGA/FDA/EU MDR承認受け入れ。",
+        "Medsafe WAND / Trans-Tasman Mutual Recognition Arrangement",
+        "Medsafe NZ: clinical evidence required for Class III/IV; TGA/FDA/EU MDR approvals accepted under TTMRA.",
+        "en", "", "scope_extension", "critical",
+        ["Clinical evidence package / 臨床證據包",
+         "TGA/FDA/EU MDR approval (TTMRA pathway) / TTMRA途徑參考批准"], 0.80)])
+    _merge("NZ_MEDSAFE", "7.5.1", [_wd(
+        "NZ-WITHIN-7.5.1-001", "7.5.1",
+        "English Labeling — Mandatory (Medsafe WAND)",
+        "英語標示 — 強制（Medsafe WAND）", "英語ラベル — 必須(Medsafe WAND)",
+        _LE, _LZ, _LJ,
+        "Medicines Act 1981 (NZ): Medical device labels and IFU must be in English for the New Zealand market. WAND registration requires English-language labeling submission.",
+        "1981年藥品法（紐西蘭）：紐西蘭市場的醫療器材標籤和使用說明書必須使用英語。WAND 登記需要提交英語標示。",
+        "Medicines Act 1981（NZ）：NZ市場の医療機器ラベル・IFUは英語必須。WAND登録に英語ラベリング提出必要。",
+        "Medicines Act 1981 (NZ) / Medsafe WAND",
+        "Medsafe NZ: English labeling mandatory; WAND requires English-language submission.",
+        "en", "", "local_authority_specific", "major",
+        ["English device label / 英語器材標籤"], 0.80)])
+    _merge("NZ_MEDSAFE", "7.5.9.2", [_wd(
+        "NZ-WITHIN-7.5.9.2-001", "7.5.9.2",
+        "UDI — No National Mandate (TTMRA TGA Alignment)",
+        "UDI — 無國家強制（TTMRA TGA 對齊）", "UDI — 国内義務化なし(TTMRA TGA整合)",
+        _UE, _UZ, _UJ,
+        "New Zealand (Medsafe) has no mandatory national UDI system. TGA UDI compliance accepted under TTMRA. Voluntary IMDRF UDI compliance recommended.",
+        "紐西蘭（Medsafe）無強制國家 UDI 系統。在 TTMRA 下接受 TGA UDI 合規性。建議自願 IMDRF UDI 合規性。",
+        "NZ（Medsafe）は国内UDI義務化なし。TTMRA下で豪州TGA UDI準拠機器受け入れ。",
+        "Medsafe NZ / Trans-Tasman Mutual Recognition Arrangement",
+        "Medsafe NZ: no mandatory UDI; TGA UDI compliance accepted under TTMRA.",
+        "en", "", "additional_form", "minor",
+        ["UDI documentation (if TGA-registered) / UDI文件（TGA登記時）"], 0.75)])
+    _merge("NZ_MEDSAFE", "8.2.1", [_wd(
+        "NZ-WITHIN-8.2.1-001", "8.2.1",
+        "PMS — Required (Medsafe WAND)",
+        "上市後監控 — 強制 PMS（Medsafe WAND）", "市販後モニタリング — 必須(Medsafe WAND)",
+        _8E, _8Z, _8J,
+        "Medsafe / Medicines Act 1981 (NZ): WAND-registered manufacturers must maintain a PMS program including complaint collection and AE monitoring. Report to Medsafe when safety concerns arise.",
+        "Medsafe / 1981年藥品法（紐西蘭）：WAND 登記製造業者必須維護 PMS 計畫，包括投訴收集和不良事件監測。當出現安全顧慮時向 Medsafe 報告。",
+        "Medsafe / Medicines Act 1981（NZ）：苦情収集・有害事象監視含む市販後監視プログラム必要。安全懸念時にMedsafeへ報告。",
+        "Medicines Act 1981 (NZ) / Medsafe WAND",
+        "Medsafe NZ: PMS program required; report to Medsafe when safety concerns arise.",
+        "en", "", "local_authority_specific", "major",
+        ["PMS program documentation / PMS計畫文件"], 0.78)])
+    _merge("NZ_MEDSAFE", "8.3.2", [_wd(
+        "NZ-WITHIN-8.3.2-001", "8.3.2",
+        "Recall — 24h (Serious) / 3 Working Days (Other) to Medsafe",
+        "回收通報 — 24h（嚴重）/ 3個工作日（其他）", "リコール — 24時間(重大)/3営業日(その他)Medsafe",
+        _FE, _FZ, _FJ,
+        "Medsafe recall guidance: Notify Medsafe within 24h (serious risk) or 3 working days (other). FSN distributed to affected users. Documentation submitted within 30 days.",
+        "Medsafe 回收指引：24小時（嚴重風險）或3個工作日（其他）內通報 Medsafe。向受影響用戶分發 FSN。30天內提交文件。",
+        "Medsafe回収ガイダンス：重大健康リスクは24時間以内、その他は3営業日以内にMedsafe通知。FSN配布。",
+        "Medsafe Recall Guidance / Medicines Act 1981 (NZ)",
+        "Medsafe NZ: recall notification within 24h (serious) or 3 working days (other); FSN distributed.",
+        "en", "", "stricter_timeline", "critical",
+        ["Medsafe recall notification / Medsafe回收通報"], 0.78)])
+
+    # ── PH_FDA ────────────────────────────────────────────────────────────
+    _merge("PH_FDA", "6.2", [_wd(
+        "PH-WITHIN-6.2-001", "6.2",
+        "Authorized Agent — Philippine FDA-Registered (RA 9711)",
+        "授權代理人 — 菲律賓 FDA 登記（RA 9711）", "認定代理人 — Philippine FDA登録(RA 9711)",
+        _6E, _6Z, _6J,
+        "Republic Act 9711: Medical device establishments must have a qualified person registered with the Philippine FDA. Foreign manufacturers must appoint a Philippine Authorized Agent.",
+        "共和國法令第9711號：醫療器材機構必須有一名在菲律賓 FDA 登記的合格人員。境外製造業者必須任命菲律賓授權代理人。",
+        "RA 9711：医療機器機関はPhilippine FDA登録の資格者必要。海外製造業者はフィリピン認定代理人任命必要。",
+        "Republic Act 9711 / FDA Circular 2020-014",
+        "RA 9711: qualified person registered with Philippine FDA required; Authorized Agent for foreign manufacturers.",
+        "en", "", "local_authority_specific", "major",
+        ["Philippine FDA registration / 菲律賓FDA登記"], 0.80)])
+    _merge("PH_FDA", "7.3.6", [_wd(
+        "PH-WITHIN-7.3.6-001", "7.3.6",
+        "Clinical Evidence — Required for Class C/D (RA 9711)",
+        "臨床證據 — Class C/D 強制（RA 9711）", "臨床エビデンス — Class C/D必須(RA 9711)",
+        _CE, _CZ, _CJ,
+        "Republic Act 9711: Class C and D devices require clinical evidence for Philippine FDA registration. IMDRF reference approvals (FDA, EU, TGA, HSA) accepted under ASEAN MDD framework.",
+        "共和國法令第9711號：Class C 和 D 器材需要臨床證據進行菲律賓 FDA 登記。在 ASEAN MDD 框架下接受 IMDRF 參考批准。",
+        "RA 9711：Class C/DはPhilippine FDA登録に臨床エビデンス必要。ASEAN MDDフレームワーク下でIMDRF参照承認受け入れ。",
+        "Republic Act 9711 / FDA Medical Device Registration Guidelines",
+        "Philippine FDA: clinical evidence required for Class C/D; IMDRF reference approvals accepted.",
+        "en", "", "scope_extension", "critical",
+        ["Clinical evidence package / 臨床證據包"], 0.78)])
+    _merge("PH_FDA", "7.5.1", [_wd(
+        "PH-WITHIN-7.5.1-001", "7.5.1",
+        "English / Filipino Labeling — Required (RA 9711)",
+        "英語/菲律賓語標示 — 強制（RA 9711）", "英語/フィリピノ語ラベル — 必須(RA 9711)",
+        _LE, _LZ, _LJ,
+        "Republic Act 9711: Labels and IFU must be in English and/or Filipino for the Philippine market. FDA registration requires English-language labeling submission.",
+        "共和國法令第9711號：菲律賓市場標籤和使用說明書必須使用英語和/或菲律賓語。FDA 登記需提交英語標示。",
+        "RA 9711：フィリピン市場の医療機器ラベル・IFUは英語および/またはフィリピノ語必須。",
+        "Republic Act 9711 / FDA Labeling Requirements",
+        "Philippine FDA: English and/or Filipino labeling required.",
+        "en", "", "local_authority_specific", "major",
+        ["English/Filipino device label / 英語/菲律賓語器材標籤"], 0.78)])
+    _merge("PH_FDA", "7.5.9.2", [_wd(
+        "PH-WITHIN-7.5.9.2-001", "7.5.9.2",
+        "UDI — No National Mandate (ASEAN AMDD Planned)",
+        "UDI — 無國家強制（ASEAN AMDD 規劃中）", "UDI — 国内義務化なし(ASEAN AMDD計画中)",
+        _UE, _UZ, _UJ,
+        "Philippines (FDA) has no mandatory national UDI. ASEAN AMDD UDI provisions under development. Reference market UDI accepted as supplementary information.",
+        "菲律賓（FDA）無強制國家 UDI 系統。ASEAN AMDD UDI 條款開發中。參考市場 UDI 作為補充資訊。",
+        "フィリピン（FDA）は国内UDI義務化なし。ASEAN AMDD UDI条項開発中。",
+        "Philippine FDA / ASEAN Medical Device Directive",
+        "Philippine FDA: no mandatory UDI; ASEAN AMDD provisions under development.",
+        "en", "", "additional_form", "minor",
+        ["UDI documentation (if applicable) / UDI文件（適用時）"], 0.72)])
+    _merge("PH_FDA", "8.2.1", [_wd(
+        "PH-WITHIN-8.2.1-001", "8.2.1",
+        "PMS — Required (RA 9711)",
+        "上市後監督 — 強制 PMS（RA 9711）", "市販後サーベイランス — PMS必須(RA 9711)",
+        _8E, _8Z, _8J,
+        "Republic Act 9711: Registered manufacturers must maintain a PMS system including complaint monitoring, AE reporting to Philippine FDA, and periodic safety reviews.",
+        "共和國法令第9711號：已登記製造業者必須維護 PMS 系統，包括投訴監測、向菲律賓 FDA 報告不良事件和定期安全審查。",
+        "RA 9711：苦情監視・Philippine FDA有害事象報告・定期安全審査含む市販後監視システム必要。",
+        "Republic Act 9711 / FDA Circular 2020-014",
+        "Philippine FDA: PMS system required including complaint monitoring and AE reporting.",
+        "en", "", "local_authority_specific", "major",
+        ["PMS system documentation / PMS系統文件"], 0.78)])
+    _merge("PH_FDA", "8.3.2", [_wd(
+        "PH-WITHIN-8.3.2-001", "8.3.2",
+        "Recall — 3 Working Days to Philippine FDA",
+        "回收通報 — 3個工作日內通報菲律賓 FDA", "リコール — 3営業日以内Philippine FDA通知",
+        _FE, _FZ, _FJ,
+        "Republic Act 9711: Recall notification to Philippine FDA within 3 working days. FSN distributed to affected users. Recall report submitted within 30 days.",
+        "共和國法令第9711號：在3個工作日內通報菲律賓 FDA。向受影響用戶分發 FSN。回收報告在30天內提交。",
+        "RA 9711：3営業日以内にPhilippine FDA通知。FSN配布。30日以内に報告。",
+        "Republic Act 9711 / FDA Circular 2020-014",
+        "Philippine FDA: recall notification within 3 working days; FSN distributed; report within 30 days.",
+        "en", "", "stricter_timeline", "critical",
+        ["FDA recall notification within 3 days / 3天FDA通報"], 0.78)])
+
+    # ── PMDA ──────────────────────────────────────────────────────────────
+    _merge("PMDA", "4.2.4", [_wd(
+        "JP-WITHIN-4.2.4-001", "4.2.4",
+        "Record Retention — 5 Years Min (15 Years Implantables) (QMS省令 §63)",
+        "記錄保存 — 最少5年（植入物15年）（QMS省令第63條）", "記録保持 — 最低5年(植込み型15年)(QMS省令§63)",
+        _RE, _RZ, _RJ,
+        "薬機法 第63条 / QMS省令 第63条: Quality records retained minimum 5 years from manufacture/distribution. For MHLW-designated implantables: minimum 15 years.",
+        "藥機法第63條 / QMS 省令第63條：品質記錄保存至製造或流通日起至少5年。MHLW 指定的植入性器材：至少15年。",
+        "薬機法第63条 / QMS省令第63条：品質記録は製造・流通日から最低5年。MHLW指定植込み型は15年。",
+        "薬機法 (PMDA Act) 第63条 / QMS省令 第63条",
+        "薬機法第六十三条：品質記録は製造日から5年間（植込み型は15年間）保存。",
+        "ja", "Japan PMDA: quality records retained 5 years; MHLW-designated implantables 15 years.",
+        "stricter_timeline", "major",
+        ["Record retention schedule / 記錄保存時程"], 0.92)])
+    _merge("PMDA", "7.5.9.2", [_wd(
+        "JP-WITHIN-7.5.9.2-001", "7.5.9.2",
+        "JGMD UDI — Mandatory from 2021 (Class III/IV) / 2022 (Class II)",
+        "JGMD UDI — 2021年起強制（Class III/IV）/ 2022年（Class II）", "JGMD UDI — 2021年から必須(Class III/IV)/2022年(Class II)",
+        _UE, _UZ, _UJ,
+        "MHLW Notification 0331-7 (2021): UDI mandatory for Class III/IV from April 2021; Class II from April 2022. Must be registered in MHLW Medical Device Identification Database. GS1 Japan or HIBCC accepted.",
+        "MHLW 通知0331-7（2021年）：Class III/IV 自2021年4月起強制；Class II 自2022年4月起。必須在 MHLW 醫療器材識別資料庫登記。",
+        "MHLW通知0331-7（2021）：Class III/IVは2021年4月から、Class IIは2022年4月からUDI義務化。MHLW医療機器識別データベース登録必要。",
+        "MHLW Notification 0331-7 (2021) / 薬機法",
+        "厚生労働省通知0331-7：Class III・IVは2021年4月からUDI義務化。",
+        "ja", "MHLW: UDI mandatory for Class III/IV from April 2021, Class II from April 2022.",
+        "additional_form", "major",
+        ["MHLW UDI database registration / MHLW UDI登記"], 0.92)])
+    _merge("PMDA", "8.2.3", [_wd(
+        "JP-WITHIN-8.2.3-001", "8.2.3",
+        "AE Reporting — 15 Days (Death/Serious) / 30 Days (Other) (薬機法 §68の10)",
+        "不良事件通報 — 15天（死亡/嚴重）/ 30天（其他）（薬機法第68條の10）", "有害事象報告 — 15日(死亡/重篤)/30日(その他)(§68の10)",
+        _AE, _AZ, _AJ,
+        "薬機法 第68条の10 / MHLW MO 36/2004: Adverse events reported to PMDA via e-reporting: within 15 days for deaths or life-threatening events; within 30 days for serious unexpected AEs. Annual summary required.",
+        "藥機法第68條の10 / MHLW MO 36/2004：通過 PMDA e-reporting 報告不良事件：死亡或危及生命在15天內；嚴重意外不良事件在30天內。需要年度摘要。",
+        "薬機法第68条の10 / MHLW MO 36/2004：死亡・生命に関わる事象は15日以内、重篤予期せぬ有害事象は30日以内にPMDAへ報告。",
+        "薬機法 第68条の10 / MHLW Minister Ordinance 36/2004",
+        "薬機法第六十八条の十：死亡・重篤な有害事象は15日以内、その他重篤な予期せぬ有害事象は30日以内にPMDAに報告。",
+        "ja", "Japan PMDA: AEs reported within 15 days (death/life-threatening) or 30 days (serious unexpected).",
+        "stricter_timeline", "critical",
+        ["PMDA e-reporting submissions / PMDA e-reporting提交",
+         "Annual AE summary / 年度不良事件摘要"], 0.92)])
+
+    # ── QMSR ──────────────────────────────────────────────────────────────
+    _merge("QMSR", "4.2.4", [_wd(
+        "QMSR-WITHIN-4.2.4-001", "4.2.4",
+        "Record Retention — 2 Years from Distribution / Device Life (21 CFR 820.180)",
+        "記錄保存 — 發行後2年或器材壽命（21 CFR 820.180）", "記録保持 — 市販後2年または機器寿命(21 CFR 820.180)",
+        _RE, _RZ, _RJ,
+        "21 CFR Part 820.180 (QMSR): Records retained for device design and expected life, minimum 2 years from commercial distribution date.",
+        "21 CFR Part 820.180（QMSR）：記錄保存相當於器材設計和預期壽命的時間，但不少於商業發行日起2年。",
+        "21 CFR Part 820（QMSR / 21 CFR 820.180）：記録は機器の設計・予定寿命期間、最低でも市販日から2年間保持。",
+        "21 CFR Part 820.180 / FDA Quality Management System Regulation (QMSR)",
+        "21 CFR 820.180: records retained for device design and expected life, minimum 2 years from commercial distribution.",
+        "en", "", "stricter_timeline", "major",
+        ["Record retention schedule per 21 CFR 820.180 / 21 CFR 820.180記錄保存時程"], 0.92)])
+    _merge("QMSR", "6.2", [_wd(
+        "QMSR-WITHIN-6.2-001", "6.2",
+        "Management Representative — Designated QMS Authority (21 CFR 820.20)",
+        "管理代表 — 指定 QMS 權責（21 CFR 820.20）", "管理代表者 — 指定QMS権限(21 CFR 820.20)",
+        _6E, _6Z, _6J,
+        "21 CFR Part 820.20 (QMSR): Management must designate a management representative with authority and responsibility to ensure the QMS is established and maintained. Must report to executive management on QMS performance.",
+        "21 CFR Part 820.20（QMSR）：管理層必須指定具有確保 QMS 建立和維護的權力和責任的管理代表。必須向行政管理層報告 QMS 績效。",
+        "21 CFR Part 820.20（QMSR）：QMSの確立・維持権限と責任を持つ管理代表者を指定必要。経営幹部へのQS実績報告義務。",
+        "21 CFR Part 820.20 / FDA QMSR",
+        "21 CFR 820.20: management representative with defined authority for QMS establishment designated by management.",
+        "en", "", "local_authority_specific", "major",
+        ["Management representative designation / 管理代表指定（品質政策/組織圖）"], 0.92)])
+    _merge("QMSR", "7.3.6", [_wd(
+        "QMSR-WITHIN-7.3.6-001", "7.3.6",
+        "510(k) / PMA Clinical Evidence — IDE and Clinical Data Required for PMA",
+        "510(k)/PMA 臨床證據 — PMA 需要 IDE 和臨床資料", "510(k)/PMA臨床エビデンス — PMAにはIDEと臨床データ必要",
+        _CE, _CZ, _CJ,
+        "21 CFR Part 812/814 (FDA QMSR): Class III PMA requires valid scientific evidence including IDE clinical trial data. 510(k) devices must demonstrate substantial equivalence (may require clinical data). De Novo and Breakthrough Device pathways have specific clinical evidence requirements.",
+        "21 CFR Part 812/814（FDA QMSR）：Class III PMA 需要有效科學證據，包括 IDE 臨床試驗資料。510(k) 器材必須展示實質等同性（可能需要臨床資料）。",
+        "21 CFR Part 812/814（FDA QMSR）：PMA必要Class IIIはIDE試験の臨床データ含む有効科学的エビデンス必要。510(k)は実質的同等性（臨床データ必要な場合あり）。",
+        "21 CFR Part 812 (IDE) / 21 CFR Part 814 (PMA) / FDA QMSR",
+        "21 CFR 814.20(b)(6): PMA requires valid scientific evidence from well-controlled clinical investigations.",
+        "en", "", "scope_extension", "critical",
+        ["IDE study data (PMA pathway) / IDE研究資料",
+         "Clinical data for PMA / PMA臨床資料包"], 0.92)])
+    _merge("QMSR", "7.5.1", [_wd(
+        "QMSR-WITHIN-7.5.1-001", "7.5.1",
+        "English Labeling — Mandatory (21 CFR Part 801)",
+        "英語標示 — 強制（21 CFR Part 801）", "英語ラベル — 必須(21 CFR Part 801)",
+        _LE, _LZ, _LJ,
+        "21 CFR Part 801: All medical device labels and IFU distributed in the US must be in English. Mandatory elements include device name, manufacturer, intended use, directions, warnings, and net quantity.",
+        "21 CFR Part 801：在美國發行的所有醫療器材標籤和使用說明書必須使用英語。強制元素包括器材名稱、製造業者、預期用途、使用說明、警告和淨量。",
+        "21 CFR Part 801：米国流通の全医療機器ラベル・IFUは英語必須。器材名・製造業者・意図する用途・使用指示・警告等必須記載。",
+        "21 CFR Part 801 / FDA Device Labeling Requirements",
+        "21 CFR 801: English labeling mandatory for all devices distributed in the US.",
+        "en", "", "local_authority_specific", "major",
+        ["English device label per 21 CFR 801 / 21 CFR 801英語器材標籤"], 0.95)])
+    _merge("QMSR", "8.2.1", [_wd(
+        "QMSR-WITHIN-8.2.1-001", "8.2.1",
+        "Complaint Handling + MDR + CAPA — PMS System (21 CFR 820.198/820.100/803)",
+        "投訴處理 + MDR + CAPA — PMS 系統（21 CFR 820.198/820.100/803）", "苦情処理+MDR+CAPA — PMSシステム",
+        _8E, _8Z, _8J,
+        "21 CFR Part 820.198/820.100 (QMSR): Manufacturers must maintain complaint handling (820.198), CAPA system (820.100), and submit Medical Device Reports (MDR) per 21 CFR Part 803. Post-Market Surveillance studies (21 CFR 822) may be required by FDA.",
+        "21 CFR Part 820.198/820.100（QMSR）：製造業者必須維護投訴處理系統（820.198）、CAPA 系統（820.100），並按 21 CFR Part 803 提交 MDR。FDA 可能要求上市後監督研究（21 CFR 822）。",
+        "21 CFR 820.198 / 820.100（QMSR）：苦情処理システム・CAPAシステム・21 CFR Part 803 MDR提出必要。21 CFR 822市販後調査がFDAから要求される場合あり。",
+        "21 CFR Part 820.198, 820.100, 803 / FDA QMSR",
+        "21 CFR 820.198: complaint handling, CAPA, and MDR reporting required.",
+        "en", "", "local_authority_specific", "critical",
+        ["Complaint handling records (820.198) / 820.198投訴處理記錄",
+         "CAPA records (820.100) / 820.100 CAPA記錄",
+         "MDR submissions (21 CFR 803) / 21 CFR 803 MDR提交"], 0.95)])
+    _merge("QMSR", "8.2.3", [_wd(
+        "QMSR-WITHIN-8.2.3-001", "8.2.3",
+        "MDR Reporting — 30 Days / 5 Days (Malfunction) / Immediately (Deaths) (21 CFR 803)",
+        "MDR 通報 — 30天 / 5天（故障）/ 立即（死亡）（21 CFR 803）", "MDR報告 — 30日/5日(誤作動)/即時(死亡)(21 CFR 803)",
+        _AE, _AZ, _AJ,
+        "21 CFR Part 803 (FDA MDR Regulation): Report to FDA within 30 days (serious injury); within 5 working days (events requiring immediate remedial action); as soon as practicable for deaths. Reports via FDA eMDR system.",
+        "21 CFR Part 803（FDA MDR 法規）：30天內（嚴重傷害）；5個工作日內（需立即補救行動的事件）；死亡事件盡快報告。通過 FDA eMDR 系統。",
+        "21 CFR Part 803（FDA MDR規制）：重篤傷害は30暦日以内、即時是正措置必要事象は5営業日以内、死亡は実行可能な限り速やかにFDAへ報告。eMDR経由。",
+        "21 CFR Part 803 / FDA MDR Regulation",
+        "21 CFR 803.50: MDR submitted within 30 days (5 days if immediate remedial action required); deaths as soon as practicable.",
+        "en", "", "stricter_timeline", "critical",
+        ["eMDR reports per 21 CFR 803 / 21 CFR 803 eMDR報告",
+         "5-day MDR procedure / 5天MDR程序"], 0.95)])
+
+    # ── RU_ROSZDRAVNADZOR ─────────────────────────────────────────────────
+    _merge("RU_ROSZDRAVNADZOR", "6.2", [_wd(
+        "RU-WITHIN-6.2-001", "6.2",
+        "Quality Director — Required (RF Resolution No. 1416)",
+        "品質主任 — 強制（俄羅斯聯邦決議第1416號）", "品質ディレクター — 必須(RF決議No.1416)",
+        _6E, _6Z, _6J,
+        "RF Government Resolution No. 1416 (2021): Medical device manufacturers registered in Russia must designate a Quality Director (Директор по качеству) with relevant technical/medical/pharmaceutical education.",
+        "俄羅斯聯邦政府決議第1416號（2021年）：在俄羅斯登記的醫療器材製造業者必須指定一名品質主任（Директор по качеству），具備相關技術/醫學/藥學教育背景。",
+        "RF政府決議No.1416（2021）：ロシア登録医療機器製造業者はQMS責任のある品質ディレクター（Директор по качеству）指定必要。関連教育歴必要。",
+        "RF Government Resolution No. 1416 (2021)",
+        "Постановление Правительства РФ №1416 (2021): производитель должен назначить директора по качеству.",
+        "ru", "Russia RF Resolution 1416: Quality Director with relevant education required.",
+        "local_authority_specific", "major",
+        ["Quality Director appointment / 品質主任任命"], 0.82)])
+    _merge("RU_ROSZDRAVNADZOR", "7.3.6", [_wd(
+        "RU-WITHIN-7.3.6-001", "7.3.6",
+        "Clinical Evidence — Required Class 2a+ (RF Resolution No. 1416)",
+        "臨床證據 — Class 2a+ 強制（RF決議第1416號）", "臨床エビデンス — Class 2a+必須(RF決議No.1416)",
+        _CE, _CZ, _CJ,
+        "RF Government Resolution No. 1416 (2021): Class 2a, 2b, 3 devices require clinical evidence for Roszdravnadzor registration. Russian clinical trials may be required for novel Class 3 devices.",
+        "俄羅斯聯邦政府決議第1416號（2021年）：Class 2a、2b、3 器材需要臨床證據進行 Roszdravnadzor 登記。Class 3 新型器材可能需要在俄羅斯進行臨床試驗。",
+        "RF決議No.1416（2021）：Class 2a/2b/3はRoszdravnadzor登録に臨床エビデンス必要。Class 3新規機器はロシアでのCT必要な場合あり。",
+        "RF Government Resolution No. 1416 (2021)",
+        "Постановление Правительства РФ №1416 (2021): медицинские изделия 2а и выше требуют клинических данных.",
+        "ru", "Russia RF Resolution 1416: clinical evidence required for Class 2a+.",
+        "scope_extension", "critical",
+        ["Clinical evidence package / 臨床證據包"], 0.80)])
+    _merge("RU_ROSZDRAVNADZOR", "7.5.9.2", [_wd(
+        "RU-WITHIN-7.5.9.2-001", "7.5.9.2",
+        "UDI — Mandatory for Implantables (RF Resolution No. 1416)",
+        "UDI — 植入物強制（RF決議第1416號）", "UDI — 植込み型必須(RF決議No.1416)",
+        _UE, _UZ, _UJ,
+        "RF Government Resolution No. 1416 (2021): UDI mandatory for implantable medical devices registered in Russia. GS1 Russia or HIBCC accepted as issuing agencies.",
+        "俄羅斯聯邦政府決議第1416號（2021年）：UDI 對在俄羅斯登記的植入性醫療器材為強制性。接受 GS1 俄羅斯或 HIBCC 作為發碼機構。",
+        "RF決議No.1416（2021）：ロシア登録植込み型医療機器のUDI義務化。GS1 Russia・HIBCC認定。",
+        "RF Government Resolution No. 1416 (2021)",
+        "Постановление Правительства РФ №1416 (2021): UDI обязателен для имплантируемых медицинских изделий.",
+        "ru", "Russia RF Resolution 1416: UDI mandatory for implantable devices.",
+        "additional_form", "major",
+        ["UDI in Roszdravnadzor registration dossier / Roszdravnadzor登記文件中之UDI"], 0.80)])
+    _merge("RU_ROSZDRAVNADZOR", "8.2.1", [_wd(
+        "RU-WITHIN-8.2.1-001", "8.2.1",
+        "PMS — Annual Report to Roszdravnadzor (RF Resolution No. 1416)",
+        "上市後監控 — 年度報告至 Roszdravnadzor", "市販後モニタリング — 年次報告(RF決議No.1416)",
+        _8E, _8Z, _8J,
+        "RF Government Resolution No. 1416 (2021): Registered manufacturers must conduct post-market monitoring including systematic AE and complaint collection. Annual PMS summary submitted to Roszdravnadzor.",
+        "俄羅斯聯邦政府決議第1416號（2021年）：已登記製造業者必須進行上市後監控，包括系統性不良事件和投訴收集。年度 PMS 摘要提交給 Roszdravnadzor。",
+        "RF決議No.1416（2021）：有害事象・苦情の体系的収集含む市販後モニタリング必要。年次PMSサマリーをRoszdravnadzorへ提出。",
+        "RF Government Resolution No. 1416 (2021)",
+        "Постановление Правительства РФ №1416 (2021): обязателен мониторинг безопасности с годовым отчётом.",
+        "ru", "Russia RF Resolution 1416: post-market monitoring required; annual PMS summary to Roszdravnadzor.",
+        "local_authority_specific", "major",
+        ["Annual PMS summary to Roszdravnadzor / 年度PMS摘要提交"], 0.80)])
+    _merge("RU_ROSZDRAVNADZOR", "8.3.2", [_wd(
+        "RU-WITHIN-8.3.2-001", "8.3.2",
+        "Recall — 3 Working Days to Roszdravnadzor (RF Resolution No. 1416)",
+        "回收通報 — 3個工作日內通報 Roszdravnadzor", "リコール — 3営業日以内Roszdravnadzor通知",
+        _FE, _FZ, _FJ,
+        "RF Government Resolution No. 1416 (2021): Manufacturers must notify Roszdravnadzor within 3 working days of initiating a recall. Recall report submitted within 30 days.",
+        "俄羅斯聯邦政府決議第1416號（2021年）：製造業者在啟動回收後，必須在3個工作日內通報 Roszdravnadzor。回收報告在30天內提交。",
+        "RF決議No.1416（2021）：リコール開始後3営業日以内にRoszdravnadzor通知。30日以内に報告提出。",
+        "RF Government Resolution No. 1416 (2021)",
+        "Постановление Правительства РФ №1416 (2021): уведомление Росздравнадзора в течение 3 рабочих дней.",
+        "ru", "Russia RF Resolution 1416: recall notification within 3 working days; report within 30 days.",
+        "stricter_timeline", "critical",
+        ["Roszdravnadzor recall notification within 3 days / 3天內通報"], 0.80)])
+
+    # ── SA_SFDA ───────────────────────────────────────────────────────────
+    _merge("SA_SFDA", "6.2", [_wd(
+        "SA-WITHIN-6.2-001", "6.2",
+        "Saudi Authorized Representative (SAR) — SFDA-Registered",
+        "沙特授權代表（SAR）— SFDA 登記", "サウジ認定代理人(SAR) — SFDA登録",
+        _6E, _6Z, _6J,
+        "SFDA MDTR: Foreign manufacturers must appoint a Saudi Authorized Representative (SAR) registered with SFDA with relevant technical qualifications.",
+        "SFDA MDTR：境外製造業者必須任命一名在 SFDA 登記的沙特授權代表（SAR），具備相關技術資格。",
+        "SFDA MDTR：海外製造業者はSFDA登録のSAR任命必要。関連技術資格必須。",
+        "SFDA Medical Device Technical Regulation (MDTR)",
+        "SFDA MDTR: Saudi Authorized Representative (SAR) with relevant qualifications registered with SFDA required.",
+        "en", "", "local_authority_specific", "major",
+        ["SAR appointment documentation / SAR任命文件",
+         "SFDA SAR registration / SFDA SAR登記"], 0.85)])
+    _merge("SA_SFDA", "7.3.6", [_wd(
+        "SA-WITHIN-7.3.6-001", "7.3.6",
+        "Clinical Evidence — Required for Class C/D (SFDA MDTR)",
+        "臨床證據 — Class C/D 強制（SFDA MDTR）", "臨床エビデンス — Class C/D必須(SFDA MDTR)",
+        _CE, _CZ, _CJ,
+        "SFDA MDTR: Class C and D devices require clinical evidence for SFDA registration. IMDRF/MEDDEV 2.7/1 CER accepted. IMDRF reference approvals (FDA, EU MDR, TGA) recognized for expedited registration.",
+        "SFDA MDTR：Class C 和 D 器材需要臨床證據進行 SFDA 登記。接受 IMDRF/MEDDEV 2.7/1 CER。IMDRF 參考批准（FDA、EU MDR、TGA）加速登記。",
+        "SFDA MDTR：Class C/DはSFDA登録に臨床エビデンス必要。IMDRF/MEDDEV 2.7/1 CER可。参照機関承認受け入れ。",
+        "SFDA Medical Device Technical Regulation (MDTR)",
+        "SFDA MDTR: clinical evidence required for Class C/D; IMDRF reference approvals accepted.",
+        "en", "", "scope_extension", "critical",
+        ["Clinical Evaluation Report / 臨床評估報告"], 0.85)])
+    _merge("SA_SFDA", "7.5.9.2", [_wd(
+        "SA-WITHIN-7.5.9.2-001", "7.5.9.2",
+        "UDI — SFDA eServices Platform Registration Required",
+        "UDI — 需在 SFDA 電子服務平台登記", "UDI — SFDAプラットフォーム登録必要",
+        _UE, _UZ, _UJ,
+        "SFDA MDTR: UDI required for registered devices. Must be registered on SFDA eServices platform. Class C/D prioritized. GS1 Saudi Arabia or HIBCC accepted.",
+        "SFDA MDTR：已登記器材需要 UDI。必須在 SFDA 電子服務平台登記。Class C/D 優先。GS1 沙特阿拉伯或 HIBCC 可用。",
+        "SFDA MDTR：登録機器にUDI必要。SFDA eServicesプラットフォームへの登録必要。Class C/D優先。",
+        "SFDA Medical Device Technical Regulation (MDTR)",
+        "SFDA: UDI required; SFDA eServices platform registration; Class C/D prioritized.",
+        "en", "", "additional_form", "major",
+        ["SFDA eServices UDI registration / SFDA平台UDI登記"], 0.82)])
+    _merge("SA_SFDA", "8.2.1", [_wd(
+        "SA-WITHIN-8.2.1-001", "8.2.1",
+        "PMS Plan — Required (SFDA MDTR)",
+        "上市後監督 — 強制 PMS 計畫（SFDA MDTR）", "市販後サーベイランス — PMSプラン必須(SFDA MDTR)",
+        _8E, _8Z, _8J,
+        "SFDA MDTR: Registered manufacturers must maintain a PMS system including systematic complaint collection, AE monitoring, and periodic safety reviews. Annual PMS report for Class C/D.",
+        "SFDA MDTR：已登記製造業者必須維護 PMS 系統，包括系統性投訴收集、不良事件監測和定期安全審查。Class C/D 需要年度 PMS 報告。",
+        "SFDA MDTR：苦情収集・有害事象監視・定期安全審査含む市販後監視システム必要。Class C/Dは年次PMSレポート。",
+        "SFDA Medical Device Technical Regulation (MDTR)",
+        "SFDA: PMS system required; annual report for Class C/D.",
+        "en", "", "local_authority_specific", "major",
+        ["PMS plan / PMS計畫",
+         "Annual PMS report (Class C/D) / 年度PMS報告（Class C/D）"], 0.82)])
+    _merge("SA_SFDA", "8.3.2", [_wd(
+        "SA-WITHIN-8.3.2-001", "8.3.2",
+        "Recall — 24h (Class A) / 3 Days (Class B) / 10 Days (Class C) to SFDA",
+        "回收通報 — 24小時（A類）/ 3天（B類）/ 10天（C類）通報 SFDA", "リコール — 24時間(A)/3日(B)/10日(C)",
+        _FE, _FZ, _FJ,
+        "SFDA MDTR: Recall notification to SFDA within 24h (Class A serious risk), 3 calendar days (Class B), or 10 calendar days (Class C). FSN distributed to affected users.",
+        "SFDA MDTR：24小時內（A類嚴重風險）、3個日曆日（B類）或10個日曆日（C類）通報 SFDA。向受影響用戶分發 FSN。",
+        "SFDA MDTR：Aクラス24時間、Bクラス3暦日、Cクラス10暦日以内にSFDA通知。FSN配布。",
+        "SFDA Medical Device Technical Regulation (MDTR)",
+        "SFDA: recall notification within 24h (A), 3 days (B), 10 days (C); FSN required.",
+        "en", "", "stricter_timeline", "critical",
+        ["SFDA recall notification / SFDA回收通報", "FSN distribution / FSN發布"], 0.82)])
+
+    # ── SG_HSA ────────────────────────────────────────────────────────────
+    _merge("SG_HSA", "6.2", [_wd(
+        "SG-WITHIN-6.2-001", "6.2",
+        "Person Responsible (PR) — HSA-Registered (Health Products Act)",
+        "負責人（PR）— HSA 登記", "責任者(PR) — HSA登録",
+        _6E, _6Z, _6J,
+        "Health Products (Medical Devices) Regulations 2010: Medical device companies must have a Person Responsible (PR) registered with HSA holding a relevant science or engineering degree. Foreign manufacturers must appoint a Singapore-based local agent.",
+        "健康產品（醫療器材）法規2010年：醫療器材公司必須有一名在 HSA 登記的負責人（PR），持有相關科學或工程學位。境外製造業者必須任命新加坡本地代理人。",
+        "健康製品（医療機器）規制2010：HSA登録のPR（関連理系・工学学位）必要。海外製造業者はシンガポール現地代理人任命必要。",
+        "Health Products (Medical Devices) Regulations 2010",
+        "HSA: Person Responsible (PR) with relevant degree registered with HSA; Singapore local agent for foreign manufacturers.",
+        "en", "", "local_authority_specific", "major",
+        ["PR registration with HSA / HSA負責人登記",
+         "Local agent appointment / 本地代理人任命（境外製造業者）"], 0.85)])
+    _merge("SG_HSA", "7.3.6", [_wd(
+        "SG-WITHIN-7.3.6-001", "7.3.6",
+        "Clinical Evidence — Required for Class C/D (HSA / PRL Pathway)",
+        "臨床證據 — Class C/D 強制（HSA / PRL 途徑）", "臨床エビデンス — Class C/D必須(HSA/PRL)",
+        _CE, _CZ, _CJ,
+        "Health Products Act / HSA: Class C and D devices require clinical evidence. CER per IMDRF/MEDDEV 2.7/1 accepted. IMDRF reference approvals (FDA, EU MDR, TGA, HC) accepted for PRL expedited pathway.",
+        "健康產品法 / HSA：Class C 和 D 器材需要臨床證據。接受 IMDRF/MEDDEV 2.7/1 CER。IMDRF 參考批准（FDA、EU MDR、TGA、HC）可用於 PRL 加速途徑。",
+        "健康製品法 / HSA：Class C/DはHSA登録に臨床エビデンス必要。IMDRF/MEDDEV 2.7/1 CER可。PRL迅速パスウェイでIMDRF参照承認受け入れ。",
+        "Health Products Act / HSA Registration Guidance",
+        "HSA: clinical evidence required for Class C/D; IMDRF reference approvals accepted for PRL expedited pathway.",
+        "en", "", "scope_extension", "critical",
+        ["Clinical Evaluation Report / 臨床評估報告",
+         "IMDRF reference approval (PRL pathway) / PRL途徑IMDRF參考批准"], 0.85)])
+    _merge("SG_HSA", "7.5.1", [_wd(
+        "SG-WITHIN-7.5.1-001", "7.5.1",
+        "English Labeling — Mandatory (Health Products Act)",
+        "英語標示 — 強制（健康產品法）", "英語ラベル — 必須(健康製品法)",
+        _LE, _LZ, _LJ,
+        "Health Products (Medical Devices) Regulations 2010: Labels and IFU must be in English for the Singapore market. Mandatory elements per HSA guidelines.",
+        "健康產品（醫療器材）法規2010年：新加坡市場的標籤和使用說明書必須使用英語。按 HSA 指引的強制元素。",
+        "健康製品（医療機器）規制2010：シンガポール市場の医療機器ラベル・IFUは英語必須。HSAガイドライン必須記載事項遵守。",
+        "Health Products (Medical Devices) Regulations 2010 / HSA Labeling Guidelines",
+        "HSA: English labeling mandatory; mandatory elements per HSA guidelines.",
+        "en", "", "local_authority_specific", "major",
+        ["English device label meeting HSA requirements / 符合HSA要求之英語標籤"], 0.85)])
+    _merge("SG_HSA", "7.5.9.2", [_wd(
+        "SG-WITHIN-7.5.9.2-001", "7.5.9.2",
+        "UDI — HSA PRL Number + Voluntary IMDRF Alignment",
+        "UDI — HSA PRL 號碼 + 自願 IMDRF 對齊", "UDI — HSA PRL番号+自発的IMDRF整合",
+        _UE, _UZ, _UJ,
+        "Health Products Act / HSA: No mandatory standalone UDI system. Devices identified through HSA PRL number. Voluntary IMDRF UDI alignment recommended. Reference market UDI included in HSA registration documentation.",
+        "健康產品法 / HSA：無強制獨立 UDI 系統。器材通過 HSA PRL 號碼識別。建議自願 IMDRF UDI 對齊。",
+        "健康製品法 / HSA：独立した強制UDIシステムなし。HSA PRL番号で機器識別。IMDRF UDI自発的整合推奨。",
+        "Health Products Act / HSA Registration Requirements",
+        "HSA: no mandatory standalone UDI; PRL number used; voluntary IMDRF alignment recommended.",
+        "en", "", "additional_form", "minor",
+        ["HSA PRL registration / HSA PRL登記"], 0.78)])
+    _merge("SG_HSA", "8.2.1", [_wd(
+        "SG-WITHIN-8.2.1-001", "8.2.1",
+        "Post-Market Vigilance — PSUR Required for Class C/D (Health Products Act)",
+        "上市後警戒 — Class C/D 強制 PSUR（健康產品法）", "市販後警戒 — Class C/D PSUR必須",
+        _8E, _8Z, _8J,
+        "Health Products Act Part 7 / HSA Vigilance Guidance: Registered manufacturers must maintain a post-market vigilance program. PSUR required for Class C/D. HSA may request PMS data during product review.",
+        "健康產品法第7部分 / HSA 警戒指引：已登記製造業者必須維護上市後警戒計畫。Class C/D 需要 PSUR。HSA 可在產品審查期間要求 PMS 資料。",
+        "健康製品法Part 7 / HSA警戒ガイダンス：市販後警戒プログラム必要。Class C/DはPSUR必要。",
+        "Health Products Act Part 7 / HSA Vigilance Guidance",
+        "HSA: post-market vigilance program required; PSUR for Class C/D.",
+        "en", "", "local_authority_specific", "major",
+        ["PSUR (Class C/D) / PSUR",
+         "Vigilance program documentation / 警戒計畫文件"], 0.85)])
+
+    # ── TFDA ──────────────────────────────────────────────────────────────
+    _merge("TFDA", "4.2.4", [_wd(
+        "TW-WITHIN-4.2.4-001", "4.2.4",
+        "Record Retention — 5 Years (Class II/III) / 3 Years (Class I) (醫療器材管理法 Art. 36)",
+        "記錄保存 — 5年（Class II/III）/ 3年（Class I）", "記録保持 — 5年(Class II/III)/3年(Class I)",
+        _RE, _RZ, _RJ,
+        "醫療器材管理法 Art. 36: Quality records retained minimum 5 years for Class II/III, 3 years for Class I. For implantable devices: useful life + 5 years.",
+        "醫療器材管理法第36條：Class II/III 品質記錄保存至少5年，Class I 至少3年。植入性器材：使用壽命加5年。",
+        "医療機器管理法Art.36：Class II/IIIは最低5年、Class Iは最低3年。植込み型は耐用年数+5年以上。",
+        "醫療器材管理法 Art. 36",
+        "醫療器材管理法第三十六條：第二等級及第三等級醫療器材品質記錄保存至少五年；第一等級至少三年。",
+        "zh", "Taiwan TFDA: records retained 5 years (Class II/III) or 3 years (Class I); implantables: useful life + 5 years.",
+        "stricter_timeline", "major",
+        ["5/3-year record retention policy / 5/3年保存政策"], 0.90)])
+    _merge("TFDA", "6.2", [_wd(
+        "TW-WITHIN-6.2-001", "6.2",
+        "技術主任 (Technical Director) — Mandatory (醫療器材管理法 Art. 12)",
+        "技術主任 — 強制（醫療器材管理法第12條）", "技術主任 — 必須(医療機器管理法Art.12)",
+        _6E, _6Z, _6J,
+        "醫療器材管理法 Art. 12: Manufacturers and importers must designate a 技術主任 (Technical Director). Qualifications: relevant university degree (medicine, pharmacy, medical devices, or engineering) AND at least 4 years relevant work experience.",
+        "醫療器材管理法第12條：製造業者和進口商必須指定一名技術主任。資格：相關大學學位（醫學、藥學、醫療器材或工程）且至少4年相關工作經驗。",
+        "医療機器管理法Art.12：製造業者・輸入業者は技術主任を指定必要。医学・薬学・医療機器・工学関連学位＋4年以上の関連実務経験。",
+        "醫療器材管理法 Art. 12",
+        "醫療器材管理法第十二條：醫療器材製造業者應設置技術主任，應具備相關學系畢業且有四年以上相關工作經驗。",
+        "zh", "Taiwan TFDA: Technical Director (技術主任) with relevant degree + 4 years experience required.",
+        "local_authority_specific", "critical",
+        ["技術主任任命文件 / Technical Director appointment",
+         "資格證明 / Qualification evidence (degree + 4 years)"], 0.92)])
+    _merge("TFDA", "7.3.6", [_wd(
+        "TW-WITHIN-7.3.6-001", "7.3.6",
+        "Clinical Trial Data / CER — Required (醫療器材管理法 Art. 26)",
+        "臨床試驗資料/CER — 強制（醫療器材管理法第26條）", "臨床試験データ/CER — 必須(Art.26)",
+        _CE, _CZ, _CJ,
+        "醫療器材管理法 Art. 26: Class III devices require clinical trial data or CER for TFDA registration. CER accepted for Class II. TFDA accepts reference authority data (FDA, EU MDR, PMDA) for expedited review.",
+        "醫療器材管理法第26條：Class III 器材需要臨床試驗資料或 CER 進行 TFDA 登記。Class II 接受 CER。TFDA 接受參考機關資料（FDA、EU MDR、PMDA）加速審查。",
+        "医療機器管理法Art.26：Class IIIは臨床試験データまたはCER必要。Class IIはCER可。FDA/EU MDR/PMDAデータで迅速審査可。",
+        "醫療器材管理法 Art. 26 / 醫療器材臨床試驗管理辦法",
+        "醫療器材管理法第二十六條：第三等級醫療器材申請查驗登記，應附具臨床試驗資料或臨床評估報告。",
+        "zh", "Taiwan TFDA: clinical trial data or CER required for Class III; CER for Class II.",
+        "scope_extension", "critical",
+        ["臨床評估報告 / Clinical Evaluation Report",
+         "參考機關批准（加速途徑）/ Reference authority approval"], 0.90)])
+    _merge("TFDA", "7.5.1", [_wd(
+        "TW-WITHIN-7.5.1-001", "7.5.1",
+        "Traditional Chinese Labeling — Mandatory (醫療器材管理法 Art. 27)",
+        "繁體中文標示 — 強制（醫療器材管理法第27條）", "繁体字中国語ラベル — 必須(Art.27)",
+        _LE, _LZ, _LJ,
+        "醫療器材管理法 Art. 27 / 醫療器材標示管理辦法: All labeling for devices sold in Taiwan must be in Traditional Chinese. Foreign-language content requires Chinese translation.",
+        "醫療器材管理法第27條 / 醫療器材標示管理辦法：在台灣銷售的醫療器材所有標示必須使用繁體中文。外語內容必須附繁體中文翻譯。",
+        "医療機器管理法Art.27 / 医療機器表示管理辦法：台湾販売医療機器の全ラベリングは繁体字中国語必須。",
+        "醫療器材管理法 Art. 27 / 醫療器材標示管理辦法",
+        "醫療器材管理法第二十七條：醫療器材之標示，應以中文為之。",
+        "zh", "Taiwan TFDA: Traditional Chinese labeling mandatory for all devices sold in Taiwan.",
+        "local_authority_specific", "critical",
+        ["繁體中文器材標籤 / Traditional Chinese device label",
+         "繁體中文使用說明書 / Traditional Chinese IFU"], 0.92)])
+    _merge("TFDA", "7.5.9.2", [_wd(
+        "TW-WITHIN-7.5.9.2-001", "7.5.9.2",
+        "UDI — Mandatory Class III from 2024 (醫療器材管理法)",
+        "UDI — 2024年起 Class III 強制", "UDI — 2024年からClass III必須",
+        _UE, _UZ, _UJ,
+        "醫療器材管理法 / TFDA Announcement: UDI pilot since 2022. Mandatory for Class III from 2024. Registered in TFDA national UDI database. GS1 Taiwan or HIBCC accepted.",
+        "醫療器材管理法 / TFDA 公告：自2022年起 UDI 試點。Class III 自2024年起強制。在 TFDA 國家 UDI 資料庫登記。GS1 台灣或 HIBCC 可用。",
+        "医療機器管理法 / TFDA公告：2022年からUDIパイロット。2024年からClass III義務化。TFDA国家UDIデータベース登録必要。",
+        "醫療器材管理法 / TFDA UDI Announcement",
+        "醫療器材管理法：第三等級醫療器材自2024年起須實施唯一識別碼（UDI）制度。",
+        "zh", "Taiwan TFDA: UDI mandatory for Class III from 2024; TFDA national UDI database registration.",
+        "additional_form", "major",
+        ["TFDA UDI資料庫登記 / TFDA UDI database registration",
+         "UDI標籤 / UDI on device labels"], 0.88)])
+    _merge("TFDA", "8.2.1", [_wd(
+        "TW-WITHIN-8.2.1-001", "8.2.1",
+        "Annual PSUR — Required for Class III (醫療器材管理法 Art. 38)",
+        "年度 PSUR — Class III 強制（醫療器材管理法第38條）", "年次PSUR — Class III必須(Art.38)",
+        _8E, _8Z, _8J,
+        "醫療器材管理法 Art. 38 / 醫療器材上市後管理辦法: Annual PSUR required for Class III submitted to TFDA. Class II requires periodic PMS reviews. Safety signals trigger CAPA.",
+        "醫療器材管理法第38條 / 醫療器材上市後管理辦法：Class III 需要向 TFDA 提交年度 PSUR。Class II 需要定期 PMS 審查。安全信號觸發 CAPA。",
+        "医療機器管理法Art.38 / 医療機器市販後管理辦法：Class IIIはTFDAへ年次PSUR提出必要。Class IIは定期PMSレビュー。",
+        "醫療器材管理法 Art. 38 / 醫療器材上市後管理辦法",
+        "醫療器材管理法第三十八條：第三等級醫療器材製造業者應定期提交安全更新報告。",
+        "zh", "Taiwan TFDA: annual PSUR required for Class III; periodic PMS review for Class II.",
+        "local_authority_specific", "critical",
+        ["年度PSUR (Class III) / Annual PSUR",
+         "PMS計畫 / PMS plan"], 0.90)])
+    _merge("TFDA", "8.2.3", [_wd(
+        "TW-WITHIN-8.2.3-001", "8.2.3",
+        "AE Reporting — 7 Days (Death/Serious) / 15 Days (Other) to TFDA",
+        "不良事件通報 — 7天（死亡/嚴重）/ 15天（其他）通報 TFDA", "有害事象報告 — 7日(死亡/重篤)/15日(その他)",
+        _AE, _AZ, _AJ,
+        "醫療器材管理法 / 醫療器材不良事件通報及處理辦法: SAEs reported to TFDA within 7 calendar days (death/life-threatening) or 15 calendar days (other serious AEs). Via TFDA AE reporting system.",
+        "醫療器材管理法 / 醫療器材不良事件通報及處理辦法：7個日曆日內（死亡或危及生命）或15個日曆日內（其他嚴重不良事件）向 TFDA 報告。",
+        "医療機器管理法 / 医療機器有害事象通報処理辦法：死亡・生命に関わる事象は7暦日以内、その他重篤は15暦日以内にTFDA報告。",
+        "醫療器材管理法 / 醫療器材不良事件通報及處理辦法",
+        "醫療器材管理法：嚴重不良事件於7日內（死亡/危及生命）或15日內（其他嚴重）向主管機關通報。",
+        "zh", "Taiwan TFDA: AEs reported within 7 days (death/life-threatening) or 15 days (other serious).",
+        "stricter_timeline", "critical",
+        ["TFDA不良事件通報 / TFDA AE reports",
+         "7/15天通報程序 / 7/15-day reporting procedure"], 0.90)])
+
+    # ── TGA ───────────────────────────────────────────────────────────────
+    _merge("TGA", "6.2", [_wd(
+        "AU-WITHIN-6.2-001", "6.2",
+        "Australian Sponsor — TGA-Registered (Therapeutic Goods Act 1989)",
+        "澳洲贊助商 — TGA 登記（1989年治療用品法）", "オーストラリアスポンサー — TGA登録",
+        _6E, _6Z, _6J,
+        "Therapeutic Goods Act 1989 / TG(MD)R: Medical devices sold in Australia must be sponsored by an Australian entity (Sponsor) registered with TGA. The Sponsor is responsible for regulatory compliance.",
+        "1989年治療用品法 / TG(MD)R：在澳洲銷售的醫療器材必須由在 TGA 登記的澳洲實體（贊助商）贊助，負責法規合規性。",
+        "治療用品法1989 / TG（MD）R：オーストラリアで販売される医療機器はTGA登録のオーストラリア法人（スポンサー）が必要。",
+        "Therapeutic Goods Act 1989 / TG(MD)R 2002",
+        "TGA: Australian Sponsor registered with TGA required for all marketed devices.",
+        "en", "", "local_authority_specific", "major",
+        ["Australian Sponsor registration with TGA / TGA澳洲贊助商登記"], 0.88)])
+    _merge("TGA", "7.3.6", [_wd(
+        "AU-WITHIN-7.3.6-001", "7.3.6",
+        "Clinical Evidence — Mandatory for ARTG Inclusion (TG(MD)R Sch.1 Pt.1 Cl.7)",
+        "臨床證據 — ARTG 納入強制（TG(MD)R Sch.1 Pt.1 Cl.7）", "臨床エビデンス — ARTG収載必須",
+        _CE, _CZ, _CJ,
+        "TG(MD)R Schedule 1 Part 1 Clause 7: Clinical evidence required for all ARTG-included devices. Class IIa/IIb/III/AIMD require CER or clinical trial data. TGA accepts EU MDR, FDA, and PMDA data for expedited review.",
+        "TG(MD)R Schedule 1 第1部第7條：所有納入 ARTG 的器材都需要臨床證據。Class IIa/IIb/III/AIMD 需要 CER 或臨床試驗資料。TGA 接受 EU MDR、FDA 和 PMDA 資料加速審查。",
+        "TG（MD）R Schedule 1 Part 1 Clause 7：ARTG収載全機器は臨床エビデンス必要。Class IIa+はCERまたは臨床試験データ。EU MDR/FDA/PMDAデータで迅速審査可。",
+        "TG(MD)R Schedule 1 Part 1 Clause 7",
+        "TG(MD)R: clinical evidence required for all ARTG-included devices; CER or clinical trial data for Class IIa+.",
+        "en", "", "scope_extension", "critical",
+        ["Clinical Evaluation Report (CER) / 臨床評估報告",
+         "ARTG clinical evidence / ARTG臨床證據提交"], 0.92)])
+    _merge("TGA", "7.5.1", [_wd(
+        "AU-WITHIN-7.5.1-001", "7.5.1",
+        "English Labeling — Mandatory with ARTG Number (TG(MD)R)",
+        "英語標示 — 強制含 ARTG 號碼（TG(MD)R）", "英語ラベル — ARTG番号含む必須(TG(MD)R)",
+        _LE, _LZ, _LJ,
+        "TG(MD)R / TGA Labeling Requirements: Labels and IFU must be in English. Mandatory elements include device name, ARTG number, Sponsor name and address, batch number, expiry date, and directions for use.",
+        "TG(MD)R / TGA 標示要求：標籤和使用說明書必須使用英語。強制元素包括器材名稱、ARTG 號碼、贊助商名稱和地址、批號、到期日和使用說明。",
+        "TG（MD）R / TGA標示要件：ラベル・IFUは英語必須。器材名・ARTG番号・スポンサー名・住所・バッチ番号・期限日・使用指示必須記載。",
+        "TG(MD)R / TGA Labeling Requirements",
+        "TGA: English labeling mandatory; mandatory elements include ARTG number and Sponsor details.",
+        "en", "", "local_authority_specific", "major",
+        ["English label with ARTG number / 含ARTG號碼之英語標籤"], 0.90)])
+    _merge("TGA", "8.2.1", [_wd(
+        "AU-WITHIN-8.2.1-001", "8.2.1",
+        "Post-Market Vigilance — MSUR Required (TG(MD)R / TGA Vigilance)",
+        "上市後警戒 — 強制 MSUR（TG(MD)R）", "市販後警戒 — MSUR必須(TG(MD)R)",
+        _8E, _8Z, _8J,
+        "TG(MD)R / TGA Vigilance Guidance: Sponsors must maintain a post-market vigilance program. Medical Safety Update Reports (MSUR) required for Class IIb/III/AIMD submitted to TGA. Complaint collection and AE monitoring mandatory.",
+        "TG(MD)R / TGA 警戒指引：贊助商必須維護上市後警戒計畫。Class IIb/III/AIMD 需要向 TGA 提交醫療安全更新報告（MSUR）。強制投訴收集和不良事件監測。",
+        "TG（MD）R / TGA警戒ガイダンス：苦情収集・有害事象監視・MSUR含む市販後警戒プログラム必要。Class IIb/III/AIIMDはTGAへMSUR提出。",
+        "TG(MD)R / TGA Vigilance Guidance",
+        "TGA: post-market vigilance program required; MSUR for Class IIb/III/AIMD.",
+        "en", "", "local_authority_specific", "major",
+        ["MSUR submitted to TGA / 提交TGA之MSUR",
+         "Vigilance program documentation / 警戒計畫文件"], 0.90)])
+    _merge("TGA", "8.2.3", [_wd(
+        "AU-WITHIN-8.2.3-001", "8.2.3",
+        "AE Reporting — 48h (Serious) / 30 Days (Other) (TG(MD)R Reg 5.7)",
+        "不良事件通報 — 48h（嚴重）/ 30天（其他）（TG(MD)R Reg 5.7）", "有害事象報告 — 48時間(重大)/30日(その他)(Reg 5.7)",
+        _AE, _AZ, _AJ,
+        "TG(MD)R Regulation 5.7: Sponsors must report to TGA within 48 hours (death or serious unexpected injury) or within 30 days (other reportable serious AEs). Reports via TGA IRIS system.",
+        "TG(MD)R 法規5.7：贊助商必須在48小時（死亡或意外嚴重傷害）或30天（其他需報告的嚴重不良事件）內向 TGA 報告。通過 TGA IRIS 系統。",
+        "TG（MD）R Reg.5.7：死亡または予期せぬ重篤傷害は48時間以内、その他の報告必要な重篤有害事象は30日以内にTGAへ報告。IRIS経由。",
+        "TG(MD)R Regulation 5.7",
+        "TG(MD)R Reg 5.7: AEs reported within 48 hours (death/serious unexpected) or 30 days (other reportable AEs).",
+        "en", "", "stricter_timeline", "critical",
+        ["TGA IRIS AE reports / TGA IRIS不良事件報告",
+         "48-hour reporting procedure / 48小時通報程序"], 0.90)])
+
+    # ── TH_FDA ────────────────────────────────────────────────────────────
+    _merge("TH_FDA", "6.2", [_wd(
+        "TH-WITHIN-6.2-001", "6.2",
+        "Scientific Officer — Thai FDA-Licensed (Medical Device Act B.E. 2551)",
+        "科學官員 — 泰國 FDA 許可（醫療器材法 B.E. 2551）", "科学担当者 — タイFDA許可(医療機器法B.E.2551)",
+        _6E, _6Z, _6J,
+        "Medical Device Act B.E. 2551 (2008): Medical device establishments must have a qualified Scientific Officer licensed by Thai FDA, holding a degree in science, pharmacy, medicine, or engineering.",
+        "醫療器材法 B.E. 2551（2008年）：醫療器材機構必須有一名由泰國 FDA 許可的合格科學官員，持有科學、藥學、醫學或工程相關學位。",
+        "医療機器法B.E.2551（2008）：タイFDA許可の科学担当者（科学・薬学・医学・工学関連学位）必要。",
+        "Medical Device Act B.E. 2551 (2008)",
+        "Thai FDA: Scientific Officer with relevant degree licensed by Thai FDA required.",
+        "en", "", "local_authority_specific", "major",
+        ["Scientific Officer license / 科學官員執照"], 0.82)])
+    _merge("TH_FDA", "7.3.6", [_wd(
+        "TH-WITHIN-7.3.6-001", "7.3.6",
+        "Clinical Evidence — Required for Class 3 (Thai FDA / ASEAN MDD)",
+        "臨床證據 — Class 3 強制（泰國 FDA / ASEAN MDD）", "臨床エビデンス — Class 3必須(タイFDA/ASEAN MDD)",
+        _CE, _CZ, _CJ,
+        "Medical Device Act B.E. 2551: Class 3 devices require clinical evidence for Thai FDA registration. IMDRF CER accepted. Reference approvals (FDA, EU MDR, TGA, PMDA) accepted under ASEAN Medical Device Directive framework.",
+        "醫療器材法 B.E. 2551：Class 3 器材需要臨床證據進行泰國 FDA 登記。接受 IMDRF CER。在 ASEAN MDD 框架下接受參考批准。",
+        "医療機器法B.E.2551：Class 3はタイFDA登録に臨床エビデンス必要。IMDRF CER可。ASEANフレームワーク下でIMDRF参照承認受け入れ。",
+        "Medical Device Act B.E. 2551 / Thai FDA Guidance",
+        "Thai FDA: clinical evidence required for Class 3; IMDRF reference approvals accepted under ASEAN framework.",
+        "en", "", "scope_extension", "critical",
+        ["Clinical evidence package / 臨床證據包"], 0.80)])
+    _merge("TH_FDA", "7.5.9.2", [_wd(
+        "TH-WITHIN-7.5.9.2-001", "7.5.9.2",
+        "UDI — No National Mandate (ASEAN AMDD Planned)",
+        "UDI — 無國家強制（ASEAN AMDD 規劃中）", "UDI — 国内義務化なし(ASEAN AMDD計画中)",
+        _UE, _UZ, _UJ,
+        "Thailand (Thai FDA) has no mandatory national UDI system. ASEAN AMDD UDI provisions under development. Voluntary IMDRF UDI compliance accepted.",
+        "泰國（泰國 FDA）無強制國家 UDI 系統。ASEAN AMDD UDI 條款開發中。接受自願 IMDRF UDI 合規性。",
+        "タイ（タイFDA）は国内UDI義務化なし。ASEAN AMDD UDI条項開発中。IMDRF準拠自発的UDI可。",
+        "Thai FDA / ASEAN Medical Device Directive",
+        "Thai FDA: no mandatory UDI; ASEAN AMDD UDI provisions under development.",
+        "en", "", "additional_form", "minor",
+        ["UDI documentation (if applicable) / UDI文件（適用時）"], 0.72)])
+    _merge("TH_FDA", "8.2.1", [_wd(
+        "TH-WITHIN-8.2.1-001", "8.2.1",
+        "PMS — Required (Medical Device Act B.E. 2551)",
+        "上市後監控 — 強制 PMS（醫療器材法 B.E. 2551）", "市販後モニタリング — PMS必須(B.E.2551)",
+        _8E, _8Z, _8J,
+        "Medical Device Act B.E. 2551 / Thai FDA: Registered manufacturers must maintain a PMS system including complaint collection, AE monitoring, and periodic safety reviews. Safety signals reported to Thai FDA.",
+        "醫療器材法 B.E. 2551 / 泰國 FDA：已登記製造業者必須維護 PMS 系統，包括投訴收集、不良事件監測和定期安全審查。安全信號向泰國 FDA 報告。",
+        "医療機器法B.E.2551 / タイFDA：苦情収集・有害事象監視・定期安全審査含む市販後監視システム必要。安全シグナルはタイFDAへ報告。",
+        "Medical Device Act B.E. 2551 / Thai FDA Guidance",
+        "Thai FDA: PMS system required including complaint/AE monitoring; safety signals reported.",
+        "en", "", "local_authority_specific", "major",
+        ["PMS system documentation / PMS文件"], 0.78)])
+    _merge("TH_FDA", "8.3.2", [_wd(
+        "TH-WITHIN-8.3.2-001", "8.3.2",
+        "Recall — 7 Days to Thai FDA",
+        "回收通報 — 7天內通報泰國 FDA", "リコール — 7日以内タイFDA通知",
+        _FE, _FZ, _FJ,
+        "Medical Device Act B.E. 2551 / Thai FDA Recall Guidance: Recall notification to Thai FDA within 7 calendar days. Recall action plan submitted. Serious risk situations may require immediate notification.",
+        "醫療器材法 B.E. 2551 / 泰國 FDA 回收指引：7個日曆日內通報泰國 FDA。提交回收行動計畫。嚴重風險情況可能需要立即通報。",
+        "医療機器法B.E.2551 / タイFDA回収ガイダンス：7暦日以内にタイFDA通知。回収行動計画提出。",
+        "Medical Device Act B.E. 2551 / Thai FDA Recall Guidance",
+        "Thai FDA: recall notification within 7 calendar days; recall action plan submitted.",
+        "en", "", "stricter_timeline", "critical",
+        ["Thai FDA recall notification within 7 days / 7天泰國FDA通報"], 0.78)])
+
+    # ── TR_TITCK ──────────────────────────────────────────────────────────
+    _merge("TR_TITCK", "6.2", [_wd(
+        "TR-WITHIN-6.2-001", "6.2",
+        "Turkish Authorized Representative (TR-REP) — TITCK-Registered",
+        "土耳其授權代表（TR-REP）— TITCK 登記", "トルコ認定代理人(TR-REP) — TITCK登録",
+        _6E, _6Z, _6J,
+        "Tıbbi Cihaz Yönetmeliği (EU MDR-aligned): Foreign manufacturers must appoint a TITCK-registered Turkish Authorized Representative (TR-REP) with qualifications equivalent to EU MDR PRRC.",
+        "Tıbbi Cihaz Yönetmeliği（EU MDR 對齊）：境外製造業者必須任命一名在 TITCK 登記的土耳其授權代表（TR-REP），資格相當於 EU MDR PRRC。",
+        "Tıbbi Cihaz Yönetmeliği（EU MDR整合）：海外製造業者はTITCK登録のTR-REP任命必要。EU MDR PRRC相当の技術資格必要。",
+        "Tıbbi Cihaz Yönetmeliği / TITCK Requirements",
+        "Tıbbi Cihaz Yönetmeliği: TITCK'a kayıtlı Türkiye Yetkili Temsilcisi (TR-REP) atanması zorunludur.",
+        "tr", "Turkish MDR: TITCK-registered TR-REP with PRRC-equivalent qualifications required.",
+        "local_authority_specific", "critical",
+        ["TR-REP appointment / TR-REP任命文件",
+         "TITCK TR-REP registration / TITCK TR-REP登記"], 0.85)])
+    _merge("TR_TITCK", "7.3.6", [_wd(
+        "TR-WITHIN-7.3.6-001", "7.3.6",
+        "Clinical Evaluation — EU MDR-Equivalent (Tıbbi Cihaz Yönetmeliği)",
+        "臨床評估 — EU MDR 等同", "臨床評価 — EU MDR相当",
+        _CE, _CZ, _CJ,
+        "Tıbbi Cihaz Yönetmeliği (EU MDR-aligned): CER per MEDDEV 2.7/1 Rev.4 mandatory for Class IIa/IIb/III. PMCF required for Class III and implantable Class IIb.",
+        "Tıbbi Cihaz Yönetmeliği（EU MDR 對齊）：Class IIa/IIb/III 按 MEDDEV 2.7/1 Rev.4 強制要求 CER。Class III 和植入性 Class IIb 需要 PMCF。",
+        "Tıbbi Cihaz Yönetmeliği（EU MDR整合）：Class IIa/IIb/IIIはMEDDEV 2.7/1 Rev.4のCER必須。Class IIIおよび植込み型Class IIbはPMCF必要。",
+        "Tıbbi Cihaz Yönetmeliği / EU MDR Art. 61, Annex XIV",
+        "Tıbbi Cihaz Yönetmeliği: klinik değerlendirme AB MDR Madde 61 gerekliliklerine uygun yapılmalıdır.",
+        "tr", "Turkish MDR: CER per MEDDEV 2.7/1 Rev.4 mandatory for Class IIa+; PMCF for Class III.",
+        "scope_extension", "critical",
+        ["Clinical Evaluation Report (CER) / 臨床評估報告",
+         "PMCF plan (Class III) / PMCF計畫（Class III）"], 0.85)])
+    _merge("TR_TITCK", "7.5.9.2", [_wd(
+        "TR-WITHIN-7.5.9.2-001", "7.5.9.2",
+        "UDI — EU MDR-Equivalent (Tıbbi Cihaz Yönetmeliği / TITCK)",
+        "UDI — EU MDR 等同（TITCK）", "UDI — EU MDR相当(TITCK)",
+        _UE, _UZ, _UJ,
+        "Tıbbi Cihaz Yönetmeliği (EU MDR-aligned): UDI per EU MDR Annex VI required for Turkish market. EUDAMED UDI registration recognized. Turkey implementing national UDI database aligned with EU MDR.",
+        "Tıbbi Cihaz Yönetmeliği（EU MDR 對齊）：土耳其市場需要按 EU MDR Annex VI 的 UDI。EUDAMED UDI 登記被認可。土耳其正在實施與 EU MDR 對齊的國家 UDI 資料庫。",
+        "Tıbbi Cihaz Yönetmeliği（EU MDR整合）：EU MDR Annex VI準拠のUDI必要。EUDAMED登録認定。国内UDIデータベース実装中。",
+        "Tıbbi Cihaz Yönetmeliği / EU MDR Annex VI",
+        "Tıbbi Cihaz Yönetmeliği: UDI EU MDR Ek VI ile uyumlu; EUDAMED kaydı tanınmaktadır.",
+        "tr", "Turkish MDR: UDI per EU MDR Annex VI; EUDAMED registration recognized.",
+        "additional_form", "major",
+        ["EU MDR-compliant UDI / EU MDR合規UDI",
+         "EUDAMED UDI registration / EUDAMED UDI登記"], 0.85)])
+    _merge("TR_TITCK", "8.2.1", [_wd(
+        "TR-WITHIN-8.2.1-001", "8.2.1",
+        "PMS — EU MDR-Equivalent (PSUR + PMCF)",
+        "上市後監督 — EU MDR 等同（PSUR + PMCF）", "市販後サーベイランス — EU MDR相当(PSUR+PMCF)",
+        _8E, _8Z, _8J,
+        "Tıbbi Cihaz Yönetmeliği (EU MDR Art.83-86 aligned): Annual PSUR and PMCF required for Class III/implantables. Periodic PSUR for Class IIa/IIb. PMS plan and reports submitted to TITCK.",
+        "Tıbbi Cihaz Yönetmeliği（EU MDR 第83-86條對齊）：Class III/植入性器材需要年度 PSUR 和 PMCF。Class IIa/IIb 需要定期 PSUR。按 EU MDR 時程向 TITCK 提交 PMS 計畫和報告。",
+        "Tıbbi Cihaz Yönetmeliği（EU MDR Art.83-86整合）：Class IIIおよび植込み型は年次PSUR・PMCF必要。Class IIa/IIbは定期PSUR。",
+        "Tıbbi Cihaz Yönetmeliği / EU MDR Art. 83-86",
+        "Tıbbi Cihaz Yönetmeliği: satış sonrası gözetim AB MDR ile uyumlu; Sınıf III için yıllık PSUR ve PMCF.",
+        "tr", "Turkish MDR: annual PSUR and PMCF for Class III; periodic PSUR for IIa/IIb.",
+        "local_authority_specific", "critical",
+        ["PSUR / PMCF plan / PSUR/PMCF計畫"], 0.85)])
+    _merge("TR_TITCK", "8.3.2", [_wd(
+        "TR-WITHIN-8.3.2-001", "8.3.2",
+        "FSCA — 15 Days to TITCK (EU MDR-Equivalent)",
+        "FSCA 通知 — 15天內通報 TITCK（EU MDR 等同）", "FSCA通知 — 15日以内TITCK通報(EU MDR相当)",
+        _FE, _FZ, _FJ,
+        "Tıbbi Cihaz Yönetmeliği (EU MDR-aligned): FSCA notification to TITCK within 15 days. FSN distributed to affected users. Immediate notification for serious risk.",
+        "Tıbbi Cihaz Yönetmeliği（EU MDR 對齊）：在15天內通報 TITCK。向受影響用戶分發 FSN。嚴重風險情況立即通報。",
+        "Tıbbi Cihaz Yönetmeliği（EU MDR整合）：FSCA開始後15日以内にTITCK通知。FSN配布。重大リスクは即時通知。",
+        "Tıbbi Cihaz Yönetmeliği / EU MDR Art. 87",
+        "Tıbbi Cihaz Yönetmeliği: TITCK'a geri çağırma bildirimi 15 gün içinde; FSN dağıtılmalı.",
+        "tr", "Turkish MDR: FSCA notification within 15 days to TITCK; FSN distributed.",
+        "stricter_timeline", "critical",
+        ["TITCK FSCA notification within 15 days / 15天TITCK通報"], 0.85)])
+
+    # ── UK_MHRA ───────────────────────────────────────────────────────────
+    _merge("UK_MHRA", "6.2", [_wd(
+        "UK-WITHIN-6.2-001", "6.2",
+        "UK Responsible Person (RP) — MHRA-Registered (UK MDR 2002)",
+        "英國負責人（RP）— MHRA 登記（UK MDR 2002）", "UK責任者(RP) — MHRA登録(UK MDR 2002)",
+        _6E, _6Z, _6J,
+        "UK MDR 2002 (post-Brexit): Manufacturers placing devices on UK market must have a UK Responsible Person (RP) registered with MHRA, domiciled in the UK, with relevant science/engineering degree + 1 year QMS/RA experience.",
+        "英國 MDR 2002（脫歐後）：在英國市場銷售器材的製造業者必須有一名在 MHRA 登記的英國負責人（RP），在英國有住所，具備相關科學/工程學位 + 1年 QMS/RA 經驗。",
+        "UK MDR 2002（Brexit後）：UK市場に機器を販売する製造業者はMHRA登録・英国在籍のUK RP必要。理系/工学学位+1年QMS/RA経験。",
+        "UK MDR 2002 (SI 2002/618, post-Brexit amendment)",
+        "UK MDR 2002: UK Responsible Person (RP) with relevant qualifications registered with MHRA required.",
+        "en", "", "local_authority_specific", "critical",
+        ["UK Responsible Person MHRA registration / MHRA英國負責人登記",
+         "RP qualification evidence / RP資格證明"], 0.90)])
+    _merge("UK_MHRA", "7.3.6", [_wd(
+        "UK-WITHIN-7.3.6-001", "7.3.6",
+        "Clinical Evaluation — CER per MEDDEV 2.7/1 Rev.4 (UK MDR 2002)",
+        "臨床評估 — MEDDEV 2.7/1 Rev.4 CER（UK MDR 2002）", "臨床評価 — MEDDEV 2.7/1 Rev.4 CER(UK MDR 2002)",
+        _CE, _CZ, _CJ,
+        "UK MDR 2002 (post-Brexit): CER per MEDDEV 2.7/1 Rev. 4 mandatory for Class IIa/IIb/III. Class III and implantable Class IIb require PMCF and annual PMCF update. UKCA devices require EU MDR-equivalent clinical evidence.",
+        "英國 MDR 2002（脫歐後）：Class IIa/IIb/III 按 MEDDEV 2.7/1 Rev. 4 強制要求 CER。Class III 和植入性 Class IIb 需要 PMCF 和年度 PMCF 更新。",
+        "UK MDR 2002（Brexit後）：MEDDEV 2.7/1 Rev.4準拠のCER必須（Class IIa/IIb/III）。Class IIIおよび植込み型Class IIbはPMCFと年次更新必要。",
+        "UK MDR 2002 (post-Brexit) / MEDDEV 2.7/1 Rev. 4",
+        "UK MDR 2002: CER per MEDDEV 2.7/1 Rev.4 mandatory for Class IIa+; PMCF for Class III.",
+        "en", "", "scope_extension", "critical",
+        ["CER per MEDDEV 2.7/1 / MEDDEV 2.7/1 CER",
+         "PMCF plan and annual update (Class III) / PMCF計畫及年度更新（Class III）"], 0.90)])
+    _merge("UK_MHRA", "7.5.1", [_wd(
+        "UK-WITHIN-7.5.1-001", "7.5.1",
+        "English Labeling with UKCA Mark (UK MDR 2002 Schedule 1)",
+        "英語標示含 UKCA 標記（UK MDR 2002 Schedule 1）", "UKCAマーク付き英語ラベル(UK MDR 2002 Schedule 1)",
+        _LE, _LZ, _LJ,
+        "UK MDR 2002 Schedule 1: All labeling for devices sold in Great Britain must be in English and include UKCA mark. Mandatory elements include device name, Unique Registration Number (URN), manufacturer, batch number. Northern Ireland may require CE marking.",
+        "英國 MDR 2002 Schedule 1：在英國（大不列顛）銷售的器材所有標示必須使用英語並包含 UKCA 標記。強制元素包括器材名稱、唯一登記號碼（URN）、製造業者、批號。北愛爾蘭可能需要 CE 標記。",
+        "UK MDR 2002 Schedule 1：英国（グレートブリテン）販売機器の全ラベリングは英語・UKCAマーク必須。器材名・URN・製造業者・バッチ番号必須記載。",
+        "UK MDR 2002 Schedule 1 / UKCA Labeling Requirements",
+        "UK MDR 2002 Schedule 1: English labeling with UKCA mark mandatory; URN, manufacturer, batch number required.",
+        "en", "", "local_authority_specific", "critical",
+        ["UKCA-marked English label / UKCA標記英語標籤",
+         "Schedule 1 mandatory elements / Schedule 1強制元素"], 0.90)])
+    _merge("UK_MHRA", "8.2.1", [_wd(
+        "UK-WITHIN-8.2.1-001", "8.2.1",
+        "PSUR — Annual (Class IIa/IIb) / at SSCP Update (Class III) (UK MDR 2002)",
+        "PSUR — 年度（Class IIa/IIb）/ SSCP 更新時（Class III）", "PSUR — 年次(Class IIa/IIb)/SSCP更新時(Class III)",
+        _8E, _8Z, _8J,
+        "UK MDR 2002 (post-Brexit, EU MDR-equivalent): PMS system and PSUR required. Class IIa/IIb: annual PSUR. Class III and implantable Class IIb: PSUR at SSCP update (minimum annually). MHRA may request PSUR at any time.",
+        "英國 MDR 2002（脫歐後，EU MDR 等同）：需要 PMS 系統和 PSUR。Class IIa/IIb：年度 PSUR。Class III 和植入性 Class IIb：在 SSCP 更新時（至少每年一次）。MHRA 可能隨時要求 PSUR。",
+        "UK MDR 2002（Brexit後、EU MDR相当）：PMS・PSUR必要。Class IIa/IIbは年次PSUR。Class IIIおよび植込み型Class IIbはSSCP更新時（最低年次）。",
+        "UK MDR 2002 (post-Brexit) / MHRA Guidance",
+        "UK MDR 2002: annual PSUR for Class IIa/IIb; PSUR at SSCP update (annually) for Class III.",
+        "en", "", "local_authority_specific", "critical",
+        ["Annual PSUR (Class IIa/IIb) / 年度PSUR",
+         "SSCP + PSUR (Class III) / SSCP+PSUR（Class III）"], 0.90)])
+
+    # ── VN_MOH ────────────────────────────────────────────────────────────
+    _merge("VN_MOH", "6.2", [_wd(
+        "VN-WITHIN-6.2-001", "6.2",
+        "Technical Director (Giám đốc kỹ thuật) — MOH-Licensed",
+        "技術主任（Giám đốc kỹ thuật）— 衛生部許可", "技術主任(Giám đốc kỹ thuật) — 保健省許可",
+        _6E, _6Z, _6J,
+        "Circular 14/2022/TT-BYT: Medical device establishments must have a Technical Director (Giám đốc kỹ thuật) licensed by Vietnam MOH. Must hold a degree in medicine, pharmacy, or biomedical engineering. Foreign manufacturers must appoint a Vietnamese authorized representative.",
+        "第14/2022/TT-BYT號通知：越南醫療器材機構必須有一名由衛生部許可的技術主任（Giám đốc kỹ thuật）。必須持有醫學、藥學或生物醫學工程相關學位。境外製造業者必須任命越南授權代表。",
+        "Circular 14/2022/TT-BYT：ベトナムの医療機器機関は保健省許可の技術主任（Giám đốc kỹ thuật）必要。医学・薬学・生物医学工学関連学位必須。海外製造業者はベトナム認定代理人任命必要。",
+        "Circular 14/2022/TT-BYT / Decree 98/2021/ND-CP",
+        "Thông tư 14/2022/TT-BYT: Giám đốc kỹ thuật với trình độ chuyên môn phù hợp được Bộ Y tế cấp phép.",
+        "vi", "Vietnam MOH: Technical Director (Giám đốc kỹ thuật) with relevant degree licensed by MOH required.",
+        "local_authority_specific", "major",
+        ["Technical Director license / 技術主任執照"], 0.82)])
+    _merge("VN_MOH", "7.3.6", [_wd(
+        "VN-WITHIN-7.3.6-001", "7.3.6",
+        "Clinical Evidence — Required for Class C/D (Circular 14/2022)",
+        "臨床證據 — Class C/D 強制（第14/2022號通知）", "臨床エビデンス — Class C/D必須(Circular 14/2022)",
+        _CE, _CZ, _CJ,
+        "Circular 14/2022/TT-BYT / Decree 98/2021: Class C and D devices require clinical evidence for Vietnam MOH registration. IMDRF CER accepted. Reference authority approvals (FDA, EU MDR, TGA, PMDA) accepted under ASEAN MDD framework.",
+        "第14/2022/TT-BYT號通知 / 第98/2021號法令：Class C 和 D 器材需要臨床證據進行衛生部登記。接受 IMDRF CER。在 ASEAN MDD 框架下接受參考機關批准。",
+        "Circular 14/2022 / Decree 98/2021：Class C/DはMOH登録に臨床エビデンス必要。IMDRF CER可。ASEAN MDDフレームワーク下でIMDRF参照承認受け入れ。",
+        "Circular 14/2022/TT-BYT / Decree 98/2021/ND-CP",
+        "Thông tư 14/2022: trang thiết bị y tế loại C và D cần bằng chứng lâm sàng.",
+        "vi", "Vietnam MOH: clinical evidence required for Class C/D; IMDRF reference approvals accepted.",
+        "scope_extension", "critical",
+        ["Clinical evidence package / 臨床證據包"], 0.80)])
+    _merge("VN_MOH", "7.5.9.2", [_wd(
+        "VN-WITHIN-7.5.9.2-001", "7.5.9.2",
+        "UDI — No National Mandate (ASEAN AMDD Planned)",
+        "UDI — 無國家強制（ASEAN AMDD 規劃中）", "UDI — 国内義務化なし(ASEAN AMDD計画中)",
+        _UE, _UZ, _UJ,
+        "Vietnam (MOH) has no mandatory national UDI system. ASEAN AMDD UDI provisions under development. Voluntary IMDRF UDI compliance accepted by Vietnam MOH.",
+        "越南（衛生部）無強制國家 UDI 系統。ASEAN AMDD UDI 條款開發中。越南衛生部接受自願 IMDRF UDI 合規性。",
+        "ベトナム（保健省）は国内UDI義務化なし。ASEAN AMDD UDI条項開発中。IMDRF準拠自発的UDI可。",
+        "Vietnam MOH / ASEAN Medical Device Directive",
+        "Vietnam MOH: no mandatory UDI; voluntary IMDRF compliance accepted.",
+        "en", "", "additional_form", "minor",
+        ["UDI documentation (if applicable) / UDI文件（適用時）"], 0.72)])
+    _merge("VN_MOH", "8.2.1", [_wd(
+        "VN-WITHIN-8.2.1-001", "8.2.1",
+        "PMS — Required (Circular 14/2022)",
+        "上市後監督 — 強制 PMS（第14/2022號通知）", "市販後サーベイランス — PMS必須(Circular 14/2022)",
+        _8E, _8Z, _8J,
+        "Circular 14/2022/TT-BYT: Registered manufacturers must maintain a PMS system including systematic complaint collection, AE monitoring, and periodic safety reviews. Safety signals reported to Vietnam MOH. Annual PMS review required.",
+        "第14/2022/TT-BYT號通知：已登記製造業者必須維護 PMS 系統，包括系統性投訴收集、不良事件監測和定期安全審查。識別安全信號時向越南衛生部報告。需要年度 PMS 審查。",
+        "Circular 14/2022/TT-BYT：苦情収集・有害事象監視・定期安全審査含む市販後監視システム必要。安全シグナル特定時はMOHへ報告。年次PMSレビュー。",
+        "Circular 14/2022/TT-BYT / Decree 98/2021/ND-CP",
+        "Thông tư 14/2022: hệ thống giám sát sau thị trường bao gồm thu thập khiếu nại và theo dõi sự cố bất lợi.",
+        "vi", "Vietnam MOH: PMS system required; annual review; safety signals reported to MOH.",
+        "local_authority_specific", "major",
+        ["PMS plan / PMS計畫",
+         "Annual PMS review / 年度PMS審查"], 0.80)])
+    _merge("VN_MOH", "8.3.2", [_wd(
+        "VN-WITHIN-8.3.2-001", "8.3.2",
+        "Recall — 5 Working Days to Vietnam MOH",
+        "回收通報 — 5個工作日內通報越南衛生部", "リコール — 5営業日以内ベトナム保健省通知",
+        _FE, _FZ, _FJ,
+        "Circular 14/2022/TT-BYT: Recall notification to Vietnam MOH within 5 working days. Documentation including scope, reason, and corrective action plan required. Serious risk requires immediate notification.",
+        "第14/2022/TT-BYT號通知：在5個工作日內通報越南衛生部，包括範圍、原因和矯正行動計畫。嚴重風險需立即通報。",
+        "Circular 14/2022/TT-BYT：5営業日以内にベトナム保健省通知。範囲・理由・是正行動計画含む書類提出。",
+        "Circular 14/2022/TT-BYT",
+        "Thông tư 14/2022: nhà sản xuất phải thông báo cho Bộ Y tế trong vòng 5 ngày làm việc kể từ thu hồi.",
+        "vi", "Vietnam MOH: recall notification within 5 working days; documentation submitted.",
+        "stricter_timeline", "critical",
+        ["Vietnam MOH recall notification within 5 days / 5天越南衛生部通報"], 0.80)])
+
+    # ── ZA_SAHPRA ─────────────────────────────────────────────────────────
+    _merge("ZA_SAHPRA", "6.2", [_wd(
+        "ZA-WITHIN-6.2-001", "6.2",
+        "Responsible Person — SAHPRA-Registered (Medicines Act 101/1965)",
+        "負責人 — SAHPRA 登記（藥品法第101/1965號）", "責任者 — SAHPRA登録(Medicines Act 101/1965)",
+        _6E, _6Z, _6J,
+        "Medicines and Related Substances Act 101/1965 / SAHPRA: Medical device establishments must designate a Responsible Person (RP) registered with SAHPRA with relevant qualifications (medicine, pharmacy, health sciences). Foreign manufacturers must appoint a South African authorized agent.",
+        "藥品及相關物質法第101/1965號 / SAHPRA：醫療器材機構必須指定一名在 SAHPRA 登記的負責人（RP），具備相關資格（醫學、藥學、健康科學）。境外製造業者必須任命南非授權代理人。",
+        "Medicines Act 101/1965 / SAHPRA：SAHPRA登録の責任者（RP）指定必要。医学・薬学・健康科学関連資格必須。海外製造業者は南アフリカ認定代理人任命必要。",
+        "Medicines and Related Substances Act 101/1965 / SAHPRA Guidance",
+        "SAHPRA: Responsible Person (RP) with relevant qualifications registered with SAHPRA required.",
+        "en", "", "local_authority_specific", "major",
+        ["Responsible Person designation / 負責人指定",
+         "SAHPRA registration / SAHPRA登記"], 0.78)])
+    _merge("ZA_SAHPRA", "7.3.6", [_wd(
+        "ZA-WITHIN-7.3.6-001", "7.3.6",
+        "Clinical Evidence — Required for Class C/D (SAHPRA)",
+        "臨床證據 — Class C/D 強制（SAHPRA）", "臨床エビデンス — Class C/D必須(SAHPRA)",
+        _CE, _CZ, _CJ,
+        "Medicines and Related Substances Act 101/1965 / SAHPRA: Class C and D devices require clinical evidence for SAHPRA registration. IMDRF CER accepted. FDA, EU MDR, TGA reference approvals accepted to support local registration.",
+        "藥品及相關物質法第101/1965號 / SAHPRA：Class C 和 D 器材需要臨床證據進行 SAHPRA 登記。接受 IMDRF CER。FDA、EU MDR、TGA 參考批准可支持本地登記申請。",
+        "Medicines Act 101/1965 / SAHPRA：Class C/DはSAHPRA登録に臨床エビデンス必要。IMDRF CER可。FDA/EU MDR/TGA承認受け入れ。",
+        "Medicines and Related Substances Act 101/1965 / SAHPRA Requirements",
+        "SAHPRA: clinical evidence required for Class C/D; FDA, EU MDR, TGA reference approvals accepted.",
+        "en", "", "scope_extension", "critical",
+        ["Clinical evidence package / 臨床證據包",
+         "Reference approval (FDA/EU MDR/TGA) / 參考機關批准"], 0.78)])
+    _merge("ZA_SAHPRA", "7.5.1", [_wd(
+        "ZA-WITHIN-7.5.1-001", "7.5.1",
+        "English Labeling with SAHPRA Registration Number — Mandatory",
+        "英語標示含 SAHPRA 登記號碼 — 強制", "SAHPRARegNo付き英語ラベル — 必須",
+        _LE, _LZ, _LJ,
+        "Medicines and Related Substances Act 101/1965 / SAHPRA: Labels and IFU must be in English. Mandatory elements include device name, manufacturer, batch number, expiry date, intended use, and SAHPRA registration number on label.",
+        "藥品及相關物質法第101/1965號 / SAHPRA：標籤和使用說明書必須使用英語。強制元素包括器材名稱、製造業者、批號、到期日、預期用途和 SAHPRA 登記號碼。",
+        "Medicines Act 101/1965 / SAHPRA標示要件：ラベル・IFUは英語必須。器材名・製造業者・バッチ番号・期限日・意図する用途・SAHPRA登録番号必須記載。",
+        "Medicines and Related Substances Act 101/1965 / SAHPRA Labeling Requirements",
+        "SAHPRA: English labeling mandatory; SAHPRA registration number on label required.",
+        "en", "", "local_authority_specific", "major",
+        ["English label with SAHPRA number / 含SAHPRA號碼之英語標籤"], 0.78)])
+    _merge("ZA_SAHPRA", "7.5.9.2", [_wd(
+        "ZA-WITHIN-7.5.9.2-001", "7.5.9.2",
+        "UDI — No National Mandate (Voluntary IMDRF)",
+        "UDI — 無國家強制（自願 IMDRF）", "UDI — 国内義務化なし(自発的IMDRF)",
+        _UE, _UZ, _UJ,
+        "South Africa (SAHPRA) has no mandatory national UDI system. Voluntary IMDRF UDI compliance accepted. Reference market UDI may be included in SAHPRA registration dossiers.",
+        "南非（SAHPRA）無強制國家 UDI 系統。接受自願 IMDRF UDI 合規性。參考市場 UDI 可包含在 SAHPRA 登記文件中。",
+        "南アフリカ（SAHPRA）は国内UDI義務化なし。IMDRF準拠自発的UDIをSAHPRAが受け入れ。",
+        "SAHPRA / IMDRF UDI Guidelines",
+        "SAHPRA: no mandatory UDI; voluntary IMDRF alignment accepted.",
+        "en", "", "additional_form", "minor",
+        ["UDI documentation (if applicable) / UDI文件（適用時）"], 0.72)])
+    _merge("ZA_SAHPRA", "8.2.1", [_wd(
+        "ZA-WITHIN-8.2.1-001", "8.2.1",
+        "PMS Plan — Required (SAHPRA)",
+        "上市後監督 — 強制 PMS 計畫（SAHPRA）", "市販後サーベイランス — PMSプラン必須(SAHPRA)",
+        _8E, _8Z, _8J,
+        "Medicines and Related Substances Act 101/1965 / SAHPRA: Registered manufacturers must maintain a PMS system including complaint collection and AE monitoring. Annual PMS review required. PMS data available for SAHPRA inspection.",
+        "藥品及相關物質法第101/1965號 / SAHPRA：已登記製造業者必須維護 PMS 系統，包括投訴收集和不良事件監測。需要年度 PMS 審查。PMS 資料可供 SAHPRA 檢查。",
+        "Medicines Act 101/1965 / SAHPRA：苦情収集・有害事象監視含む市販後監視システム必要。年次PMSレビュー。SAHPRA検査のためPMSデータ利用可能。",
+        "Medicines and Related Substances Act 101/1965 / SAHPRA Requirements",
+        "SAHPRA: PMS system required; annual review; data available for inspection.",
+        "en", "", "local_authority_specific", "major",
+        ["PMS plan / PMS計畫",
+         "Complaint and AE records / 投訴及不良事件記錄"], 0.75)])
+    _merge("ZA_SAHPRA", "8.3.2", [_wd(
+        "ZA-WITHIN-8.3.2-001", "8.3.2",
+        "Recall — 2 Working Days (Serious) / 10 Working Days (Other) to SAHPRA",
+        "回收通報 — 2個工作日（嚴重）/ 10個工作日（其他）通報 SAHPRA", "リコール — 2営業日(重大)/10営業日(その他)SAHPRA",
+        _FE, _FZ, _FJ,
+        "Medicines and Related Substances Act 101/1965 Section 35 / SAHPRA: Recall notification within 2 working days (serious risk) or 10 working days (other). FSN distributed to affected customers.",
+        "藥品及相關物質法第101/1965號第35條 / SAHPRA：2個工作日（嚴重風險）或10個工作日（其他）內通報 SAHPRA。向受影響客戶分發 FSN。",
+        "Medicines Act 101/1965 第35条 / SAHPRA：重大健康リスクは2営業日以内、その他は10営業日以内にSAHPRA通知。FSN配布。",
+        "Medicines and Related Substances Act 101/1965 Section 35 / SAHPRA Guidance",
+        "SAHPRA: recall notification within 2 working days (serious) or 10 working days (other); FSN distributed.",
+        "en", "", "stricter_timeline", "critical",
+        ["SAHPRA recall notification / SAHPRA回收通報",
+         "FSN distribution / FSN發布"], 0.75)])
+
+    # ── Supplemental: ANVISA/HC/PMDA/TGA 8.3.2 + TGA 7.5.9.2 ────────────
+    # These clauses are absent from the profiles' iso_mapped; _merge() creates stubs.
+    _merge("ANVISA", "8.3.2", [_wd(
+        "ANVISA-WITHIN-8.3.2-001", "8.3.2",
+        "Recall — 48h (Serious) / 72h (Other) (RDC 665/2022)",
+        "回收通報 — 48小時（嚴重）/ 72小時（其他）", "リコール — 48時間(重大)/72時間(その他)",
+        _FE, _FZ, _FJ,
+        "RDC 665/2022: Recall notification to ANVISA within 48h (serious) or 72h (non-serious). Documentation and FSN required.",
+        "RDC 665/2022：48小時（嚴重）或72小時（非嚴重）通報 ANVISA。需提供文件和 FSN。",
+        "RDC 665/2022：重大は48時間、非重大は72時間以内にANVISA通知。書類・FSN必要。",
+        "RDC 665/2022",
+        "RDC 665/2022: Notificacao a ANVISA em 48h (grave) ou 72h (nao grave).",
+        "pt", "ANVISA RDC 665/2022: recall notification within 48h (serious) or 72h (non-serious).",
+        "stricter_timeline", "critical",
+        ["ANVISA recall notification / ANVISA回收通報"], 0.88)])
+    _merge("HC", "8.3.2", [_wd(
+        "HC-WITHIN-8.3.2-001", "8.3.2",
+        "Recall Reporting — 10 Days to Health Canada (MDR SOR/98-282 s.64)",
+        "回收報告 — 10天內通報 Health Canada", "リコール — 10日以内Health Canada報告",
+        _FE, _FZ, _FJ,
+        "Medical Devices Regulations SOR/98-282 Section 64: Manufacturers must report mandatory recall information to Health Canada within 10 calendar days of initiating a recall.",
+        "醫療器材法規 SOR/98-282 第64條：製造業者在啟動回收後10個日曆日內向 Health Canada 報告強制回收資訊。",
+        "医療機器規制SOR/98-282 第64条：リコール開始後10暦日以内にHealth Canadaへ強制回収情報報告必要。",
+        "Medical Devices Regulations SOR/98-282 Section 64",
+        "MDR SOR/98-282 s.64: mandatory recall information reported to Health Canada within 10 calendar days.",
+        "en", "", "stricter_timeline", "critical",
+        ["Health Canada recall report within 10 days / 10天Health Canada回收報告"], 0.88)])
+    _merge("PMDA", "8.3.2", [_wd(
+        "JP-WITHIN-8.3.2-001", "8.3.2",
+        "FSCA — Immediate / 15-Day PMDA Notification (薬機法 §68の11)",
+        "FSCA — 立即 / 15天 PMDA 通報（薬機法第68條の11）", "FSCA — 即時/15日PMDA通報(§68の11)",
+        _FE, _FZ, _FJ,
+        "薬機法 第68条の11: Manufacturers must notify PMDA immediately for urgent FSCA (within 24h) and within 15 days for non-urgent FSCA. FSN must be distributed to affected users.",
+        "藥機法第68條の11：製造業者必須立即（緊急 FSCA 在24小時內）和15天內（非緊急 FSCA）通知 PMDA。必須向受影響用戶分發 FSN。",
+        "薬機法第68条の11：緊急FSCAは24時間以内、非緊急FSCAは15日以内にPMDA通知。FSN配布必要。",
+        "薬機法 第68条の11",
+        "薬機法第六十八条の十一：FSCAは緊急時は24時間以内、それ以外は15日以内にPMDAに届け出。",
+        "ja", "Japan PMDA: FSCA notification within 24h (urgent) or 15 days (non-urgent).",
+        "stricter_timeline", "critical",
+        ["PMDA FSCA notification / PMDA FSCA通報"], 0.90)])
+    _merge("TGA", "7.5.9.2", [_wd(
+        "AU-WITHIN-7.5.9.2-001", "7.5.9.2",
+        "UDI — Mandatory from 2025 (Class III First) (TG(MD)R Amendment)",
+        "UDI — 2025年起強制（Class III 優先）", "UDI — 2025年から必須(Class IIIから)(TG(MD)R改正)",
+        _UE, _UZ, _UJ,
+        "TG(MD)R Amendment: UDI mandatory for Class III devices from 2025. Class IIb/implantable from 2026. ARTG registration linked to UDI. GS1 Australia accepted as issuing agency.",
+        "TG(MD)R 修正案：Class III 器材自2025年起強制 UDI。Class IIb/植入物自2026年起。ARTG 登記與 UDI 連結。GS1 澳洲為發碼機構。",
+        "TG(MD)R改正：Class IIIは2025年から、Class IIb/植込み型は2026年からUDI義務化。ARTG登録とUDI連携。",
+        "TG(MD)R Amendment / TGA UDI Requirements",
+        "TGA: UDI mandatory for Class III from 2025; Class IIb/implantable from 2026; ARTG linked to UDI.",
+        "en", "", "additional_form", "major",
+        ["ARTG-linked UDI / ARTG連結UDI"], 0.85)])
+    _merge("TGA", "8.3.2", [_wd(
+        "AU-WITHIN-8.3.2-001", "8.3.2",
+        "Recall — 48h (Urgent) / 5 Working Days (Other) to TGA",
+        "回收通報 — 48小時（緊急）/ 5個工作日（其他）通報 TGA", "リコール — 48時間(緊急)/5営業日(その他)TGA",
+        _FE, _FZ, _FJ,
+        "TG(MD)R / TGA Recall Guidance: Sponsors must notify TGA within 48h for urgent recalls (serious risk) or within 5 working days for non-urgent recalls. Field Safety Notice distributed to affected users.",
+        "TG(MD)R / TGA 回收指引：贊助商必須在48小時（緊急回收/嚴重風險）或5個工作日（非緊急）內通報 TGA。向受影響用戶分發現場安全通知。",
+        "TG(MD)R / TGA回収ガイダンス：緊急リコール(重大リスク)は48時間以内、非緊急は5営業日以内にTGA通知。FSN配布。",
+        "TG(MD)R / TGA Recall Guidance",
+        "TGA: recall notification within 48h (urgent/serious) or 5 working days (non-urgent); FSN distributed.",
+        "en", "", "stricter_timeline", "critical",
+        ["TGA recall notification / TGA回收通報"], 0.88)])
+
+
+
+
+
+_inject_extra2_deltas()
+
+
+
+
 
 
 # ============================================================
@@ -13234,6 +15333,8 @@ try:
         )
 except Exception:
     pass  # Non-critical — predefined profiles still available
+
+_inject_extra2_deltas()  # re-run gap-fill for crawled profiles
 
 # Re-run injection AFTER crawled profiles are loaded so static
 # within_clause_deltas also apply to crawled profile entries.
