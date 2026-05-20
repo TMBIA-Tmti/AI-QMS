@@ -14791,7 +14791,9 @@ def generate_cross_exam_questions(
 # Crawled Regulation Persistence (JSON save/load)
 # ============================================================
 
-CRAWLED_REGULATIONS_DIR = os.path.join("data", "regulations")
+CRAWLED_REGULATIONS_DIR = os.path.join(
+    os.path.dirname(__file__), "..", "regulations"
+)
 
 
 def backup_predefined_profile(profile_id: str) -> Optional[str]:
