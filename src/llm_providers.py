@@ -33,8 +33,25 @@ Reference: OpenCode /connect providers (https://opencode.ai/docs/providers)
 import copy
 import os
 import base64
+import threading
 from typing import TypedDict, Optional, Any
 from pathlib import Path
+
+# Thread-local storage for the active pipeline run_id.
+# Set by gap_scanner / checklist_verifier before each LLM call so that
+# _wait_for_local_service_ready can emit an SSE reconnecting event to the
+# correct HTML viewer without needing a run_id parameter on completion().
+_llm_run_context = threading.local()
+
+
+def set_llm_run_context(run_id: str) -> None:
+    """Register the current pipeline run_id on the calling thread.
+
+    Called by gap_scanner / checklist_verifier before LLM completion so
+    reconnect events are routed to the correct SSE stream.
+    """
+    _llm_run_context.run_id = run_id
+
 
 try:
     import litellm
@@ -932,13 +949,15 @@ class LLMProviderManager:
             if api_key:
                 api_params["api_key"] = api_key
 
-            # Local providers: no timeout by default (user requirement: 永久 — wait forever).
-            # Set LOCAL_LLM_TIMEOUT env var (seconds) to override when needed.
+            # Local providers: 600s default (10 min) so a single slow doc
+            # cannot block the pipeline indefinitely.
+            # Override with LOCAL_LLM_TIMEOUT env var (seconds); set to 0 for
+            # the old unlimited behaviour.
             # Cloud providers: 180s default.
             if "timeout" not in api_params:
                 if provider["is_local"]:
-                    _local_to = os.getenv("LOCAL_LLM_TIMEOUT")
-                    api_params["timeout"] = int(_local_to) if _local_to else None
+                    _local_to = os.getenv("LOCAL_LLM_TIMEOUT", "600")
+                    api_params["timeout"] = int(_local_to) if int(_local_to) > 0 else None
                 else:
                     api_params["timeout"] = 180
 
@@ -1504,17 +1523,30 @@ def _wait_for_local_service_ready(provider: dict) -> None:
     """Block until the local LLM service (Ollama / LM Studio) responds.
 
     Polls the health endpoint at configurable intervals.
-    Default: infinite wait (永久) with 15-second intervals.
 
     Env vars:
         LOCAL_LLM_RECONNECT_INTERVAL  — seconds between polls (default 15)
-        LOCAL_LLM_RECONNECT_MAX_WAIT  — total seconds before giving up (default 0 = infinite)
+        LOCAL_LLM_RECONNECT_MAX_WAIT  — total seconds before giving up (default 120;
+                                         set to 0 for unlimited / old behaviour)
     """
     import time as _t
 
     interval = int(os.getenv("LOCAL_LLM_RECONNECT_INTERVAL", "15"))
-    max_wait = int(os.getenv("LOCAL_LLM_RECONNECT_MAX_WAIT", "0"))  # 0 = infinite
+    max_wait = int(os.getenv("LOCAL_LLM_RECONNECT_MAX_WAIT", "120"))  # 0 = infinite
     provider_name = provider.get("display_name", "Local LLM")
+
+    # Emit SSE reconnecting event so the HTML viewer shows a status banner
+    # instead of going silent. Uses thread-local run_id set by gap_scanner.
+    _run_id = getattr(_llm_run_context, "run_id", None)
+    if _run_id:
+        try:
+            from src.analysis.report_api import emit_cross_exam_event
+            emit_cross_exam_event(
+                _run_id,
+                {"type": "llm_reconnecting", "provider": provider_name},
+            )
+        except Exception:
+            pass
 
     waited = 0
     attempt = 0
@@ -1526,6 +1558,15 @@ def _wait_for_local_service_ready(provider: dict) -> None:
                 # Extra warm-up: service health endpoint responds before the model finishes
                 # loading into VRAM/RAM. Give it time to be actually ready for inference.
                 _t.sleep(10)
+                if _run_id:
+                    try:
+                        from src.analysis.report_api import emit_cross_exam_event
+                        emit_cross_exam_event(
+                            _run_id,
+                            {"type": "llm_reconnected", "provider": provider_name},
+                        )
+                    except Exception:
+                        pass
             return
         print(
             f"[WAIT] {provider_name} unreachable — retrying in {interval}s "

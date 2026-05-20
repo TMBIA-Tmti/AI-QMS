@@ -46,7 +46,7 @@ import logging
 import re
 import time
 import threading
-from collections import defaultdict
+from collections import defaultdict, deque
 from html import escape
 from pathlib import Path
 from typing import Optional
@@ -2256,9 +2256,15 @@ def _build_export_assessment(flat_rows: list[dict], summary: dict, lang: str = "
 # ============================================================
 
 
-# Global event bus: run_id → asyncio.Queue
+# Global event bus: run_id → list[asyncio.Queue]
 # Each queue holds dicts like {"type": "analyzer", "content": "...", ...}
 _event_queues: dict[str, list[asyncio.Queue]] = defaultdict(list)
+
+# Event history ring buffer: run_id → deque of past events (max 1000 per run).
+# Replayed to any new SSE connection so page refreshes restore the full feed.
+_EVENT_HISTORY_MAX = 1000
+_event_history: dict[str, deque] = {}
+_event_history_lock = threading.Lock()
 
 # Reference to the main event loop — stored when the first SSE connection is made
 # so emit_cross_exam_event can safely call call_soon_threadsafe from worker threads.
@@ -2330,6 +2336,13 @@ def emit_cross_exam_event(run_id: str, event: dict) -> None:
         - human_ack:   {"type": "human_ack", "message": "..."}
     """
     event["timestamp"] = time.time()
+
+    # Persist event to ring buffer so new SSE connections can replay history.
+    with _event_history_lock:
+        if run_id not in _event_history:
+            _event_history[run_id] = deque(maxlen=_EVENT_HISTORY_MAX)
+        _event_history[run_id].append(event)
+
     queues = list(_event_queues.get(run_id, []))  # snapshot to avoid mutation during iteration
     if not queues:
         return
@@ -2373,10 +2386,23 @@ def emit_cross_exam_event(run_id: str, event: dict) -> None:
 
 
 async def _sse_generator(run_id: str, queue: asyncio.Queue):
-    """Async generator that yields SSE events from the queue."""
+    """Async generator that yields SSE events from the queue.
+
+    On a new connection the full event history is replayed first so that
+    page refreshes restore the complete feed without losing past events.
+    """
     try:
         # Send initial connection event
         yield f"data: {json.dumps({'type': 'connected', 'run_id': run_id, 'timestamp': time.time()})}\n\n"
+
+        # Replay history so the viewer is fully populated after a page refresh.
+        with _event_history_lock:
+            history_snapshot = list(_event_history.get(run_id, []))
+        if history_snapshot:
+            yield f"data: {json.dumps({'type': 'history_start', 'count': len(history_snapshot)})}\n\n"
+            for past_event in history_snapshot:
+                yield f"data: {json.dumps(past_event, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'type': 'history_end'})}\n\n"
 
         while True:
             try:

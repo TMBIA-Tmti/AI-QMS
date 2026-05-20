@@ -1320,6 +1320,15 @@ def run_gap_scan_document(
             phase_result.completed_at = time.time()
             return phase_result
 
+        # Register run_id on this thread so _wait_for_local_service_ready can
+        # emit llm_reconnecting SSE events to the correct HTML viewer.
+        if run_id:
+            try:
+                from src.llm_providers import set_llm_run_context
+                set_llm_run_context(run_id)
+            except Exception:
+                pass
+
         # SSE: emit before LLM call
         _emit_pipeline_event(
             run_id,

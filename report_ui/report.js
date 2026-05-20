@@ -3171,6 +3171,55 @@
             case 'phase_1_filter':
                 // Phase 1 per-document clause filter result — no UI action needed
                 break;
+
+            // ── History replay markers ──
+            case 'history_start': {
+                const _lang = (window.__i18n && window.__i18n.lang) || 'en-US';
+                const _replayMsg = _lang.startsWith('zh')
+                    ? `📜 正在重播歷史紀錄（共 ${data.count} 筆事件）…`
+                    : _lang.startsWith('ja')
+                        ? `📜 履歴を再生中（${data.count} 件）…`
+                        : `📜 Replaying ${data.count} history event(s)…`;
+                addSystemMessage(_replayMsg);
+                break;
+            }
+            case 'history_end': {
+                const _lang2 = (window.__i18n && window.__i18n.lang) || 'en-US';
+                const _liveMsg = _lang2.startsWith('zh')
+                    ? '▶️ 歷史回放完成，進入即時模式'
+                    : _lang2.startsWith('ja')
+                        ? '▶️ 履歴再生完了、ライブモードへ'
+                        : '▶️ History replay complete — entering live mode';
+                addSystemMessage(_liveMsg);
+                break;
+            }
+
+            // ── LLM reconnect notifications (A3) ──
+            case 'llm_reconnecting': {
+                const _prov = data.provider || 'LLM';
+                const _lang3 = (window.__i18n && window.__i18n.lang) || 'en-US';
+                const _reconnMsg = _lang3.startsWith('zh')
+                    ? `⏳ ${_prov} 正在重新連線，請稍候…`
+                    : _lang3.startsWith('ja')
+                        ? `⏳ ${_prov} 再接続中…`
+                        : `⏳ ${_prov} disconnected — waiting for reconnect…`;
+                addSystemMessage(_reconnMsg);
+                updateSSEStatus('streaming', `⏳ ${_prov} reconnecting…`);
+                break;
+            }
+            case 'llm_reconnected': {
+                const _prov2 = data.provider || 'LLM';
+                const _lang4 = (window.__i18n && window.__i18n.lang) || 'en-US';
+                const _okMsg = _lang4.startsWith('zh')
+                    ? `✅ ${_prov2} 已重新連線，繼續分析`
+                    : _lang4.startsWith('ja')
+                        ? `✅ ${_prov2} 再接続完了`
+                        : `✅ ${_prov2} reconnected — resuming analysis`;
+                addSystemMessage(_okMsg);
+                updateSSEStatus('streaming', '🟢 ' + t('sse.streaming'));
+                break;
+            }
+
             default:
                 console.warn('Unknown SSE event type:', type, data);
         }
@@ -4402,6 +4451,11 @@
         loadReport();
         if (els.sseRunIdInput && RUN_ID) {
             els.sseRunIdInput.value = RUN_ID;
+        }
+        // Auto-connect SSE on page load so refreshing the viewer restores
+        // history immediately (B2 — relies on backend replay added in B1).
+        if (RUN_ID && els.crossexamFeed) {
+            connectSSE();
         }
     }
 
