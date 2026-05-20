@@ -114,3 +114,7 @@ presentation/
 sync_to_test.bat
 sync_to_release.bat
 sync_to_*.bat
+
+# Allow regulation data files
+!data/regulations/
+!data/regulations/*.json
