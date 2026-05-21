@@ -401,5 +401,12 @@
   "toast.exporting": "Exporting {fmt}...",
   "toast.exportingDeep": "Exporting deep report ({fmt})...",
   "toast.formatError": "Invalid export format",
-  "toast.rerunFailed": "Re-analysis failed: {msg}"
+  "toast.rerunFailed": "Re-analysis failed: {msg}",
+  "crossref.questionPreviewTitle": "🎯 Country-Specific Audit Questions Preview",
+  "crossref.questionPreviewDesc": "LLM will ask these country-specific questions when analysing documents against selected regulations.",
+  "crossref.questionPreviewNote": "Exact questions shown per clause during document analysis",
+  "crossref.selectedRegs": "Selected Regulations",
+  "crossref.uniqueReqs": "unique requirements beyond ISO 13485",
+  "crossref.withinClauseDeltaNote": "Within-Clause Delta Questions",
+  "crossref.withinClauseDeltaDesc": "Country-specific differences within ISO 13485 clauses (e.g. 30-day vs 7-day reporting timelines) will be shown as priority questions during cross-examination."
 }

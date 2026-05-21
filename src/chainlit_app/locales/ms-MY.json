@@ -1366,5 +1366,12 @@
   "regulatory_update.eu_mdcg_no_change": "MDCG Guidance: no updates",
   "regulatory_update.country_changed": "{country}: {changed}/{total} sites changed",
   "regulatory_update.country_no_change": "{country}: no change",
-  "regulatory_update.first_baseline": "(First crawl — baseline established; future runs will show diffs)"
+  "regulatory_update.first_baseline": "(First crawl — baseline established; future runs will show diffs)",
+  "crossref.questionPreviewTitle": "🎯 Country-Specific Audit Questions Preview",
+  "crossref.questionPreviewDesc": "LLM will ask these country-specific questions when analysing documents against selected regulations.",
+  "crossref.questionPreviewNote": "Exact questions shown per clause during document analysis",
+  "crossref.selectedRegs": "Selected Regulations",
+  "crossref.uniqueReqs": "unique requirements beyond ISO 13485",
+  "crossref.withinClauseDeltaNote": "Within-Clause Delta Questions",
+  "crossref.withinClauseDeltaDesc": "Country-specific differences within ISO 13485 clauses (e.g. 30-day vs 7-day reporting timelines) will be shown as ⚠️ priority questions during cross-examination."
 }

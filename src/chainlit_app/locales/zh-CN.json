@@ -1384,5 +1384,12 @@
   "regulatory_update.eu_mdcg_no_change": "MDCG 指引：无更新",
   "regulatory_update.country_changed": "{country}：{changed}/{total} sites 有变更",
   "regulatory_update.country_no_change": "{country}：无变更",
-  "regulatory_update.first_baseline": "（首次建立基准，后续更新将显示变更比对）"
+  "regulatory_update.first_baseline": "（首次建立基准，后续更新将显示变更比对）",
+  "crossref.questionPreviewTitle": "🎯 各国特定审核问题预览",
+  "crossref.questionPreviewDesc": "LLM 在依据所选法规分析文件时，将询问这些各国特定问题。",
+  "crossref.questionPreviewNote": "文件分析期间，每条款将显示确切问题",
+  "crossref.selectedRegs": "已选法规",
+  "crossref.uniqueReqs": "项超出 ISO 13485 的独有要求",
+  "crossref.withinClauseDeltaNote": "条款内差异问题",
+  "crossref.withinClauseDeltaDesc": "ISO 13485 条款内各国特定差异（例如 30 天对 7 天报告时限）将在交叉检查时显示为 ⚠️ 优先问题。"
 }

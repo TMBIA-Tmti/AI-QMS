@@ -401,5 +401,12 @@
   "toast.exporting": "匯出 {fmt} 中...",
   "toast.exportingDeep": "匯出深度報告（{fmt}）中...",
   "toast.formatError": "匯出格式錯誤",
-  "toast.rerunFailed": "重新分析失敗: {msg}"
+  "toast.rerunFailed": "重新分析失敗: {msg}",
+  "crossref.questionPreviewTitle": "🎯 各國特定稽核問題預覽",
+  "crossref.questionPreviewDesc": "LLM 在依據所選法規分析文件時，將詢問這些各國特定問題。",
+  "crossref.questionPreviewNote": "文件分析期間，每條款將顯示確切問題",
+  "crossref.selectedRegs": "已選法規",
+  "crossref.uniqueReqs": "項超出 ISO 13485 的獨有要求",
+  "crossref.withinClauseDeltaNote": "條款內差異問題",
+  "crossref.withinClauseDeltaDesc": "ISO 13485 條款內各國特定差異（例如 30 天對 7 天申報時限）將在交叉詰問時顯示為優先問題。"
 }

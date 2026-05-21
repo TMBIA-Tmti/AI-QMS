@@ -401,5 +401,12 @@
   "toast.exporting": "{fmt} をエクスポート中...",
   "toast.exportingDeep": "詳細レポート（{fmt}）をエクスポート中...",
   "toast.formatError": "エクスポート形式エラー",
-  "toast.rerunFailed": "再分析失敗: {msg}"
+  "toast.rerunFailed": "再分析失敗: {msg}",
+  "crossref.questionPreviewTitle": "🎯 各国固有の監査質問プレビュー",
+  "crossref.questionPreviewDesc": "LLM は選択した規制に対して文書を分析する際に、これらの国固有の質問を行います。",
+  "crossref.questionPreviewNote": "文書分析中に条項ごとの具体的な質問が表示されます",
+  "crossref.selectedRegs": "選択中の規制",
+  "crossref.uniqueReqs": "件の ISO 13485 を超える固有要件",
+  "crossref.withinClauseDeltaNote": "条項内デルタ質問",
+  "crossref.withinClauseDeltaDesc": "ISO 13485 条項内の各国固有の差異（例：30日対7日の報告期限）は、クロス検証時に優先質問として表示されます。"
 }
