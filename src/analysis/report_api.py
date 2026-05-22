@@ -584,6 +584,89 @@ def _pick_clause_title(clause_info: dict, lang: str) -> str:
         return clause_info.get("title_en") or clause_info.get("title", "")
 
 
+@report_router.get("/crossref/unique-requirements")
+async def get_unique_requirements(
+    regulations: str = Query(
+        ..., description="Comma-separated regulation IDs, e.g. EU_MDR,QMSR"
+    ),
+    lang: str = Query(default="zh-TW", description="UI language code"),
+):
+    """Return full unique_requirements with audit questions for selected regulations.
+
+    Lightweight alternative to /crossref/table — skips the ISO clause matrix
+    and returns only the country-specific unique requirements and within-clause
+    deltas needed to render the question preview panel.
+    """
+    mods = _get_cross_ref_modules()
+    reg_ids = [r.strip() for r in regulations.split(",") if r.strip()]
+    if not reg_ids:
+        raise HTTPException(status_code=400, detail="No regulations specified")
+
+    all_regs = mods["get_all_regulations"]()
+    result = {}
+
+    for rid in reg_ids:
+        profile = all_regs.get(rid)
+        if not profile:
+            continue
+
+        is_zh = lang.startswith("zh")
+        is_ja = lang.startswith("ja")
+
+        unique_reqs = []
+        for req in profile.unique_requirements:
+            q_text = (
+                (req.audit_question_zh or req.audit_question_en) if is_zh
+                else (req.audit_question_en or req.audit_question_zh) if not is_ja
+                else (req.audit_question_en or req.audit_question_zh)
+            )
+            title = (
+                (req.title_zh or req.title_en) if is_zh
+                else req.title_en or req.title_zh
+            )
+            unique_reqs.append({
+                "req_id": req.req_id,
+                "regulation_ref": req.regulation_ref,
+                "title": title,
+                "title_en": req.title_en,
+                "title_zh": req.title_zh,
+                "audit_impact": req.audit_impact,
+                "audit_question": q_text,
+                "audit_question_en": req.audit_question_en,
+                "audit_question_zh": req.audit_question_zh,
+                "expected_evidence": req.expected_evidence or [],
+                "related_iso_clauses": req.related_iso_clauses or [],
+                "rationale_en": req.rationale_en,
+                "rationale_zh": req.rationale_zh,
+                "is_within_clause_delta": getattr(req, "is_within_clause_delta", False),
+                "within_clause_delta_vs_iso": getattr(req, "within_clause_delta_vs_iso", ""),
+            })
+
+        # Collect within-clause deltas from iso_mapped
+        within_clause_deltas = []
+        for clause_id, cm in profile.iso_mapped.items():
+            deltas = getattr(cm, "within_clause_deltas", None) or []
+            for delta in deltas:
+                if isinstance(delta, dict):
+                    within_clause_deltas.append({
+                        "iso_clause": clause_id,
+                        **delta,
+                    })
+
+        result[rid] = {
+            "regulation_id": rid,
+            "name_en": profile.name_en,
+            "name_zh": profile.name_zh,
+            "country": profile.country,
+            "country_name_en": profile.country_name_en,
+            "country_name_zh": profile.country_name_zh,
+            "unique_requirements": unique_reqs,
+            "within_clause_deltas": within_clause_deltas,
+        }
+
+    return JSONResponse(content={"regulations": result})
+
+
 @report_router.get("/crossref/table")
 async def get_crossref_table(
     regulations: str = Query(

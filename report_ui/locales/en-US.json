@@ -408,5 +408,12 @@
   "crossref.selectedRegs": "Selected Regulations",
   "crossref.uniqueReqs": "unique requirements beyond ISO 13485",
   "crossref.withinClauseDeltaNote": "Within-Clause Delta Questions",
-  "crossref.withinClauseDeltaDesc": "Country-specific differences within ISO 13485 clauses (e.g. 30-day vs 7-day reporting timelines) will be shown as priority questions during cross-examination."
+  "crossref.withinClauseDeltaDesc": "Country-specific differences within ISO 13485 clauses (e.g. 30-day vs 7-day reporting timelines) will be shown as priority questions during cross-examination.",
+  "crossref.noUniqueReqs": "Selected countries have no unique requirements beyond ISO 13485.",
+  "crossref.auditQuestion": "Audit Question",
+  "crossref.expectedEvidence": "Expected Evidence",
+  "crossref.whyDifferent": "Why different from ISO 13485?",
+  "audit.critical": "Critical",
+  "audit.major": "Major",
+  "audit.minor": "Minor"
 }

@@ -408,5 +408,12 @@
   "crossref.selectedRegs": "已選法規",
   "crossref.uniqueReqs": "項超出 ISO 13485 的獨有要求",
   "crossref.withinClauseDeltaNote": "條款內差異問題",
-  "crossref.withinClauseDeltaDesc": "ISO 13485 條款內各國特定差異（例如 30 天對 7 天申報時限）將在交叉詰問時顯示為優先問題。"
+  "crossref.withinClauseDeltaDesc": "ISO 13485 條款內各國特定差異（例如 30 天對 7 天申報時限）將在交叉詰問時顯示為優先問題。",
+  "crossref.noUniqueReqs": "所選國家對 ISO 13485 無額外獨有要求。",
+  "crossref.auditQuestion": "稽核問題",
+  "crossref.expectedEvidence": "預期佐證文件",
+  "crossref.whyDifferent": "為何有別於 ISO 13485？",
+  "audit.critical": "關鍵",
+  "audit.major": "主要",
+  "audit.minor": "次要"
 }

@@ -2565,49 +2565,100 @@
         if (meta) meta.textContent = `${t("crossref.selectedRegs") || "Selected"}: ${regIds.join(", ")}`;
 
         try {
-            // Fetch questions for the first available clause (8.2.3 as representative example)
-            // In practice, questions are clause-specific; we show UniqueRequirements across all clauses
-            const url = `${API_BASE}/crossref/regulations`;
-            const regsResp = await fetch(url);
-            const regsData = await regsResp.json();
-            const allRegs = (regsData.regulations || []);
-            const selectedRegs = allRegs.filter(r => regIds.includes(r.regulation_id));
+            const _uiLang = (window.__i18n && window.__i18n.lang) || window.__UI_LANG__ || "en-US";
+            const _isZh = _uiLang.startsWith("zh");
+            const _isJa = _uiLang.startsWith("ja");
 
-            const _isZh = (window.__UI_LANG__ || "en-US").startsWith("zh");
-            const _isJa = (window.__UI_LANG__ || "en-US").startsWith("ja");
+            const resp = await apiFetch(`/crossref/unique-requirements?regulations=${encodeURIComponent(regIds.join(","))}&lang=${encodeURIComponent(_uiLang)}`);
+            const regsMap = resp.regulations || {};
 
-            // Group unique requirements by country
-            const byCountry = {};
-            for (const reg of selectedRegs) {
-                const regId = reg.regulation_id;
-                // Fetch full profile to get unique_requirements with audit_question
-                const detailUrl = `${API_BASE}/crossref/questions?doc_id=preview&baseline_clause=8.2.3&regulations=${encodeURIComponent(regId)}`;
-                // We use a single representative call; real usage is per-clause during analysis
-            }
+            const IMPACT_BADGE = {
+                critical: `<span class="qp-impact-badge qp-impact-critical">${t("audit.critical") || "Critical"}</span>`,
+                major:    `<span class="qp-impact-badge qp-impact-major">${t("audit.major") || "Major"}</span>`,
+                minor:    `<span class="qp-impact-badge qp-impact-minor">${t("audit.minor") || "Minor"}</span>`,
+            };
 
-            // Build the preview from unique_requirements_count + country info
             let html = "";
-            for (const reg of selectedRegs) {
+            let totalQuestions = 0;
+
+            for (const regId of regIds) {
+                const reg = regsMap[regId];
+                if (!reg) continue;
+
                 const flag = FLAG_EMOJIS[reg.country] || "🏳️";
-                const countryName = _isZh ? reg.country_name_zh : (_isJa ? reg.country_name_en : reg.country_name_en);
+                const countryName = _isZh ? reg.country_name_zh : reg.country_name_en;
                 const regName = _isZh ? reg.name_zh : reg.name_en;
-                const uCount = reg.unique_requirements_count || 0;
-                if (uCount === 0) continue;
+                const reqs = reg.unique_requirements || [];
+                const deltas = reg.within_clause_deltas || [];
+
+                if (reqs.length === 0 && deltas.length === 0) continue;
+
+                totalQuestions += reqs.length;
+
+                let reqCardsHtml = "";
+                for (const req of reqs) {
+                    const impactBadge = IMPACT_BADGE[req.audit_impact] || IMPACT_BADGE.major;
+                    const title = _isZh ? (req.title_zh || req.title_en) : req.title_en;
+                    const question = _isZh
+                        ? (req.audit_question_zh || req.audit_question_en)
+                        : (req.audit_question_en || req.audit_question_zh);
+                    const rationale = _isZh
+                        ? (req.rationale_zh || req.rationale_en)
+                        : (req.rationale_en || req.rationale_zh);
+
+                    const isoDelta = req.is_within_clause_delta
+                        ? `<div class="qp-delta-marker">⚠️ ${escapeHtml(req.within_clause_delta_vs_iso || "Within-clause delta vs ISO 13485")}</div>`
+                        : "";
+
+                    const isoClausesHtml = (req.related_iso_clauses || []).map(c =>
+                        `<span class="qp-iso-tag">§${escapeHtml(c)}</span>`
+                    ).join(" ");
+
+                    const evidenceHtml = (req.expected_evidence || []).map(e =>
+                        `<li>${escapeHtml(e)}</li>`
+                    ).join("");
+
+                    reqCardsHtml += `
+                    <div class="qp-req-card qp-req-${escapeHtml(req.audit_impact || 'major')}">
+                        <div class="qp-req-header">
+                            ${impactBadge}
+                            <span class="qp-req-id">${escapeHtml(req.req_id)}</span>
+                            <span class="qp-req-title">${escapeHtml(title || req.title_en || "")}</span>
+                            ${isoClausesHtml ? `<span class="qp-iso-tags">${isoClausesHtml}</span>` : ""}
+                        </div>
+                        <div class="qp-req-ref">${escapeHtml(req.regulation_ref || "")}</div>
+                        <div class="qp-question-label">🔍 ${t("crossref.auditQuestion") || "Audit Question"}:</div>
+                        <div class="qp-question-text">${escapeHtml(question || "")}</div>
+                        ${evidenceHtml ? `
+                        <div class="qp-evidence-label">📁 ${t("crossref.expectedEvidence") || "Expected Evidence"}:</div>
+                        <ul class="qp-evidence-list">${evidenceHtml}</ul>` : ""}
+                        ${isoDelta}
+                        ${rationale ? `<details class="qp-rationale-details"><summary>${t("crossref.whyDifferent") || "Why different from ISO 13485?"}</summary><div class="qp-rationale-text">${escapeHtml(rationale)}</div></details>` : ""}
+                    </div>`;
+                }
+
+                let deltaCardsHtml = "";
+                if (deltas.length > 0) {
+                    deltaCardsHtml = `<div class="qp-delta-section">
+                        <div class="qp-delta-section-header">⚠️ ${t("crossref.withinClauseDeltaNote") || "Within-Clause Delta Questions"} (${deltas.length})</div>`;
+                    for (const d of deltas) {
+                        const dDesc = _isZh ? (d.description_zh || d.description_en || d.description || "") : (d.description_en || d.description || d.description_zh || "");
+                        const dQ = _isZh ? (d.audit_question_zh || d.audit_question_en || "") : (d.audit_question_en || d.audit_question_zh || "");
+                        deltaCardsHtml += `
+                        <div class="qp-delta-item">
+                            <span class="qp-iso-tag">§${escapeHtml(d.iso_clause || "")}</span>
+                            ${dDesc ? `<span class="qp-delta-desc">${escapeHtml(dDesc)}</span>` : ""}
+                            ${dQ ? `<div class="qp-question-text" style="margin-top:4px">${escapeHtml(dQ)}</div>` : ""}
+                        </div>`;
+                    }
+                    deltaCardsHtml += `</div>`;
+                }
+
                 html += `<div class="qp-country-block">
                     <div class="qp-country-header">${flag} <strong>${escapeHtml(countryName)}</strong> — ${escapeHtml(regName)}</div>
-                    <div class="qp-country-note">${escapeHtml(uCount + " " + (t("crossref.uniqueReqs") || "unique requirements beyond ISO 13485"))}</div>
-                    <div class="qp-fetch-note" style="font-size:11px;color:var(--text-muted)">
-                        ${t("crossref.questionPreviewNote") || "Exact questions shown per clause during document analysis"}
-                    </div>
-                </div>`;
-            }
-
-            // Also show delta summary from WithinClauseDeltas count
-            const withDeltaRegs = selectedRegs.filter(r => (r.status_counts && (r.status_counts.full || 0) + (r.status_counts.partial || 0) + (r.status_counts.exceeds || 0) > 0));
-            if (withDeltaRegs.length > 0) {
-                html += `<div class="qp-delta-note">
-                    <strong>📋 ${t("crossref.withinClauseDeltaNote") || "Within-Clause Delta Questions"}</strong><br>
-                    ${escapeHtml(t("crossref.withinClauseDeltaDesc") || "Country-specific differences within ISO 13485 clauses (e.g. 30-day vs 7-day reporting timelines) will be shown as ⚠️ priority questions during cross-examination.")}
+                    <div class="qp-country-note">${escapeHtml(String(reqs.length) + " " + (t("crossref.uniqueReqs") || "unique requirements beyond ISO 13485"))}</div>
+                    ${reqCardsHtml}
+                    ${deltaCardsHtml}
                 </div>`;
             }
 

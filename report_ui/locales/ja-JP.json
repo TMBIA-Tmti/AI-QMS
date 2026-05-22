@@ -408,5 +408,12 @@
   "crossref.selectedRegs": "選択中の規制",
   "crossref.uniqueReqs": "件の ISO 13485 を超える固有要件",
   "crossref.withinClauseDeltaNote": "条項内デルタ質問",
-  "crossref.withinClauseDeltaDesc": "ISO 13485 条項内の各国固有の差異（例：30日対7日の報告期限）は、クロス検証時に優先質問として表示されます。"
+  "crossref.withinClauseDeltaDesc": "ISO 13485 条項内の各国固有の差異（例：30日対7日の報告期限）は、クロス検証時に優先質問として表示されます。",
+  "crossref.noUniqueReqs": "選択した国にはISO 13485を超える固有要件がありません。",
+  "crossref.auditQuestion": "監査質問",
+  "crossref.expectedEvidence": "期待される証拠",
+  "crossref.whyDifferent": "ISO 13485と異なる理由は？",
+  "audit.critical": "重大",
+  "audit.major": "主要",
+  "audit.minor": "軽微"
 }
