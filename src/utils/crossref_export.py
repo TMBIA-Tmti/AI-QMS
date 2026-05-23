@@ -135,6 +135,111 @@ _IMPACT_FILL_EXCEL = {
     "minor": "F1F8E9",
 }
 
+# Status merge priority: higher = better coverage
+_STATUS_PRIORITY = {
+    "exceeds": 5,
+    "full": 4,
+    "partial": 3,
+    "not_applicable": 2,
+    "na": 2,
+    "not_mapped": 1,
+}
+
+
+def _merge_status(statuses: list) -> str:
+    """Return the best status from a list (highest coverage wins)."""
+    if not statuses:
+        return "not_mapped"
+    return max(statuses, key=lambda s: _STATUS_PRIORITY.get(s, 0))
+
+
+def _build_country_groups(reg_ids: list, country_stats: dict) -> list:
+    """Group regulation IDs by country code, merging same-country regs.
+
+    Returns a list of group dicts in original order:
+      {country, reg_ids: [...], name_zh, name_en}
+    """
+    try:
+        from src.analysis.compliance_rules import PREDEFINED_REGULATIONS
+    except Exception:
+        PREDEFINED_REGULATIONS = {}
+
+    seen: dict = {}  # country_key → group
+    order: list = []
+
+    for rid in reg_ids:
+        profile = PREDEFINED_REGULATIONS.get(rid)
+        # Use country code from profile; fall back to reg_id so it gets its own column
+        country_key = (profile.country if profile and profile.country else rid)
+
+        if country_key not in seen:
+            stats = country_stats.get(rid, {})
+            seen[country_key] = {
+                "country": country_key,
+                "reg_ids": [rid],
+                "name_zh": stats.get("country_name_zh") or stats.get("name_zh") or rid,
+                "name_en": stats.get("country_name_en") or stats.get("name_en") or rid,
+            }
+            order.append(country_key)
+        else:
+            seen[country_key]["reg_ids"].append(rid)
+
+    return [seen[c] for c in order]
+
+
+def _group_display(group: dict, lang: str) -> str:
+    """Display name for a country group."""
+    lk = _lang_key(lang)
+    if lk == "zh":
+        return group.get("name_zh", group.get("country", ""))
+    return group.get("name_en", group.get("country", ""))
+
+
+def _merge_clause_data(clause_entry: dict, reg_ids: list) -> dict:
+    """Merge clause data from multiple regulation IDs into one cell's data."""
+    all_statuses = []
+    all_wcds = []
+    total_conf = 0.0
+    conf_count = 0
+
+    for rid in reg_ids:
+        cdata = clause_entry.get("countries", {}).get(rid, {})
+        status = cdata.get("status", "not_mapped")
+        all_statuses.append(status)
+        conf = cdata.get("confidence", 0.0)
+        if conf:
+            total_conf += conf
+            conf_count += 1
+        all_wcds.extend(cdata.get("within_clause_deltas", []))
+
+    return {
+        "status": _merge_status(all_statuses),
+        "confidence": total_conf / conf_count if conf_count else 0.0,
+        "within_clause_deltas": all_wcds,
+    }
+
+
+def _merge_delta_items(delta_items: dict, groups: list) -> list:
+    """Merge delta_items by country group.
+
+    Returns a list of (group, reqs) tuples preserving group order.
+    """
+    result = []
+    for group in groups:
+        merged_reqs = []
+        seen_req_ids: set = set()
+        for rid in group["reg_ids"]:
+            for req in delta_items.get(rid, []):
+                req_id = req.get("req_id", "")
+                if req_id and req_id in seen_req_ids:
+                    continue
+                if req_id:
+                    seen_req_ids.add(req_id)
+                merged_reqs.append(req)
+        if merged_reqs:
+            result.append((group, merged_reqs))
+    return result
+
 
 def _clause_title(clause_info: dict, lang: str) -> str:
     """Get localized clause title."""
@@ -222,8 +327,11 @@ def append_crossref_table_word(
     clauses = data["clauses"]
     delta_items = data.get("delta_items", {})
 
+    # Build country groups (merges same-country regulations into one column)
+    country_groups = _build_country_groups(reg_ids, country_stats)
+
     # Country list
-    country_names = [_country_display(country_stats[r], lang) for r in reg_ids]
+    country_names = [_group_display(g, lang) for g in country_groups]
     _country_prefix = {
         "zh": "\u6bd4\u5c0d\u570b\u5bb6 / Countries",
         "ja": "\u6bd4\u8f03\u5bfe\u8c61\u56fd / Countries",
@@ -249,8 +357,7 @@ def append_crossref_table_word(
         ISO_13485_CHECKLIST = {}
 
     # ── Main clause table ──
-    n_countries = len(reg_ids)
-    n_cols = 2 + n_countries  # clause_id, title, per-country
+    n_cols = 2 + len(country_groups)  # clause_id, title, per-country-group
 
     _col0_label = {"zh": "ISO \u689d\u6b3e", "ja": "ISO \u6761\u9805", "en": "ISO Clause"}
     _col1_label = {"zh": "\u689d\u6b3e\u540d\u7a31", "ja": "\u6761\u9805\u540d", "en": "Title"}
@@ -262,8 +369,8 @@ def append_crossref_table_word(
     hdr_row = tbl.rows[0]
     hdr_row.cells[0].text = _col0_label.get(lk, _col0_label["en"])
     hdr_row.cells[1].text = _col1_label.get(lk, _col1_label["en"])
-    for ci, reg_id in enumerate(reg_ids):
-        hdr_row.cells[2 + ci].text = _country_display(country_stats[reg_id], lang)
+    for ci, group in enumerate(country_groups):
+        hdr_row.cells[2 + ci].text = _group_display(group, lang)
 
     # Bold + small font for headers
     for cell in hdr_row.cells:
@@ -290,19 +397,19 @@ def append_crossref_table_word(
             for r in p.runs:
                 r.font.size = Pt(7)
 
-        # Per-country columns
-        for ci, reg_id in enumerate(reg_ids):
+        # Per-country-group columns
+        for ci, group in enumerate(country_groups):
             cell = row.cells[2 + ci]
-            cdata = clause_entry.get("countries", {}).get(reg_id, {})
-            status = cdata.get("status", "not_mapped")
-            confidence = cdata.get("confidence", 0.0)
+            merged = _merge_clause_data(clause_entry, group["reg_ids"])
+            status = merged["status"]
+            confidence = merged["confidence"]
 
             label = _status_label(status, lang)
             conf_str = f" ({confidence:.0%})" if confidence else ""
             cell_text = f"{label}{conf_str}"
 
             # Within-clause deltas
-            wcds = cdata.get("within_clause_deltas", [])
+            wcds = merged["within_clause_deltas"]
             if wcds and status == "exceeds":
                 for idx_d, wcd in enumerate(wcds, 1):
                     d_title = wcd.get("title_zh", wcd.get("title_en", "")) if lk == "zh" else (
@@ -336,7 +443,8 @@ def append_crossref_table_word(
     }
     doc.add_heading(_uniq_heading.get(lk, _uniq_heading["en"]), level=3)
 
-    if not delta_items:
+    merged_delta = _merge_delta_items(delta_items, country_groups)
+    if not merged_delta:
         _no_uniq = {"zh": "\uff08\u7121\u7368\u6709\u8981\u6c42\uff09", "ja": "\uff08\u56fa\u6709\u8981\u4ef6\u306a\u3057\uff09", "en": "(No unique requirements)"}
         doc.add_paragraph(_no_uniq.get(lk, _no_uniq["en"]))
         return
@@ -349,11 +457,11 @@ def append_crossref_table_word(
     }
     headers = _urq_headers.get(lk, _urq_headers["en"])
 
-    for reg_id, reqs in delta_items.items():
+    for group, reqs in merged_delta:
         if not reqs:
             continue
-        country_name = _country_display(country_stats.get(reg_id, {"regulation_id": reg_id}), lang)
-        doc.add_heading(f"{country_name} ({reg_id})", level=4)
+        country_name = _group_display(group, lang)
+        doc.add_heading(f"{country_name}", level=4)
 
         urq_tbl = doc.add_table(rows=1, cols=len(headers))
         urq_tbl.style = "Table Grid"
@@ -452,6 +560,9 @@ def append_crossref_table_excel(
     clauses = data["clauses"]
     delta_items = data.get("delta_items", {})
 
+    # Build country groups (merges same-country regulations into one column)
+    country_groups = _build_country_groups(reg_ids, country_stats)
+
     # Load checklist for titles
     try:
         from src.analysis.compliance_rules import ISO_13485_CHECKLIST
@@ -471,8 +582,8 @@ def append_crossref_table_excel(
 
     # Header row
     headers = ["ISO Clause", "Title"]
-    for reg_id in reg_ids:
-        headers.append(_country_display(country_stats[reg_id], lang))
+    for group in country_groups:
+        headers.append(_group_display(group, lang))
 
     for ci, h in enumerate(headers, 1):
         cell = ws.cell(row=1, column=ci, value=h)
@@ -489,17 +600,17 @@ def append_crossref_table_excel(
         ws.cell(row=ri, column=1, value=clause_id)
         ws.cell(row=ri, column=2, value=title).alignment = Alignment(wrap_text=True)
 
-        for ci, reg_id in enumerate(reg_ids):
-            cdata = clause_entry.get("countries", {}).get(reg_id, {})
-            status = cdata.get("status", "not_mapped")
-            confidence = cdata.get("confidence", 0.0)
+        for ci, group in enumerate(country_groups):
+            merged = _merge_clause_data(clause_entry, group["reg_ids"])
+            status = merged["status"]
+            confidence = merged["confidence"]
 
             label = _status_label(status, lang)
             conf_str = f" ({confidence:.0%})" if confidence else ""
             cell_text = f"{label}{conf_str}"
 
             # Within-clause deltas
-            wcds = cdata.get("within_clause_deltas", [])
+            wcds = merged["within_clause_deltas"]
             if wcds and status == "exceeds":
                 delta_titles = []
                 for wcd in wcds:
@@ -526,7 +637,7 @@ def append_crossref_table_excel(
     ws.column_dimensions["A"].width = 10
     ws.column_dimensions["B"].width = 35
     from openpyxl.utils import get_column_letter
-    for ci in range(len(reg_ids)):
+    for ci in range(len(country_groups)):
         ws.column_dimensions[get_column_letter(3 + ci)].width = 28
 
     # ── Sheet 2: UniqueReqs ──
@@ -550,12 +661,11 @@ def append_crossref_table_excel(
         cell.alignment = Alignment(horizontal="center", wrap_text=True)
 
     row_idx = 2
-    for reg_id, reqs in delta_items.items():
+    merged_delta2 = _merge_delta_items(delta_items, country_groups)
+    for group, reqs in merged_delta2:
         if not reqs:
             continue
-        country_name = _country_display(
-            country_stats.get(reg_id, {"regulation_id": reg_id}), lang
-        )
+        country_name = _group_display(group, lang)
         for req in reqs:
             is_wcd = req.get("is_within_clause_delta", False)
             impact = req.get("audit_impact", "")
