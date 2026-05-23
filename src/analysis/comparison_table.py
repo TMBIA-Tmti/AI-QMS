@@ -1094,9 +1094,9 @@ class ComparisonTable:
                     "verdict": r.verdict,
                     "verdict_icon": verdict_disp.get("icon", ""),
                     "verdict_label": verdict_disp.get(f"label_{_lk}", verdict_disp.get("label_zh", "")),
-                    "remediation": r.remediation_suggestion or _extract_p4_field(r, "summary"),
-                    "remediation_suggestion": r.remediation_suggestion or _extract_p4_field(r, "summary"),
-                    "remediation_regulation_cite": r.remediation_regulation_cite or _extract_p4_field(r, "regulation_citation"),
+                    "remediation": _coerce_str(r.remediation_suggestion) or _extract_p4_field(r, "summary"),
+                    "remediation_suggestion": _coerce_str(r.remediation_suggestion) or _extract_p4_field(r, "summary"),
+                    "remediation_regulation_cite": _coerce_str(r.remediation_regulation_cite) or _extract_p4_field(r, "regulation_citation"),
                     "flagged_for_ra": r.flagged_for_ra,
                     "ra_override": r.ra_override,
                     "ra_notes": r.ra_notes,
@@ -1124,6 +1124,28 @@ class ComparisonTable:
                 return [999]
         rows.sort(key=_clause_sort_key)
         return rows
+
+
+def _coerce_str(value) -> str:
+    """Coerce any field value to str, handling dicts that LLMs sometimes return.
+
+    Converts {"primary": "...", "supplementary": {...}} to a readable string
+    so old JSON state files with mis-typed regulation_citation don't crash exports.
+    """
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        primary = value.get("primary", "")
+        supp = value.get("supplementary", {})
+        if isinstance(supp, dict) and supp:
+            supp_str = "; ".join(f"{k}: {v}" for k, v in supp.items())
+            return f"{primary} | 補充: {supp_str}" if primary else supp_str
+        return str(primary) if primary else str(value)
+    if isinstance(value, (list, tuple)):
+        return "; ".join(str(x) for x in value)
+    return str(value)
 
 
 def _extract_p4_field(row_state, field: str) -> str:

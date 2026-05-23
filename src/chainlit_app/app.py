@@ -4914,9 +4914,12 @@ def _get_session_provider_info() -> dict:
     try:
         provider_id = cl.user_session.get("provider_id", "ollama")
         manager = create_provider_manager(provider_id)
-        return manager.get_provider_runtime_info()
+        info = manager.get_provider_runtime_info()
     except Exception:
-        return {}
+        info = {}
+    # Always store the session language so exports can restore it later
+    info["session_language"] = cl.user_session.get("language", DEFAULT_LANG)
+    return info
 
 
 async def handle_regulatory_list():
@@ -5440,7 +5443,8 @@ async def handle_regulatory_list():
                                 export_deep_report_excel,
                             )
                             _detail_table = _load_table_sync(pipeline_result.run_id)
-                            _flat_rows = _detail_table.to_flat_rows(lang=_rl_lang)
+                            _export_lang = _detail_table._state.run_metadata.get("language") or _rl_lang
+                            _flat_rows = _detail_table.to_flat_rows(lang=_export_lang)
                             _summary = _detail_table.summary()
                             _interactions = None
                             try:
@@ -5452,11 +5456,14 @@ async def handle_regulatory_list():
                                 pass
                             if not _interactions:
                                 _interactions = _build_interactions_from_state(_detail_table._state.get_all_rows())
+                            _progress_summary = _detail_table._state.progress_summary()
                             _dw = export_deep_report_word(
-                                pipeline_result.run_id, _flat_rows, _summary, _interactions, lang=_rl_lang
+                                pipeline_result.run_id, _flat_rows, _summary, _interactions, lang=_export_lang,
+                                progress=_progress_summary,
                             )
                             _dx = export_deep_report_excel(
-                                pipeline_result.run_id, _flat_rows, _summary, _interactions, lang=_rl_lang
+                                pipeline_result.run_id, _flat_rows, _summary, _interactions, lang=_export_lang,
+                                progress=_progress_summary,
                             )
                             if _dw and Path(str(_dw)).exists():
                                 elements.append(
@@ -6589,7 +6596,8 @@ async def handle_regulatory_update_rescan(selected_regions: list):
                             export_deep_report_excel,
                         )
                         _detail_table = _load_table_sync(pipeline_result.run_id)
-                        _flat_rows = _detail_table.to_flat_rows(lang=_fmt_lang)
+                        _export_lang = _detail_table._state.run_metadata.get("language") or _fmt_lang
+                        _flat_rows = _detail_table.to_flat_rows(lang=_export_lang)
                         _summary = _detail_table.summary()
                         _interactions = None
                         try:
@@ -6601,11 +6609,14 @@ async def handle_regulatory_update_rescan(selected_regions: list):
                             pass
                         if not _interactions:
                             _interactions = _build_interactions_from_state(_detail_table._state.get_all_rows())
+                        _progress_summary = _detail_table._state.progress_summary()
                         _dw = export_deep_report_word(
-                            pipeline_result.run_id, _flat_rows, _summary, _interactions, lang=_fmt_lang
+                            pipeline_result.run_id, _flat_rows, _summary, _interactions, lang=_export_lang,
+                            progress=_progress_summary,
                         )
                         _dx = export_deep_report_excel(
-                            pipeline_result.run_id, _flat_rows, _summary, _interactions, lang=_fmt_lang
+                            pipeline_result.run_id, _flat_rows, _summary, _interactions, lang=_export_lang,
+                            progress=_progress_summary,
                         )
                         if _dw and Path(str(_dw)).exists():
                             elements.append(

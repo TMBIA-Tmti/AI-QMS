@@ -171,6 +171,7 @@ def _collect_run_metadata(
             "provider_type":  provider_info.get("provider_type", ""),
             "is_local":       provider_info.get("is_local", provider_is_local),
             "model":          provider_info.get("model", ""),
+            "language":       provider_info.get("session_language", "zh-TW"),
             "api_base_url":   provider_info.get("api_base_url", ""),
         })
     else:

@@ -509,10 +509,32 @@ def run_remediation_row(
         remediation = _parse_remediation_response(response_text)
 
         if remediation:
-            # Store key results in row state
-            row_state.remediation_suggestion = remediation.get("summary", "")
-            row_state.remediation_regulation_cite = remediation.get(
-                "regulation_citation", ""
+            # Store key results in row state — always coerce to str to guard
+            # against LLMs that return regulation_citation as a nested dict
+            # e.g. {"primary": "...", "supplementary": {"ISO 13485:2016": "..."}}.
+            _summary_raw = remediation.get("summary", "")
+            row_state.remediation_suggestion = (
+                str(_summary_raw) if _summary_raw else ""
+            )
+            _reg_cite_raw = remediation.get("regulation_citation", "")
+            if isinstance(_reg_cite_raw, dict):
+                _primary = _reg_cite_raw.get("primary", "")
+                _supp = _reg_cite_raw.get("supplementary", {})
+                if isinstance(_supp, dict) and _supp:
+                    _supp_str = "\n".join(
+                        f"• {k}: {v}" for k, v in _supp.items()
+                    )
+                    _reg_cite_raw = (
+                        f"{_primary}\n【補充參考】\n{_supp_str}"
+                        if _primary
+                        else _supp_str
+                    )
+                else:
+                    _reg_cite_raw = str(_primary)
+            elif isinstance(_reg_cite_raw, list):
+                _reg_cite_raw = "\n".join(str(x) for x in _reg_cite_raw)
+            row_state.remediation_regulation_cite = (
+                str(_reg_cite_raw) if _reg_cite_raw else ""
             )
 
             phase_result.status = PhaseStatus.COMPLETED.value
@@ -988,10 +1010,20 @@ def run_remediation_document(
         for row in rows_needing_remediation:
             remediation = clause_remediation.get(row.clause_id, {})
             if remediation:
-                row.remediation_suggestion = remediation.get("summary", "")
-                row.remediation_regulation_cite = remediation.get(
-                    "regulation_citation", ""
-                )
+                _s = remediation.get("summary", "")
+                row.remediation_suggestion = str(_s) if _s else ""
+                _rc = remediation.get("regulation_citation", "")
+                if isinstance(_rc, dict):
+                    _p = _rc.get("primary", "")
+                    _sv = _rc.get("supplementary", {})
+                    if isinstance(_sv, dict) and _sv:
+                        _sv_str = "\n".join(f"• {k}: {v}" for k, v in _sv.items())
+                        _rc = f"{_p}\n【補充參考】\n{_sv_str}" if _p else _sv_str
+                    else:
+                        _rc = str(_p)
+                elif isinstance(_rc, list):
+                    _rc = "\n".join(str(x) for x in _rc)
+                row.remediation_regulation_cite = str(_rc) if _rc else ""
                 total_suggestions += len(remediation.get("suggestions", []))
 
         phase_result.status = PhaseStatus.COMPLETED.value

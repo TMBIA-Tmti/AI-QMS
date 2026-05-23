@@ -44,6 +44,39 @@ EXPORT_DIR = (Path(__file__).resolve().parent.parent.parent / "data" / "exports"
 from src.chainlit_app.lang_config import lang_key as _lang_key  # noqa: E402
 
 
+def _safe_str(value, max_len: int = 0) -> str:
+    """Coerce any value to an Excel/Word-safe string.
+
+    Guards against LLMs returning dicts where strings are expected
+    (e.g. regulation_citation as {"primary": "...", "supplementary": {...}}).
+    """
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "Y" if value else ""
+    if isinstance(value, dict):
+        # Human-readable flatten for primary/supplementary pattern
+        if "primary" in value or "supplementary" in value:
+            primary = value.get("primary", "")
+            supp = value.get("supplementary", {})
+            if isinstance(supp, dict) and supp:
+                supp_str = "; ".join(
+                    f"{k}: {v}" for k, v in supp.items()
+                )
+                result = f"{primary} | 補充: {supp_str}" if primary else supp_str
+            else:
+                result = str(primary)
+        else:
+            result = "; ".join(f"{k}: {v}" for k, v in value.items())
+    elif isinstance(value, (list, tuple)):
+        result = "; ".join(str(x) for x in value)
+    else:
+        result = str(value)
+    if max_len and len(result) > max_len:
+        return result[:max_len]
+    return result
+
+
 def _build_env_table_rows(run_meta: dict, lk: str) -> list[tuple[str, str]]:
     """Build (label, value) pairs for the Execution Environment table."""
     _lb = {
@@ -2069,11 +2102,11 @@ def export_deep_report_excel(
             column=12,
             value=override.get("reason", "") if isinstance(override, dict) else "",
         )
-        ws_comp.cell(row=ri, column=13, value=row.get("ra_notes", "") or "")
-        ws_comp.cell(row=ri, column=14, value=row.get("remediation_suggestion", "") or "")
-        ws_comp.cell(row=ri, column=15, value=row.get("remediation_regulation_cite", "") or "")
-        ws_comp.cell(row=ri, column=16, value=row.get("analyzer_position", "") or "")
-        ws_comp.cell(row=ri, column=17, value=row.get("verifier_position", "") or "")
+        ws_comp.cell(row=ri, column=13, value=_safe_str(row.get("ra_notes"), 500))
+        ws_comp.cell(row=ri, column=14, value=_safe_str(row.get("remediation_suggestion"), 500))
+        ws_comp.cell(row=ri, column=15, value=_safe_str(row.get("remediation_regulation_cite"), 500))
+        ws_comp.cell(row=ri, column=16, value=_safe_str(row.get("analyzer_position"), 500))
+        ws_comp.cell(row=ri, column=17, value=_safe_str(row.get("verifier_position"), 500))
         ws_comp.cell(row=ri, column=18, value=_pipeline_status_str(row.get("phase_status_summary", {})))
 
     # ── Sheet: Phase Progress (unified single table) ──
@@ -2253,11 +2286,12 @@ def export_deep_report_excel(
             # For non-P5 phases (gap_scan/checklist_verify/remediation), clause_id is per-doc
             clause_display = clause_id if clause_id else (_batch_label if phase != "verification" else "")
             row_fill = _LLM_PHASE_FILL.get(phase)
-            ws_llm.cell(row=ri, column=1, value=phase_label)
-            ws_llm.cell(row=ri, column=2, value=interaction.get("doc_id", ""))
-            ws_llm.cell(row=ri, column=3, value=clause_display)
-            ws_llm.cell(row=ri, column=4, value=role_label)
-            ws_llm.cell(row=ri, column=5, value=interaction.get("round_number") or "—")
+            ws_llm.cell(row=ri, column=1, value=_safe_str(phase_label))
+            ws_llm.cell(row=ri, column=2, value=_safe_str(interaction.get("doc_id", "")))
+            ws_llm.cell(row=ri, column=3, value=_safe_str(clause_display))
+            ws_llm.cell(row=ri, column=4, value=_safe_str(role_label))
+            _rn = interaction.get("round_number")
+            ws_llm.cell(row=ri, column=5, value=_rn if isinstance(_rn, (int, float)) else (_safe_str(_rn) or "—"))
             resp_text = _format_llm_response_for_excel(
                 interaction.get("llm_response", "") or "",
                 phase,
@@ -2265,9 +2299,10 @@ def export_deep_report_excel(
                 lang_key=_lk,
             )
             ws_llm.cell(row=ri, column=6, value=resp_text[:1200])
-            ws_llm.cell(row=ri, column=7, value=interaction.get("usage", {}).get("total_tokens", 0))
-            ws_llm.cell(row=ri, column=8, value=interaction.get("model", ""))
-            ws_llm.cell(row=ri, column=9, value=interaction.get("timestamp", "—"))
+            _usage = interaction.get("usage") or {}
+            ws_llm.cell(row=ri, column=7, value=_usage.get("total_tokens", 0) if isinstance(_usage, dict) else 0)
+            ws_llm.cell(row=ri, column=8, value=_safe_str(interaction.get("model", "")))
+            ws_llm.cell(row=ri, column=9, value=_safe_str(interaction.get("timestamp", "—")))
             if row_fill:
                 for ci in range(1, 10):
                     ws_llm.cell(row=ri, column=ci).fill = row_fill
@@ -2517,8 +2552,8 @@ def export_deep_report_excel(
             row.get("risk_label", rl),
             row.get("gap_severity","") or "—",
             "⚠️" if row.get("flagged_for_ra") else "",
-            (row.get("remediation_suggestion") or "")[:300],
-            (row.get("remediation_regulation_cite") or "")[:200],
+            _safe_str(row.get("remediation_suggestion"), 300),
+            _safe_str(row.get("remediation_regulation_cite"), 200),
         ]
         for ci2, v in enumerate(vals, 1):
             c = ws_risk.cell(row=ri2, column=ci2, value=v)
@@ -2593,8 +2628,10 @@ def export_deep_report_excel(
 # Helpers
 
 
-def _strip_md_fence(s: str) -> str:
-    """Remove ```json ... ``` or ``` ... ``` fences."""
+def _strip_md_fence(s) -> str:
+    """Remove ```json ... ``` or ``` ... ``` fences. Accepts any type — coerces to str first."""
+    if not isinstance(s, str):
+        s = _safe_str(s)
     import re
     s = s.strip()
     m = re.match(r"^```(?:json)?\s*(.*?)\s*```$", s, re.DOTALL)
@@ -2631,6 +2668,8 @@ def _format_llm_response_for_excel(raw_resp: str, phase: str, parsed_response=No
 
     if not raw_resp:
         return ""
+    if not isinstance(raw_resp, str):
+        raw_resp = _safe_str(raw_resp)
 
     # ── Phase 5 (verification): JSON array of rounds ──
     if phase == "verification":
@@ -2813,6 +2852,8 @@ def _render_gap_json_response(doc, resp: str) -> None:
     """
     if not resp:
         return
+    if not isinstance(resp, str):
+        resp = _safe_str(resp)
 
     # Strip ```json / ``` fences
     stripped = resp.strip()
@@ -2921,9 +2962,9 @@ def _render_verification_results_table(doc, ver_list: list) -> None:
 
 def _render_remediation_block(doc, remed: dict) -> None:
     """Render a remediation dict as structured Word content."""
-    summary = (remed.get("summary") or "").strip()
-    priority = (remed.get("priority") or "").strip()
-    regulation_citation = (remed.get("regulation_citation") or "").strip()
+    summary = _safe_str(remed.get("summary")).strip()
+    priority = _safe_str(remed.get("priority")).strip()
+    regulation_citation = _safe_str(remed.get("regulation_citation")).strip()
     suggestions = remed.get("suggestions") or []
 
     if summary or priority:
@@ -2943,7 +2984,7 @@ def _render_remediation_block(doc, remed: dict) -> None:
         labels = ["具體動作 / Action", "目標章節 / Target Section", "法規依據 / Regulation Basis", "範例內容 / Example Content"]
         keys = ["action", "target_section", "regulation_basis", "example_content"]
         for ri2, (lbl, key) in enumerate(zip(labels, keys)):
-            val = (sg.get(key) or "").strip()
+            val = _safe_str(sg.get(key)).strip()
             tbl.rows[ri2].cells[0].text = lbl
             run0 = tbl.rows[ri2].cells[0].paragraphs[0].runs[0] if tbl.rows[ri2].cells[0].paragraphs[0].runs else tbl.rows[ri2].cells[0].paragraphs[0].add_run(lbl)
             run0.bold = True
