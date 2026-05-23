@@ -501,7 +501,12 @@ from src.storage.regulatory_analysis_storage import (
     get_regulatory_analysis_store,
 )
 from src.storage.product_docs_storage import get_product_docs_store
-from src.analysis.pipeline_runner import run_pipeline_analysis, PipelineRunResult
+from src.analysis.pipeline_runner import (
+    run_pipeline_analysis,
+    PipelineRunResult,
+    resume_pipeline_analysis,
+    find_incomplete_pipeline_runs,
+)
 from src.services.regulatory_verifier import verify_all as _run_regulatory_verify
 from src.analysis.report_api import report_router
 from src.utils.user_settings import save_user_settings, load_user_settings
@@ -9847,6 +9852,104 @@ async def _save_daily_feedback_if_pending(user_message: str) -> bool:
     return True
 
 
+async def _handle_resume_pipeline(lang: str) -> None:
+    """List incomplete pipeline runs and ask the user to confirm resume.
+
+    Stores the most recent incomplete run's state path in the session so the
+    next user message ("yes"/"是"/"はい") can trigger the actual resume.
+    """
+    try:
+        incomplete = find_incomplete_pipeline_runs(max_results=5)
+    except Exception as _err:
+        await cl.Message(content=f"⚠️ Resume lookup failed: {_err}").send()
+        return
+
+    if not incomplete:
+        if lang.startswith("zh"):
+            msg = "ℹ️ 找不到可恢復的分析任務（沒有狀態為 `running` 的執行紀錄）。"
+        elif lang.startswith("ja"):
+            msg = "ℹ️ 再開できる分析タスクが見つかりません（status='running' の実行履歴がありません）。"
+        else:
+            msg = "ℹ️ No incomplete analysis runs found (no state files with status='running')."
+        await cl.Message(content=msg).send()
+        return
+
+    # Build a human-readable list
+    lines = []
+    if lang.startswith("zh"):
+        header = "🔄 **找到下列未完成的分析任務：**"
+        prompt = "\n\n是否要恢復最近一次的分析？請回覆 `是` / `yes` 確認，或回覆任意其他訊息取消。"
+    elif lang.startswith("ja"):
+        header = "🔄 **未完了の分析タスクが見つかりました：**"
+        prompt = "\n\n直近の分析を再開しますか？ `はい` / `yes` で確認、その他のメッセージでキャンセル。"
+    else:
+        header = "🔄 **Incomplete analysis runs found:**"
+        prompt = "\n\nResume the most recent one? Reply `yes` to confirm, any other message to cancel."
+
+    for i, item in enumerate(incomplete, 1):
+        lines.append(
+            f"{i}. `{item['run_id']}` — phase **{item['current_phase']}** — "
+            f"{item['completed_rows']}/{item['total_rows']} rows "
+            f"({item['progress_percent']}%)"
+        )
+
+    # Stash the most recent for follow-up confirmation
+    cl.user_session.set("awaiting_resume_confirm", True)
+    cl.user_session.set("pending_resume_state_path", incomplete[0]["state_path"])
+    cl.user_session.set("pending_resume_run_id", incomplete[0]["run_id"])
+
+    await cl.Message(content=header + "\n" + "\n".join(lines) + prompt).send()
+
+
+async def _execute_resume_pipeline(state_path: str, lang: str) -> None:
+    """Actually invoke resume_pipeline_analysis() for the pending state file."""
+    provider_id = cl.user_session.get("provider_id", "ollama")
+    model_name = cl.user_session.get("model_name", "default")
+    api_key = cl.user_session.get("api_key", "").strip()
+
+    try:
+        setup_api_key(provider_id, api_key)
+        manager = create_provider_manager(provider_id)
+        if provider_id != "ollama":
+            manager.disable_fallback = True
+    except Exception as _setup_err:
+        await cl.Message(content=f"⚠️ Provider setup failed: {_setup_err}").send()
+        return
+
+    async def _resume_send_msg(text: str) -> None:
+        try:
+            await cl.Message(content=text, author="Eira").send()
+        except Exception:
+            pass
+
+    if lang.startswith("zh"):
+        await cl.Message(content=f"▶️ 開始恢復分析：`{Path(state_path).stem}` …").send()
+    elif lang.startswith("ja"):
+        await cl.Message(content=f"▶️ 分析を再開しています：`{Path(state_path).stem}` …").send()
+    else:
+        await cl.Message(content=f"▶️ Resuming analysis: `{Path(state_path).stem}` …").send()
+
+    pipeline_result = await resume_pipeline_analysis(
+        state_path=Path(state_path),
+        llm_completion_fn=manager.completion,
+        model=model_name,
+        send_message_fn=_resume_send_msg,
+        lang=lang,
+        provider_info=_get_session_provider_info(),
+    )
+
+    if pipeline_result and pipeline_result.success:
+        await cl.Message(content=pipeline_result.to_summary_markdown()).send()
+    else:
+        err = pipeline_result.error if pipeline_result else "Unknown error"
+        if lang.startswith("zh"):
+            await cl.Message(content=f"⚠️ 恢復分析失敗：{err}").send()
+        elif lang.startswith("ja"):
+            await cl.Message(content=f"⚠️ 分析の再開に失敗しました：{err}").send()
+        else:
+            await cl.Message(content=f"⚠️ Resume failed: {err}").send()
+
+
 @cl.on_message
 async def on_message(message: cl.Message):
     """Handle all incoming messages"""
@@ -9855,6 +9958,29 @@ async def on_message(message: cl.Message):
 
     # Handle pending daily feedback input
     if await _save_daily_feedback_if_pending(text):
+        return
+
+    # Handle pending resume-pipeline confirmation
+    if cl.user_session.get("awaiting_resume_confirm"):
+        cl.user_session.set("awaiting_resume_confirm", False)
+        _resume_lang = cl.user_session.get("language", DEFAULT_LANG)
+        _yes_tokens = {"yes", "y", "是", "好", "確定", "確認", "はい", "ok"}
+        if text.lower().strip() in _yes_tokens:
+            _state_path = cl.user_session.get("pending_resume_state_path", "")
+            cl.user_session.set("pending_resume_state_path", "")
+            cl.user_session.set("pending_resume_run_id", "")
+            if _state_path:
+                await _execute_resume_pipeline(_state_path, _resume_lang)
+            return
+        # Anything else: cancel
+        cl.user_session.set("pending_resume_state_path", "")
+        cl.user_session.set("pending_resume_run_id", "")
+        if _resume_lang.startswith("zh"):
+            await cl.Message(content="已取消恢復分析。").send()
+        elif _resume_lang.startswith("ja"):
+            await cl.Message(content="再開をキャンセルしました。").send()
+        else:
+            await cl.Message(content="Resume cancelled.").send()
         return
 
     # Check for file uploads (Doc Control profile)
@@ -10103,6 +10229,17 @@ async def on_message(message: cl.Message):
             await cl.Message(content="📊 **" + t("report.previous_report") + "**\n\n" + "\n".join(_lines)).send()
         else:
             await cl.Message(content="⚠️ " + t("report.no_reports")).send()
+        return
+
+    # Resume incomplete pipeline analysis
+    _resume_triggers = [
+        "/resume", "resume", "resume analysis",
+        "繼續分析", "繼續", "/繼續分析",
+        "再開", "分析を再開", "/再開",
+    ]
+    if any(text.lower().strip() == tr.lower() or text.strip() == tr for tr in _resume_triggers):
+        _r_lang = cl.user_session.get("language", DEFAULT_LANG)
+        await _handle_resume_pipeline(_r_lang)
         return
 
     # ============================================================

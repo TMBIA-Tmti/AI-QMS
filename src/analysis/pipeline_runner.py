@@ -46,6 +46,8 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "run_pipeline_analysis",
+    "resume_pipeline_analysis",
+    "find_incomplete_pipeline_runs",
     "PipelineRunResult",
     "_pipeline_send_message_fn",
 ]
@@ -825,3 +827,134 @@ async def run_pipeline_analysis(
 
     result.duration_seconds = time.time() - start_time
     return result
+
+
+# ============================================================
+# Resume / discovery helpers
+# ============================================================
+
+
+async def resume_pipeline_analysis(
+    state_path: "Path",
+    llm_completion_fn: Callable,
+    model: str = "default",
+    send_message_fn: Optional[Callable] = None,
+    lang: str = "zh-TW",
+    provider_info: Optional[dict] = None,
+) -> PipelineRunResult:
+    """Resume a previously interrupted pipeline from its saved state file.
+
+    Loads the pipeline via AnalysisPipeline.load_from_state() and runs any
+    remaining phases. The underlying pipeline.run() is idempotent — phases
+    that already completed are skipped via _phase_already_done().
+
+    Args:
+        state_path: Path to the saved JSON state file
+        llm_completion_fn: LLM completion function (non-streaming)
+        model: LLM model name (used as fallback in load_from_state)
+        send_message_fn: Async callback to send Chainlit messages (optional)
+        lang: Language code for progress messages
+        provider_info: Optional provider info dict (currently informational only)
+
+    Returns:
+        PipelineRunResult populated from the resumed final state
+    """
+    global _pipeline_send_message_fn
+    from pathlib import Path
+
+    _pipeline_send_message_fn = send_message_fn
+    result = PipelineRunResult(lang=lang)
+    start_time = time.time()
+    pipeline = None
+
+    try:
+        pipeline = AnalysisPipeline.load_from_state(
+            state_path=Path(state_path),
+            llm_completion_fn=llm_completion_fn,
+            model=model,
+        )
+
+        # Re-attach a minimal sync progress callback so phase completions are
+        # logged. Mirrors the sync→async bridge in run_pipeline_analysis.
+        def sync_on_phase_complete(phase: Phase, state: PipelineState) -> None:
+            logger.info(f"[Resume] Phase {phase.value} completed")
+
+        pipeline._on_phase_complete = sync_on_phase_complete
+
+        # Run remaining phases in thread pool (pipeline.run() is synchronous)
+        loop = asyncio.get_running_loop()
+        final_state = await loop.run_in_executor(None, pipeline.run)
+
+        result.success = final_state.status == PhaseStatus.COMPLETED.value
+        result.run_id = final_state.run_id
+        result.state = final_state
+        result.table = pipeline.table
+        result.total_rows = final_state.total_rows
+        result.completed_rows = final_state.completed_rows
+        result.state_file_path = str(
+            pipeline._state_dir / f"{final_state.run_id}.json"
+        )
+
+        # Summary data — same shape as run_pipeline_analysis
+        try:
+            summary = pipeline.get_comparison_table_summary()
+            result.verdict_distribution = summary.get("verdict_distribution", {})
+            result.risk_distribution = summary.get("risk_distribution", {})
+            result.flagged_for_ra = summary.get("flagged_for_ra", 0)
+            result.llm_budget_used = final_state.get_budget().to_dict()
+        except Exception as _summary_exc:
+            logger.warning(f"Could not build resume summary: {_summary_exc}")
+
+    except Exception as e:
+        result.success = False
+        result.error = str(e)
+        logger.error(f"resume_pipeline_analysis failed: {e}", exc_info=True)
+        if pipeline is not None:
+            try:
+                result.run_id = pipeline.state.run_id
+                result.state = pipeline.state
+            except Exception:
+                pass
+
+    result.duration_seconds = time.time() - start_time
+    return result
+
+
+def find_incomplete_pipeline_runs(
+    state_dir: "Path | None" = None,
+    max_results: int = 5,
+) -> list[dict]:
+    """Return metadata of recent incomplete (status='running') pipeline runs.
+
+    Returns list of dicts with keys: run_id, state_path, created_at, updated_at,
+    current_phase, total_rows, completed_rows, progress_percent.
+    Sorted newest-first by file mtime.
+    """
+    from pathlib import Path
+    import json as _json
+
+    sd = Path(state_dir) if state_dir else Path("data/analysis_pipeline")
+    if not sd.exists():
+        return []
+
+    results: list[dict] = []
+    for f in sorted(sd.glob("*.json"), key=lambda x: x.stat().st_mtime, reverse=True):
+        try:
+            d = _json.loads(f.read_text(encoding="utf-8"))
+            if d.get("status") != "running":
+                continue
+            results.append({
+                "run_id": d.get("run_id", f.stem),
+                "state_path": str(f),
+                "created_at": d.get("created_at", ""),
+                "updated_at": d.get("updated_at", ""),
+                "current_phase": d.get("current_phase", "?"),
+                "total_rows": d.get("total_rows", 0),
+                "completed_rows": d.get("completed_rows", 0),
+                "progress_percent": d.get("progress_percent", 0),
+            })
+            if len(results) >= max_results:
+                break
+        except Exception:
+            continue
+    return results

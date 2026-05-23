@@ -564,11 +564,14 @@ def _call_llm(
     model: str,
     temperature: float,
     max_tokens: int,
-) -> tuple[dict, dict]:
-    """Call LLM and return (parsed_response, usage). Checks budget first.
+) -> tuple[dict, dict, str]:
+    """Call LLM and return (parsed_response, usage, actual_model). Checks budget first.
 
     Returns:
-        (parsed_json, usage_dict)
+        (parsed_json, usage_dict, actual_model)
+        actual_model is the model reported by the provider response (may differ
+        from `model` if LiteLLM fell back). Falls back to the requested `model`
+        when not present in the response.
     Raises:
         RuntimeError if budget exceeded.
     """
@@ -591,12 +594,13 @@ def _call_llm(
 
     response_text = response.get("content", "")
     usage = response.get("usage", {})
+    actual_model = response.get("model", model)
 
     budget.record_usage(usage)
     state.update_budget(budget)
 
     parsed = _parse_json_response(response_text)
-    return parsed, usage
+    return parsed, usage, actual_model
 
 
 # ============================================================
@@ -783,7 +787,7 @@ def run_verification_row(
                 },
             )
 
-        analyzer_response, usage = _call_llm(
+        analyzer_response, usage, _actual_model = _call_llm(
             llm_completion_fn,
             _ANALYZER_SYSTEM_PROMPTS[lk],
             analyzer_prompt,
@@ -820,7 +824,7 @@ def run_verification_row(
         if human_injection_block:
             verifier_prompt += human_injection_block
 
-        verifier_response, usage = _call_llm(
+        verifier_response, usage, _actual_model = _call_llm(
             llm_completion_fn,
             _VERIFIER_SYSTEM_PROMPTS[lk],
             verifier_prompt,
@@ -915,7 +919,7 @@ def run_verification_row(
             if round_injection_block:
                 analyzer_followup += round_injection_block
 
-            analyzer_response, usage = _call_llm(
+            analyzer_response, usage, _actual_model = _call_llm(
                 llm_completion_fn,
                 _ANALYZER_SYSTEM_PROMPTS[lk],
                 analyzer_followup,
@@ -950,7 +954,7 @@ def run_verification_row(
             if round_injection_block:
                 verifier_followup += round_injection_block
 
-            verifier_response, usage = _call_llm(
+            verifier_response, usage, _actual_model = _call_llm(
                 llm_completion_fn,
                 _VERIFIER_SYSTEM_PROMPTS[lk],
                 verifier_followup,
@@ -1259,7 +1263,7 @@ def run_verification_document(
                     },
                 )
 
-            analyzer_response, usage = _call_llm(
+            analyzer_response, usage, _actual_model = _call_llm(
                 llm_completion_fn,
                 _ANALYZER_SYSTEM_PROMPTS[lk],
                 analyzer_prompt,
@@ -1292,7 +1296,7 @@ def run_verification_document(
                 audit_question=row.audit_question,
             )
 
-            verifier_response, usage = _call_llm(
+            verifier_response, usage, _actual_model = _call_llm(
                 llm_completion_fn,
                 _VERIFIER_SYSTEM_PROMPTS[lk],
                 verifier_prompt,
@@ -1363,7 +1367,7 @@ def run_verification_document(
                     ),
                 )
 
-                analyzer_response, usage = _call_llm(
+                analyzer_response, usage, _actual_model = _call_llm(
                     llm_completion_fn,
                     _ANALYZER_SYSTEM_PROMPTS[lk],
                     analyzer_followup,
@@ -1396,7 +1400,7 @@ def run_verification_document(
                     ),
                 )
 
-                verifier_response, usage = _call_llm(
+                verifier_response, usage, _actual_model = _call_llm(
                     llm_completion_fn,
                     _VERIFIER_SYSTEM_PROMPTS[lk],
                     verifier_followup,
@@ -1463,7 +1467,7 @@ def run_verification_document(
                         clause_id=row.clause_id,
                         clause_title=row.clause_title,
                         llm_response=_rounds_summary,
-                        model=model,
+                        model=_actual_model,
                         usage=total_usage,
                         round_number=len(rounds),
                         extra={
@@ -1942,7 +1946,7 @@ def run_qa_audit_document(
         )
 
     try:
-        response, usage = _call_llm(
+        response, usage, _actual_model = _call_llm(
             llm_completion_fn,
             _QA_AUDITOR_SYSTEM_PROMPTS[lk],
             user_prompt,
@@ -1958,7 +1962,7 @@ def run_qa_audit_document(
             "summary": response.get("summary", ""),
             "recommendations": response.get("recommendations", []),
             "llm_usage": usage,
-            "llm_model": model,
+            "llm_model": _actual_model,
             "doc_id": doc_id,
             "clause_count": len(rows_with_debates),
             "skipped": False,
