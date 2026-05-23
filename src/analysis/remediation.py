@@ -734,10 +734,21 @@ def _parse_doc_remediation_response(
 
     try:
         data = json.loads(json_str)
-        clause_results = data.get("clause_results", {})
-
-        for clause_id, clause_data in clause_results.items():
-            result[clause_id] = clause_data.get("remediation", {})
+        # Try multiple common top-level key names LLMs use
+        clause_results = (
+            data.get("clause_results")
+            or data.get("clauses")
+            or data.get("results")
+            or data.get("remediation_results")
+            or {}
+        )
+        if isinstance(clause_results, dict):
+            for clause_id, clause_data in clause_results.items():
+                if isinstance(clause_data, dict):
+                    # Accept nested {"remediation": {...}} or flat remediation dict
+                    rem = clause_data.get("remediation") or clause_data
+                    if isinstance(rem, dict) and ("summary" in rem or "suggestions" in rem):
+                        result[clause_id] = rem
 
     except (json.JSONDecodeError, KeyError, TypeError):
         pass
@@ -984,11 +995,18 @@ def run_remediation_document(
                 total_suggestions += len(remediation.get("suggestions", []))
 
         phase_result.status = PhaseStatus.COMPLETED.value
+        # Store per-clause remediation summaries for recovery via to_flat_rows fallback
+        clause_summary = {
+            cid: {"summary": rd.get("summary",""), "regulation_citation": rd.get("regulation_citation","")}
+            for cid, rd in clause_remediation.items()
+            if rd and (rd.get("summary") or rd.get("regulation_citation"))
+        }
         phase_result.output = {
             "doc_id": doc_id,
             "clause_count": len(rows_needing_remediation),
             "skipped_count": len(rows) - len(rows_needing_remediation),
             "total_suggestions": total_suggestions,
+            "clause_remediation": clause_summary,
         }
         phase_result.llm_usage = usage
         phase_result.llm_model = response.get("model", model)

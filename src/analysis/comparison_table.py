@@ -1094,9 +1094,9 @@ class ComparisonTable:
                     "verdict": r.verdict,
                     "verdict_icon": verdict_disp.get("icon", ""),
                     "verdict_label": verdict_disp.get(f"label_{_lk}", verdict_disp.get("label_zh", "")),
-                    "remediation": r.remediation_suggestion,
-                    "remediation_suggestion": r.remediation_suggestion,
-                    "remediation_regulation_cite": r.remediation_regulation_cite,
+                    "remediation": r.remediation_suggestion or _extract_p4_field(r, "summary"),
+                    "remediation_suggestion": r.remediation_suggestion or _extract_p4_field(r, "summary"),
+                    "remediation_regulation_cite": r.remediation_regulation_cite or _extract_p4_field(r, "regulation_citation"),
                     "flagged_for_ra": r.flagged_for_ra,
                     "ra_override": r.ra_override,
                     "ra_notes": r.ra_notes,
@@ -1106,6 +1106,12 @@ class ComparisonTable:
                     "phase_status_summary": phase_status_summary,
                     "analyzer_position": _extract_analyzer_position(r),
                     "verifier_position": _extract_verifier_position(r),
+                    "r1_analyzer_position": _extract_r1_field(r, "analyzer", "position"),
+                    "r1_analyzer_confidence": _extract_r1_field(r, "analyzer", "confidence"),
+                    "r1_key_evidence": _extract_r1_field(r, "analyzer", "key_evidence"),
+                    "r1_verifier_challenges": _extract_r1_field(r, "verifier", "challenges"),
+                    "r1_agreement_level": _extract_r1_field(r, "verifier", "agreement_level"),
+                    "r1_verifier_assessment": _extract_r1_field(r, "verifier", "overall_assessment"),
                 }
             )
 
@@ -1118,6 +1124,20 @@ class ComparisonTable:
                 return [999]
         rows.sort(key=_clause_sort_key)
         return rows
+
+
+def _extract_p4_field(row_state, field: str) -> str:
+    """Fallback: read a remediation field from phase_4 output when row-level field is None.
+    Handles the case where _parse_doc_remediation_response stored summaries in output."""
+    p4 = (getattr(row_state, "phase_results", {}) or {}).get("phase_4", {})
+    if not isinstance(p4, dict):
+        return ""
+    clause_remediation = (p4.get("output") or {}).get("clause_remediation", {})
+    if not isinstance(clause_remediation, dict):
+        return ""
+    clause_id = getattr(row_state, "clause_id", "")
+    rem = clause_remediation.get(clause_id, {})
+    return str(rem.get(field, "") or "") if isinstance(rem, dict) else ""
 
 
 def _extract_analyzer_position(row_state) -> str:
@@ -1142,6 +1162,23 @@ def _extract_verifier_position(row_state) -> str:
             if assessment:
                 return str(assessment)[:600]
     return ""
+
+
+def _extract_r1_field(row_state, role: str, field: str) -> str:
+    """Extract a specific field from R1 (first verification round)."""
+    rounds = getattr(row_state, "verification_rounds", []) or []
+    if not rounds:
+        return ""
+    r1 = rounds[0]
+    if not isinstance(r1, dict):
+        return ""
+    val = r1.get(role, {})
+    if not isinstance(val, dict):
+        return ""
+    result = val.get(field, "")
+    if isinstance(result, list):
+        return "; ".join(str(x) for x in result)
+    return str(result) if result else ""
 
 
 def build_initial_rows(

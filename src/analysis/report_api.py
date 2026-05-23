@@ -566,9 +566,46 @@ async def list_regulations():
     except Exception:
         pass
 
+    # Build country-grouped view: one entry per country, merging all agencies
+    _countries: dict[str, dict] = {}
+    for reg in regulations:
+        cc = reg.get("country") or "XX"
+        if cc not in _countries:
+            _countries[cc] = {
+                "country": cc,
+                "country_name_en": reg.get("country_name_en", ""),
+                "country_name_zh": reg.get("country_name_zh", ""),
+                "regulation_ids": [],
+                "agencies": [],
+                "total_iso_mapped": 0,
+                "total_unique": 0,
+                "total_full": 0,
+                "total_exceeds": 0,
+                "is_user_selected": False,
+                "last_updated": reg.get("last_updated", ""),
+            }
+        country_entry = _countries[cc]
+        country_entry["regulation_ids"].append(reg["regulation_id"])
+        country_entry["agencies"].append({
+            "regulation_id": reg["regulation_id"],
+            "name_en": reg.get("name_en", ""),
+            "name_zh": reg.get("name_zh", ""),
+            "source_url": reg.get("source_url", ""),
+        })
+        country_entry["total_iso_mapped"] += reg.get("iso_mapped_count", 0)
+        country_entry["total_unique"] += reg.get("unique_requirements_count", 0)
+        sc = reg.get("status_counts", {})
+        country_entry["total_full"] += sc.get("full", 0)
+        country_entry["total_exceeds"] += sc.get("exceeds", 0)
+        if reg.get("is_user_selected"):
+            country_entry["is_user_selected"] = True
+
+    countries = list(_countries.values())
+
     return JSONResponse(
         content={
             "regulations": regulations,
+            "countries": countries,
             "failed_regions": failed_regions,
         }
     )

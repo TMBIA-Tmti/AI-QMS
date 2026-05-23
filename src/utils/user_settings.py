@@ -210,6 +210,15 @@ def load_user_settings(user_id: str = "") -> dict:
 
     path = _settings_path(user_id)
     if not path.exists():
+        try:
+            if _LANGUAGE_PATH.exists():
+                with open(_LANGUAGE_PATH, "r", encoding="utf-8") as _lf:
+                    _lang_data = json.load(_lf)
+                _lang = _lang_data.get("language", "")
+                if _lang:
+                    return {"language": _lang}
+        except Exception:
+            pass
         return {}
     try:
         with open(path, "r", encoding="utf-8") as f:
@@ -226,6 +235,16 @@ def load_user_settings(user_id: str = "") -> dict:
                     # Settings expired — delete file and last-user pointer
                     path.unlink(missing_ok=True)
                     _LAST_USER_PATH.unlink(missing_ok=True)
+                    # Language is not a credential — recover it from TTL-free store
+                    try:
+                        if _LANGUAGE_PATH.exists():
+                            with open(_LANGUAGE_PATH, "r", encoding="utf-8") as _lf:
+                                _lang_data = json.load(_lf)
+                            _lang = _lang_data.get("language", "")
+                            if _lang:
+                                return {"language": _lang}
+                    except Exception:
+                        pass
                     return {}
             except (ValueError, TypeError):
                 pass  # Malformed timestamp — proceed without TTL enforcement

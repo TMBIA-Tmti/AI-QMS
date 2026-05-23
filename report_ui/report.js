@@ -2489,6 +2489,8 @@
 
             const data = await apiFetch("/crossref/regulations");
             crossrefRegulations = data.regulations || [];
+            // Use country-grouped view (one checkbox per country) if available
+            const crossrefCountries = data.countries || [];
 
             if (crossrefRegulations.length === 0) {
                 els.countryCheckboxes.innerHTML = '<div class="loading-cell">❌ ' + t('ui.noRegsAvailable') + '</div>';
@@ -2498,24 +2500,49 @@
             const _crLang = (window.__i18n && window.__i18n.lang) || "en-US";
             const _crIsZh = _crLang.startsWith("zh");
             let html = "";
-            for (const reg of crossrefRegulations) {
-                const flag = FLAG_EMOJIS[reg.country] || "🏳️";
-                const fullCount = reg.status_counts.full || 0;
-                const exceedsCount = reg.status_counts.exceeds || 0;
-                const uniqueCount = reg.unique_requirements_count || 0;
-                const countryDisplay = _crIsZh ? reg.country_name_zh : (reg.country_name_en || reg.country_name_zh);
-                const regNameDisplay = _crIsZh ? reg.name_zh : (reg.name_en || reg.name_zh);
-                html += `
-                <label class="country-check-item" data-reg-id="${escapeAttr(reg.regulation_id)}">
-                    <input type="checkbox" value="${escapeAttr(reg.regulation_id)}" ${reg.is_user_selected !== false ? 'checked' : ''}>
-                    <span class="country-flag">${flag}</span>
-                    <div>
-                        <div class="country-name">${escapeHtml(countryDisplay)} (${escapeHtml(reg.country)})</div>
-                        <div class="country-meta">${escapeHtml(regNameDisplay)}</div>
-                        <div class="country-meta">✅${fullCount} ⬆️${exceedsCount} 🚨${uniqueCount} ${t('ui.unique')}</div>
-                    </div>
-                </label>`;
+
+            if (crossrefCountries.length > 0) {
+                // Country-grouped view: one checkbox per country, all agencies consolidated
+                for (const ctry of crossrefCountries) {
+                    const flag = FLAG_EMOJIS[ctry.country] || "🏳️";
+                    const countryDisplay = _crIsZh ? ctry.country_name_zh : (ctry.country_name_en || ctry.country_name_zh);
+                    const regIdsValue = ctry.regulation_ids.join(",");
+                    // Agency names for subtitle
+                    const agencyNames = ctry.agencies.map(a => _crIsZh ? (a.name_zh || a.name_en) : (a.name_en || a.name_zh)).filter(Boolean);
+                    const agencyDisplay = agencyNames.slice(0, 3).join(" / ") + (agencyNames.length > 3 ? ` +${agencyNames.length - 3}` : "");
+                    html += `
+                    <label class="country-check-item" data-reg-id="${escapeAttr(regIdsValue)}" data-country="${escapeAttr(ctry.country)}">
+                        <input type="checkbox" value="${escapeAttr(regIdsValue)}" ${ctry.is_user_selected !== false ? 'checked' : ''}>
+                        <span class="country-flag">${flag}</span>
+                        <div>
+                            <div class="country-name">${escapeHtml(countryDisplay)} (${escapeHtml(ctry.country)})</div>
+                            <div class="country-meta">${escapeHtml(agencyDisplay)}</div>
+                            <div class="country-meta">✅${ctry.total_full} ⬆️${ctry.total_exceeds} 🚨${ctry.total_unique} ${t('ui.unique')}</div>
+                        </div>
+                    </label>`;
+                }
+            } else {
+                // Fallback: one checkbox per regulation_id (original behaviour)
+                for (const reg of crossrefRegulations) {
+                    const flag = FLAG_EMOJIS[reg.country] || "🏳️";
+                    const fullCount = (reg.status_counts && reg.status_counts.full) || 0;
+                    const exceedsCount = (reg.status_counts && reg.status_counts.exceeds) || 0;
+                    const uniqueCount = reg.unique_requirements_count || 0;
+                    const countryDisplay = _crIsZh ? reg.country_name_zh : (reg.country_name_en || reg.country_name_zh);
+                    const regNameDisplay = _crIsZh ? reg.name_zh : (reg.name_en || reg.name_zh);
+                    html += `
+                    <label class="country-check-item" data-reg-id="${escapeAttr(reg.regulation_id)}">
+                        <input type="checkbox" value="${escapeAttr(reg.regulation_id)}" ${reg.is_user_selected !== false ? 'checked' : ''}>
+                        <span class="country-flag">${flag}</span>
+                        <div>
+                            <div class="country-name">${escapeHtml(countryDisplay)} (${escapeHtml(reg.country)})</div>
+                            <div class="country-meta">${escapeHtml(regNameDisplay)}</div>
+                            <div class="country-meta">✅${fullCount} ⬆️${exceedsCount} 🚨${uniqueCount} ${t('ui.unique')}</div>
+                        </div>
+                    </label>`;
+                }
             }
+
             const failedRegions = data.failed_regions || [];
             if (failedRegions.length > 0) {
                 html += '<div class="crawl-failed-warning">';
@@ -2528,7 +2555,7 @@
 
             els.countryCheckboxes.innerHTML = html;
 
-            // Toggle checked class on click + trigger question preview refresh (Problem F)
+            // Toggle checked class on click + trigger question preview refresh
             els.countryCheckboxes.querySelectorAll(".country-check-item").forEach((item) => {
                 const cb = item.querySelector("input[type=checkbox]");
                 cb.addEventListener("change", () => {
@@ -2553,7 +2580,11 @@
         if (!panel || !container) return;
 
         const checked = els.countryCheckboxes ? els.countryCheckboxes.querySelectorAll("input[type=checkbox]:checked") : [];
-        const regIds = Array.from(checked).map(cb => cb.value).filter(v => v && !["toggleOriginalText","toggleMdsapVerify"].includes(v));
+        // Flatten: country checkboxes may have comma-joined reg IDs (e.g. "QMSR,USA")
+        const regIds = Array.from(checked)
+            .map(cb => cb.value)
+            .filter(v => v && !["toggleOriginalText","toggleMdsapVerify"].includes(v))
+            .flatMap(v => v.split(",").map(s => s.trim()).filter(Boolean));
 
         if (regIds.length === 0) {
             panel.style.display = "none";
@@ -2673,9 +2704,11 @@
     }
 
     async function loadCrossrefTable() {
-        // Gather selected regulations
+        // Gather selected regulations — flatten comma-joined country checkbox values
         const checked = els.countryCheckboxes.querySelectorAll("input[type=checkbox]:checked");
-        const regIds = Array.from(checked).map((cb) => cb.value);
+        const regIds = Array.from(checked)
+            .map(cb => cb.value)
+            .flatMap(v => v.split(",").map(s => s.trim()).filter(Boolean));
 
         if (regIds.length === 0) {
             showToast(t('toast.selectCountry'), "error");
