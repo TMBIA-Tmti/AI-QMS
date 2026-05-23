@@ -977,6 +977,36 @@
         els.headerStatus.className = `header-status ${st.cls}`;
 
         els.headerTime.textContent = data.created_at ? formatTimestamp(data.created_at) : "";
+
+        // ── Resume button for incomplete sessions ──
+        let resumeBtn = document.getElementById("headerResumeBtn");
+        if (!resumeBtn) {
+            resumeBtn = document.createElement("button");
+            resumeBtn.id = "headerResumeBtn";
+            resumeBtn.className = "btn btn-resume";
+            resumeBtn.style.cssText = "margin-left:12px;background:#E65100;color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;display:none;";
+            const statusEl = document.getElementById("headerStatus");
+            if (statusEl && statusEl.parentNode) statusEl.parentNode.insertBefore(resumeBtn, statusEl.nextSibling);
+        }
+        const isIncomplete = ["running", "paused", "pending"].includes(data.status);
+        if (isIncomplete) {
+            const runId = data.run_id || RUN_ID;
+            const _isZhBtn = (window.__i18n && window.__i18n.lang || "").startsWith("zh");
+            resumeBtn.textContent = _isZhBtn ? "▶️ 繼續此分析" : "▶️ Resume Analysis";
+            resumeBtn.title = _isZhBtn ? `點擊後，請在 Chainlit 中輸入「繼續分析」來繼續 Run ID: ${runId}` : `Click, then in Chainlit type "resume analysis" to continue Run ID: ${runId}`;
+            resumeBtn.style.display = "";
+            resumeBtn.onclick = function () {
+                try { navigator.clipboard.writeText(runId); } catch (_) {}
+                const chainlitRoot = window.location.protocol + "//" + window.location.hostname + ":3000";
+                window.open(chainlitRoot, "_blank");
+                const _msg = _isZhBtn
+                    ? `Run ID 已複製：${runId}\n請在 Chainlit 中輸入「繼續分析」後貼上 Run ID`
+                    : `Run ID copied: ${runId}\nIn Chainlit, type "resume analysis" then paste the Run ID`;
+                showToast(_msg, "info", 8000);
+            };
+        } else {
+            resumeBtn.style.display = "none";
+        }
     }
 
 
@@ -2451,6 +2481,11 @@
         US: "🇺🇸", EU: "🇪🇺", TW: "🇹🇼", JP: "🇯🇵",
         CN: "🇨🇳", KR: "🇰🇷", AU: "🇦🇺", CA: "🇨🇦",
         BR: "🇧🇷", IN: "🇮🇳", GB: "🇬🇧",
+        SG: "🇸🇬", MY: "🇲🇾", TH: "🇹🇭", VN: "🇻🇳",
+        ID: "🇮🇩", PH: "🇵🇭", SA: "🇸🇦", AE: "🇦🇪",
+        IL: "🇮🇱", EG: "🇪🇬", ZA: "🇿🇦", CH: "🇨🇭",
+        TR: "🇹🇷", RU: "🇷🇺", NZ: "🇳🇿", MX: "🇲🇽",
+        AR: "🇦🇷", CL: "🇨🇱", CO: "🇨🇴",
     };
 
     const METHOD_LABELS = {
@@ -2612,15 +2647,36 @@
             let html = "";
             let totalQuestions = 0;
 
+            // Group regulations by country code — merges official + semi-official
+            const _countryGroups = new Map();
             for (const regId of regIds) {
                 const reg = regsMap[regId];
                 if (!reg) continue;
+                const _cc = reg.country || regId;
+                if (!_countryGroups.has(_cc)) {
+                    _countryGroups.set(_cc, {
+                        country: _cc,
+                        country_name_en: reg.country_name_en,
+                        country_name_zh: reg.country_name_zh,
+                        reqs: [],
+                        deltas: [],
+                        _seen: new Set(),
+                    });
+                }
+                const _grp = _countryGroups.get(_cc);
+                for (const req of (reg.unique_requirements || [])) {
+                    if (req.req_id && _grp._seen.has(req.req_id)) continue;
+                    if (req.req_id) _grp._seen.add(req.req_id);
+                    _grp.reqs.push(req);
+                }
+                _grp.deltas.push(...(reg.within_clause_deltas || []));
+            }
 
-                const flag = FLAG_EMOJIS[reg.country] || "🏳️";
-                const countryName = _isZh ? reg.country_name_zh : reg.country_name_en;
-                const regName = _isZh ? reg.name_zh : reg.name_en;
-                const reqs = reg.unique_requirements || [];
-                const deltas = reg.within_clause_deltas || [];
+            for (const [_cc, _grp] of _countryGroups) {
+                const flag = FLAG_EMOJIS[_cc] || "🏳️";
+                const countryName = _isZh ? _grp.country_name_zh : _grp.country_name_en;
+                const reqs = _grp.reqs;
+                const deltas = _grp.deltas;
 
                 if (reqs.length === 0 && deltas.length === 0) continue;
 
@@ -2686,7 +2742,7 @@
                 }
 
                 html += `<div class="qp-country-block">
-                    <div class="qp-country-header">${flag} <strong>${escapeHtml(countryName)}</strong> — ${escapeHtml(regName)}</div>
+                    <div class="qp-country-header">${flag} <strong>${escapeHtml(countryName)}</strong></div>
                     <div class="qp-country-note">${escapeHtml(String(reqs.length) + " " + (t("crossref.uniqueReqs") || "unique requirements beyond ISO 13485"))}</div>
                     ${reqCardsHtml}
                     ${deltaCardsHtml}
