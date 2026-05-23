@@ -754,9 +754,11 @@ class LLMProviderManager:
         if not LITELLM_AVAILABLE:
             return
 
-        # Set API keys from environment
-        litellm.openai_key = os.getenv("OPENAI_API_KEY")
-        litellm.anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+        # Set API keys from environment (use os.environ to avoid deprecated litellm.xxx_key attributes)
+        if os.getenv("OPENAI_API_KEY"):
+            os.environ.setdefault("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY"))
+        if os.getenv("ANTHROPIC_API_KEY"):
+            os.environ.setdefault("ANTHROPIC_API_KEY", os.getenv("ANTHROPIC_API_KEY"))
 
         # Enable verbose logging in debug mode
         litellm.set_verbose = os.getenv("DEBUG", "false").lower() == "true"

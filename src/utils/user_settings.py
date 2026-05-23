@@ -169,8 +169,9 @@ def save_user_settings(
     try:
         _LANGUAGE_PATH.parent.mkdir(parents=True, exist_ok=True)
         _atomic_write_json(_LANGUAGE_PATH, {"language": language})
-    except Exception:
-        pass
+    except Exception as _lang_err:
+        import logging as _logging
+        _logging.getLogger(__name__).warning("Failed to save language preference: %s", _lang_err)
 
     # Update last active user pointer
     _atomic_write_json(

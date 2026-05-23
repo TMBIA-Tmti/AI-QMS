@@ -472,6 +472,7 @@ async def run_pipeline_analysis(
     result = PipelineRunResult(lang=lang)
     start_time = time.time()
     _pipeline_send_message_fn = send_message_fn
+    pipeline = None
 
     try:
         pipeline = AnalysisPipeline(
@@ -717,7 +718,7 @@ async def run_pipeline_analysis(
                             except _queue.Empty:
                                 break
                             except Exception:
-                                break
+                                continue
                         await phase_task  # propagate any exception
                     else:
                         await loop.run_in_executor(None, executor)
@@ -812,16 +813,17 @@ async def run_pipeline_analysis(
         logger.error(f"Pipeline runner failed: {e}", exc_info=True)
         # Save partial state so the report is still accessible
         try:
-            pipeline._state.status = PhaseStatus.FAILED.value
-            pipeline._save_state()
-            result.run_id = pipeline.state.run_id
-            result.state = pipeline.state
-            result.table = pipeline.table
-            result.total_rows = pipeline.state.total_rows
-            result.completed_rows = pipeline.state.completed_rows
-            result.state_file_path = str(
-                pipeline._state_dir / f"{pipeline.state.run_id}.json"
-            )
+            if pipeline is not None:
+                pipeline._state.status = PhaseStatus.FAILED.value
+                pipeline._save_state()
+                result.run_id = pipeline.state.run_id
+                result.state = pipeline.state
+                result.table = pipeline.table
+                result.total_rows = pipeline.state.total_rows
+                result.completed_rows = pipeline.state.completed_rows
+                result.state_file_path = str(
+                    pipeline._state_dir / f"{pipeline.state.run_id}.json"
+                )
         except Exception as _save_err:
             logger.warning(f"Could not save partial state after failure: {_save_err}")
 

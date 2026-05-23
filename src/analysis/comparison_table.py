@@ -311,6 +311,15 @@ class ComparisonTable:
             "cns ",
         )
 
+        # Internal document keywords — if present, the doc is NOT an external standard
+        # even if its title starts with "ISO", "ASTM", etc.
+        _INTERNAL_DOC_KEYWORDS = (
+            "sop", "procedure", "manual", "form", "instruction", "guide",
+            "work instruction", "protocol", "template", "checklist", "record",
+        )
+        if any(kw in title_lower for kw in _INTERNAL_DOC_KEYWORDS):
+            return False
+
         # 1. doc_id starts with a standard prefix
         if any(id_lower.startswith(p) for p in external_prefixes):
             logger.info(
@@ -477,7 +486,7 @@ class ComparisonTable:
                         getattr(profile, "country_name_en", ""),
                         getattr(profile, "country_name_zh", ""),
                     ):
-                        if field_val:
+                        if field_val and len(field_val) >= 4:
                             dynamic_kw.append(field_val.lower())
                     if dynamic_kw:
                         REGULATION_DETECTION_KEYWORDS[reg_id] = dynamic_kw
@@ -1115,13 +1124,19 @@ class ComparisonTable:
                 }
             )
 
-        # Sort by clause_id for consistent ordering
-        # Guard against non-numeric segments (e.g., malformed crawled data)
+        # Sort by clause_id for consistent ordering using natural sort
+        # (handles annex/letter-based clause IDs like "Annex_IX_1.2")
         def _clause_sort_key(row: dict) -> list:
-            try:
-                return [int(n) for n in row["clause_id"].split(".") if n]
-            except (ValueError, KeyError):
-                return [999]
+            clause_id = row.get("clause_id", "") or ""
+            parts = clause_id.replace("_", ".").split(".")
+            result = []
+            for p in parts:
+                if p:
+                    try:
+                        result.append((0, int(p), ""))
+                    except ValueError:
+                        result.append((1, 0, p.lower()))
+            return result if result else [(999, 0, "")]
         rows.sort(key=_clause_sort_key)
         return rows
 

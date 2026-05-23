@@ -268,7 +268,7 @@ class RowState:
     updated_at: float = field(default_factory=time.time)
 
     def set_phase_result(self, phase: Phase, result: PhaseResult) -> None:
-        """Store a phase result and advance current_phase."""
+        """Store a phase result. Call advance_to_next_phase() separately to move to the next phase."""
         self.phase_results[phase.value] = result.to_dict()
         self.updated_at = time.time()
 

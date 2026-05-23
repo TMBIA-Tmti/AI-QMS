@@ -649,6 +649,10 @@ def run_verification_row(
         started_at=time.time(),
     )
 
+    rounds: list[dict] = []
+    total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    agreed = False
+
     try:
         evidence_items = [EvidenceItem.from_dict(e) for e in row_state.evidence_items]
 
@@ -1056,9 +1060,8 @@ def run_verification_row(
 
 def _merge_usage(total: dict, usage: dict) -> None:
     """Accumulate LLM usage across multiple calls."""
-    total["prompt_tokens"] += usage.get("prompt_tokens", 0)
-    total["completion_tokens"] += usage.get("completion_tokens", 0)
-    total["total_tokens"] += usage.get("total_tokens", 0)
+    for k in ("prompt_tokens", "completion_tokens", "total_tokens"):
+        total[k] = total.get(k, 0) + usage.get(k, 0)
 
 
 # ============================================================
