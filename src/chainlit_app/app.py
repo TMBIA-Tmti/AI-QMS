@@ -72,11 +72,11 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional
 
-# Session logging: persist Chainlit app output to logs/sessions/chainlit/
-_chainlit_log_dir = Path(__file__).parent.parent.parent / "logs" / "sessions" / "chainlit"
+# Session logging: persist Chainlit app output to logs/chainlit/
+_chainlit_log_dir = Path(__file__).parent.parent.parent / "logs" / "chainlit"
 _chainlit_log_dir.mkdir(parents=True, exist_ok=True)
 _chainlit_fh = logging.FileHandler(
-    _chainlit_log_dir / (datetime.now().strftime("%Y-%m-%d") + "_chainlit.log"),
+    _chainlit_log_dir / (datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + "_chainlit.log"),
     encoding="utf-8",
 )
 _chainlit_fh.setLevel(logging.INFO)

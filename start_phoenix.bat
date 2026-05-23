@@ -72,6 +72,14 @@ exit /b 1
 echo [OK] Python: %QMS_PYTHON%
 echo.
 
+:: ─── Phoenix session log ─────────────────────────────────────────────────────
+if not exist "%PROJECT_DIR%logs\phoenix" mkdir "%PROJECT_DIR%logs\phoenix"
+for /f %%t in ('powershell -NoProfile -Command "Get-Date -Format yyyy-MM-dd_HH-mm-ss"') do set "SESSION_STAMP=%%t"
+set "PHOENIX_LOG=%PROJECT_DIR%logs\phoenix\%SESSION_STAMP%_phoenix.log"
+echo [LOG] Phoenix log: logs\phoenix\%SESSION_STAMP%_phoenix.log
+echo SESSION START: %SESSION_STAMP% > "%PHOENIX_LOG%"
+:: ─────────────────────────────────────────────────────────────────────────────
+
 :: ── No-disconnect settings ────────────────────────────────────────────────────
 set "UVICORN_TIMEOUT_KEEP_ALIVE=0"
 set "UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN=300"
@@ -126,7 +134,8 @@ echo.
 start "" "http://localhost:%PHOENIX_PORT%"
 
 cd /d "%PROJECT_DIR%"
-"%QMS_PYTHON%" -m phoenix.server.main serve --grpc-port %PHOENIX_GRPC_PORT%
+echo [LOG] Phoenix output is saved to: logs\phoenix\%SESSION_STAMP%_phoenix.log
+"%QMS_PYTHON%" -m phoenix.server.main serve --grpc-port %PHOENIX_GRPC_PORT% 2>&1 | "%QMS_PYTHON%" -u -c "import sys,io,os; f=open(os.environ['PHOENIX_LOG'],'a',encoding='utf-8',buffering=1); [(sys.stdout.write(l),sys.stdout.flush(),f.write(l)) for l in io.TextIOWrapper(sys.stdin.buffer,'utf-8','replace')]"
 
 if errorlevel 1 (
     echo.

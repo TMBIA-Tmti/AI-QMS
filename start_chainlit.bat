@@ -76,6 +76,16 @@ exit /b 1
 echo [OK] Python: %QMS_PYTHON%
 echo.
 
+:: ─── CMD session log ─────────────────────────────────────────────────────────
+if not exist "%PROJECT_DIR%logs\cmd" mkdir "%PROJECT_DIR%logs\cmd"
+for /f %%t in ('powershell -NoProfile -Command "Get-Date -Format yyyy-MM-dd_HH-mm-ss"') do set "SESSION_STAMP=%%t"
+set "CMD_LOG=%PROJECT_DIR%logs\cmd\%SESSION_STAMP%_start_chainlit.log"
+>> "%CMD_LOG%" echo =============================================
+>> "%CMD_LOG%" echo SESSION START: %SESSION_STAMP%
+>> "%CMD_LOG%" echo Script: start_chainlit.bat
+>> "%CMD_LOG%" echo =============================================
+:: ─────────────────────────────────────────────────────────────────────────────
+
 :: ── No-disconnect settings ────────────────────────────────────────────────────
 set "UVICORN_TIMEOUT_KEEP_ALIVE=0"
 set "UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN=300"
@@ -158,7 +168,11 @@ if errorlevel 1 (
     netstat -an 2>nul | findstr ":%PHOENIX_PORT% .*LISTENING" >nul 2>&1
     if errorlevel 1 (
         echo [INFO] Starting Phoenix server on port %PHOENIX_PORT% (gRPC: %PHOENIX_GRPC_PORT%^)...
-        start "Phoenix Server" /min "%QMS_PYTHON%" -m phoenix.server.main serve --grpc-port %PHOENIX_GRPC_PORT%
+        if not exist "%PROJECT_DIR%logs\phoenix" mkdir "%PROJECT_DIR%logs\phoenix"
+        set "PHOENIX_LOG=%PROJECT_DIR%logs\phoenix\%SESSION_STAMP%_phoenix.log"
+        echo [LOG] Phoenix log: logs\phoenix\%SESSION_STAMP%_phoenix.log
+        >> "%CMD_LOG%" echo [Phoenix] Starting on port %PHOENIX_PORT% (gRPC: %PHOENIX_GRPC_PORT%) - log: logs\phoenix\%SESSION_STAMP%_phoenix.log
+        start "Phoenix Server" /min cmd /c ""%QMS_PYTHON%" -m phoenix.server.main serve --grpc-port %PHOENIX_GRPC_PORT% >> "%PHOENIX_LOG%" 2>&1"
         call :wait_for_phoenix
     ) else (
         echo [OK] Phoenix already running on port %PHOENIX_PORT%
@@ -214,14 +228,17 @@ if %CHAINLIT_RESTARTS% GTR 0 (
 
 set /a CHAINLIT_RESTARTS+=1
 echo [WATCHDOG] Starting Chainlit (run %CHAINLIT_RESTARTS%)...
+>> "%CMD_LOG%" echo [Chainlit] Run %CHAINLIT_RESTARTS% started at %date% %time%
 "%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port %CHAINLIT_PORT%
 
 :: errorlevel 0 = clean exit (Ctrl+C / manual stop) → do NOT restart
 :: errorlevel 1 = crash → restart
 if errorlevel 1 (
+    >> "%CMD_LOG%" echo [Chainlit] Run %CHAINLIT_RESTARTS% CRASHED at %date% %time%
     goto :watchdog_loop
 )
 
+>> "%CMD_LOG%" echo SESSION END (clean stop): %date% %time%
 echo.
 echo ========================================================
 echo [INFO] Chainlit stopped cleanly.

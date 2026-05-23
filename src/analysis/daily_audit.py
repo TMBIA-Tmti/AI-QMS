@@ -1959,16 +1959,17 @@ def _build_exam_samples(records: list) -> str:
 def _save_daily_audit(result: DailyAuditResult) -> None:
     """Save daily audit result to disk."""
     AUDIT_DIR.mkdir(parents=True, exist_ok=True)
-    filepath = AUDIT_DIR / f"daily_{result.audit_date}.json"
+    ts_suffix = result.timestamp[11:19].replace(":", "-") if len(result.timestamp) >= 19 else datetime.now().strftime("%H-%M-%S")
+    filepath = AUDIT_DIR / f"daily_{result.audit_date}_{ts_suffix}.json"
     atomic_write_json(filepath, result.to_dict())
 
 
 def _save_meta_review(result: MetaReviewResult) -> None:
     """Save meta review result to disk."""
     AUDIT_DIR.mkdir(parents=True, exist_ok=True)
-    filepath = (
-        AUDIT_DIR / f"meta_review_{result.period_end or result.timestamp[:10]}.json"
-    )
+    period_key = result.period_end or result.timestamp[:10]
+    ts_suffix = result.timestamp[11:19].replace(":", "-") if len(result.timestamp) >= 19 else datetime.now().strftime("%H-%M-%S")
+    filepath = AUDIT_DIR / f"meta_review_{period_key}_{ts_suffix}.json"
     atomic_write_json(filepath, result.to_dict())
 
 

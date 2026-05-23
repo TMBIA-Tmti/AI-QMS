@@ -211,13 +211,13 @@ class DailyCrossExamStore:
                 (
                     i
                     for i, r in enumerate(store["records"])
-                    if r.get("date") == record.date
+                    if r.get("record_id") == record.record_id
                 ),
                 None,
             )
             if existing_idx is not None:
                 store["records"][existing_idx] = record.to_dict()
-                logger.info(f"Updated daily sampling record for {record.date}")
+                logger.info(f"Updated daily sampling record {record.record_id} ({record.date})")
             else:
                 store["records"].append(record.to_dict())
                 logger.info(
@@ -235,10 +235,11 @@ class DailyCrossExamStore:
 
     def get_record_by_date(self, date: str) -> Optional[DailySamplingRecord]:
         store = self._load_store()
-        for r in store["records"]:
-            if r.get("date") == date:
-                return DailySamplingRecord.from_dict(r)
-        return None
+        matches = [r for r in store["records"] if r.get("date") == date]
+        if not matches:
+            return None
+        matches.sort(key=lambda r: r.get("timestamp", ""), reverse=True)
+        return DailySamplingRecord.from_dict(matches[0])
 
     def get_all_records(self) -> list[DailySamplingRecord]:
         store = self._load_store()

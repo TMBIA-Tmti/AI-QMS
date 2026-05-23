@@ -75,6 +75,16 @@ exit /b 1
 echo [OK] Python: %QMS_PYTHON%
 echo.
 
+:: ─── CMD session log ─────────────────────────────────────────────────────────
+if not exist "%PROJECT_DIR%logs\cmd" mkdir "%PROJECT_DIR%logs\cmd"
+for /f %%t in ('powershell -NoProfile -Command "Get-Date -Format yyyy-MM-dd_HH-mm-ss"') do set "SESSION_STAMP=%%t"
+set "CMD_LOG=%PROJECT_DIR%logs\cmd\%SESSION_STAMP%_start.log"
+>> "%CMD_LOG%" echo =============================================
+>> "%CMD_LOG%" echo SESSION START: %SESSION_STAMP%
+>> "%CMD_LOG%" echo Script: start.bat
+>> "%CMD_LOG%" echo =============================================
+:: ─────────────────────────────────────────────────────────────────────────────
+
 :: ── No-disconnect settings ────────────────────────────────────────────────────
 :: UVICORN_TIMEOUT_KEEP_ALIVE=0  → HTTP keep-alive never expires (fixes HTML page drop)
 :: UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN=300 → allow 5 min for graceful shutdown
@@ -172,6 +182,7 @@ set "CHAINLIT_RESTARTS=0"
 if %CHAINLIT_RESTARTS% GTR 0 (
     echo.
     echo [WATCHDOG] Chainlit crashed ^(run %CHAINLIT_RESTARTS%^). Restarting in 5s...
+    >> "%CMD_LOG%" echo [Chainlit] Run %CHAINLIT_RESTARTS% CRASHED at %date% %time%
     timeout /t 5 /nobreak >nul
     for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":%CHAINLIT_PORT% .*LISTENING"') do (
         tasklist /FI "PID eq %%a" /FO CSV /NH 2>nul | findstr /I "python" >nul
@@ -180,8 +191,10 @@ if %CHAINLIT_RESTARTS% GTR 0 (
     timeout /t 2 /nobreak >nul
 )
 set /a CHAINLIT_RESTARTS+=1
+>> "%CMD_LOG%" echo [Chainlit] Run %CHAINLIT_RESTARTS% starting at %date% %time% on port %CHAINLIT_PORT%
 "%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port %CHAINLIT_PORT%
 if errorlevel 1 goto main_watchdog_loop
+>> "%CMD_LOG%" echo SESSION END (clean stop): %date% %time%
 goto check_error
 
 :start_all
@@ -239,7 +252,11 @@ if not errorlevel 1 (
     set "PHOENIX_LAUNCHED=1"
 ) else (
     echo      Starting Phoenix on port %PHOENIX_PORT% (gRPC: %PHOENIX_GRPC_PORT%^)...
-    start "AI-QMS Phoenix" /min "%QMS_PYTHON%" -m phoenix.server.main serve --grpc-port %PHOENIX_GRPC_PORT%
+    if not exist "%PROJECT_DIR%logs\phoenix" mkdir "%PROJECT_DIR%logs\phoenix"
+    set "PHOENIX_LOG=%PROJECT_DIR%logs\phoenix\%SESSION_STAMP%_phoenix.log"
+    echo [LOG] Phoenix log: logs\phoenix\%SESSION_STAMP%_phoenix.log
+    >> "%CMD_LOG%" echo [Phoenix] Starting on port %PHOENIX_PORT% - log: logs\phoenix\%SESSION_STAMP%_phoenix.log
+    start "AI-QMS Phoenix" /min cmd /c ""%QMS_PYTHON%" -m phoenix.server.main serve --grpc-port %PHOENIX_GRPC_PORT% >> "%PHOENIX_LOG%" 2>&1"
     call :wait_for_phoenix
 )
 
