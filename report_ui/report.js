@@ -993,16 +993,28 @@
             const runId = data.run_id || RUN_ID;
             const _isZhBtn = (window.__i18n && window.__i18n.lang || "").startsWith("zh");
             resumeBtn.textContent = _isZhBtn ? "▶️ 繼續此分析" : "▶️ Resume Analysis";
-            resumeBtn.title = _isZhBtn ? `點擊後，請在 Chainlit 中輸入「繼續分析」來繼續 Run ID: ${runId}` : `Click, then in Chainlit type "resume analysis" to continue Run ID: ${runId}`;
+            resumeBtn.title = _isZhBtn ? `點擊後 Chainlit 將自動繼續 Run ID: ${runId}` : `Click to auto-resume Run ID: ${runId} in Chainlit`;
             resumeBtn.style.display = "";
-            resumeBtn.onclick = function () {
-                try { navigator.clipboard.writeText(runId); } catch (_) {}
+            resumeBtn.onclick = async function () {
+                resumeBtn.disabled = true;
+                resumeBtn.textContent = _isZhBtn ? "⏳ 準備中…" : "⏳ Preparing…";
                 const chainlitRoot = window.location.protocol + "//" + window.location.hostname + ":3000";
+                try {
+                    await fetch(`${API_BASE}/resume-trigger`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ run_id: runId }),
+                    });
+                } catch (_) { /* non-fatal — fallback to manual */ }
                 window.open(chainlitRoot, "_blank");
                 const _msg = _isZhBtn
-                    ? `Run ID 已複製：${runId}\n請在 Chainlit 中輸入「繼續分析」後貼上 Run ID`
-                    : `Run ID copied: ${runId}\nIn Chainlit, type "resume analysis" then paste the Run ID`;
-                showToast(_msg, "info", 8000);
+                    ? "▶️ 已開啟 Chainlit — 分析將自動繼續"
+                    : "▶️ Chainlit opened — analysis will resume automatically";
+                showToast(_msg, "success", 6000);
+                setTimeout(() => {
+                    resumeBtn.disabled = false;
+                    resumeBtn.textContent = _isZhBtn ? "▶️ 繼續此分析" : "▶️ Resume Analysis";
+                }, 5000);
             };
         } else {
             resumeBtn.style.display = "none";

@@ -3763,6 +3763,44 @@ async def on_chat_start():
         )
     await cl.Message(content=welcome).send()
 
+    # Auto-resume: check if user clicked "Resume Analysis" button in an HTML report
+    _pending_resume_path = Path("data/.pending_resume_request.json")
+    if _pending_resume_path.exists():
+        try:
+            _prdata = json.loads(_pending_resume_path.read_text(encoding="utf-8"))
+            _pr_run_id = _prdata.get("run_id", "")
+            _pr_ts = _prdata.get("ts", 0)
+            if _pr_run_id and (time.time() - _pr_ts) < 60:
+                _pending_resume_path.unlink(missing_ok=True)
+                _sd = Path("data/analysis_pipeline")
+                _state_file = None
+                if _sd.exists():
+                    for _sf in _sd.glob("*.json"):
+                        try:
+                            _sfdata = json.loads(_sf.read_text(encoding="utf-8"))
+                            if _sfdata.get("run_id") == _pr_run_id:
+                                _state_file = str(_sf)
+                                break
+                        except Exception:
+                            continue
+                _lang = cl.user_session.get("language", DEFAULT_LANG)
+                if _state_file:
+                    await _execute_resume_pipeline(_state_file, _lang)
+                    return
+                else:
+                    if _lang.startswith("zh"):
+                        await cl.Message(
+                            content=f"⚠️ 找不到 Run ID `{_pr_run_id}` 的狀態檔，請輸入「繼續分析」手動選擇。"
+                        ).send()
+                    else:
+                        await cl.Message(
+                            content=f"⚠️ No state file found for run `{_pr_run_id}`. Type 'resume analysis' to pick manually."
+                        ).send()
+            else:
+                _pending_resume_path.unlink(missing_ok=True)
+        except Exception:
+            pass  # Never block startup
+
     # Check for pending reports from previous disconnected sessions
     try:
         pending = get_pending_reports()

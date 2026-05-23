@@ -28,6 +28,7 @@ Endpoints:
   POST /api/report/{run_id}/pause                  — Pause cross-examination
   POST /api/report/{run_id}/resume                 — Resume cross-examination
   POST /api/report/crossref/mdsap-verify            — Toggle MDSAP verification
+  POST /api/report/resume-trigger               — Signal Chainlit to auto-resume a run
   GET  /api/report/crossref/mdsap-verify            — Get MDSAP verification state
   GET  /api/report/daily-audit/history               — List daily audit records
   POST /api/report/daily-audit/run                   — Trigger daily audit
@@ -54,6 +55,7 @@ from typing import Optional
 from src.utils.safe_io import safe_save_binary
 
 from fastapi import APIRouter, HTTPException, Query, Request
+from pydantic import BaseModel
 from fastapi.responses import (
     JSONResponse,
     FileResponse,
@@ -3875,3 +3877,31 @@ async def _run_reeval_with_feedback(
     except Exception as e:
         logger.warning(f"Re-evaluation failed: {e}")
         return None
+
+
+# ============================================================
+# Resume Trigger — lets the HTML report signal Chainlit to
+# automatically resume an incomplete pipeline run
+# ============================================================
+
+class _ResumeTriggerRequest(BaseModel):
+    run_id: str
+
+
+@report_router.post("/resume-trigger")
+async def post_resume_trigger(body: _ResumeTriggerRequest):
+    """Write a pending resume request file that on_chat_start will detect.
+
+    The HTML report calls this endpoint when the user clicks "Resume Analysis",
+    then opens Chainlit in a new tab.  on_chat_start checks for this file
+    (within a 60-second window) and auto-initiates the resume flow so the user
+    does not have to type anything.
+    """
+    _pending_path = Path("data/.pending_resume_request.json")
+    _pending_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {"run_id": body.run_id.strip(), "ts": time.time()}
+    try:
+        _pending_path.write_text(json.dumps(payload), encoding="utf-8")
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"Could not write trigger file: {exc}")
+    return {"ok": True, "run_id": payload["run_id"]}
