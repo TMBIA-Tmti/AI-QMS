@@ -13,7 +13,7 @@
     <!-- ===== Header ===== -->
     <header class="report-header">
         <div class="header-left">
-            <h1 data-i18n="header.title">📊 Compliance Analysis Report</h1>
+            <h1 data-i18n="page.header">📊 Compliance Analysis Report</h1>
             <span class="run-id" id="headerRunId"></span>
             <span class="source-command-badge" id="headerSourceCommand"></span>
         </div>
@@ -25,11 +25,11 @@
 
     <!-- ===== Tab Navigation ===== -->
     <nav class="tab-nav" id="tabNav">
-        <button class="tab-btn active" data-tab="analysis" data-i18n="tab.analysis">📊 Compliance Results</button>
-        <button class="tab-btn" data-tab="crossref" data-i18n="tab.crossref">🔗 Cross-Country Regulation Comparison</button>
-        <button class="tab-btn" data-tab="crossexam" data-i18n="tab.crossexam">💬 Real-Time LLM Interaction</button>
-        <button class="tab-btn" data-tab="history" data-i18n="tab.history">📜 Cross-Examination History</button>
-        <button class="tab-btn" data-tab="dailyaudit" data-i18n="tab.dailyaudit">🔍 Daily Audit</button>
+        <button class="tab-btn active" data-tab="analysis" data-i18n="tabs.analysis">📊 Compliance Results</button>
+        <button class="tab-btn" data-tab="crossref" data-i18n="tabs.crossref">🔗 Cross-Country Regulation Comparison</button>
+        <button class="tab-btn" data-tab="crossexam" data-i18n="tabs.crossexam">💬 Real-Time LLM Interaction</button>
+        <button class="tab-btn" data-tab="history" data-i18n="tabs.history">📜 Cross-Examination History</button>
+        <button class="tab-btn" data-tab="dailyaudit" data-i18n="tabs.dailyaudit">🔍 Daily Audit</button>
     </nav>
 
     <!-- ===== TAB: Analysis Results ===== -->
@@ -92,7 +92,7 @@
                     <input type="checkbox" value="phase_0" data-phase="phase_0" disabled>
                     <span class="phase-config-badge">P0</span>
                     <div class="phase-config-info">
-                        <span class="phase-config-name" data-i18n="phase.p0">Data Quality Check</span>
+                        <span class="phase-config-name" data-i18n="phase.phase_0">Data Quality Check</span>
                         <span class="phase-config-risk risk-high" data-i18n="phase.p0Risk">⚠️ Skipping will prevent data integrity verification; subsequent analysis may be based on incomplete data</span>
                     </div>
                     <span class="phase-config-lock" data-i18n-title="phase.coreLock" title="Core phase, cannot skip">🔒</span>
@@ -101,7 +101,7 @@
                     <input type="checkbox" value="phase_0_5" data-phase="phase_0_5" disabled>
                     <span class="phase-config-badge">P0.5</span>
                     <div class="phase-config-info">
-                        <span class="phase-config-name" data-i18n="phase.p05">Reference Mapping</span>
+                        <span class="phase-config-name" data-i18n="phase.phase_0_5">Reference Mapping</span>
                         <span class="phase-config-risk risk-high" data-i18n="phase.p05Risk">⚠️ Skipping will prevent regulatory text comparison; analysis will lack a regulatory reference basis</span>
                     </div>
                     <span class="phase-config-lock" data-i18n-title="phase.coreLock" title="Core phase, cannot skip">🔒</span>
@@ -110,7 +110,7 @@
                     <input type="checkbox" value="phase_1" data-phase="phase_1" disabled>
                     <span class="phase-config-badge">P1</span>
                     <div class="phase-config-info">
-                        <span class="phase-config-name" data-i18n="phase.p1">Gap Scan</span>
+                        <span class="phase-config-name" data-i18n="phase.phase_1">Gap Scan</span>
                         <span class="phase-config-risk risk-critical" data-i18n="phase.p1Risk">🔴 Core phase — skipping will prevent gap identification and analysis results cannot be generated</span>
                     </div>
                     <span class="phase-config-lock" data-i18n-title="phase.coreLock" title="Core phase, cannot skip">🔒</span>
@@ -119,7 +119,7 @@
                     <input type="checkbox" value="phase_2" data-phase="phase_2">
                     <span class="phase-config-badge">P2</span>
                     <div class="phase-config-info">
-                        <span class="phase-config-name" data-i18n="phase.p2">Checklist Verification</span>
+                        <span class="phase-config-name" data-i18n="phase.phase_2">Checklist Verification</span>
                         <span class="phase-config-risk risk-medium" data-i18n="phase.p2Risk">⚠️ Skipping will reduce evidence cross-validation and may miss insufficient evidence</span>
                     </div>
                 </label>
@@ -127,7 +127,7 @@
                     <input type="checkbox" value="phase_3" data-phase="phase_3" disabled>
                     <span class="phase-config-badge">P3</span>
                     <div class="phase-config-info">
-                        <span class="phase-config-name" data-i18n="phase.p3">Risk Assessment</span>
+                        <span class="phase-config-name" data-i18n="phase.phase_3">Risk Assessment</span>
                         <span class="phase-config-risk risk-critical" data-i18n="phase.p3Risk">🔴 Core phase — skipping will prevent risk level assessment</span>
                     </div>
                     <span class="phase-config-lock" data-i18n-title="phase.coreLock" title="Core phase, cannot skip">🔒</span>
@@ -136,7 +136,7 @@
                     <input type="checkbox" value="phase_4" data-phase="phase_4">
                     <span class="phase-config-badge">P4</span>
                     <div class="phase-config-info">
-                        <span class="phase-config-name" data-i18n="phase.p4">Remediation Suggestions</span>
+                        <span class="phase-config-name" data-i18n="phase.phase_4">Remediation Suggestions</span>
                         <span class="phase-config-risk risk-low" data-i18n="phase.p4Risk">Skipping does not affect verdict results, but no remediation suggestions will be generated</span>
                     </div>
                 </label>
@@ -144,7 +144,7 @@
                     <input type="checkbox" value="phase_5" data-phase="phase_5">
                     <span class="phase-config-badge">P5</span>
                     <div class="phase-config-info">
-                        <span class="phase-config-name" data-i18n="phase.p5">Independent Verification</span>
+                        <span class="phase-config-name" data-i18n="phase.phase_5">Independent Verification</span>
                         <span class="phase-config-risk risk-medium" data-i18n="phase.p5Risk">⚠️ Skipping will reduce quality assurance from analyst/verifier cross-examination</span>
                     </div>
                 </label>
@@ -152,7 +152,7 @@
                     <input type="checkbox" value="phase_6" data-phase="phase_6">
                     <span class="phase-config-badge">P6</span>
                     <div class="phase-config-info">
-                        <span class="phase-config-name" data-i18n="phase.p6">Source Verification</span>
+                        <span class="phase-config-name" data-i18n="phase.phase_6">Source Verification</span>
                         <span class="phase-config-risk risk-low" data-i18n="phase.p6Risk">Skipping does not affect verdict results, but regulatory source link validity will not be verified</span>
                     </div>
                 </label>
@@ -169,30 +169,30 @@
     <section class="filters-bar">
         <div class="filters-left">
             <div class="filter-group">
-                <label for="filterDoc" data-i18n="filter.document">Document</label>
+                <label for="filterDoc" data-i18n="filters.document">Document</label>
                 <select id="filterDoc">
-                    <option value="" data-i18n="filter.allDocs">All Documents</option>
+                    <option value="" data-i18n="filters.all_documents">All Documents</option>
                 </select>
             </div>
             <div class="filter-group">
-                <label for="filterVerdict" data-i18n="filter.verdict">Verdict</label>
+                <label for="filterVerdict" data-i18n="filters.verdict">Verdict</label>
                 <select id="filterVerdict">
-                    <option value="" data-i18n="filter.allVerdicts">All Verdicts</option>
+                    <option value="" data-i18n="filters.all_verdicts">All Verdicts</option>
                 </select>
             </div>
             <div class="filter-group">
-                <label for="filterRisk" data-i18n="filter.risk">Risk Level</label>
+                <label for="filterRisk" data-i18n="filters.risk_level">Risk Level</label>
                 <select id="filterRisk">
-                    <option value="" data-i18n="filter.allRisks">All Levels</option>
+                    <option value="" data-i18n="filters.all_risk_levels">All Levels</option>
                 </select>
             </div>
             <div class="filter-group">
                 <label for="filterFlagged">
-                    <input type="checkbox" id="filterFlagged"> <span data-i18n="filter.flaggedOnly">Flagged Only</span>
+                    <input type="checkbox" id="filterFlagged"> <span data-i18n="filters.flagged_only">Flagged Only</span>
                 </label>
             </div>
             <div class="filter-group search-group">
-                <input type="text" id="filterSearch" data-i18n-placeholder="filter.searchPlaceholder" placeholder="Search clause / document...">
+                <input type="text" id="filterSearch" data-i18n-placeholder="filters.search_placeholder" placeholder="Search clause / document...">
             </div>
         </div>
         <div class="filters-right">
@@ -222,7 +222,7 @@
     <!-- ===== Main Table ===== -->
     <section class="table-section">
         <div class="table-info">
-            <span id="tableCount" data-i18n="ui.loading">Loading...</span>
+            <span id="tableCount" data-i18n="table.loading">Loading...</span>
         </div>
         <div class="table-container">
             <table class="report-table" id="reportTable">
@@ -230,7 +230,7 @@
                     <tr>
                         <th class="col-clause" data-i18n="table.clause">Clause</th>
                         <th class="col-doc" data-i18n="table.document">QMS Document</th>
-                        <th class="col-question" data-i18n="table.question">Audit Question</th>
+                        <th class="col-question" data-i18n="table.audit_question">Audit Question</th>
                         <th class="col-pipeline" data-i18n="table.pipelineStatus">Pipeline Status</th>
                         <th class="col-evidence" data-i18n="table.evidence">Evidence</th>
                         <th class="col-verdict" data-i18n="table.verdict">Verdict</th>
@@ -241,7 +241,7 @@
                 </thead>
                 <tbody id="reportTableBody">
                     <tr>
-                        <td colspan="9" class="loading-cell" data-i18n="ui.loading">Loading...</td>
+                        <td colspan="9" class="loading-cell" data-i18n="table.loading">Loading...</td>
                     </tr>
                 </tbody>
             </table>
@@ -255,17 +255,17 @@
             <!-- Country Selector -->
             <div class="crossref-controls">
                 <div class="country-selector">
-                    <h3 data-i18n="crossref.selectCountries">🌍 Select Regulatory Countries</h3>
+                    <h3 data-i18n="crossref.select_countries">🌍 Select Regulatory Countries</h3>
                     <div class="country-checkboxes" id="countryCheckboxes">
                         <!-- Populated by JS -->
-                        <div class="loading-cell" data-i18n="crossref.loadingRegs">Loading regulation list...</div>
+                        <div class="loading-cell" data-i18n="crossref.loading_regulations">Loading regulation list...</div>
                     </div>
-                    <button class="btn btn-primary" id="btnLoadCrossref" data-i18n="crossref.generateTable">📊 Generate Comparison Table</button>
+                    <button class="btn btn-primary" id="btnLoadCrossref" data-i18n="crossref.generate_btn">📊 Generate Comparison Table</button>
                     <label class="country-check-item original-text-toggle" style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px">
                         <input type="checkbox" id="toggleOriginalText">
                         <span class="country-flag">📜</span>
                         <div>
-                            <div class="country-name" data-i18n="crossref.showOriginal">Show Original Regulatory Text</div>
+                            <div class="country-name" data-i18n="crossref.original_text">Show Original Regulatory Text</div>
                             <div class="country-meta">Show original regulatory text in native language</div>
                         </div>
                     </label>
@@ -310,10 +310,10 @@
                 <div class="table-info">
                     <span id="crossrefTableCount"></span>
                     <div class="crossref-legend">
-                        <span class="legend-item"><span class="legend-dot dot-full"></span><span data-i18n="crossref.legendFull">Full Adoption (Full)</span></span>
-                        <span class="legend-item"><span class="legend-dot dot-partial"></span><span data-i18n="crossref.legendPartial">Partial Adoption (Partial)</span></span>
-                        <span class="legend-item"><span class="legend-dot dot-exceeds"></span><span data-i18n="crossref.legendExceeds">Exceeds ISO (Exceeds)</span></span>
-                        <span class="legend-item"><span class="legend-dot dot-na"></span><span data-i18n="crossref.legendNA">Not Applicable (N/A)</span></span>
+                        <span class="legend-item"><span class="legend-dot dot-full"></span><span data-i18n="crossref.legend_full">Full Adoption (Full)</span></span>
+                        <span class="legend-item"><span class="legend-dot dot-partial"></span><span data-i18n="crossref.legend_partial">Partial Adoption (Partial)</span></span>
+                        <span class="legend-item"><span class="legend-dot dot-exceeds"></span><span data-i18n="crossref.legend_exceeds">Exceeds ISO (Exceeds)</span></span>
+                        <span class="legend-item"><span class="legend-dot dot-na"></span><span data-i18n="crossref.legend_na">Not Applicable (N/A)</span></span>
                     </div>
                 </div>
                 <div class="table-container">
@@ -330,15 +330,15 @@
 
             <!-- Inter-Country Differences -->
             <div class="intercountry-section" id="intercountrySection" style="display:none">
-                <h3 data-i18n="crossref.interCountry">🔀 Inter-Country Differences Analysis</h3>
-                <p class="delta-desc" data-i18n="crossref.interCountryDesc">Displays differences between national regulations — unique requirements that one country has but others do not.</p>
+                <h3 data-i18n="intercountry.title">🔀 Inter-Country Differences Analysis</h3>
+                <p class="delta-desc" data-i18n="intercountry.desc">Displays differences between national regulations — unique requirements that one country has but others do not.</p>
                 <div id="intercountryContainer"></div>
             </div>
 
             <!-- Unique Requirements (Delta Items) -->
             <div class="delta-section" id="deltaSection" style="display:none">
-                <h3 data-i18n="crossref.deltaTitle">🚨 Country-Specific Requirements (Delta Items) — Highest Priority</h3>
-                <p class="delta-desc" data-i18n="crossref.deltaDesc">Unique requirements from national regulations that exceed ISO 13485 — QMS documents must additionally cover these.</p>
+                <h3 data-i18n="delta.title">🚨 Country-Specific Requirements (Delta Items) — Highest Priority</h3>
+                <p class="delta-desc" data-i18n="delta.desc">Unique requirements from national regulations that exceed ISO 13485 — QMS documents must additionally cover these.</p>
                 <div id="deltaItemsContainer"></div>
             </div>
 
@@ -369,7 +369,7 @@
                             <button class="btn btn-sm btn-outline" id="closeCrossrefFeedback" data-i18n="cmd.close">✕ Close</button>
                         </div>
                         <div class="feedback-history-list" id="crossrefFeedbackList">
-                            <div class="empty-state-text" data-i18n="ui.loading">Loading...</div>
+                            <div class="empty-state-text" data-i18n="table.loading">Loading...</div>
                         </div>
                     </div>
                     <div class="command-help-popup" id="crossrefHelpPopup" style="display:none">
@@ -492,7 +492,7 @@
                     <p data-i18n="crossexam.desc">Watch all Phase LLM interactions (Gap Scan, Verification, Remediation, Cross-Examination) and intervene when necessary.</p>
                 </div>
                 <div class="crossexam-actions">
-                    <span class="crossexam-status" id="crossexamStatus" data-i18n="crossexam.notConnected">⏹ Not Connected</span>
+                    <span class="crossexam-status" id="crossexamStatus" data-i18n="crossexam.disconnected">⏹ Not Connected</span>
                     <button class="btn btn-primary" id="btnConnectSSE" data-i18n="crossexam.connect">🔌 Connect</button>
                     <button class="btn btn-outline" id="btnPauseExam" disabled data-i18n="crossexam.pause">⏸ Pause</button>
                     <button class="btn btn-outline" id="btnResumeExam" disabled data-i18n="crossexam.resume" data-i18n-title="crossexam.resumeTitle" title="Resume cross-examination analysis">▶️ Resume</button>
@@ -501,20 +501,20 @@
 
             <!-- Phase Filter Bar -->
             <div class="phase-filter-bar" id="phaseFilterBar">
-                <button class="phase-filter-btn active" data-phase="all" data-i18n="crossexam.phaseAll">All</button>
+                <button class="phase-filter-btn active" data-phase="all" data-i18n="crossexam.phase_all">All</button>
                 <button class="phase-filter-btn" data-phase="1"><span class="phase-badge phase-1">P1</span> Gap Scan</button>
-                <button class="phase-filter-btn" data-phase="2"><span class="phase-badge phase-2">P2</span> <span data-i18n="crossexam.phaseVerify">Verification</span></button>
+                <button class="phase-filter-btn" data-phase="2"><span class="phase-badge phase-2">P2</span> <span data-i18n="crossexam.phase_verify">Verification</span></button>
                 <button class="phase-filter-btn" data-phase="3"><span class="phase-badge phase-3">P3</span> <span data-i18n="crossexam.phaseRisk">Risk Assessment</span></button>
                 <button class="phase-filter-btn" data-phase="4"><span class="phase-badge phase-4">P4</span> <span data-i18n="crossexam.phaseImprove">Remediation</span></button>
-                <button class="phase-filter-btn" data-phase="5"><span class="phase-badge phase-5">P5</span> <span data-i18n="crossexam.phaseCrossExam">Cross-Examination</span></button>
+                <button class="phase-filter-btn" data-phase="5"><span class="phase-badge phase-5">P5</span> <span data-i18n="crossexam.phase_crossexam">Cross-Examination</span></button>
             </div>
 
             <!-- Run ID Input for SSE connection -->
             <div class="crossexam-connect" id="crossexamConnect">
                 <div class="form-group" style="margin-bottom:0;display:flex;gap:8px;align-items:center">
-                    <label style="white-space:nowrap;margin-bottom:0" data-i18n="crossexam.runIdLabel">Analysis Run ID:</label>
+                    <label style="white-space:nowrap;margin-bottom:0" data-i18n="crossexam.run_id_label">Analysis Run ID:</label>
                     <input type="text" id="sseRunIdInput" class="form-select" style="flex:1;max-width:400px"
-                           data-i18n-placeholder="crossexam.runIdPlaceholder" placeholder="Enter Run ID or use current Run ID">
+                           data-i18n-placeholder="crossexam.run_id_placeholder" placeholder="Enter Run ID or use current Run ID">
                 </div>
             </div>
 
@@ -522,7 +522,7 @@
             <div class="crossexam-feed" id="crossexamFeed">
                 <div class="crossexam-empty">
                     <div class="empty-state-icon">💬</div>
-                    <div class="empty-state-text" data-i18n="crossexam.emptyFeed">Real-time cross-examination content will appear after connecting</div>
+                    <div class="empty-state-text" data-i18n="crossexam.empty_feed">Real-time cross-examination content will appear after connecting</div>
                 </div>
             </div>
 
@@ -554,7 +554,7 @@
                             <button class="btn btn-sm btn-outline" id="closeCrossexamFeedback" data-i18n="cmd.close">✕ Close</button>
                         </div>
                         <div class="feedback-history-list" id="crossexamFeedbackList">
-                            <div class="empty-state-text" data-i18n="ui.loading">Loading...</div>
+                            <div class="empty-state-text" data-i18n="table.loading">Loading...</div>
                         </div>
                     </div>
                     <div class="command-help-popup" id="crossexamHelpPopup" style="display:none">
@@ -666,7 +666,7 @@
                         <option value="standards" data-i18n="cmd.opt.standards">📜 List Supplemental Standards</option>
                     </select>
                     <input type="text" id="humanMessageInput" class="command-input" style="flex:1"
-                           data-i18n-placeholder="crossexam.inputPlaceholder" placeholder="Enter intervention message or command... (type /help for all commands)" disabled>
+                           data-i18n-placeholder="crossexam.input_placeholder" placeholder="Enter intervention message or command... (type /help for all commands)" disabled>
                     <button class="btn btn-icon" id="btnCrossexamHelp" data-i18n-title="cmd.helpBtn" title="Usage Guide">❓</button>
                     <button class="btn btn-icon" id="btnCrossexamDownloads" data-i18n-title="cmd.downloadBtn" title="Download Catalog">📥</button>
                     <button class="btn btn-primary" id="btnSendHuman" disabled data-i18n="cmd.send">
@@ -791,7 +791,7 @@
     <div class="modal-overlay" id="detailModal">
         <div class="modal-content modal-large">
             <div class="modal-header">
-                <h2 id="detailTitle" data-i18n="modal.detailTitle">Clause Details</h2>
+                <h2 id="detailTitle" data-i18n="detail.title">Clause Details</h2>
                 <button class="modal-close" id="detailClose">&times;</button>
             </div>
             <div class="modal-body" id="detailBody">
@@ -804,27 +804,27 @@
     <div class="modal-overlay" id="overrideModal">
         <div class="modal-content modal-medium">
             <div class="modal-header">
-                <h2 data-i18n="modal.overrideTitle">✏️ Override Verdict</h2>
+                <h2 data-i18n="override.title">✏️ Override Verdict</h2>
                 <button class="modal-close" id="overrideClose">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label data-i18n="modal.overrideCurrent">Current Verdict</label>
+                    <label data-i18n="override.current_verdict">Current Verdict</label>
                     <div id="overrideCurrent" class="current-verdict"></div>
                 </div>
                 <div class="form-group">
-                    <label for="overrideVerdict" data-i18n="modal.overrideNew">New Verdict</label>
+                    <label for="overrideVerdict" data-i18n="override.new_verdict">New Verdict</label>
                     <select id="overrideVerdict" class="form-select">
-                        <option value="full_compliance" data-i18n="verdict.full">✅ Full Compliance</option>
-                        <option value="partial_compliance" data-i18n="verdict.partial">⚠️ Partial Compliance</option>
-                        <option value="non_compliance" data-i18n="verdict.non">❌ Non-Compliance</option>
-                        <option value="insufficient_data" data-i18n="verdict.insufficient">⬜ Insufficient Data</option>
+                        <option value="full_compliance" data-i18n="verdict.full_compliance">✅ Full Compliance</option>
+                        <option value="partial_compliance" data-i18n="verdict.partial_compliance">⚠️ Partial Compliance</option>
+                        <option value="non_compliance" data-i18n="verdict.non_compliance">❌ Non-Compliance</option>
+                        <option value="insufficient_data" data-i18n="verdict.insufficient_data">⬜ Insufficient Data</option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label for="overrideReason"><span data-i18n="modal.overrideReason">Override Reason</span> <span class="required">*</span></label>
+                    <label for="overrideReason"><span data-i18n="override.reason_label">Override Reason</span> <span class="required">*</span></label>
                     <textarea id="overrideReason" class="form-textarea" rows="3"
-                              data-i18n-placeholder="modal.overrideReasonPlaceholder" placeholder="Please explain why you are overriding this verdict..."></textarea>
+                              data-i18n-placeholder="override.reason_placeholder" placeholder="Please explain why you are overriding this verdict..."></textarea>
                 </div>
                 <div class="llm-assist-section" id="overrideLlmAssist">
                     <div class="llm-assist-header">
@@ -846,8 +846,8 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-cancel" id="overrideCancelBtn" data-i18n="modal.cancel">Cancel</button>
-                <button class="btn btn-primary" id="overrideSaveBtn" data-i18n="modal.confirmOverride">Confirm Override</button>
+                <button class="btn btn-cancel" id="overrideCancelBtn" data-i18n="override.cancel">Cancel</button>
+                <button class="btn btn-primary" id="overrideSaveBtn" data-i18n="override.confirm">Confirm Override</button>
             </div>
         </div>
     </div>
@@ -856,18 +856,18 @@
     <div class="modal-overlay" id="noteModal">
         <div class="modal-content modal-medium">
             <div class="modal-header">
-                <h2 data-i18n="modal.noteTitle">📝 Add Clause Note</h2>
+                <h2 data-i18n="note.title">📝 Add Clause Note</h2>
                 <button class="modal-close" id="noteClose">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label data-i18n="modal.noteClause">Clause</label>
+                    <label data-i18n="note.clause_label">Clause</label>
                     <div id="noteClauseInfo" class="clause-info"></div>
                 </div>
                 <div class="form-group">
-                    <label for="noteText" data-i18n="modal.noteText">Note Content</label>
+                    <label for="noteText" data-i18n="note.content_label">Note Content</label>
                     <textarea id="noteText" class="form-textarea" rows="4"
-                              data-i18n-placeholder="modal.notePlaceholder" placeholder="This note will be permanently attached to this clause and considered in every analysis..."></textarea>
+                              data-i18n-placeholder="note.placeholder" placeholder="This note will be permanently attached to this clause and considered in every analysis..."></textarea>
                 </div>
                 <div class="llm-assist-section" id="noteLlmAssist">
                     <div class="llm-assist-header">
@@ -889,8 +889,8 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-cancel" id="noteCancelBtn" data-i18n="modal.cancel">Cancel</button>
-                <button class="btn btn-primary" id="noteSaveBtn" data-i18n="modal.saveNote">Save Note</button>
+                <button class="btn btn-cancel" id="noteCancelBtn" data-i18n="note.cancel">Cancel</button>
+                <button class="btn btn-primary" id="noteSaveBtn" data-i18n="note.save">Save Note</button>
             </div>
         </div>
     </div>
@@ -899,7 +899,7 @@
     <div class="modal-overlay" id="historyModal">
         <div class="modal-content modal-large">
             <div class="modal-header">
-                <h2 data-i18n="modal.historyTitle">📜 Version History</h2>
+                <h2 data-i18n="history.title">📜 Version History</h2>
                 <button class="modal-close" id="historyClose">&times;</button>
             </div>
             <div class="modal-body" id="historyBody">

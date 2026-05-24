@@ -1336,7 +1336,7 @@
             html += `<div class="detail-section question-pool-section">
                 <h3>📚 ${_i18nT("detail.allQuestions") || "Complete Question Pool (ISO 13485)"}</h3>
                 <div id="questionPoolDetail_${escapeAttr(rowId)}" class="question-pool-list">
-                    <div class="loading-cell">${_i18nT("ui.loading") || "Loading..."}</div>
+                    <div class="loading-cell">${t('table.loading') || "Loading..."}</div>
                 </div>
             </div>`;
             // Async-load all questions for this clause
@@ -1495,14 +1495,24 @@
                         </div>
                         <div class="verification-round-body">`;
 
-                    if (round.analyzer_response) {
+                    const _analyzerContent = round.analyzer_response
+                        || (round.analyzer && typeof round.analyzer === 'object'
+                            ? (round.analyzer.position || round.analyzer.response
+                                || (round.analyzer.key_evidence ? JSON.stringify(round.analyzer) : ''))
+                            : (typeof round.analyzer === 'string' ? round.analyzer : ''));
+                    if (_analyzerContent) {
                         html += `<div class="verification-role analyzer">🔍 ${_i18nT('ui.analyzer')}</div>
-                            <div class="verification-text">${escapeHtml(round.analyzer_response)}</div>`;
+                            <div class="verification-text">${escapeHtml(String(_analyzerContent))}</div>`;
                     }
 
-                    if (round.verifier_response) {
+                    const _verifierContent = round.verifier_response
+                        || (round.verifier && typeof round.verifier === 'object'
+                            ? (round.verifier.overall_assessment || round.verifier.response
+                                || (round.verifier.challenges ? JSON.stringify(round.verifier) : ''))
+                            : (typeof round.verifier === 'string' ? round.verifier : ''));
+                    if (_verifierContent) {
                         html += `<div class="verification-role verifier">🛡️ ${_i18nT('ui.verifier')}</div>
-                            <div class="verification-text">${escapeHtml(round.verifier_response)}</div>`;
+                            <div class="verification-text">${escapeHtml(String(_verifierContent))}</div>`;
                     }
 
                     html += `</div></div>`;
@@ -2639,7 +2649,7 @@
         }
 
         panel.style.display = "";
-        container.innerHTML = `<div class="loading-cell">${t("ui.loading") || "Loading..."}</div>`;
+        container.innerHTML = `<div class="loading-cell">${t('table.loading') || "Loading..."}</div>`;
         if (meta) meta.textContent = `${t("crossref.selectedRegs") || "Selected"}: ${regIds.join(", ")}`;
 
         try {
@@ -3432,16 +3442,18 @@
                 addExamMessage('verifier', '🛡️ ' + t('ui.verifier'), data.content, data.clause_id, null, '5');
                 break;
             case 'round_end': {
-                const resultText = data.agreed ? '✅ ' + t('sse.roundAgreed') : '❌ ' + t('sse.roundDisagreed');
+                const resultText = data.agreed ? '✅ ' + t('sse.round_agreed') : '❌ ' + t('sse.round_disagreed');
                 addSystemMessage(`${resultText} (${data.clause_id})`, '5');
                 break;
             }
             case 'verification_complete':
-                addSystemMessage(`🏁 ${t('sse.clauseComplete', {id: data.clause_id})} — ${data.agreed ? '✅ ' + t('ui.agreed') : '🚩 ' + t('ui.raReviewRequired')}`, '5');
+                addSystemMessage(data.agreed
+                    ? t('sse.verification_complete_agreed', {clause_id: data.clause_id}) || `🏁 Clause ${data.clause_id} complete — ✅ Agreed`
+                    : t('sse.verification_complete_flagged', {clause_id: data.clause_id}) || `🏁 Clause ${data.clause_id} complete — 🚩 RA Review Required`, '5');
                 break;
 
             case 'verification_skipped':
-                addSystemMessage(`⏭ ${t('sse.clauseSkipped', {id: data.clause_id})} (${data.reason === 'time_budget' ? t('sse.timeBudgetExhausted') : t('sse.tokenBudgetExhausted')})`, '5');
+                addSystemMessage(`⏭ ${`🏁 Clause ${data.clause_id} skipped`} (${data.reason === 'time_budget' ? 'Time budget exhausted' : 'Token budget exhausted'})`, '5');
                 break;
             case 'human_ack':
                 addSystemMessage(`✅ ${t('sse.humanAck', {round: data.consumed_at_round, id: data.clause_id})}`, '5');
