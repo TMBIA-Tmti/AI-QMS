@@ -1157,7 +1157,7 @@ class AnalysisPipeline:
         logger.info("Executing Phase 6: Source Verification")
         self._state.current_phase = Phase.SOURCE_CHECK.value
 
-        result = run_source_check(self._state, lang=self._lang)
+        result = run_source_check(self._state, lang=self._lang, max_urls=500)
 
         # Phase 6 is global (not per-row), so advance all rows that are
         # still at SOURCE_CHECK — this marks them COMPLETED and makes

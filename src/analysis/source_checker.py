@@ -160,7 +160,7 @@ from src.chainlit_app.lang_config import lang_key as _lang_key  # noqa: E402
 
 def run_source_check(
     state: PipelineState,
-    max_urls: int = 50,
+    max_urls: int = 500,
     timeout_per_url: int = 15,
     skip_content_verify: bool = False,
     lang: str = "zh-TW",
