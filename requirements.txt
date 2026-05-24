@@ -106,7 +106,14 @@ lightrag-hku>=1.4.8
 
 # Embedding fallback (auto-downloaded ~420MB on first run when Ollama unavailable)
 # sentence-transformers>=3.0.0
-# torch>=2.0.0
+
+# PyTorch stable (CUDA 12.4) — install via:
+#   pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cu124
+# Listed here for reference; use --extra-index-url if installing with requirements.txt
+--extra-index-url https://download.pytorch.org/whl/cu124
+torch==2.4.1
+torchvision==0.19.1
+torchaudio==2.4.1
 
 # Server mode only (required only when QMS_MODE=server)
 # celery>=5.3.0
