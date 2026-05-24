@@ -406,7 +406,26 @@ def append_crossref_table_word(
 
             label = _status_label(status, lang)
             conf_str = f" ({confidence:.0%})" if confidence else ""
-            cell_text = f"{label}{conf_str}"
+
+            # Include rationale for na/partial to explain why
+            rationale_text = ""
+            for rid in group["reg_ids"]:
+                cdata = clause_entry.get("countries", {}).get(rid, {})
+                r_zh = cdata.get("rationale_zh", "")
+                r_en = cdata.get("rationale_en", "")
+                if lk == "zh" and r_zh and "LLM analysis failed" not in r_zh and r_zh != "此條款的 LLM 分析失敗":
+                    rationale_text = r_zh
+                    break
+                elif lk == "ja" and r_en and "LLM analysis failed" not in r_en:
+                    rationale_text = r_en
+                    break
+                elif r_en and "LLM analysis failed" not in r_en:
+                    rationale_text = r_en
+                    break
+            if rationale_text and status in ("partial", "not_applicable", "na"):
+                cell_text = f"{label}{conf_str}\n{rationale_text[:200]}"
+            else:
+                cell_text = f"{label}{conf_str}"
 
             # Within-clause deltas
             wcds = merged["within_clause_deltas"]
@@ -571,9 +590,9 @@ def append_crossref_table_excel(
 
     # ── Sheet 1: CrossRef ──
     _sheet1_name = {
-        "zh": "\u4ea4\u53c9\u6bd4\u5c0d",
-        "ja": "\u4ea4\u53c9\u6bd4\u8f03",
-        "en": "CrossRef",
+        "zh": "\u8de8\u570b\u6cd5\u898f\u4ea4\u53c9\u6bd4\u5c0d\u8868",
+        "ja": "\u5404\u56fd\u898f\u5236\u30af\u30ed\u30b9\u30ea\u30d5\u30a1\u30ec\u30f3\u30b9\u8868",
+        "en": "Cross-Country Reg Ref",
     }
     ws = wb.create_sheet(_sheet1_name.get(lk, _sheet1_name["en"]))
 
@@ -607,7 +626,26 @@ def append_crossref_table_excel(
 
             label = _status_label(status, lang)
             conf_str = f" ({confidence:.0%})" if confidence else ""
-            cell_text = f"{label}{conf_str}"
+
+            # Include rationale for na/partial to explain why
+            rationale_text = ""
+            for rid in group["reg_ids"]:
+                cdata = clause_entry.get("countries", {}).get(rid, {})
+                r_zh = cdata.get("rationale_zh", "")
+                r_en = cdata.get("rationale_en", "")
+                if lk == "zh" and r_zh and "LLM analysis failed" not in r_zh and r_zh != "此條款的 LLM 分析失敗":
+                    rationale_text = r_zh
+                    break
+                elif lk == "ja" and r_en and "LLM analysis failed" not in r_en:
+                    rationale_text = r_en
+                    break
+                elif r_en and "LLM analysis failed" not in r_en:
+                    rationale_text = r_en
+                    break
+            if rationale_text and status in ("partial", "not_applicable", "na"):
+                cell_text = f"{label}{conf_str}\n{rationale_text[:200]}"
+            else:
+                cell_text = f"{label}{conf_str}"
 
             # Within-clause deltas
             wcds = merged["within_clause_deltas"]

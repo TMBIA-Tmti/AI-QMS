@@ -1341,7 +1341,7 @@
             </div>`;
             // Async-load all questions for this clause
             (function(clauseId, containerId) {
-                fetch(`${API_BASE}/../locales/${window.__LANG__ || 'en-US'}.json`).catch(()=>{});
+                fetch(`${API_BASE}/../locales/${(window.__i18n && window.__i18n.lang) || 'en-US'}.json`).catch(()=>{});
                 // Use existing clause data from ISO 13485 checklist via API
                 fetch(`${API_BASE}/crossref/questions?doc_id=${encodeURIComponent(row.doc_id)}&doc_title=${encodeURIComponent(row.doc_title)}&baseline_clause=${encodeURIComponent(clauseId)}&regulations=`)
                     .then(r => r.json()).then(data => {
@@ -1353,7 +1353,7 @@
                 const container = document.getElementById(containerId);
                 if (!container) return;
                 // Make a dedicated API call to get all clause questions
-                fetch(`/api/report/crossref/clause-questions?clause_id=${encodeURIComponent(clauseId)}&lang=${encodeURIComponent(window.__UI_LANG__ || 'en-US')}`)
+                fetch(`/api/report/crossref/clause-questions?clause_id=${encodeURIComponent(clauseId)}&lang=${encodeURIComponent((window.__i18n && window.__i18n.lang) || 'en-US')}`)
                     .then(r => r.ok ? r.json() : null)
                     .then(data => {
                         if (!data || !data.questions || !data.questions.length) {
@@ -2686,7 +2686,7 @@
 
             for (const [_cc, _grp] of _countryGroups) {
                 const flag = FLAG_EMOJIS[_cc] || "🏳️";
-                const countryName = _isZh ? _grp.country_name_zh : _grp.country_name_en;
+                const countryName = _isZh ? (_grp.country_name_zh || _grp.country_name_en) : _grp.country_name_en;
                 const reqs = _grp.reqs;
                 const deltas = _grp.deltas;
 
@@ -2706,7 +2706,7 @@
                         : (req.rationale_en || req.rationale_zh);
 
                     const isoDelta = req.is_within_clause_delta
-                        ? `<div class="qp-delta-marker">⚠️ ${escapeHtml(req.within_clause_delta_vs_iso || "Within-clause delta vs ISO 13485")}</div>`
+                        ? `<div class="qp-delta-marker">⚠️ ${escapeHtml(req.within_clause_delta_vs_iso || t('crossref.withinClauseDelta') || "Within-clause delta vs ISO 13485")}</div>`
                         : "";
 
                     const isoClausesHtml = (req.related_iso_clauses || []).map(c =>
@@ -2857,16 +2857,37 @@
         const _tblLang = (window.__i18n && window.__i18n.lang) || "en-US";
         const _tblIsZh = _tblLang.startsWith("zh");
 
-        // Build header
-        let headHtml = `<tr><th>ISO 13485 ${t('table.clause')}</th>`;
+        // Group regIds by country code to merge same-country regulations
+        const countryGroupMap = {};
+        const countryOrder = [];
         for (const rid of regIds) {
             const m = meta[rid] || {};
-            const flag = FLAG_EMOJIS[m.country] || "";
-            const _tblCountry = _tblIsZh ? (m.country_name_zh || rid) : (m.country_name_en || m.country_name_zh || rid);
+            const countryKey = m.country || rid;
+            if (!countryGroupMap[countryKey]) {
+                countryGroupMap[countryKey] = {
+                    country: countryKey,
+                    country_name_zh: m.country_name_zh || countryKey,
+                    country_name_en: m.country_name_en || countryKey,
+                    reg_ids: []
+                };
+                countryOrder.push(countryKey);
+            }
+            countryGroupMap[countryKey].reg_ids.push(rid);
+        }
+        const countryGroups = countryOrder.map(c => countryGroupMap[c]);
+
+        // Build header
+        let headHtml = `<tr><th>ISO 13485 ${t('table.clause')}</th>`;
+        for (const group of countryGroups) {
+            const flag = FLAG_EMOJIS[group.country] || "";
+            const _tblCountry = _tblIsZh ? (group.country_name_zh || group.country) : (group.country_name_en || group.country_name_zh || group.country);
             headHtml += `<th>${flag} ${escapeHtml(_tblCountry)}</th>`;
         }
         headHtml += `</tr>`;
         els.crossrefTableHead.innerHTML = headHtml;
+
+        // Status priority for merging same-country regulations
+        const statusPriority = {exceeds: 5, full: 4, partial: 3, na: 2, not_applicable: 2, not_mapped: 1};
 
         // Build body rows
         let bodyHtml = "";
@@ -2876,19 +2897,25 @@
             bodyHtml += `<td><div class="clause-id">${escapeHtml(row.clause_id)}</div>
                 <div class="clause-title">${escapeHtml(getClauseTitle(row))}</div></td>`;
 
-            for (const rid of regIds) {
-                const reg = (row.regulations || {})[rid] || {};
+            for (const group of countryGroups) {
+                // Merge status from all reg_ids in this country group
+                const groupRegs = group.reg_ids.map(rid => (row.regulations || {})[rid] || {});
+                const bestReg = groupRegs.reduce((best, reg) => {
+                    const s = reg.status || 'na';
+                    const bs = best.status || 'na';
+                    return (statusPriority[s] || 0) > (statusPriority[bs] || 0) ? reg : best;
+                }, groupRegs[0] || {});
+                const reg = bestReg;
                 const status = reg.status || "na";
                 const statusLabels = {
-                    full: "✅ Full",
-                    partial: "⚠️ Partial",
-                    exceeds: "⬆️ Exceeds",
-                    na: "➖ N/A",
-                    not_mapped: "➖ N/A",
+                    full: t('crossref.stat_full') || "✅ Full",
+                    partial: t('crossref.stat_partial') || "⚠️ Partial",
+                    exceeds: t('crossref.stat_exceeds') || "⬆️ Exceeds",
+                    na: t('crossref.stat_na') || "➖ N/A",
+                    not_mapped: t('crossref.stat_na') || "➖ N/A",
                 };
                 const hasDelta = reg.delta_items && reg.delta_items.length > 0;
                 const uniqueClass = hasDelta ? " unique-marker" : "";
-                const hasNativeText = reg.original_text || (reg.delta_items || []).some(d => d.original_text);
                 bodyHtml += `<td>
                     <span class="status-cell status-${status}${uniqueClass}"
                           onclick="window.__report.toggleRationale('${rowId}')"
@@ -2900,18 +2927,27 @@
 
             // Rationale expandable row (hidden by default)
             bodyHtml += `<tr class="rationale-row" id="${rowId}-rationale">`;
-            bodyHtml += `<td colspan="${regIds.length + 1}">`;
-            for (const rid of regIds) {
-                const reg = (row.regulations || {})[rid] || {};
-                const m = meta[rid] || {};
-                const flag = FLAG_EMOJIS[m.country] || "";
+            bodyHtml += `<td colspan="${countryGroups.length + 1}">`;
+            for (const group of countryGroups) {
+                // Pick the regulation with the best status in this country group
+                const groupEntries = group.reg_ids.map(rid => ({rid, reg: (row.regulations || {})[rid] || {}, m: meta[rid] || {}}));
+                const bestEntry = groupEntries.reduce((best, entry) => {
+                    const s = entry.reg.status || 'na';
+                    const bs = (best.reg && best.reg.status) || 'na';
+                    return (statusPriority[s] || 0) > (statusPriority[bs] || 0) ? entry : best;
+                }, groupEntries[0] || {rid: group.reg_ids[0] || '', reg: {}, m: meta[group.reg_ids[0]] || {}});
+                const {rid, reg, m} = bestEntry;
+                const flag = FLAG_EMOJIS[group.country] || "";
                 const conf = reg.confidence || 0;
                 const confClass = conf >= 0.9 ? "confidence-high" : conf >= 0.7 ? "confidence-medium" : "confidence-low";
                 const methodLabel = METHOD_LABELS[reg.method] || reg.method || "—";
 
                 const _cLang = (window.__i18n && window.__i18n.lang) || "en-US";
                 const _isEn = !_cLang.startsWith("zh") && !_cLang.startsWith("ja");
-                const _countryName = _isEn ? (m.country_name_en || m.country_name_zh || rid) : (m.country_name_zh || rid);
+                const _isJaCard = _cLang.startsWith("ja");
+                const _countryName = _isEn || _isJaCard
+                    ? (group.country_name_en || group.country_name_zh || group.country)
+                    : (group.country_name_zh || group.country_name_en || group.country);
                 const _lblRef = t('crossref.lblRef');
                 const _lblMethod = t('crossref.lblMethod');
                 const _lblConf = t('crossref.lblConfidence');
@@ -2939,7 +2975,7 @@
                     </div>`;
                     if (reg.english_translation) {
                         bodyHtml += `<div class="rc-field">
-                            <span class="rc-label">🇬🇧 English Translation:</span>
+                            <span class="rc-label">${t('crossref.englishTranslation') || '🇬🇧 English Translation'}:</span>
                             <div class="rc-value" style="margin-top:4px">${escapeHtml(reg.english_translation)}</div>
                         </div>`;
                     }
@@ -2959,7 +2995,7 @@
                     bodyHtml += `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
                         <span class="rc-label">${_lblDelta}</span>`;
                     for (const d of deltas) {
-                        const _deltaTitle = _isEn ? (d.title_en || d.title_zh) : (d.title_zh || d.title_en);
+                        const _deltaTitle = (_isEn || _isJaCard) ? (d.title_en || d.title_zh) : (d.title_zh || d.title_en);
                         bodyHtml += `<div style="margin-top:4px;padding:6px;background:var(--non-compliant-bg);border-radius:4px">
                             <strong>${escapeHtml(_deltaTitle)}</strong>
                             <div style="font-size:0.72rem;color:var(--text-secondary)">${escapeHtml(d.regulation_ref)}</div>`;
@@ -2985,14 +3021,8 @@
         }
 
         els.crossrefTableBody.innerHTML = bodyHtml;
-        const _crLang = window.__i18n ? window.__i18n.lang : "en-US";
-        if (_crLang.startsWith("zh")) {
-            els.crossrefTableCount.textContent = t('crossref.tableCount', {rows: rows.length, cols: regIds.length});
-        } else if (_crLang.startsWith("ja")) {
-            els.crossrefTableCount.textContent = t('crossref.tableCount', {rows: rows.length, cols: regIds.length});
-        } else {
-            els.crossrefTableCount.textContent = `Showing ${rows.length} ISO 13485 clauses × ${regIds.length} country regulations`;
-        }
+        els.crossrefTableCount.textContent = t('crossref.table_count', {rows: rows.length, countries: countryGroups.length})
+            || `Showing ${rows.length} ISO 13485 clauses × ${countryGroups.length} country regulations`;
     }
 
     function toggleRationale(rowId) {
@@ -3137,8 +3167,8 @@
             const flag = FLAG_EMOJIS[m.country] || "";
 
             const _dlLang = (window.__i18n && window.__i18n.lang) || "en-US";
-            const _dlEn = !_dlLang.startsWith("zh") && !_dlLang.startsWith("ja");
-            const _dlCountry = _dlEn ? (m.country_name_en || m.country_name_zh || rid) : (m.country_name_zh || rid);
+            const _dlEn = !_dlLang.startsWith("zh");
+            const _dlCountry = _dlEn ? (m.country_name_en || m.country_name_zh || rid) : (m.country_name_zh || m.country_name_en || rid);
             html += `<div class="delta-country-group">
                 <h4>${flag} ${escapeHtml(_dlCountry)} — ${reqs.length} ${t("crossref.uniqueReqsSuffix")}</h4>`;
 
@@ -3160,7 +3190,7 @@
                         <div style="font-size:0.72rem;font-weight:600;color:var(--text-secondary);margin-bottom:4px">📜 ${t('crossref.lblOrigText')} (${langLabel})</div>
                         <div style="font-style:italic;font-size:0.8rem">${escapeHtml(req.original_text)}</div>`;
                     if (req.english_translation) {
-                        html += `<div style="margin-top:6px;font-size:0.72rem;font-weight:600;color:var(--text-secondary)">🇬🇧 English Translation</div>
+                        html += `<div style="margin-top:6px;font-size:0.72rem;font-weight:600;color:var(--text-secondary)">${t('crossref.englishTranslation') || '🇬🇧 English Translation'}</div>
                             <div style="font-size:0.8rem">${escapeHtml(req.english_translation)}</div>`;
                     }
                     if (req.semantic_note) {
@@ -3174,7 +3204,7 @@
                 html += `<div class="di-question">💬 ${t("detail.auditQuestion")}: ${escapeHtml(_dlQuestion)}</div>
                     <div class="di-meta">
                         <span>📊 ${t("crossref.relatedISO")}: ${(req.related_iso_clauses || []).join(", ")}</span>
-                        <span>⚠️ ${t("crossref.impact")}: ${escapeHtml(req.audit_impact)}</span>
+                        <span>⚠️ ${t("crossref.impact")}: ${t('audit.' + req.audit_impact) || escapeHtml(req.audit_impact)}</span>
                         <span class="method-badge">${methodLabel}</span>
                         <span class="rc-confidence ${confClass}">${t("crossref.confidence")} ${Math.round((req.confidence || 0) * 100)}%</span>
                     </div>

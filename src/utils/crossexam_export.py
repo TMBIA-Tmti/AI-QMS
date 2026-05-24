@@ -128,12 +128,38 @@ def _build_env_table_rows(run_meta: dict, lk: str) -> list[tuple[str, str]]:
     }
     lb = _lb.get(lk, _lb["en"])
 
+    _no_torch_label = {
+        "zh": "僅 CPU（不支援 CUDA GPU 加速）",
+        "ja": "CPU のみ（CUDA GPU 非対応）",
+        "en": "CPU only (no CUDA support)",
+    }
+    _torch_cuda_na_label = {
+        "zh": "不適用（僅 CPU 版 PyTorch）",
+        "ja": "非対応（CPU 専用 PyTorch）",
+        "en": "N/A (CPU-only PyTorch)",
+    }
+
     def _compat_str(status: str, warnings: list) -> str:
         if status == "ok":
             return "✅ OK"
+        if status == "no-torch":
+            return _no_torch_label.get(lk, _no_torch_label["en"])
         if warnings:
             return f"⚠️ {status}: {warnings[0][:80]}"
         return f"⚠️ {status}"
+
+    def _torch_version_str(ver: str) -> str:
+        """Format torch version string, clarifying CPU-only editions."""
+        if "+cpu" in ver.lower():
+            # Extract base version before the +cpu suffix
+            base = ver.lower().split("+cpu")[0].rstrip(".")
+            _cpu_label = {
+                "zh": f"PyTorch {base}（CPU 專用版本）",
+                "ja": f"PyTorch {base}（CPU 専用エディション）",
+                "en": f"PyTorch {base} (CPU-only edition)",
+            }
+            return _cpu_label.get(lk, _cpu_label["en"])
+        return ver
 
     rows: list[tuple[str, str]] = []
     if run_meta.get("provider_name"):
@@ -160,9 +186,14 @@ def _build_env_table_rows(run_meta: dict, lk: str) -> list[tuple[str, str]]:
     if run_meta.get("driver_cuda"):
         rows.append((lb["driver_cuda"], run_meta["driver_cuda"]))
     if run_meta.get("torch_version"):
-        rows.append((lb["torch"], run_meta["torch_version"]))
-    if run_meta.get("torch_cuda"):
-        rows.append((lb["torch_cuda"], run_meta["torch_cuda"]))
+        rows.append((lb["torch"], _torch_version_str(run_meta["torch_version"])))
+    torch_cuda_val = run_meta.get("torch_cuda")
+    torch_ver = run_meta.get("torch_version", "")
+    is_cpu_only_torch = torch_ver and "+cpu" in torch_ver.lower()
+    if torch_cuda_val:
+        rows.append((lb["torch_cuda"], torch_cuda_val))
+    elif is_cpu_only_torch:
+        rows.append((lb["torch_cuda"], _torch_cuda_na_label.get(lk, _torch_cuda_na_label["en"])))
     compat = run_meta.get("gpu_compat_status", "")
     if compat:
         rows.append((lb["compat"], _compat_str(compat, run_meta.get("gpu_compat_warnings", []))))

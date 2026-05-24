@@ -413,7 +413,21 @@
   "crossref.auditQuestion": "稽核問題",
   "crossref.expectedEvidence": "預期佐證文件",
   "crossref.whyDifferent": "為何有別於 ISO 13485？",
+  "crossref.englishTranslation": "🇬🇧 英文翻譯",
+  "crossref.withinClauseDelta": "條款內差異（相對於 ISO 13485）",
   "audit.critical": "關鍵",
   "audit.major": "主要",
-  "audit.minor": "次要"
+  "audit.minor": "次要",
+  "detail.allQuestions": "📚 完整問題集（ISO 13485）",
+  "detail.selectedQuestion": "目前選用",
+  "phase.configTitle": "⚙️ 分析階段設定",
+  "phase.toggleBtn": "▼ 展開",
+  "phase.collapseBtn": "▲ 收合",
+  "phase.configDesc": "選擇要跳過的階段。跳過的階段將記錄在報告中。",
+  "phase.noSkip": "目前設定：執行全部階段",
+  "phase.apply": "✅ 套用設定",
+  "phase.reset": "🔄 重置為執行全部",
+  "phase.applySuccess": "階段設定已套用",
+  "phase.coreTitle": "核心階段 — 不建議跳過",
+  "phase.coreLock": "核心階段，無法跳過"
 }

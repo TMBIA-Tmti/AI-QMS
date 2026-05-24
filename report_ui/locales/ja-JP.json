@@ -413,7 +413,21 @@
   "crossref.auditQuestion": "監査質問",
   "crossref.expectedEvidence": "期待される証拠",
   "crossref.whyDifferent": "ISO 13485と異なる理由は？",
+  "crossref.englishTranslation": "🇬🇧 英語翻訳",
+  "crossref.withinClauseDelta": "条項内デルタ（ISO 13485との比較）",
   "audit.critical": "重大",
   "audit.major": "主要",
-  "audit.minor": "軽微"
+  "audit.minor": "軽微",
+  "detail.allQuestions": "📚 完全な質問プール（ISO 13485）",
+  "detail.selectedQuestion": "選択済み",
+  "phase.configTitle": "⚙️ 分析フェーズ設定",
+  "phase.toggleBtn": "▼ 展開",
+  "phase.collapseBtn": "▲ 折りたたむ",
+  "phase.configDesc": "スキップするフェーズを選択します。スキップされたフェーズはレポートに記録されます。",
+  "phase.noSkip": "現在の設定：全フェーズを実行",
+  "phase.apply": "✅ 設定を適用",
+  "phase.reset": "🔄 全実行にリセット",
+  "phase.applySuccess": "フェーズ設定が適用されました",
+  "phase.coreTitle": "コアフェーズ — スキップ非推奨",
+  "phase.coreLock": "コアフェーズはスキップできません"
 }

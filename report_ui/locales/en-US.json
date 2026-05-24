@@ -413,7 +413,21 @@
   "crossref.auditQuestion": "Audit Question",
   "crossref.expectedEvidence": "Expected Evidence",
   "crossref.whyDifferent": "Why different from ISO 13485?",
+  "crossref.englishTranslation": "🇬🇧 English Translation",
+  "crossref.withinClauseDelta": "Within-clause delta vs ISO 13485",
   "audit.critical": "Critical",
   "audit.major": "Major",
-  "audit.minor": "Minor"
+  "audit.minor": "Minor",
+  "detail.allQuestions": "📚 Complete Question Pool (ISO 13485)",
+  "detail.selectedQuestion": "Selected",
+  "phase.configTitle": "⚙️ Analysis Phase Settings",
+  "phase.toggleBtn": "▼ Expand",
+  "phase.collapseBtn": "▲ Collapse",
+  "phase.configDesc": "Select phases to skip. Skipped phases will be noted in the report.",
+  "phase.noSkip": "Current setting: Execute all phases",
+  "phase.apply": "✅ Apply Settings",
+  "phase.reset": "🔄 Reset to Execute All",
+  "phase.applySuccess": "Phase settings applied",
+  "phase.coreTitle": "Core phase - not recommended to skip",
+  "phase.coreLock": "Core phase, cannot skip"
 }
