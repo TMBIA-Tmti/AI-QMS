@@ -865,8 +865,8 @@ def _add_ai_roles_legend(doc, lang: str = "zh-TW") -> None:
 def _load_crawl_results() -> Optional[dict]:
     """Load most recent crawl results from storage. Returns None if unavailable."""
     try:
-        from src.storage.regulatory_storage import RegulatoryStorage
-        return RegulatoryStorage().load_last_results()
+        from src.storage.regulatory_storage import get_regulatory_store
+        return get_regulatory_store().load_last_results()
     except Exception:
         return None
 
