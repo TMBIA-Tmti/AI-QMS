@@ -276,6 +276,9 @@ echo [WARN] Port 3000 is occupied. Auto-switching Chainlit to port %CHAINLIT_POR
 echo.
 
 :port_display
+:: Write active port to file so external tools know which port Chainlit is on
+if not exist "%PROJECT_DIR%data" mkdir "%PROJECT_DIR%data"
+echo %CHAINLIT_PORT%> "%PROJECT_DIR%data\.chainlit_port"
 exit /b 0
 
 :: Check if a single port is free. Sets CHAINLIT_PORT and returns 0 if free, 1 if busy.
