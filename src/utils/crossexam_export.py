@@ -1661,7 +1661,7 @@ def export_deep_report_word(
                 r.get("verdict_label", verdict),
                 f"{ri_icon} {r.get('risk_label', risk_level)}",
                 r.get("gap_severity", "") or "—",
-                (r.get("remediation_suggestion") or "")[:150],
+                "" if "phase_4" in _skipped else (r.get("remediation_suggestion") or "")[:150],
             ]
             for ci, val in enumerate(vals):
                 cells[ci].text = val
@@ -2071,6 +2071,7 @@ def export_deep_report_excel(
     _lk = _lang_key(lang)
     dh = _EXPORT_HEADERS[_lk]
     _label_key = "label_en" if _lk == "en" else "label_ja" if _lk == "ja" else "label_zh"
+    _skipped_xl = skipped_phases or []
 
     EXPORT_DIR.mkdir(parents=True, exist_ok=True)
     filepath = output_path if output_path is not None else (EXPORT_DIR / f"deep_report_{run_id}.xlsx")
@@ -2118,10 +2119,20 @@ def export_deep_report_excel(
     # ── Sheet 2: Compliance Table ──
     ws_comp = wb.create_sheet(dh["xl_sheet_compliance"])
     comp_headers = dh["xl_comp_headers"]
+    _skip_hdr_fill = PatternFill(start_color="BFBFBF", end_color="BFBFBF", fill_type="solid")
+    _skip_hdr_font = Font(bold=True, color="666666", size=10)
     for ci, h in enumerate(comp_headers, 1):
         c = ws_comp.cell(row=1, column=ci, value=h)
-        c.fill = header_fill
-        c.font = header_font
+        # Grey out P4 header columns (14-15) and P5 header columns (16-17) when skipped
+        if ci in (14, 15) and "phase_4" in _skipped_xl:
+            c.fill = _skip_hdr_fill
+            c.font = _skip_hdr_font
+        elif ci in (16, 17) and "phase_5" in _skipped_xl:
+            c.fill = _skip_hdr_fill
+            c.font = _skip_hdr_font
+        else:
+            c.fill = header_fill
+            c.font = header_font
     for ri, row in enumerate(flat_rows, 2):
         ws_comp.cell(row=ri, column=1, value=row.get("clause_id", ""))
         ws_comp.cell(row=ri, column=2, value=row.get("clause_title", ""))
@@ -2153,17 +2164,20 @@ def export_deep_report_excel(
             value=override.get("reason", "") if isinstance(override, dict) else "",
         )
         ws_comp.cell(row=ri, column=13, value=_safe_str(row.get("ra_notes"), 500))
-        ws_comp.cell(row=ri, column=14, value=_safe_str(row.get("remediation_suggestion"), 500))
-        ws_comp.cell(row=ri, column=15, value=_safe_str(row.get("remediation_regulation_cite"), 500))
-        ws_comp.cell(row=ri, column=16, value=_safe_str(row.get("analyzer_position"), 500))
-        ws_comp.cell(row=ri, column=17, value=_safe_str(row.get("verifier_position"), 500))
+        # P4 columns: only write when phase_4 not skipped
+        if "phase_4" not in _skipped_xl:
+            ws_comp.cell(row=ri, column=14, value=_safe_str(row.get("remediation_suggestion"), 500))
+            ws_comp.cell(row=ri, column=15, value=_safe_str(row.get("remediation_regulation_cite"), 500))
+        # P5 columns: only write when phase_5 not skipped
+        if "phase_5" not in _skipped_xl:
+            ws_comp.cell(row=ri, column=16, value=_safe_str(row.get("analyzer_position"), 500))
+            ws_comp.cell(row=ri, column=17, value=_safe_str(row.get("verifier_position"), 500))
         ws_comp.cell(row=ri, column=18, value=_pipeline_status_str(row.get("phase_status_summary", {})))
 
     # ── Sheet: Phase Progress (unified single table) ──
     _prog = progress or {}
     _budget_xl = _prog.get("llm_budget", {})
     _phase_dist_xl = _prog.get("phase_distribution", {})
-    _skipped_xl = skipped_phases or []
     _xl_safe = lambda s: re.sub(r'[:\\/*?\[\]]', '', s)[:31]
     ws_prog = wb.create_sheet(_xl_safe(dh.get("deep_s0", "Pipeline Progress")))
 
@@ -2320,14 +2334,20 @@ def export_deep_report_excel(
         "remediation":      PatternFill(start_color="FFF9C4", end_color="FFF9C4", fill_type="solid"),
         "verification":     PatternFill(start_color="FCE4D6", end_color="FCE4D6", fill_type="solid"),
     }
-    if interactions:
+    # Map phase key → interaction phase name for filtering
+    _SKIP_PHASE_MAP = {"phase_4": "remediation", "phase_5": "verification"}
+    _filtered_interactions = [
+        i for i in (interactions or [])
+        if i.get("phase") not in {_SKIP_PHASE_MAP[p] for p in _skipped_xl if p in _SKIP_PHASE_MAP}
+    ] if interactions else None
+    if _filtered_interactions:
         ws_llm = wb.create_sheet(dh["xl_sheet_llm"])
         llm_headers = dh["xl_llm_headers"]
         for ci, h in enumerate(llm_headers, 1):
             c = ws_llm.cell(row=1, column=ci, value=h)
             c.fill = header_fill
             c.font = header_font
-        for ri, interaction in enumerate(interactions, 2):
+        for ri, interaction in enumerate(_filtered_interactions, 2):
             phase = interaction.get("phase", "")
             phase_label = interaction.get("phase_label") or _PHASE_LABEL_MAP.get(phase, phase)
             clause_id = interaction.get("clause_id") or ""
@@ -2462,7 +2482,7 @@ def export_deep_report_excel(
             for ci2, v in enumerate(row_vals, 1):
                 ws_xe.cell(row=ri, column=ci2, value=v).font = Font(size=9)
             _xe_rows_written += 1
-    elif flat_rows:
+    elif flat_rows and "phase_5" not in _skipped_xl:
         for ri, row in enumerate(flat_rows, 2):
             qa = row.get("qa_audit") or {}
             row_vals = [
@@ -2485,7 +2505,8 @@ def export_deep_report_excel(
                 ws_xe.cell(row=ri, column=ci2, value=v).font = Font(size=9)
             _xe_rows_written += 1
     if not _xe_rows_written:
-        ws_xe.cell(row=2, column=1, value="（無交叉詰問資料）")
+        _skip_note = "（P5 交叉詰問已跳過 — 此報告類型不包含交叉詰問資料）" if "phase_5" in _skipped_xl else "（無交叉詰問資料）"
+        ws_xe.cell(row=2, column=1, value=_skip_note)
     ws_xe.freeze_panes = "A2"
     for col in ws_xe.columns:
         max_len = max((len(str(c.value or "")) for c in col), default=8)
