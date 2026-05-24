@@ -114,6 +114,9 @@ presentation/
 sync_to_test.bat
 sync_to_release.bat
 sync_to_*.bat
+scripts/gen_fix_*.py
+scripts/gen_*.py
+scripts/test_*.py
 
 # Allow regulation data files
 !data/regulations/
