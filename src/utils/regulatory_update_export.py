@@ -110,82 +110,108 @@ def format_regulatory_update_markdown(
     assessment: Optional[str] = None,
     lang: str = "zh-TW",
 ) -> str:
-    """Format crawl results as Markdown for Chainlit chat display."""
+    """Format crawl results as a clean summary for Chainlit chat display.
+
+    Fixed: inner loop no longer shadows the outer `output_lines` list,
+    preventing full document content from leaking into the chat message.
+    """
+    import re as _re2
+
     results = crawl_results.get("results", [])
     summary = crawl_results.get("summary", {})
 
     total = summary.get("total_sites", 0)
-    success = summary.get("success_count", 0)
-
+    success_count = summary.get("success_count", 0)
     duration = summary.get("crawl_duration_seconds", 0)
-    regions = summary.get("regions_covered", [])
 
-    md_headers = _tl("regulatory_update_export.table_headers_md", lang)
+    # Completion header — language-aware
+    if lang.startswith("zh"):
+        output_lines = [
+            "📋 **法規清單更新完成**\n",
+            f"**爬取結果：** 成功 {success_count}/{total} 個網站，耗時 {duration:.1f} 秒\n",
+        ]
+        sec_success = "### ✅ 已成功爬取的法規資料"
+        sec_failed  = "### ❌ 無法爬取的網站"
+        lbl_content = "文件內容"
+        lbl_std     = "適用標準"
+        lbl_reason  = "失敗原因"
+    elif lang.startswith("ja"):
+        output_lines = [
+            "📋 **規制リスト更新完了**\n",
+            f"**クロール結果：** 成功 {success_count}/{total} サイト、所要時間 {duration:.1f} 秒\n",
+        ]
+        sec_success = "### ✅ 取得済み規制データ"
+        sec_failed  = "### ❌ 取得失敗したサイト"
+        lbl_content = "ドキュメント内容"
+        lbl_std     = "適用基準"
+        lbl_reason  = "失敗理由"
+    else:
+        output_lines = [
+            "📋 **Regulatory List Update Complete**\n",
+            f"**Crawl result:** {success_count}/{total} sites succeeded in {duration:.1f}s\n",
+        ]
+        sec_success = "### ✅ Successfully Crawled"
+        sec_failed  = "### ❌ Failed Sites"
+        lbl_content = "Document"
+        lbl_std     = "Standard"
+        lbl_reason  = "Reason"
 
-    lines = [
-        _t(
-            "regulatory_update_export.result_title",
-            lang,
-            success=success,
-            total=total,
-            duration=f"{duration:.1f}",
-        )
-        + "\n",
-        _t("regulatory_update_export.regions_covered", lang, regions=", ".join(_region_display(r, lang) for r in regions))
-        + "\n",
-        f"### {_t('regulatory_update_export.summary_table', lang)}\n",
-        f"| {' | '.join(md_headers)} |",
-        f"|{'|'.join(['------' for _ in md_headers])}|",
-    ]
+    # Pattern for skipping auto-generated file-header lines like "RegionName — AgencyName"
+    _header_pat = _re2.compile(
+        r"^[\w\s一-鿿（）（）()]+\s*[—–-]\s*\w",
+        _re2.UNICODE,
+    )
 
-    for r in results:
-        region = r.get("region", "")
-        agency = r.get("agency", "")
-        status = "✅" if r.get("crawl_status") == "success" else "❌"
-        qms = _get_qms_mapping(agency, region)
-
-        if r.get("crawl_status") == "success":
+    # ── Success section ──────────────────────────────────────────────────────
+    success_results = [r for r in results if r.get("crawl_status") == "success"]
+    if success_results:
+        output_lines.append(f"{sec_success} ({len(success_results)})\n")
+        for r in success_results:
+            region_disp = _region_display(r.get("region", ""), lang)
+            agency = r.get("agency", "")
+            qms = _get_qms_mapping(agency, r.get("region", ""))
             content = r.get("content_markdown", "")
+            doc_title = ""
             if content:
-                # Strip markdown and skip the first line if it's a region header
-                stripped = _strip_markdown(content)
-                lines = stripped.splitlines()
-                # Skip lines that look like "RegionName — AgencyName" headers
-                import re as _re2
-                _header_pat = _re2.compile(r'^[\w\s\u4e00-\u9fff\uff08\uff09（）()]+\s*[—–-]\s*\w', _re2.UNICODE)
-                while lines and _header_pat.match(lines[0].strip()):
-                    lines.pop(0)
-                preview = " ".join(lines)[:50] if lines else ""
-            else:
-                preview = ""
-        elif r.get("crawl_status") == "failed":
-            reason = r.get(
-                "failure_reason", _t("regulatory_update_export.unknown_reason", lang)
-            )
-            preview = reason[:50] + "..." if len(reason) > 50 else reason
-        else:
-            preview = r.get("note", "")[:50]
+                # Extract title from raw markdown lines (before strip collapses newlines)
+                _raw_lines = [
+                    _re2.sub(r"^#{1,6}\s+", "", ln).strip()
+                    for ln in content.splitlines()
+                ]
+                for _rl in _raw_lines:
+                    _rl = _re2.sub(r"\*+", "", _rl).strip()
+                    if _rl and not _header_pat.match(_rl):
+                        doc_title = _rl[:80]
+                        break
+            entry = f"- **{region_disp}** — {agency}"
+            if doc_title:
+                entry += f"\n  - {lbl_content}：{doc_title}…"
+            entry += f"\n  - {lbl_std}：{qms[:60]}"
+            output_lines.append(entry)
+        output_lines.append("")
 
-        lines.append(f"| {_region_display(region, lang)} | {agency} | {status} | {preview} | {qms[:30]} |")
-
-    # Failed sites section
-    failed_results = [r for r in results if r.get("crawl_status") == "failed"]
+    # ── Failed section ───────────────────────────────────────────────────────
+    failed_results = [r for r in results if r.get("crawl_status") != "success"]
     if failed_results:
-        lines.append(f"\n### {_t('regulatory_update_export.failed_sites', lang)}\n")
+        output_lines.append(f"{sec_failed} ({len(failed_results)})\n")
         for r in failed_results:
-            reason = r.get(
-                "failure_reason", _t("regulatory_update_export.unknown_reason", lang)
+            region_disp = _region_display(r.get("region", ""), lang)
+            agency = r.get("agency", "")
+            reason = r.get("failure_reason") or r.get("note", "")
+            if not reason:
+                reason = _t("regulatory_update_export.unknown_reason", lang)
+            output_lines.append(
+                f"- **{region_disp} — {agency}**: {lbl_reason}：{reason[:120]}"
             )
-            lines.append(f"- **{_region_display(r['region'], lang)} — {r['agency']}**: {reason}")
-        lines.append("")
+        output_lines.append("")
 
-    # Assessment section
+    # ── Assessment section ───────────────────────────────────────────────────
     if assessment:
-        lines.append("\n---\n")
-        lines.append(f"### {_t('regulatory_export.assessment_report', lang)}\n")
-        lines.append(assessment)
+        output_lines.append("\n---\n")
+        output_lines.append(f"### {_t('regulatory_export.assessment_report', lang)}\n")
+        output_lines.append(assessment)
 
-    return "\n".join(lines)
+    return "\n".join(output_lines)
 
 
 # ============================================================

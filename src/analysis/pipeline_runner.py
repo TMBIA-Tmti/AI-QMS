@@ -94,8 +94,8 @@ _PIPELINE_I18N: dict[str, dict[str, str]] = {
         "initializing": "初始化分析管線...",
         "created_rows": "已建立 {n} 個分析項目",
         "no_items_error": "無可分析的項目（未找到引用法規標準的品質文件）",
-        "critical_gaps_pause": "🔴 發現嚴重差距，管線已暫停",
-        "evidence_conflict_pause": "⚠️ 交叉驗證有分歧，管線已暫停",
+        "critical_gaps_pause": "🔴 發現嚴重差距，已標記需立即關注",
+        "evidence_conflict_pause": "⚠️ 交叉驗證有分歧，已標記待人工審查",
         "gap_scan_doc_progress": "執行中... — {done}/{total} 份文件 [{pct}%]",
     },
     "en-US": {
@@ -132,8 +132,8 @@ _PIPELINE_I18N: dict[str, dict[str, str]] = {
         "initializing": "Initializing analysis pipeline...",
         "created_rows": "Created {n} analysis items",
         "no_items_error": "No items to analyze (no QMS documents referencing the regulatory standard were found)",
-        "critical_gaps_pause": "🔴 Critical gaps detected — pipeline paused",
-        "evidence_conflict_pause": "⚠️ Cross-verification disagreement — pipeline paused",
+        "critical_gaps_pause": "🔴 Critical gaps detected — flagged for immediate attention",
+        "evidence_conflict_pause": "⚠️ Cross-verification disagreement — flagged for manual review",
         "gap_scan_doc_progress": "running... — {done}/{total} docs [{pct}%]",
     },
     "ja-JP": {
@@ -170,8 +170,8 @@ _PIPELINE_I18N: dict[str, dict[str, str]] = {
         "initializing": "分析パイプラインを初期化中...",
         "created_rows": "{n} 件の分析項目を作成しました",
         "no_items_error": "分析可能な項目がありません（規制基準を参照している QMS 文書が見つかりません）",
-        "critical_gaps_pause": "🔴 重大なギャップを検出 — パイプラインを一時停止",
-        "evidence_conflict_pause": "⚠️ 交差検証で意見の相違 — パイプラインを一時停止",
+        "critical_gaps_pause": "🔴 重大なギャップを検出 — 即時対応が必要としてフラグ設定",
+        "evidence_conflict_pause": "⚠️ 交差検証で意見の相違 — 手動レビュー対象としてフラグ設定",
         "gap_scan_doc_progress": "実行中... — {done}/{total} 件のドキュメント [{pct}%]",
     },
 }
