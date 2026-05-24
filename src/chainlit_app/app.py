@@ -4799,9 +4799,8 @@ async def _ask_report_type() -> list[str]:
             timeout=120,
         ).send()
     except Exception:
-        _fb = _fallback_skip_phases()
-        await cl.Message(content=t("report_type.selected_normal")).send()
-        return _fb
+        await cl.Message(content=t("report_type.selected_deep")).send()
+        return []
 
     action_name = res.get("name", "") if res else ""
     if action_name == "report_type_deep":
@@ -4814,10 +4813,9 @@ async def _ask_report_type() -> list[str]:
         await cl.Message(content=t("report_type.selected_normal")).send()
         return ["phase_4", "phase_5", "phase_6"]
     else:
-        # Timeout (res is None) — use persisted config or standard default
-        _fb = _fallback_skip_phases()
-        await cl.Message(content=t("report_type.selected_normal")).send()
-        return _fb
+        # Timeout (res is None) — default to deep report (run all phases)
+        await cl.Message(content=t("report_type.selected_deep")).send()
+        return []
 
 
 async def _ask_product_docs_upload() -> Optional[str]:
