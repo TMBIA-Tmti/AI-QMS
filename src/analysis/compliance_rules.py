@@ -14966,6 +14966,78 @@ def merge_profiles(
     )
 
 
+def merge_profiles_unconditional(
+    base: "RegulationProfile",
+    incoming: "RegulationProfile",
+) -> "RegulationProfile":
+    """Merge supplementary content from incoming into base, unconditionally.
+
+    Unlike merge_profiles(), this NEVER rejects due to quality threshold.
+    Purpose: always preserve source URLs and unique requirements from all sources,
+    even when clause-level content from incoming is too low quality to use.
+
+    Merge strategy:
+      - Clause mappings: base wins EXCEPT when base has "na" and incoming has real content
+      - unique_requirements: union, deduped by first 40 chars of title_en
+      - source_url: combine both (| separated if different)
+      - regulation_id / name: always use base
+      - source: "merged"
+    """
+    # Clause merge: base takes priority, incoming fills gaps
+    merged_iso_mapped: dict = {}
+    all_clause_ids = set(base.iso_mapped.keys()) | set(incoming.iso_mapped.keys())
+    for cid in all_clause_ids:
+        base_m = base.iso_mapped.get(cid)
+        inc_m = incoming.iso_mapped.get(cid)
+        if base_m is None:
+            merged_iso_mapped[cid] = inc_m
+        elif inc_m is None:
+            merged_iso_mapped[cid] = base_m
+        elif base_m.status == MappingStatus.NOT_APPLICABLE and inc_m.status != MappingStatus.NOT_APPLICABLE:
+            merged_iso_mapped[cid] = inc_m  # incoming fills a gap
+        else:
+            merged_iso_mapped[cid] = base_m  # base always wins otherwise
+
+    # unique_requirements: union, deduped
+    seen_titles: set[str] = set()
+    merged_reqs: list = []
+    for req in list(base.unique_requirements) + list(incoming.unique_requirements):
+        key = req.title_en[:40].lower().strip()
+        if key not in seen_titles:
+            seen_titles.add(key)
+            merged_reqs.append(req)
+
+    # source_url: combine
+    merged_url = base.source_url or ""
+    if incoming.source_url and incoming.source_url not in merged_url:
+        merged_url = f"{merged_url} | {incoming.source_url}" if merged_url else incoming.source_url
+
+    merged_non_na = sum(
+        1 for m in merged_iso_mapped.values()
+        if m.status != MappingStatus.NOT_APPLICABLE
+    )
+    merged_quality = "ok" if merged_non_na >= 15 else "low"
+
+    return RegulationProfile(
+        regulation_id=base.regulation_id,
+        name_en=base.name_en,
+        name_zh=base.name_zh,
+        country=base.country,
+        country_name_en=base.country_name_en,
+        country_name_zh=base.country_name_zh,
+        source="merged",
+        source_url=merged_url,
+        last_updated=datetime.now().strftime("%Y-%m-%d"),
+        effective_date=base.effective_date,
+        iso_mapped=merged_iso_mapped,
+        unique_requirements=merged_reqs,
+        content_quality=merged_quality,
+        needs_reanalysis=base.needs_reanalysis or incoming.needs_reanalysis,
+        deprecated_warning=base.deprecated_warning or incoming.deprecated_warning,
+        amended_laws={**base.amended_laws, **incoming.amended_laws},
+    )
+
+
 def save_crawled_regulation(profile: RegulationProfile, as_id: Optional[str] = None) -> str:
     """Save a crawled regulation profile to JSON file.
 
@@ -15176,17 +15248,51 @@ def load_crawled_regulation(filepath: str) -> RegulationProfile:
 def load_all_crawled_regulations() -> int:
     """Load all crawled regulation profiles from the data directory.
 
+    For countries that already have a predefined profile (e.g., TFDA for Taiwan),
+    the crawled profile is merged unconditionally to capture supplementary URLs
+    and any unique requirements, without overwriting the high-quality predefined data.
+
     Returns the number of profiles loaded.
     """
     count = 0
     if not os.path.isdir(CRAWLED_REGULATIONS_DIR):
         return count
+    # Snapshot predefined country mapping BEFORE loading any crawled file —
+    # avoids matching against a freshly loaded crawled profile that is now
+    # registered in PREDEFINED_REGULATIONS under its own ID.
+    # We capture both the ISO country code (e.g., "US", "EU") and the English
+    # country name so we can match crawled profiles whose name differs slightly
+    # (e.g., predefined "United States" vs crawled "USA").
+    predefined_by_country: dict[str, tuple[str, str]] = {
+        pid: (pp.country or "", pp.country_name_en or "")
+        for pid, pp in list(PREDEFINED_REGULATIONS.items())
+        if pp.source == "predefined"
+    }
     for filename in os.listdir(CRAWLED_REGULATIONS_DIR):
         if filename.endswith(".json"):
             filepath = os.path.join(CRAWLED_REGULATIONS_DIR, filename)
             try:
-                load_crawled_regulation(filepath)
+                crawled = load_crawled_regulation(filepath)
+                if crawled is None:
+                    continue
                 count += 1
+                # Check if a predefined profile exists for the same country.
+                # Match by ISO country code first (most reliable), then fall back
+                # to English country name. If a match exists, merge the crawled
+                # supplementary content into the predefined profile (preserves
+                # URLs and unique requirements without overwriting the
+                # high-quality clause mappings).
+                for pred_id, (pred_iso, pred_country) in predefined_by_country.items():
+                    if pred_id == crawled.regulation_id:
+                        continue
+                    iso_match = bool(pred_iso) and pred_iso == (crawled.country or "")
+                    name_match = bool(pred_country) and pred_country == crawled.country_name_en
+                    if iso_match or name_match:
+                        pred_prof = PREDEFINED_REGULATIONS.get(pred_id)
+                        if pred_prof is not None:
+                            merged = merge_profiles_unconditional(pred_prof, crawled)
+                            PREDEFINED_REGULATIONS[pred_id] = merged
+                        break
             except Exception:
                 pass  # Skip malformed files
     return count

@@ -110,29 +110,105 @@ def _count_non_na(profile_dict: dict) -> int:
     )
 
 
+def _merge_country_profiles_for_display(primary: dict, secondary: dict) -> dict:
+    """Merge two profiles for the same country into an enriched display profile.
+
+    primary   = the higher-quality profile (keeps its clause mappings)
+    secondary = the lower-quality profile (contributes source_url, unique_requirements)
+
+    This bypasses the quality_threshold in merge_profiles() because we always
+    want to preserve supplementary content (URLs, requirements) regardless of
+    clause-level quality of the secondary source.
+    """
+    import copy
+    merged = copy.deepcopy(primary)
+
+    # Merge source_url: combine both into a multi-source string (de-duplicated)
+    primary_url = primary.get("source_url", "") or ""
+    secondary_url = secondary.get("source_url", "") or ""
+    if secondary_url and secondary_url not in primary_url:
+        if primary_url:
+            merged["source_url"] = f"{primary_url} | {secondary_url}"
+        else:
+            merged["source_url"] = secondary_url
+
+    # Merge unique_requirements: union deduped by first 40 chars of title_en
+    existing_reqs = {
+        r.get("title_en", "")[:40].lower().strip()
+        for r in merged.get("unique_requirements", [])
+    }
+    for req in secondary.get("unique_requirements", []):
+        key = req.get("title_en", "")[:40].lower().strip()
+        if key and key not in existing_reqs:
+            existing_reqs.add(key)
+            merged.setdefault("unique_requirements", []).append(req)
+
+    # For clauses: if primary has "na" but secondary has a real mapping, use secondary's
+    secondary_iso = secondary.get("iso_mapped", {})
+    merged_iso = dict(merged.get("iso_mapped", {}))
+    for clause_id, sec_mapping in secondary_iso.items():
+        existing = merged_iso.get(clause_id)
+        sec_status = sec_mapping.get("status") if sec_mapping else None
+        if existing is None:
+            if sec_mapping is not None:
+                merged_iso[clause_id] = sec_mapping
+        elif existing.get("status") == "na" and sec_status not in ("na", None):
+            merged_iso[clause_id] = sec_mapping
+    merged["iso_mapped"] = merged_iso
+
+    # Mark as merged + record which regulation IDs contributed
+    merged["source"] = "merged"
+    merged_ids: list[str] = []
+    for rid in (primary.get("regulation_id", ""), secondary.get("regulation_id", "")):
+        if rid and rid not in merged_ids:
+            merged_ids.append(rid)
+    # Preserve any pre-existing merged IDs (in case of >2-way merges)
+    for rid in primary.get("merged_regulation_ids", []) or []:
+        if rid and rid not in merged_ids:
+            merged_ids.append(rid)
+    for rid in secondary.get("merged_regulation_ids", []) or []:
+        if rid and rid not in merged_ids:
+            merged_ids.append(rid)
+    merged["merged_regulation_ids"] = merged_ids
+
+    return merged
+
+
 def load_all_profiles(profiles_dir: Path = _DEFAULT_PROFILES_DIR) -> list[dict]:
     """Load RegulationProfile data for HTML rendering.
 
     Strategy (P-03/P-04):
-    1. Load all JSON files from disk (data/regulations/).
+    1. Load all JSON files from disk (data/regulations/ AND src/regulations/).
     2. Also load predefined in-memory profiles (TFDA, QMSR, EU_MDR, etc.)
        that are NOT already on disk — these are the high-quality hand-crafted versions.
-    3. When both a predefined and crawled shadow exist for the same country
-       (e.g., TFDA and TAIWAN both cover Taiwan), keep the one with higher non-na count.
+    3. When multiple profiles exist for the same country (e.g., TFDA and TAIWAN),
+       MERGE them (preserving URLs, unique requirements, and clause-level data
+       from all sources) rather than picking only one.
     4. Sort by country_name_en.
     """
     profiles: list[dict] = []
     loaded_ids: set[str] = set()
 
-    # Step 1: load from disk
-    if profiles_dir.exists():
-        for p in sorted(profiles_dir.glob("*.json")):
+    # Step 1: load from disk — check both data/regulations/ and src/regulations/
+    _additional_dir = Path("src/regulations")
+    dirs_to_check: list[Path] = [profiles_dir]
+    if _additional_dir.exists() and _additional_dir.resolve() != profiles_dir.resolve():
+        dirs_to_check.append(_additional_dir)
+
+    for pdir in dirs_to_check:
+        if not pdir.exists():
+            continue
+        for p in sorted(pdir.glob("*.json")):
             if p.parent.name == "backups":
                 continue
             try:
                 data = json.loads(p.read_text(encoding="utf-8"))
+                reg_id = data.get("regulation_id", "")
+                if reg_id and reg_id in loaded_ids:
+                    continue  # avoid double-loading the same regulation_id
                 profiles.append(data)
-                loaded_ids.add(data.get("regulation_id", ""))
+                if reg_id:
+                    loaded_ids.add(reg_id)
             except Exception as exc:
                 logger.warning(f"Failed to load {p.name}: {exc}")
 
@@ -141,23 +217,33 @@ def load_all_profiles(profiles_dir: Path = _DEFAULT_PROFILES_DIR) -> list[dict]:
         from src.analysis.compliance_rules import PREDEFINED_REGULATIONS, load_all_crawled_regulations
         load_all_crawled_regulations()
         for reg_id, prof in PREDEFINED_REGULATIONS.items():
-            if reg_id not in loaded_ids and getattr(prof, "source", "") == "predefined":
+            if reg_id not in loaded_ids and getattr(prof, "source", "") in ("predefined", "merged"):
                 profiles.append(_profile_to_dict(prof))
                 loaded_ids.add(reg_id)
     except Exception as exc:
         logger.warning(f"Could not load predefined profiles: {exc}")
 
-    # Step 3: deduplicate by country_name_en — keep higher quality version
+    # Step 3: deduplicate — MERGE all profiles for the same country rather than pick one.
+    # Prefer the ISO country code (e.g., "US", "EU", "TW") as the dedup key so that
+    # variants like "USA" vs "United States" or "EU" vs "European Union" collapse
+    # to a single merged entry.
     by_country: dict[str, dict] = {}
     for p in profiles:
-        country_key = p.get("country_name_en") or p.get("regulation_id", "")
+        country_key = (
+            p.get("country")
+            or p.get("country_name_en")
+            or p.get("regulation_id", "")
+        )
         existing = by_country.get(country_key)
         if existing is None:
             by_country[country_key] = p
         else:
-            # Keep the one with more non-na clauses
-            if _count_non_na(p) > _count_non_na(existing):
-                by_country[country_key] = p
+            # Merge both — primary is the one with more non-na clauses
+            if _count_non_na(p) >= _count_non_na(existing):
+                primary, secondary = p, existing
+            else:
+                primary, secondary = existing, p
+            by_country[country_key] = _merge_country_profiles_for_display(primary, secondary)
 
     result = sorted(by_country.values(), key=lambda d: d.get("country_name_en", ""))
     return result
@@ -224,14 +310,18 @@ def _esc(text: str) -> str:
 
 
 def _unique_reqs_html(profile: dict) -> str:
-    """Generate collapsed list of unique requirements for a profile."""
+    """Generate collapsed list of unique requirements for a profile.
+
+    Shows ALL merged requirements (no [:10] limit) so that content from every
+    contributing source (predefined + crawled + semi-official) is visible.
+    """
     reqs = [r for r in profile.get("unique_requirements", [])
             if not r.get("is_within_clause_delta", False)]
     if not reqs:
         return ""
     items = "".join(
         f'<li><b>{_esc(r.get("title_en", ""))}</b>: {_esc(r.get("requirement_en", "")[:200])}</li>'
-        for r in reqs[:10]
+        for r in reqs  # No [:10] limit — show all merged requirements
     )
     return (
         f'<details class="unique-reqs">'
@@ -375,8 +465,11 @@ def generate_html(
     # ── Table header ─────────────────────────────────────────────────────────
     country_headers = "".join(
         f'<th class="country-header">'
-        f'{_esc(p.get("country_name_en", p.get("regulation_id", "")))}<br>'
-        f'<span style="font-weight:normal;font-size:10px">{_esc(p.get("regulation_id",""))}</span>'
+        f'{_esc(p.get("country_name_zh") or p.get("country_name_en", ""))} '
+        f'({_esc(p.get("country_name_en", p.get("regulation_id", "")))})<br>'
+        f'<span style="font-weight:normal;font-size:10px">'
+        f'{_esc("/".join(filter(None, p.get("merged_regulation_ids", [p.get("regulation_id","")]))))}'
+        f'</span>'
         f'</th>'
         for p in profiles
     )
