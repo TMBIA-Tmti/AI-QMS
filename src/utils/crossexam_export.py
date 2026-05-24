@@ -27,6 +27,20 @@ from src.utils.safe_io import safe_save_binary
 
 logger = logging.getLogger(__name__)
 
+# ── XML-illegal character sanitization ──────────────────────────────────────
+# python-docx and openpyxl reject control characters (ASCII 0-8, 11, 12, 14-31,
+# 127) that can appear in OCR-extracted text.  _s() strips them before any
+# string is handed to either library.
+_XML_ILLEGAL_RE = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]')
+
+
+def _s(text) -> str:
+    """Strip XML-illegal control characters from string values."""
+    if not isinstance(text, str):
+        return str(text) if text is not None else ""
+    return _XML_ILLEGAL_RE.sub('', text)
+
+
 __all__ = [
     "export_crossexam_record_word",
     "export_crossexam_record_excel",
@@ -907,13 +921,13 @@ def _append_crawl_status_word(doc, crawl_results: Optional[dict], lang: str = "z
 
     from docx.shared import Pt, RGBColor
     from docx.enum.text import WD_ALIGN_PARAGRAPH
-    overall_ts = (crawl_results.get("crawl_timestamp") or "")[:19].replace("T", " ")
+    overall_ts = _s((crawl_results.get("crawl_timestamp") or "")[:19].replace("T", " "))
     selected = crawl_results.get("selected_regions") or []
     meta_lines = []
     if overall_ts:
         meta_lines.append(f"{dh['crawl_appendix_all_ts']}: {overall_ts}")
     if selected:
-        meta_lines.append(f"{dh['crawl_appendix_selected']}: {', '.join(selected)}")
+        meta_lines.append(f"{dh['crawl_appendix_selected']}: {_s(', '.join(selected))}")
     if meta_lines:
         p = doc.add_paragraph("\n".join(meta_lines))
         p.runs[0].font.size = Pt(8)
@@ -930,12 +944,12 @@ def _append_crawl_status_word(doc, crawl_results: Optional[dict], lang: str = "z
         r_ts = (r.get("crawl_timestamp") or "")[:16].replace("T", " ")
         vals = [
             "✓" if status_ok else "✗",
-            r.get("agency", ""),
-            r.get("region", ""),
-            r.get("url") or "",
-            r_ts,
-            str(r.get("http_status") or ""),
-            r.get("failure_reason") or "",
+            _s(r.get("agency", "")),
+            _s(r.get("region", "")),
+            _s(r.get("url") or ""),
+            _s(r_ts),
+            _s(str(r.get("http_status") or "")),
+            _s(r.get("failure_reason") or ""),
         ]
         bg = "E8F5E9" if status_ok else "FFE0E0"
         for ci, val in enumerate(vals):
@@ -968,13 +982,13 @@ def _append_crawl_status_excel(wb, crawl_results: Optional[dict], lang: str = "z
         results = crawl_results.get("results", [])
 
         # Meta rows: timestamp and selected regions
-        overall_ts = (crawl_results.get("crawl_timestamp") or "")[:19].replace("T", " ")
+        overall_ts = _s((crawl_results.get("crawl_timestamp") or "")[:19].replace("T", " "))
         selected = crawl_results.get("selected_regions") or []
         if overall_ts:
             ws.append([dh["crawl_appendix_all_ts"], overall_ts])
             ws.cell(row=ws.max_row, column=1).font = Font(bold=True, size=9)
         if selected:
-            ws.append([dh["crawl_appendix_selected"], ", ".join(selected)])
+            ws.append([dh["crawl_appendix_selected"], _s(", ".join(selected))])
             ws.cell(row=ws.max_row, column=1).font = Font(bold=True, size=9)
         if overall_ts or selected:
             ws.append([])  # blank spacer row
@@ -991,15 +1005,15 @@ def _append_crawl_status_excel(wb, crawl_results: Optional[dict], lang: str = "z
         err_fill = PatternFill("solid", fgColor="FFE0E0")
         for r in results:
             status_ok = r.get("crawl_status") == "success"
-            r_ts = (r.get("crawl_timestamp") or "")[:16].replace("T", " ")
+            r_ts = _s((r.get("crawl_timestamp") or "")[:16].replace("T", " "))
             row = [
                 "✓" if status_ok else "✗",
-                r.get("agency", ""),
-                r.get("region", ""),
-                r.get("url") or "",
+                _s(r.get("agency", "")),
+                _s(r.get("region", "")),
+                _s(r.get("url") or ""),
                 r_ts,
-                r.get("http_status") or "",
-                r.get("failure_reason") or "",
+                _s(str(r.get("http_status") or "")),
+                _s(r.get("failure_reason") or ""),
             ]
             ws.append(row)
             row_fill = ok_fill if status_ok else err_fill
@@ -1053,9 +1067,9 @@ def export_crossexam_record_word(record_dict: dict, lang: str = "zh-TW") -> Path
     meta.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     run = meta.add_run(
         h["meta_label"].format(
-            rid=record_dict.get("record_id", ""),
-            aid=record_dict.get("run_id", ""),
-            ts=record_dict.get("timestamp", ""),
+            rid=_s(record_dict.get("record_id", "")),
+            aid=_s(record_dict.get("run_id", "")),
+            ts=_s(record_dict.get("timestamp", "")),
         )
     )
     run.font.size = Pt(9)
@@ -1069,8 +1083,8 @@ def export_crossexam_record_word(record_dict: dict, lang: str = "zh-TW") -> Path
 
     # Summary
     doc.add_heading(h["summary"], level=2)
-    regs = ", ".join(record_dict.get("selected_regulations", [])) or h["none"]
-    countries = ", ".join(record_dict.get("countries", [])) or h["none"]
+    regs = _s(", ".join(record_dict.get("selected_regulations", []))) or h["none"]
+    countries = _s(", ".join(record_dict.get("countries", []))) or h["none"]
     doc.add_paragraph(
         h["summary_body"].format(
             regs=regs,
@@ -1079,7 +1093,7 @@ def export_crossexam_record_word(record_dict: dict, lang: str = "zh-TW") -> Path
             agreed=record_dict.get("total_agreed", 0),
             flagged=record_dict.get("total_flagged", 0),
             rounds=record_dict.get("total_rounds", 0),
-            model=record_dict.get("llm_model", ""),
+            model=_s(record_dict.get("llm_model", "")),
             duration=record_dict.get("duration_seconds", 0),
         )
     )
@@ -1129,25 +1143,25 @@ def export_crossexam_record_word(record_dict: dict, lang: str = "zh-TW") -> Path
                 continue
             _country = _qlist[0].get("country", _rid)
             _reg_name = _qlist[0].get("regulation_name", _rid)
-            doc.add_heading(f"{_country} — {_reg_name}", level=3)
+            doc.add_heading(f"{_s(_country)} — {_s(_reg_name)}", level=3)
             for _q in _qlist:
-                _q_text = (_q.get("question_zh") if lk == "zh" else (_q.get("question_en") or _q.get("question_zh", "")))
-                _title_text = (_q.get("title_zh") if lk == "zh" else (_q.get("title_en") or _q.get("title_zh", "")))
+                _q_text = _s(_q.get("question_zh") if lk == "zh" else (_q.get("question_en") or _q.get("question_zh", "")))
+                _title_text = _s(_q.get("title_zh") if lk == "zh" else (_q.get("title_en") or _q.get("title_zh", "")))
                 doc.add_paragraph(f"[{_q.get('audit_impact', '').upper()}] {_title_text}")
                 doc.add_paragraph(f"  {_q_label[lk]}: {_q_text}", style="Quote")
-                doc.add_paragraph(f"  {_ref_label[lk]}: {_q.get('method', '')}  {_impact_label[lk]}: {_q.get('audit_impact', '')}")
+                doc.add_paragraph(f"  {_ref_label[lk]}: {_s(_q.get('method', ''))}  {_impact_label[lk]}: {_s(_q.get('audit_impact', ''))}")
 
     # Clause details
     doc.add_heading(h["clause_details"], level=2)
     for clause in record_dict.get("clauses", []):
         cid = clause.get("clause_id", "")
         doc.add_heading(
-            f"{cid} — {clause.get('clause_title', '')}",
+            f"{_s(cid)} — {_s(clause.get('clause_title', ''))}",
             level=3,
         )
         doc.add_paragraph(
-            f"{h['doc']}: {clause.get('doc_id', '')} {clause.get('doc_title', '')}\n"
-            f"{h['verdict']}: {clause.get('verdict', '')}  |  {h['gap']}: {clause.get('gap_severity', '')}\n"
+            f"{h['doc']}: {_s(clause.get('doc_id', ''))} {_s(clause.get('doc_title', ''))}\n"
+            f"{h['verdict']}: {_s(clause.get('verdict', ''))}  |  {h['gap']}: {_s(clause.get('gap_severity', ''))}\n"
             f"{h['agreed']}: {h['agreed_yes'] if clause.get('agreed') else h['agreed_no']}  |  "
             f"{h['flagged_ra']}: {h['ra_flag_yes'] if clause.get('flagged_for_ra') else h['ra_flag_no']}"
         )
@@ -1159,17 +1173,17 @@ def export_crossexam_record_word(record_dict: dict, lang: str = "zh-TW") -> Path
             doc.add_paragraph(h["source_b_label"], style="Quote")
             _focus = clause.get("focus_area", "")
             if _focus:
-                doc.add_paragraph(f"  {h['focus_area_label']}: {_focus}")
+                doc.add_paragraph(f"  {h['focus_area_label']}: {_s(_focus)}")
             _verifiable = clause.get("verifiable_by", "")
             if _verifiable:
-                doc.add_paragraph(f"  {h['verifiable_by_label']}: {_verifiable}")
+                doc.add_paragraph(f"  {h['verifiable_by_label']}: {_s(_verifiable)}")
         elif _q_source == "A":
             doc.add_paragraph(h["source_a_label"], style="Quote")
 
         # Audit question
         _aq = clause.get("audit_question") or _cl_def.get("audit_question", "")
         if _aq:
-            doc.add_paragraph(f"{h['audit_question']}: {_aq}")
+            doc.add_paragraph(f"{h['audit_question']}: {_s(_aq)}")
 
         # Expected evidence (static checklist)
         _exp_ev = _cl_def.get("expected_evidence", [])
@@ -1196,22 +1210,22 @@ def export_crossexam_record_word(record_dict: dict, lang: str = "zh-TW") -> Path
             _render_role_content(p, verifier)
 
             agreement = verifier.get("agreement_level", "")
-            doc.add_paragraph(f"Agreement: {agreement}")
+            doc.add_paragraph(f"Agreement: {_s(agreement)}")
 
         qa = clause.get("qa_audit", {})
         if qa:
             doc.add_heading(h["qa_audit_heading"], level=4)
             doc.add_paragraph(
                 f"{h['score_label']}: {qa.get('score', 0)}/100  |  "
-                f"{h['question_quality_label']}: {qa.get('question_quality', '')}  |  "
-                f"{h['answer_accuracy_label']}: {qa.get('answer_accuracy', '')}\n"
+                f"{h['question_quality_label']}: {_s(qa.get('question_quality', ''))}  |  "
+                f"{h['answer_accuracy_label']}: {_s(qa.get('answer_accuracy', ''))}\n"
                 f"{h['hallucination_label']}: "
                 f"{h['hallucination_yes'] if qa.get('hallucination_detected') else h['hallucination_no']}"
             )
             issues = qa.get("issues", [])
             if issues:
                 for iss in issues:
-                    doc.add_paragraph(f"  • {iss}")
+                    doc.add_paragraph(f"  • {_s(iss)}")
 
     try:
         _append_crawl_status_word(doc, _load_crawl_results(), lang)
@@ -1256,16 +1270,16 @@ def export_crossexam_record_excel(record_dict: dict, lang: str = "zh-TW") -> Pat
     ws_sum = wb.active
     ws_sum.title = eh["summary"]
     summary_data = [
-        (eh["record_id"], record_dict.get("record_id", "")),
-        (eh["analysis_id"], record_dict.get("run_id", "")),
-        (eh["time"], record_dict.get("timestamp", "")),
-        (eh["regulations"], ", ".join(record_dict.get("selected_regulations", []))),
-        (eh["countries"], ", ".join(record_dict.get("countries", []))),
+        (eh["record_id"], _s(record_dict.get("record_id", ""))),
+        (eh["analysis_id"], _s(record_dict.get("run_id", ""))),
+        (eh["time"], _s(record_dict.get("timestamp", ""))),
+        (eh["regulations"], _s(", ".join(record_dict.get("selected_regulations", [])))),
+        (eh["countries"], _s(", ".join(record_dict.get("countries", [])))),
         (eh["clause_count"], record_dict.get("total_clauses", 0)),
         (_agreed_count_label, record_dict.get("total_agreed", 0)),
         (eh["flagged_ra"], record_dict.get("total_flagged", 0)),
         (eh["total_rounds"], record_dict.get("total_rounds", 0)),
-        (eh["model"], record_dict.get("llm_model", "")),
+        (eh["model"], _s(record_dict.get("llm_model", ""))),
         (_duration_label, record_dict.get("duration_seconds", 0)),
     ]
     header_fill = PatternFill(
@@ -1312,16 +1326,16 @@ def export_crossexam_record_excel(record_dict: dict, lang: str = "zh-TW") -> Pat
         c.alignment = Alignment(horizontal="center")
 
     for ri, clause in enumerate(record_dict.get("clauses", []), 2):
-        ws_detail.cell(row=ri, column=1, value=clause.get("clause_id", ""))
-        ws_detail.cell(row=ri, column=2, value=clause.get("clause_title", ""))
-        ws_detail.cell(row=ri, column=3, value=clause.get("doc_id", ""))
-        ws_detail.cell(row=ri, column=4, value=clause.get("verdict", ""))
-        ws_detail.cell(row=ri, column=5, value=clause.get("gap_severity", ""))
+        ws_detail.cell(row=ri, column=1, value=_s(clause.get("clause_id", "")))
+        ws_detail.cell(row=ri, column=2, value=_s(clause.get("clause_title", "")))
+        ws_detail.cell(row=ri, column=3, value=_s(clause.get("doc_id", "")))
+        ws_detail.cell(row=ri, column=4, value=_s(clause.get("verdict", "")))
+        ws_detail.cell(row=ri, column=5, value=_s(clause.get("gap_severity", "")))
         ws_detail.cell(row=ri, column=6, value="Y" if clause.get("agreed") else "N")
         ws_detail.cell(
             row=ri, column=7, value="Y" if clause.get("flagged_for_ra") else ""
         )
-        ws_detail.cell(row=ri, column=8, value=clause.get("question_source", ""))
+        ws_detail.cell(row=ri, column=8, value=_s(clause.get("question_source", "")))
         rounds = clause.get("rounds", [])
         ws_detail.cell(row=ri, column=9, value=len(rounds))
         if rounds:
@@ -1331,27 +1345,27 @@ def export_crossexam_record_excel(record_dict: dict, lang: str = "zh-TW") -> Pat
             ws_detail.cell(
                 row=ri,
                 column=10,
-                value=_flatten_role_text(a, "position")[:500],
+                value=_s(_flatten_role_text(a, "position")[:500]),
             )
             ws_detail.cell(
                 row=ri,
                 column=11,
-                value=str(a.get("confidence", a.get("confidence_score", ""))),
+                value=_s(str(a.get("confidence", a.get("confidence_score", "")))),
             )
             # R1 實際看到：Analyzer key_evidence
             _actual_ev = a.get("key_evidence", [])
             if isinstance(_actual_ev, list):
                 _actual_ev = "; ".join(str(x) for x in _actual_ev)
-            ws_detail.cell(row=ri, column=12, value=str(_actual_ev)[:500])
+            ws_detail.cell(row=ri, column=12, value=_s(str(_actual_ev)[:500]))
             ws_detail.cell(
                 row=ri,
                 column=13,
-                value=_flatten_role_text(v, "assessment")[:500],
+                value=_s(_flatten_role_text(v, "assessment")[:500]),
             )
             ws_detail.cell(
                 row=ri,
                 column=14,
-                value=v.get("agreement_level", ""),
+                value=_s(v.get("agreement_level", "")),
             )
             # R1 期望看到：Verifier challenges[*].expected_evidence
             _challenges = v.get("challenges", [])
@@ -1359,14 +1373,14 @@ def export_crossexam_record_excel(record_dict: dict, lang: str = "zh-TW") -> Pat
             for _ch in (_challenges if isinstance(_challenges, list) else []):
                 if isinstance(_ch, dict) and _ch.get("expected_evidence"):
                     _exp_parts.append(_ch["expected_evidence"])
-            ws_detail.cell(row=ri, column=15, value="; ".join(_exp_parts)[:500])
+            ws_detail.cell(row=ri, column=15, value=_s("; ".join(str(p) for p in _exp_parts)[:500]))
         qa = clause.get("qa_audit", {})
         ws_detail.cell(row=ri, column=16, value=qa.get("score", "") if qa else "")
         ws_detail.cell(
-            row=ri, column=17, value=qa.get("question_quality", "") if qa else ""
+            row=ri, column=17, value=_s(qa.get("question_quality", "")) if qa else ""
         )
         ws_detail.cell(
-            row=ri, column=18, value=qa.get("answer_accuracy", "") if qa else ""
+            row=ri, column=18, value=_s(qa.get("answer_accuracy", "")) if qa else ""
         )
         ws_detail.cell(
             row=ri,
@@ -1407,16 +1421,16 @@ def export_crossexam_record_excel(record_dict: dict, lang: str = "zh-TW") -> Pat
                 for _q in _qs:
                     if _q.get("question_type") not in ("delta",):
                         continue
-                    ws_cxq.cell(row=_ri, column=1, value=_cid)
-                    ws_cxq.cell(row=_ri, column=2, value=_q.get("country", ""))
-                    ws_cxq.cell(row=_ri, column=3, value=_q.get("regulation_id", ""))
-                    ws_cxq.cell(row=_ri, column=4, value=_q.get("title_zh", ""))
-                    ws_cxq.cell(row=_ri, column=5, value=_q.get("title_en", ""))
-                    ws_cxq.cell(row=_ri, column=6, value=_q.get("audit_impact", ""))
-                    ws_cxq.cell(row=_ri, column=7, value=_q.get("question_zh", ""))
-                    ws_cxq.cell(row=_ri, column=8, value=_q.get("question_en", ""))
-                    ws_cxq.cell(row=_ri, column=9, value=_q.get("method", ""))
-                    ws_cxq.cell(row=_ri, column=10, value=_q.get("regulation_name", ""))
+                    ws_cxq.cell(row=_ri, column=1, value=_s(_cid))
+                    ws_cxq.cell(row=_ri, column=2, value=_s(_q.get("country", "")))
+                    ws_cxq.cell(row=_ri, column=3, value=_s(_q.get("regulation_id", "")))
+                    ws_cxq.cell(row=_ri, column=4, value=_s(_q.get("title_zh", "")))
+                    ws_cxq.cell(row=_ri, column=5, value=_s(_q.get("title_en", "")))
+                    ws_cxq.cell(row=_ri, column=6, value=_s(_q.get("audit_impact", "")))
+                    ws_cxq.cell(row=_ri, column=7, value=_s(_q.get("question_zh", "")))
+                    ws_cxq.cell(row=_ri, column=8, value=_s(_q.get("question_en", "")))
+                    ws_cxq.cell(row=_ri, column=9, value=_s(_q.get("method", "")))
+                    ws_cxq.cell(row=_ri, column=10, value=_s(_q.get("regulation_name", "")))
                     _ri += 1
             for col in ws_cxq.columns:
                 max_len = max((len(str(c.value or "")) for c in col), default=8)
@@ -1553,8 +1567,8 @@ def export_deep_report_word(
             runs = cell.paragraphs[0].runs
             (runs[0] if runs else cell.paragraphs[0].add_run(h)).bold = True
         for ri, (label, value) in enumerate(_env_rows, 1):
-            env_tbl.rows[ri].cells[0].text = label
-            env_tbl.rows[ri].cells[1].text = value
+            env_tbl.rows[ri].cells[0].text = _s(label)
+            env_tbl.rows[ri].cells[1].text = _s(value)
     # P0 Data Quality
     if data_quality:
         doc.add_heading(dh["deep_s0_dq_title"], level=3)
@@ -1563,13 +1577,13 @@ def export_deep_report_word(
             if k == "documents_checked":
                 continue
             if isinstance(v, list):
-                doc.add_paragraph(f"  {k}: {len(v)} 項")
+                doc.add_paragraph(f"  {_s(k)}: {len(v)} 項")
             elif isinstance(v, dict):
-                doc.add_paragraph(f"  {k}:")
+                doc.add_paragraph(f"  {_s(k)}:")
                 for kk, vv in v.items():
-                    doc.add_paragraph(f"    • {kk}: {vv}")
+                    doc.add_paragraph(f"    • {_s(kk)}: {_s(vv)}")
             else:
-                doc.add_paragraph(f"  {k}: {v}")
+                doc.add_paragraph(f"  {_s(k)}: {_s(v)}")
         # documents_checked as Word table
         docs = data_quality.get("documents_checked")
         if docs and isinstance(docs, dict):
@@ -1583,14 +1597,14 @@ def export_deep_report_word(
                 (r[0] if r else dq_hdr[ci].paragraphs[0].add_run(h)).bold = True
             for di, (doc_id, info) in enumerate(docs.items(), 1):
                 if isinstance(info, dict):
-                    dq_tbl.rows[di].cells[0].text = doc_id
+                    dq_tbl.rows[di].cells[0].text = _s(doc_id)
                     dq_tbl.rows[di].cells[1].text = "✓" if info.get("exists") else "✗"
                     dq_tbl.rows[di].cells[2].text = "✓" if info.get("has_content") else "✗"
                     dq_tbl.rows[di].cells[3].text = f"{info.get('content_length', 0):,}"
                     dq_tbl.rows[di].cells[4].text = "是" if info.get("is_obsolete") else "否"
                 else:
-                    dq_tbl.rows[di].cells[0].text = doc_id
-                    dq_tbl.rows[di].cells[1].text = str(info)
+                    dq_tbl.rows[di].cells[0].text = _s(doc_id)
+                    dq_tbl.rows[di].cells[1].text = _s(info)
             doc.add_paragraph("")
     # P6 Source Check
     if source_check:
@@ -1618,21 +1632,21 @@ def export_deep_report_word(
                         continue
                     row_cells = tbl.add_row().cells
                     row_cells[0].text = "✓" if item.get("accessible") else "✗"
-                    row_cells[1].text = item.get("agency", "")
-                    row_cells[2].text = item.get("region", "")
-                    url_val = item.get("url", "")
+                    row_cells[1].text = _s(item.get("agency", ""))
+                    row_cells[2].text = _s(item.get("region", ""))
+                    url_val = _s(item.get("url", ""))
                     row_cells[3].text = url_val[:80] + ("…" if len(url_val) > 80 else "")
                     row_cells[4].text = "是" if item.get("content_changed") else ("—" if item.get("accessible") else "")
-                    row_cells[5].text = (item.get("error") or "")[:80]
+                    row_cells[5].text = _s((item.get("error") or ""))[:80]
                 doc.add_paragraph("")  # spacer
             elif isinstance(v, list):
-                doc.add_paragraph(f"  {k}: {len(v)} 項")
+                doc.add_paragraph(f"  {_s(k)}: {len(v)} 項")
             elif isinstance(v, dict):
-                doc.add_paragraph(f"  {k}:")
+                doc.add_paragraph(f"  {_s(k)}:")
                 for kk, vv in v.items():
-                    doc.add_paragraph(f"    • {kk}: {vv}")
+                    doc.add_paragraph(f"    • {_s(kk)}: {_s(vv)}")
             else:
-                doc.add_paragraph(f"  {k}: {v}")
+                doc.add_paragraph(f"  {_s(k)}: {_s(v)}")
 
     # ── Section 0.5: Risk Priority Summary Table ──
     _risk_rows = [r for r in flat_rows if r.get("risk_level", "") in ("immediate_correction", "deadline_correction")
@@ -1655,13 +1669,13 @@ def export_deep_report_word(
             cells = risk_tbl.rows[ti].cells
             ri_icon = "🔴" if risk_level == "immediate_correction" else ("🟡" if risk_level == "deadline_correction" else "🟢")
             vals = [
-                r.get("clause_id", ""),
-                r.get("clause_title", "")[:60],
-                r.get("doc_id", ""),
-                r.get("verdict_label", verdict),
-                f"{ri_icon} {r.get('risk_label', risk_level)}",
-                r.get("gap_severity", "") or "—",
-                "" if "phase_4" in _skipped else (r.get("remediation_suggestion") or "")[:150],
+                _s(r.get("clause_id", "")),
+                _s(r.get("clause_title", ""))[:60],
+                _s(r.get("doc_id", "")),
+                _s(r.get("verdict_label", verdict)),
+                f"{ri_icon} {_s(r.get('risk_label', risk_level))}",
+                _s(r.get("gap_severity", "")) or "—",
+                "" if "phase_4" in _skipped else _s(r.get("remediation_suggestion") or "")[:150],
             ]
             for ci, val in enumerate(vals):
                 cells[ci].text = val
@@ -1701,7 +1715,7 @@ def export_deep_report_word(
         if gap_interactions:
             for gi in gap_interactions:
                 doc.add_heading(
-                    f"{dh['deep_s2_doc']}: {gi.get('doc_id', '')} — {gi.get('doc_title', '')}",
+                    f"{dh['deep_s2_doc']}: {_s(gi.get('doc_id', ''))} — {_s(gi.get('doc_title', ''))}",
                     level=3,
                 )
                 extra = gi.get("extra", {})
@@ -1721,7 +1735,7 @@ def export_deep_report_word(
                     doc.add_paragraph(
                         dh["deep_token_usage"].format(
                             tokens=usage.get("total_tokens", 0),
-                            model=gi.get("model", ""),
+                            model=_s(gi.get("model", "")),
                         )
                     )
         else:
@@ -1738,7 +1752,7 @@ def export_deep_report_word(
         if verify_interactions:
             for vi in verify_interactions:
                 doc.add_heading(
-                    f"{dh['deep_s2_doc']}: {vi.get('doc_id', '')} — {vi.get('doc_title', '')}",
+                    f"{dh['deep_s2_doc']}: {_s(vi.get('doc_id', ''))} — {_s(vi.get('doc_title', ''))}",
                     level=3,
                 )
                 resp = vi.get("llm_response", "")
@@ -1749,7 +1763,7 @@ def export_deep_report_word(
                     doc.add_paragraph(
                         dh["deep_token_usage"].format(
                             tokens=usage.get("total_tokens", 0),
-                            model=vi.get("model", ""),
+                            model=_s(vi.get("model", "")),
                         )
                     )
         else:
@@ -1766,7 +1780,7 @@ def export_deep_report_word(
         if remed_interactions:
             for ri in remed_interactions:
                 doc.add_heading(
-                    f"{dh['deep_s2_doc']}: {ri.get('doc_id', '')} — {ri.get('doc_title', '')}",
+                    f"{dh['deep_s2_doc']}: {_s(ri.get('doc_id', ''))} — {_s(ri.get('doc_title', ''))}",
                     level=3,
                 )
                 resp = ri.get("llm_response", "")
@@ -1791,10 +1805,10 @@ def export_deep_report_word(
 
             for cid, group in clause_groups.items():
                 clause_title = group[0].get("clause_title", "")
-                doc.add_heading(f"{cid} — {clause_title}", level=3)
+                doc.add_heading(f"{_s(cid)} — {_s(clause_title)}", level=3)
                 doc_id = group[0].get("doc_id", "")
                 if doc_id:
-                    doc.add_paragraph(f"{dh['deep_doc_label']}: {doc_id}")
+                    doc.add_paragraph(f"{dh['deep_doc_label']}: {_s(doc_id)}")
 
                 group.sort(key=lambda x: (x.get("round_number") or 0, x.get("role") or ""))
 
@@ -1821,7 +1835,7 @@ def export_deep_report_word(
                         if parsed and isinstance(parsed, dict):
                             _render_role_content(p, parsed)
                         else:
-                            p.add_run((raw or "")[:2000])
+                            p.add_run(_s((raw or "")[:2000]))
                         continue
 
                     for rd in rounds_data:
@@ -1841,7 +1855,7 @@ def export_deep_report_word(
                                 ag_p.add_run("Agreement: ").bold = True
                                 ag_color = "C00000" if "disagree" in agreement.lower() else ("FF8000" if "partial" in agreement.lower() else "00A000")
                                 from docx.shared import RGBColor as _RGB
-                                r_run = ag_p.add_run(agreement)
+                                r_run = ag_p.add_run(_s(agreement))
                                 r_run.bold = True
                                 r_run.font.color.rgb = _RGB(*bytes.fromhex(ag_color.ljust(6, "0")))
         else:
@@ -1849,7 +1863,7 @@ def export_deep_report_word(
     elif crossexam_record:
         for clause in crossexam_record.get("clauses", []):
             doc.add_heading(
-                f"{clause.get('clause_id', '')} — {clause.get('clause_title', '')}",
+                f"{_s(clause.get('clause_id', ''))} — {_s(clause.get('clause_title', ''))}",
                 level=3,
             )
             for rd in clause.get("rounds", []):
@@ -1866,22 +1880,22 @@ def export_deep_report_word(
 
                 agreement = rd.get("verifier", {}).get("agreement_level", "")
                 if agreement:
-                    doc.add_paragraph(f"Agreement: {agreement}")
+                    doc.add_paragraph(f"Agreement: {_s(agreement)}")
 
             qa = clause.get("qa_audit", {})
             if qa:
                 doc.add_heading(dh["qa_audit_heading"], level=4)
                 doc.add_paragraph(
                     f"{dh['score_label']}: {qa.get('score', 0)}/100  |  "
-                    f"{dh['question_quality_label']}: {qa.get('question_quality', '')}  |  "
-                    f"{dh['answer_accuracy_label']}: {qa.get('answer_accuracy', '')}\n"
+                    f"{dh['question_quality_label']}: {_s(qa.get('question_quality', ''))}  |  "
+                    f"{dh['answer_accuracy_label']}: {_s(qa.get('answer_accuracy', ''))}\n"
                     f"{dh['hallucination_label']}: "
                     f"{dh['hallucination_yes'] if qa.get('hallucination_detected') else dh['hallucination_no']}"
                 )
                 issues = qa.get("issues", [])
                 if issues:
                     for iss in issues:
-                        doc.add_paragraph(f"  • {iss}")
+                        doc.add_paragraph(f"  • {_s(iss)}")
     else:
         doc.add_paragraph(dh["deep_no_xexam"])
 
@@ -1903,12 +1917,12 @@ def export_deep_report_word(
         if qa_summary_text:
             doc.add_heading(dh["deep_qa_summary"], level=3)
             for chunk in _split_text(qa_summary_text, 3000):
-                doc.add_paragraph(chunk)
+                doc.add_paragraph(_s(chunk))
         qa_recs = _qa_sum.get("recommendations", [])
         if qa_recs:
             doc.add_heading(dh["deep_qa_recs"], level=3)
             for rec in qa_recs:
-                doc.add_paragraph(f"• {rec}")
+                doc.add_paragraph(f"• {_s(rec)}")
         clause_audits = _qa_sum.get("clause_audits", [])
         if clause_audits:
             doc.add_heading(dh["deep_qa_clause_results"], level=3)
@@ -1918,17 +1932,17 @@ def export_deep_report_word(
             for i, h in enumerate(qa_headers):
                 qa_tbl.rows[0].cells[i].text = h
             for qi, ca in enumerate(clause_audits, 1):
-                qa_tbl.rows[qi].cells[0].text = ca.get("clause_id", "")
+                qa_tbl.rows[qi].cells[0].text = _s(ca.get("clause_id", ""))
                 qa_tbl.rows[qi].cells[1].text = str(ca.get("score", 0))
-                qa_tbl.rows[qi].cells[2].text = ca.get("question_quality", "")
-                qa_tbl.rows[qi].cells[3].text = ca.get("answer_accuracy", "")
+                qa_tbl.rows[qi].cells[2].text = _s(ca.get("question_quality", ""))
+                qa_tbl.rows[qi].cells[3].text = _s(ca.get("answer_accuracy", ""))
                 qa_tbl.rows[qi].cells[4].text = (
                     dh["hallucination_yes"] if ca.get("hallucination_detected") else dh["hallucination_no"]
                 )
                 issues = ca.get("issues", [])
-                qa_tbl.rows[qi].cells[5].text = "; ".join(issues) if issues else dh["deep_no_issues"]
+                qa_tbl.rows[qi].cells[5].text = _s("; ".join(issues)) if issues else dh["deep_no_issues"]
     elif _qa_sum and _qa_sum.get("skipped"):
-        doc.add_paragraph(dh["deep_qa_skipped"].format(summary=_qa_sum.get("summary", "")))
+        doc.add_paragraph(dh["deep_qa_skipped"].format(summary=_s(_qa_sum.get("summary", ""))))
     else:
         doc.add_paragraph(dh["deep_no_qa_record"])
         _qa_word_note = {
@@ -1970,14 +1984,14 @@ def export_deep_report_word(
             rl = row.get("risk_level", "")
             row_bg = _S6_RISK_FILL.get(rl, "FFFFFF")
             row_cells = tbl.rows[ri].cells
-            row_cells[0].text = f"{row.get('clause_id', '')} {row.get('clause_title', '')}"
-            row_cells[1].text = f"{row.get('doc_id', '')}"
-            row_cells[2].text = row.get("audit_impact", "")
-            row_cells[3].text = f"{row.get('verdict_icon', '')} {row.get('verdict_label', '')}"
-            row_cells[4].text = f"{row.get('risk_icon', '')} {row.get('risk_label', '')}"
-            row_cells[5].text = row.get("gap_severity", "") or ""
+            row_cells[0].text = _s(f"{row.get('clause_id', '')} {row.get('clause_title', '')}")
+            row_cells[1].text = _s(f"{row.get('doc_id', '')}")
+            row_cells[2].text = _s(row.get("audit_impact", ""))
+            row_cells[3].text = _s(f"{row.get('verdict_icon', '')} {row.get('verdict_label', '')}")
+            row_cells[4].text = _s(f"{row.get('risk_icon', '')} {row.get('risk_label', '')}")
+            row_cells[5].text = _s(row.get("gap_severity", "") or "")
             row_cells[6].text = "⚠️" if row.get("flagged_for_ra") else ""
-            row_cells[7].text = _pipeline_status_str(row.get("phase_status_summary", {}))
+            row_cells[7].text = _s(_pipeline_status_str(row.get("phase_status_summary", {})))
             for ci in range(8):
                 _shade_cell(row_cells[ci], row_bg)
                 for run in row_cells[ci].paragraphs[0].runs:
@@ -1988,27 +2002,27 @@ def export_deep_report_word(
     # ── Section 7: Meta-Analysis (if available) ──
     if meta_analysis:
         doc.add_heading(dh["deep_s7"], level=2)
-        doc.add_paragraph(meta_analysis.get("summary", dh["deep_s7_no_summary"]))
+        doc.add_paragraph(_s(meta_analysis.get("summary", dh["deep_s7_no_summary"])))
 
         findings = meta_analysis.get("findings", [])
         if findings:
             doc.add_heading(dh["deep_s7_findings"], level=3)
             for f in findings:
                 doc.add_paragraph(
-                    f"• [{f.get('severity', '')}] {f.get('description', '')}",
+                    f"• [{_s(f.get('severity', ''))}] {_s(f.get('description', ''))}",
                 )
 
         recommendations = meta_analysis.get("recommendations", [])
         if recommendations:
             doc.add_heading(dh["deep_s7_recs"], level=3)
             for rec in recommendations:
-                doc.add_paragraph(f"• {rec}")
+                doc.add_paragraph(f"• {_s(rec)}")
 
         tuning = meta_analysis.get("prompt_tuning", {})
         if tuning:
             doc.add_heading(dh["deep_s7_prompt"], level=3)
             for key, val in tuning.items():
-                doc.add_paragraph(f"• {key}: {val}")
+                doc.add_paragraph(f"• {_s(key)}: {_s(val)}")
 
     # ── Section 8: LLM Usage Statistics ──
     doc.add_heading(dh["deep_s8"], level=2)
@@ -2023,7 +2037,7 @@ def export_deep_report_word(
 
         for phase, stats in phase_counts.items():
             doc.add_paragraph(
-                f"• {phase}: {stats['count']} {dh['deep_s8_calls']}, {stats['tokens']:,} tokens"
+                f"• {_s(phase)}: {stats['count']} {dh['deep_s8_calls']}, {stats['tokens']:,} tokens"
             )
 
     try:
@@ -2134,23 +2148,23 @@ def export_deep_report_excel(
             c.fill = header_fill
             c.font = header_font
     for ri, row in enumerate(flat_rows, 2):
-        ws_comp.cell(row=ri, column=1, value=row.get("clause_id", ""))
-        ws_comp.cell(row=ri, column=2, value=row.get("clause_title", ""))
-        ws_comp.cell(row=ri, column=3, value=row.get("doc_id", ""))
-        ws_comp.cell(row=ri, column=4, value=row.get("doc_title", ""))
-        ws_comp.cell(row=ri, column=5, value=row.get("audit_impact", ""))
-        ws_comp.cell(row=ri, column=6, value=row.get("audit_question", ""))
+        ws_comp.cell(row=ri, column=1, value=_s(row.get("clause_id", "")))
+        ws_comp.cell(row=ri, column=2, value=_s(row.get("clause_title", "")))
+        ws_comp.cell(row=ri, column=3, value=_s(row.get("doc_id", "")))
+        ws_comp.cell(row=ri, column=4, value=_s(row.get("doc_title", "")))
+        ws_comp.cell(row=ri, column=5, value=_s(row.get("audit_impact", "")))
+        ws_comp.cell(row=ri, column=6, value=_s(row.get("audit_question", "")))
         ws_comp.cell(
             row=ri,
             column=7,
-            value=f"{row.get('verdict_icon', '')} {row.get('verdict_label', '')}",
+            value=_s(f"{row.get('verdict_icon', '')} {row.get('verdict_label', '')}"),
         )
         ws_comp.cell(
             row=ri,
             column=8,
-            value=f"{row.get('risk_icon', '')} {row.get('risk_label', '')}",
+            value=_s(f"{row.get('risk_icon', '')} {row.get('risk_label', '')}"),
         )
-        ws_comp.cell(row=ri, column=9, value=row.get("gap_severity", "") or "")
+        ws_comp.cell(row=ri, column=9, value=_s(row.get("gap_severity", "") or ""))
         ws_comp.cell(
             row=ri,
             column=10,
@@ -2161,18 +2175,18 @@ def export_deep_report_excel(
         ws_comp.cell(
             row=ri,
             column=12,
-            value=override.get("reason", "") if isinstance(override, dict) else "",
+            value=_s(override.get("reason", "") if isinstance(override, dict) else ""),
         )
-        ws_comp.cell(row=ri, column=13, value=_safe_str(row.get("ra_notes"), 500))
+        ws_comp.cell(row=ri, column=13, value=_s(_safe_str(row.get("ra_notes"), 500)))
         # P4 columns: only write when phase_4 not skipped
         if "phase_4" not in _skipped_xl:
-            ws_comp.cell(row=ri, column=14, value=_safe_str(row.get("remediation_suggestion"), 500))
-            ws_comp.cell(row=ri, column=15, value=_safe_str(row.get("remediation_regulation_cite"), 500))
+            ws_comp.cell(row=ri, column=14, value=_s(_safe_str(row.get("remediation_suggestion"), 500)))
+            ws_comp.cell(row=ri, column=15, value=_s(_safe_str(row.get("remediation_regulation_cite"), 500)))
         # P5 columns: only write when phase_5 not skipped
         if "phase_5" not in _skipped_xl:
-            ws_comp.cell(row=ri, column=16, value=_safe_str(row.get("analyzer_position"), 500))
-            ws_comp.cell(row=ri, column=17, value=_safe_str(row.get("verifier_position"), 500))
-        ws_comp.cell(row=ri, column=18, value=_pipeline_status_str(row.get("phase_status_summary", {})))
+            ws_comp.cell(row=ri, column=16, value=_s(_safe_str(row.get("analyzer_position"), 500)))
+            ws_comp.cell(row=ri, column=17, value=_s(_safe_str(row.get("verifier_position"), 500)))
+        ws_comp.cell(row=ri, column=18, value=_s(_pipeline_status_str(row.get("phase_status_summary", {}))))
 
     # ── Sheet: Phase Progress (unified single table) ──
     _prog = progress or {}
@@ -2266,7 +2280,7 @@ def export_deep_report_excel(
                 continue
             if not isinstance(v, (dict, list)):
                 ws_prog.cell(row=cur, column=1, value=_DQ_KEY_LABEL.get(k, k))
-                ws_prog.cell(row=cur, column=2, value=v)
+                ws_prog.cell(row=cur, column=2, value=_s(str(v)) if isinstance(v, str) else v)
                 cur += 1
         # documents_checked table
         if "documents_checked" in data_quality and isinstance(data_quality["documents_checked"], dict):
@@ -2277,7 +2291,7 @@ def export_deep_report_excel(
             cur += 1
             for doc_id, info in docs.items():
                 if isinstance(info, dict):
-                    ws_prog.cell(row=cur, column=1, value=doc_id)
+                    ws_prog.cell(row=cur, column=1, value=_s(doc_id))
                     ws_prog.cell(row=cur, column=2, value="✓" if info.get("exists") else "✗")
                     ws_prog.cell(row=cur, column=3, value="✓" if info.get("has_content") else "✗")
                     ws_prog.cell(row=cur, column=4, value=info.get("content_length", 0))
@@ -2295,7 +2309,7 @@ def export_deep_report_excel(
                 continue
             if not isinstance(v, (dict, list)):
                 ws_prog.cell(row=cur, column=1, value=_SC_KEY_LABEL.get(k, k))
-                ws_prog.cell(row=cur, column=2, value=v)
+                ws_prog.cell(row=cur, column=2, value=_s(str(v)) if isinstance(v, str) else v)
                 cur += 1
         vr = source_check.get("verification_results", [])
         if vr:
@@ -2307,12 +2321,12 @@ def export_deep_report_excel(
                 if not isinstance(item, dict):
                     continue
                 ws_prog.cell(row=cur, column=1, value="✓" if item.get("accessible") else "✗")
-                ws_prog.cell(row=cur, column=2, value=item.get("agency", ""))
-                ws_prog.cell(row=cur, column=3, value=item.get("region", ""))
-                ws_prog.cell(row=cur, column=4, value=(item.get("url", ""))[:150])
+                ws_prog.cell(row=cur, column=2, value=_s(item.get("agency", "")))
+                ws_prog.cell(row=cur, column=3, value=_s(item.get("region", "")))
+                ws_prog.cell(row=cur, column=4, value=_s((item.get("url", ""))[:150]))
                 ws_prog.cell(row=cur, column=5, value="是" if item.get("content_changed") else ("—" if item.get("accessible") else ""))
-                ws_prog.cell(row=cur, column=6, value=item.get("status_code") or "")
-                ws_prog.cell(row=cur, column=7, value=(item.get("error") or "")[:120])
+                ws_prog.cell(row=cur, column=6, value=_s(str(item.get("status_code") or "")))
+                ws_prog.cell(row=cur, column=7, value=_s((item.get("error") or "")[:120]))
                 cur += 1
 
     # Auto-width for progress sheet
@@ -2356,23 +2370,23 @@ def export_deep_report_excel(
             # For non-P5 phases (gap_scan/checklist_verify/remediation), clause_id is per-doc
             clause_display = clause_id if clause_id else (_batch_label if phase != "verification" else "")
             row_fill = _LLM_PHASE_FILL.get(phase)
-            ws_llm.cell(row=ri, column=1, value=_safe_str(phase_label))
-            ws_llm.cell(row=ri, column=2, value=_safe_str(interaction.get("doc_id", "")))
-            ws_llm.cell(row=ri, column=3, value=_safe_str(clause_display))
-            ws_llm.cell(row=ri, column=4, value=_safe_str(role_label))
+            ws_llm.cell(row=ri, column=1, value=_s(_safe_str(phase_label)))
+            ws_llm.cell(row=ri, column=2, value=_s(_safe_str(interaction.get("doc_id", ""))))
+            ws_llm.cell(row=ri, column=3, value=_s(_safe_str(clause_display)))
+            ws_llm.cell(row=ri, column=4, value=_s(_safe_str(role_label)))
             _rn = interaction.get("round_number")
-            ws_llm.cell(row=ri, column=5, value=_rn if isinstance(_rn, (int, float)) else (_safe_str(_rn) or "—"))
+            ws_llm.cell(row=ri, column=5, value=_rn if isinstance(_rn, (int, float)) else (_s(_safe_str(_rn)) or "—"))
             resp_text = _format_llm_response_for_excel(
                 interaction.get("llm_response", "") or "",
                 phase,
                 interaction.get("parsed_response"),
                 lang_key=_lk,
             )
-            ws_llm.cell(row=ri, column=6, value=resp_text[:1200])
+            ws_llm.cell(row=ri, column=6, value=_s(resp_text[:1200]))
             _usage = interaction.get("usage") or {}
             ws_llm.cell(row=ri, column=7, value=_usage.get("total_tokens", 0) if isinstance(_usage, dict) else 0)
-            ws_llm.cell(row=ri, column=8, value=_safe_str(interaction.get("model", "")))
-            ws_llm.cell(row=ri, column=9, value=_safe_str(interaction.get("timestamp", "—")))
+            ws_llm.cell(row=ri, column=8, value=_s(_safe_str(interaction.get("model", ""))))
+            ws_llm.cell(row=ri, column=9, value=_s(_safe_str(interaction.get("timestamp", "—"))))
             if row_fill:
                 for ci in range(1, 10):
                     ws_llm.cell(row=ri, column=ci).fill = row_fill
@@ -2434,21 +2448,21 @@ def export_deep_report_excel(
                 for c in v_chal_list[:3]
             )
             row_vals = [
-                entry["clause_id"],
-                entry["clause_title"][:80],
-                entry["doc_id"],
-                fr.get("verdict_label", row_verdict),
+                _s(entry["clause_id"]),
+                _s(entry["clause_title"][:80]),
+                _s(entry["doc_id"]),
+                _s(fr.get("verdict_label", row_verdict)),
                 "Y" if fr.get("verification_agreed") else "N",
                 "⚠️" if fr.get("flagged_for_ra") else "",
                 len(rds),
-                str(r1_a.get("position") or "")[:500],
-                str(r1_a.get("confidence") or r1_a.get("confidence_score") or ""),
-                a_ev_str[:400],
-                v_chal_str[:400],
-                r1_v.get("agreement_level", ""),
+                _s(str(r1_a.get("position") or "")[:500]),
+                _s(str(r1_a.get("confidence") or r1_a.get("confidence_score") or "")),
+                _s(a_ev_str[:400]),
+                _s(v_chal_str[:400]),
+                _s(r1_v.get("agreement_level", "")),
                 qa.get("score", "") if qa else "",
-                qa.get("question_quality", "") if qa else "",
-                qa.get("answer_accuracy", "") if qa else "",
+                _s(qa.get("question_quality", "")) if qa else "",
+                _s(qa.get("answer_accuracy", "")) if qa else "",
                 "是" if qa and qa.get("hallucination_detected") else ("否" if qa else ""),
             ]
             for ci2, v in enumerate(row_vals, 1):
@@ -2466,17 +2480,17 @@ def export_deep_report_excel(
             a_ev_list = r1_a.get("key_evidence") or []
             v_chal_list = r1_v.get("challenges") or []
             row_vals = [
-                clause.get("clause_id", ""), clause.get("clause_title", ""), clause.get("doc_id", ""),
-                clause.get("verdict", ""),
+                _s(clause.get("clause_id", "")), _s(clause.get("clause_title", "")), _s(clause.get("doc_id", "")),
+                _s(clause.get("verdict", "")),
                 "Y" if clause.get("agreed") else "N",
                 "Y" if clause.get("flagged_for_ra") else "",
                 len(rounds),
-                _flatten_role_text(r1_a, "position")[:500],
-                str(r1_a.get("confidence", r1_a.get("confidence_score", ""))),
-                "; ".join(str(e)[:100] for e in a_ev_list[:3]),
-                "; ".join(str(c.get("point",c) if isinstance(c,dict) else c)[:100] for c in v_chal_list[:3]),
-                r1_v.get("agreement_level", ""),
-                qa.get("score", ""), qa.get("question_quality", ""), qa.get("answer_accuracy", ""),
+                _s(_flatten_role_text(r1_a, "position")[:500]),
+                _s(str(r1_a.get("confidence", r1_a.get("confidence_score", "")))),
+                _s("; ".join(str(e)[:100] for e in a_ev_list[:3])),
+                _s("; ".join(str(c.get("point",c) if isinstance(c,dict) else c)[:100] for c in v_chal_list[:3])),
+                _s(r1_v.get("agreement_level", "")),
+                qa.get("score", ""), _s(qa.get("question_quality", "")), _s(qa.get("answer_accuracy", "")),
                 dh.get("yes", "是") if qa.get("hallucination_detected") else dh.get("no", "否"),
             ]
             for ci2, v in enumerate(row_vals, 1):
@@ -2486,19 +2500,19 @@ def export_deep_report_excel(
         for ri, row in enumerate(flat_rows, 2):
             qa = row.get("qa_audit") or {}
             row_vals = [
-                row.get("clause_id",""), row.get("clause_title","")[:80], row.get("doc_id",""),
-                row.get("verdict_label", row.get("verdict","")),
+                _s(row.get("clause_id","")), _s(row.get("clause_title","")[:80]), _s(row.get("doc_id","")),
+                _s(row.get("verdict_label", row.get("verdict",""))),
                 "Y" if row.get("verification_agreed") else "N",
                 "⚠️" if row.get("flagged_for_ra") else "",
                 str(row.get("verification_rounds", "")),
-                (row.get("r1_analyzer_position") or row.get("analyzer_position") or "")[:500],
-                (row.get("r1_analyzer_confidence") or ""),
-                (row.get("r1_key_evidence") or "")[:400],
-                (row.get("r1_verifier_challenges") or "")[:400],
-                (row.get("r1_agreement_level") or ""),
+                _s((row.get("r1_analyzer_position") or row.get("analyzer_position") or "")[:500]),
+                _s((row.get("r1_analyzer_confidence") or "")),
+                _s((row.get("r1_key_evidence") or "")[:400]),
+                _s((row.get("r1_verifier_challenges") or "")[:400]),
+                _s((row.get("r1_agreement_level") or "")),
                 qa.get("score","") if qa else "",
-                qa.get("question_quality","") if qa else "",
-                qa.get("answer_accuracy","") if qa else "",
+                _s(qa.get("question_quality","")) if qa else "",
+                _s(qa.get("answer_accuracy","")) if qa else "",
                 (dh.get("yes", "是") if qa.get("hallucination_detected") else dh.get("no", "否")) if qa else "",
             ]
             for ci2, v in enumerate(row_vals, 1):
@@ -2533,15 +2547,15 @@ def export_deep_report_excel(
     if _qa_rows:
         for qi, row in enumerate(_qa_rows, 2):
             qa = row.get("qa_audit", {}) or {}
-            ws_qa.cell(row=qi, column=1, value=row.get("clause_id", ""))
-            ws_qa.cell(row=qi, column=2, value=row.get("doc_id", ""))
+            ws_qa.cell(row=qi, column=1, value=_s(row.get("clause_id", "")))
+            ws_qa.cell(row=qi, column=2, value=_s(row.get("doc_id", "")))
             ws_qa.cell(row=qi, column=3, value=qa.get("score", ""))
-            ws_qa.cell(row=qi, column=4, value=(qa.get("score_rationale", "") or "")[:300])
-            ws_qa.cell(row=qi, column=5, value=qa.get("question_quality", ""))
-            ws_qa.cell(row=qi, column=6, value=qa.get("answer_accuracy", ""))
+            ws_qa.cell(row=qi, column=4, value=_s((qa.get("score_rationale", "") or "")[:300]))
+            ws_qa.cell(row=qi, column=5, value=_s(qa.get("question_quality", "")))
+            ws_qa.cell(row=qi, column=6, value=_s(qa.get("answer_accuracy", "")))
             ws_qa.cell(row=qi, column=7, value=dh.get("yes", "是") if qa.get("hallucination_detected") else dh.get("no", "否"))
             issues = qa.get("issues", []) or []
-            ws_qa.cell(row=qi, column=8, value="; ".join(str(i) for i in issues) if issues else "")
+            ws_qa.cell(row=qi, column=8, value=_s("; ".join(str(i) for i in issues)) if issues else "")
     else:
         _qa_no_data_note = {
             "zh": (
@@ -2579,7 +2593,7 @@ def export_deep_report_excel(
             bold=True, size=14
         )
         ws_ma.cell(row=3, column=1, value=dh["summary"]).font = Font(bold=True)
-        ws_ma.cell(row=4, column=1, value=meta_analysis.get("summary", ""))
+        ws_ma.cell(row=4, column=1, value=_s(meta_analysis.get("summary", "")))
 
         findings = meta_analysis.get("findings", [])
         if findings:
@@ -2588,8 +2602,8 @@ def export_deep_report_excel(
                 bold=True
             )
             for fi, f in enumerate(findings, row_offset + 1):
-                ws_ma.cell(row=fi, column=1, value=f.get("severity", ""))
-                ws_ma.cell(row=fi, column=2, value=f.get("description", ""))
+                ws_ma.cell(row=fi, column=1, value=_s(f.get("severity", "")))
+                ws_ma.cell(row=fi, column=2, value=_s(f.get("description", "")))
 
     # Auto-width for compliance sheet
     for col in ws_comp.columns:
@@ -2616,15 +2630,15 @@ def export_deep_report_excel(
         row_fill = _RISK_FILL.get(rl)
         vals = [
             _PRIO_LABEL.get(rl, rl),
-            row.get("clause_id",""), row.get("clause_title","")[:60],
-            row.get("doc_id",""),
-            row.get("verdict_label", row.get("verdict","")),
-            row.get("verdict_icon",""),
-            row.get("risk_label", rl),
-            row.get("gap_severity","") or "—",
+            _s(row.get("clause_id","")), _s(row.get("clause_title","")[:60]),
+            _s(row.get("doc_id","")),
+            _s(row.get("verdict_label", row.get("verdict",""))),
+            _s(row.get("verdict_icon","")),
+            _s(row.get("risk_label", rl)),
+            _s(row.get("gap_severity","") or "—"),
             "⚠️" if row.get("flagged_for_ra") else "",
-            _safe_str(row.get("remediation_suggestion"), 300),
-            _safe_str(row.get("remediation_regulation_cite"), 200),
+            _s(_safe_str(row.get("remediation_suggestion"), 300)),
+            _s(_safe_str(row.get("remediation_regulation_cite"), 200)),
         ]
         for ci2, v in enumerate(vals, 1):
             c = ws_risk.cell(row=ri2, column=ci2, value=v)
@@ -2664,8 +2678,8 @@ def export_deep_report_excel(
             c.fill = _env_hdr_fill
             c.alignment = Alignment(horizontal="center")
         for ri, (label, value) in enumerate(_env_rows_xl, 2):
-            ws_env.cell(row=ri, column=1, value=label)
-            ws_env.cell(row=ri, column=2, value=value)
+            ws_env.cell(row=ri, column=1, value=_s(label))
+            ws_env.cell(row=ri, column=2, value=_s(value))
 
         # ── Actual models used per phase (from interaction log) ──
         if interactions:
@@ -2684,8 +2698,8 @@ def export_deep_report_excel(
                 _phase_name_map = {"gap_scan": "P1 Gap Scan", "checklist_verify": "P2 Checklist", "remediation": "P4 Remediation", "verification": "P5 Cross-Exam"}
                 for _ph, _models in sorted(_phase_models.items()):
                     _ph_label = _phase_name_map.get(_ph, _ph)
-                    ws_env.cell(row=cur_ri, column=1, value=_ph_label)
-                    ws_env.cell(row=cur_ri, column=2, value="; ".join(sorted(_models)))
+                    ws_env.cell(row=cur_ri, column=1, value=_s(_ph_label))
+                    ws_env.cell(row=cur_ri, column=2, value=_s("; ".join(sorted(_models))))
                     cur_ri += 1
 
         ws_env.column_dimensions["A"].width = 28
@@ -2942,7 +2956,7 @@ def _render_gap_json_response(doc, resp: str, lang: str = "zh-TW") -> None:
             data = json.loads(_sanitize_llm_json(stripped))
         except (json.JSONDecodeError, ValueError):
             for chunk in _split_text(resp, 3000):
-                doc.add_paragraph(chunk)
+                doc.add_paragraph(_s(chunk))
             return
 
     # ── Remediation: flat {"remediation": {...}} ──
@@ -2958,7 +2972,7 @@ def _render_gap_json_response(doc, resp: str, lang: str = "zh-TW") -> None:
     clause_results = data.get("clause_results", {})
     if not clause_results:
         for chunk in _split_text(resp, 3000):
-            doc.add_paragraph(chunk)
+            doc.add_paragraph(_s(chunk))
         return
 
     for clause_id, clause_data in clause_results.items():
@@ -2992,13 +3006,13 @@ def _render_gap_json_response(doc, resp: str, lang: str = "zh-TW") -> None:
                 name_str = ev.get("evidence_name", "")
                 if score != "":
                     name_str += f" [相關度:{score}]"
-                source_quote = ev.get("source_quote", "") or ""
+                source_quote = _s(ev.get("source_quote", "") or "")
                 q_str = source_quote[:300] + ("…" if len(source_quote) > 300 else "")
-                reasoning = ev.get("reasoning", "") or ""
+                reasoning = _s(ev.get("reasoning", "") or "")
                 r_str = reasoning[:400] + ("…" if len(reasoning) > 400 else "")
-                ev_tbl.rows[ei].cells[0].text = status_str
-                ev_tbl.rows[ei].cells[1].text = name_str
-                ev_tbl.rows[ei].cells[2].text = (ev.get("source_section") or "")[:200]
+                ev_tbl.rows[ei].cells[0].text = _s(status_str)
+                ev_tbl.rows[ei].cells[1].text = _s(name_str)
+                ev_tbl.rows[ei].cells[2].text = _s((ev.get("source_section") or ""))[:200]
                 ev_tbl.rows[ei].cells[3].text = q_str
                 ev_tbl.rows[ei].cells[4].text = r_str
             continue
@@ -3036,10 +3050,10 @@ def _render_verification_results_table(doc, ver_list: list, lang: str = "zh-TW")
         icon = _ADEQUACY_ICON.get(adequacy, adequacy)
         score = vr.get("semantic_score", "")
         score_str = f"{score:.2f}" if isinstance(score, float) else (str(score) if score != "" else "")
-        explanation = vr.get("explanation", "") or ""
-        tbl.rows[ei].cells[0].text = icon
-        tbl.rows[ei].cells[1].text = vr.get("evidence_name", "")
-        tbl.rows[ei].cells[2].text = score_str
+        explanation = _s(vr.get("explanation", "") or "")
+        tbl.rows[ei].cells[0].text = _s(icon)
+        tbl.rows[ei].cells[1].text = _s(vr.get("evidence_name", ""))
+        tbl.rows[ei].cells[2].text = _s(score_str)
         tbl.rows[ei].cells[3].text = explanation[:500] + ("…" if len(explanation) > 500 else "")
 
 
@@ -3053,13 +3067,13 @@ def _render_remediation_block(doc, remed: dict, lang: str = "zh-TW") -> None:
     if summary or priority:
         p = doc.add_paragraph()
         if priority:
-            p.add_run(f"優先級 / Priority: {priority}　").bold = True
+            p.add_run(f"優先級 / Priority: {_s(priority)}　").bold = True
         if summary:
-            p.add_run(summary)
+            p.add_run(_s(summary))
 
     for idx, sg in enumerate(suggestions, 1):
         if not isinstance(sg, dict):
-            doc.add_paragraph(str(sg)[:500])
+            doc.add_paragraph(_s(str(sg)[:500]))
             continue
         doc.add_paragraph(f"建議 {idx} / Suggestion {idx}", style="Heading 4" if "Heading 4" in [s.name for s in doc.styles] else None)
         tbl = doc.add_table(rows=4, cols=2)
@@ -3077,12 +3091,12 @@ def _render_remediation_block(doc, remed: dict, lang: str = "zh-TW") -> None:
             tbl.rows[ri2].cells[0].text = lbl
             run0 = tbl.rows[ri2].cells[0].paragraphs[0].runs[0] if tbl.rows[ri2].cells[0].paragraphs[0].runs else tbl.rows[ri2].cells[0].paragraphs[0].add_run(lbl)
             run0.bold = True
-            tbl.rows[ri2].cells[1].text = val
+            tbl.rows[ri2].cells[1].text = _s(val)
 
     if regulation_citation:
         p = doc.add_paragraph()
         p.add_run("法規引用 / Regulation Citation: ").bold = True
-        p.add_run(regulation_citation[:800] + ("…" if len(regulation_citation) > 800 else ""))
+        p.add_run(_s(regulation_citation[:800] + ("…" if len(regulation_citation) > 800 else "")))
 
 
 def _render_p5_role_block(doc, label: str, data: dict, fill_hex: str = "FFFFFF") -> None:
@@ -3129,7 +3143,7 @@ def _render_p5_role_block(doc, label: str, data: dict, fill_hex: str = "FFFFFF")
         cell.add_paragraph("")
         sub_p = cell.add_paragraph()
         sub_p.add_run(f"{field_label}: ").bold = True
-        sub_p.add_run(val)
+        sub_p.add_run(_s(val))
 
     doc.add_paragraph("")
 
@@ -3295,11 +3309,11 @@ def _render_role_content(paragraph, data: dict) -> None:
                 parts.append(f"  • {c}")
 
     if parts:
-        paragraph.add_run("\n".join(parts)[:4000])
+        paragraph.add_run(_s("\n".join(parts)[:4000]))
     else:
         # Fallback: render as readable key-value pairs
         kv_lines = [f"{k}: {v}" for k, v in data.items() if v is not None]
-        paragraph.add_run("\n".join(kv_lines)[:4000] if kv_lines else "（無內容）")
+        paragraph.add_run(_s("\n".join(kv_lines)[:4000]) if kv_lines else "（無內容）")
 
 
 def _flatten_role_text(data: dict, primary_key: str) -> str:

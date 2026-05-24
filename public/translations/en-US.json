@@ -1,0 +1,53 @@
+{
+  "components": {
+    "chat": {
+      "input": {
+        "placeholder": "Type your message here..."
+      }
+    },
+    "header": {
+      "chat": "Chat",
+      "readme": "Readme"
+    },
+    "threadHistory": {
+      "sidebar": {
+        "filters": {
+          "feedbackSelect": {
+            "placeholder": "Feedback"
+          },
+          "searchInput": {
+            "placeholder": "Search"
+          }
+        },
+        "empty": "No chats yet",
+        "loading": "Loading..."
+      }
+    },
+    "newChat": {
+      "title": "New chat",
+      "description": "This will clear the current messages and start a new chat.",
+      "cancel": "Cancel",
+      "confirm": "Confirm"
+    },
+    "signin": {
+      "title": "Sign in to",
+      "form": {
+        "email": "Email address",
+        "password": "Password",
+        "noAccount": "Don't have an account?",
+        "alreadyHaveAccount": "Already have an account?",
+        "signup": "Sign up",
+        "signin": "Sign in",
+        "or": "Or continue with"
+      },
+      "error": {
+        "default": "Unable to sign in"
+      }
+    }
+  },
+  "tasklist": {
+    "TaskList": {
+      "title": "Task List"
+    }
+  }
+}

@@ -441,13 +441,17 @@ def generate_question_b(
     )
 
     try:
-        response_text, _usage = llm_completion_fn(
-            system=SIDE_B_SYSTEM_PROMPTS[lk],
-            user=user_prompt,
+        _messages = [
+            {"role": "system", "content": SIDE_B_SYSTEM_PROMPTS[lk]},
+            {"role": "user",   "content": user_prompt},
+        ]
+        _result = llm_completion_fn(
+            _messages,
             model=model,
             temperature=0.7,
             max_tokens=512,
         )
+        response_text = _result["content"] if isinstance(_result, dict) else _result
         return _parse_json_response(response_text)
     except Exception as exc:
         logger.warning(

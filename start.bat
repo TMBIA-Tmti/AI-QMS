@@ -128,9 +128,22 @@ for /L %%p in (3000,1,3010) do (
     )
 )
 :: Wait for OS to release ports after kill (TIME_WAIT state)
+:: Polls every second until all ports 3000-3010 are free, or 10s has elapsed.
 if "%KILLED_ANY%"=="1" (
     echo [INFO] Waiting for ports to be released...
-    timeout /t 3 /nobreak >nul
+    set "WAIT_SEC=0"
+    :wait_ports_loop
+    set "PORTS_BUSY=0"
+    for /L %%p in (3000,1,3010) do (
+        netstat -ano 2>nul | findstr ":%%p .*LISTENING" >nul
+        if not errorlevel 1 set "PORTS_BUSY=1"
+    )
+    if "%PORTS_BUSY%"=="0" goto :wait_ports_done
+    if %WAIT_SEC% GEQ 10 goto :wait_ports_done
+    timeout /t 1 /nobreak >nul
+    set /a WAIT_SEC+=1
+    goto :wait_ports_loop
+    :wait_ports_done
 )
 
 :: Show menu
@@ -397,6 +410,9 @@ echo [WARN] Ports 3000-3010 are all in use! Chainlit may fail to start.
 goto :port_display
 
 :port_found
+:: Write chosen port to data/.chainlit_port so other tools can discover it
+if not exist "data" mkdir data
+echo %CHAINLIT_PORT%> "data\.chainlit_port"
 if "%CHAINLIT_PORT%"=="3000" goto :port_display
 echo.
 echo [WARN] Port 3000 is occupied. Auto-switching to port %CHAINLIT_PORT%

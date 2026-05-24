@@ -1374,6 +1374,16 @@ def _parse_json_from_response(text: str) -> list | dict | None:
         except json.JSONDecodeError:
             pass
 
+    # Strategy 5: truncated array recovery — find last complete object
+    first_bracket = text.find('[')
+    last_brace = text.rfind('}')
+    if first_bracket >= 0 and last_brace > first_bracket:
+        try:
+            candidate = text[first_bracket:last_brace + 1] + ']'
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            pass
+
     logger.warning(f"Failed to parse JSON from response: {text[:200]}...")
     return None
 

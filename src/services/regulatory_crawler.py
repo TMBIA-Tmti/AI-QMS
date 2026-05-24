@@ -5336,14 +5336,14 @@ class AsyncRegulatoryUpdateCrawler:
             alt_site["url"] = candidate_url
             alt_site.pop("sitemap_url", None)
 
-            # Tier2 httpx — 8s per-fetch timeout
+            # Tier2 httpx — 15s per-fetch timeout
             try:
                 alt_result = await asyncio.wait_for(
                     _crawl_tier2_httpx(
                         self._client, alt_site, region, self._etag_cache,
                         jina_semaphore=self._jina_semaphore,
                     ),
-                    timeout=8.0,
+                    timeout=15.0,
                 )
                 if alt_result.get("crawl_status") == "success":
                     content = alt_result.get("content_markdown", "")
@@ -5356,13 +5356,13 @@ class AsyncRegulatoryUpdateCrawler:
             except Exception as e:
                 logger.debug("DDG alt httpx failed (%s): %s", candidate_url[:60], str(e)[:80])
 
-            # Tier3 Jina — 12s per-fetch timeout
+            # Tier3 Jina — 20s per-fetch timeout
             try:
                 alt_result = await asyncio.wait_for(
                     _crawl_tier3_jina(
                         self._client, alt_site, region, self._jina_semaphore
                     ),
-                    timeout=12.0,
+                    timeout=20.0,
                 )
                 if alt_result.get("crawl_status") == "success":
                     content = alt_result.get("content_markdown", "")
@@ -5384,7 +5384,7 @@ class AsyncRegulatoryUpdateCrawler:
         M2: Uses _build_ddg_query() for citation-aware targeted queries.
         M3: Validates fetched content is actual regulatory text via _is_regulatory_fulltext().
         M5: Called after both httpx and Jina fail, so alt URLs cover both paths.
-        URL discovery is hard-capped at 25s total to prevent Freshness Check hangs.
+        URL discovery is hard-capped at 45s total to prevent Freshness Check hangs.
         Only falls back to snippet-combination if all URL fetches fail or lack full text.
         """
         result = _make_result_template(site, region)
@@ -5415,18 +5415,18 @@ class AsyncRegulatoryUpdateCrawler:
                 [u[:60] for u in candidate_urls[:3]],
             )
 
-            # URL discovery with hard 25s total cap
+            # URL discovery with hard 45s total cap
             if candidate_urls:
                 try:
                     disc_result = await asyncio.wait_for(
                         self._ddgs_url_discovery(site, region, candidate_urls, start),
-                        timeout=25.0,
+                        timeout=45.0,
                     )
                     if disc_result is not None:
                         return disc_result
                 except asyncio.TimeoutError:
                     logger.warning(
-                        "DDG URL discovery exceeded 25s budget for %s/%s — falling back to snippets",
+                        "DDG URL discovery exceeded 45s budget for %s/%s — falling back to snippets",
                         region, agency,
                     )
 
