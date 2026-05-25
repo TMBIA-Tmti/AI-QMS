@@ -15292,6 +15292,11 @@ def load_all_crawled_regulations() -> int:
                         if pred_prof is not None:
                             merged = merge_profiles_unconditional(pred_prof, crawled)
                             PREDEFINED_REGULATIONS[pred_id] = merged
+                        # Remove the standalone crawled entry so it does not appear as
+                        # a separate country column alongside the predefined profile.
+                        crawled_id = crawled.regulation_id
+                        if crawled_id in PREDEFINED_REGULATIONS and crawled_id != pred_id:
+                            del PREDEFINED_REGULATIONS[crawled_id]
                         break
             except Exception:
                 pass  # Skip malformed files
