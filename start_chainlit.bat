@@ -170,13 +170,9 @@ if errorlevel 1 (
         echo [INFO] Starting Phoenix server on port %PHOENIX_PORT% (gRPC: %PHOENIX_GRPC_PORT%^)...
         if not exist "%PROJECT_DIR%logs\phoenix" mkdir "%PROJECT_DIR%logs\phoenix"
         set "PHOENIX_LOG=%PROJECT_DIR%logs\phoenix\%SESSION_STAMP%_phoenix.log"
-        set "PHOENIX_LOG_REL=logs\phoenix\%SESSION_STAMP%_phoenix.log"
-        echo [LOG] Phoenix log: logs\phoenix\%SESSION_STAMP%_phoenix.log
-        >> "%CMD_LOG%" echo [Phoenix] Starting on port %PHOENIX_PORT% (gRPC: %PHOENIX_GRPC_PORT%) - log: logs\phoenix\%SESSION_STAMP%_phoenix.log
-        :: Use relative log path to avoid spaces-in-path bug with cmd /c redirect
-        pushd "%PROJECT_DIR%"
-        start "Phoenix Server" /min cmd /c ""%QMS_PYTHON%" -m phoenix.server.main serve --grpc-port %PHOENIX_GRPC_PORT% >> %PHOENIX_LOG_REL% 2>&1"
-        popd
+        >> "%CMD_LOG%" echo [Phoenix] Starting on port %PHOENIX_PORT% gRPC %PHOENIX_GRPC_PORT%
+        :: Use PowerShell Start-Process to detach Phoenix from parent console — works regardless of parent console type
+        powershell -NonInteractive -Command "Start-Process '%QMS_PYTHON%' -ArgumentList '-m','phoenix.server.main','serve','--grpc-port','%PHOENIX_GRPC_PORT%' -WindowStyle Minimized"
         call :wait_for_phoenix
     ) else (
         echo [OK] Phoenix already running on port %PHOENIX_PORT%
