@@ -3895,7 +3895,8 @@ async def on_chat_start():
                     if _total == 0:
                         continue
 
-                    _report_url = f"/api/report/page/{_run_id}?lang={_lang}"
+                    _run_lang = _run_data.get("run_metadata", {}).get("language") or _lang
+                    _report_url = f"/api/report/page/{_run_id}?lang={_run_lang}"
 
                     # Resolve timestamp: try started_at field first, fall back to file mtime
                     _created = _run_data.get("started_at", "")
@@ -10252,7 +10253,8 @@ async def on_message(message: cl.Message):
                     if _rd.get("total_rows", 0) == 0:
                         continue
                     _rid = _rd.get("run_id", _rf.stem)
-                    _url = f"/api/report/page/{_rid}?lang={_lang}"
+                    _run_lang = _rd.get("run_metadata", {}).get("language") or _lang
+                    _url = f"/api/report/page/{_rid}?lang={_run_lang}"
                     _ts = _rd.get("started_at", "")
                     if isinstance(_ts, (int, float)):
                         _ts = _dt2.fromtimestamp(_ts).strftime("%Y-%m-%d %H:%M")

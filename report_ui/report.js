@@ -1339,31 +1339,22 @@
                     <div class="loading-cell">${t('table.loading') || "Loading..."}</div>
                 </div>
             </div>`;
-            // Async-load all questions for this clause
-            (function(clauseId, containerId) {
-                fetch(`${API_BASE}/../locales/${(window.__i18n && window.__i18n.lang) || 'en-US'}.json`).catch(()=>{});
-                // Use existing clause data from ISO 13485 checklist via API
-                fetch(`${API_BASE}/crossref/questions?doc_id=${encodeURIComponent(row.doc_id)}&doc_title=${encodeURIComponent(row.doc_title)}&baseline_clause=${encodeURIComponent(clauseId)}&regulations=`)
-                    .then(r => r.json()).then(data => {
-                        // questions API with empty regulations returns an empty list — fall back to displaying known question
-                        // Instead, fetch the full clause questions directly
-                    }).catch(() => {});
-                // Render static question pool from row data stored in ISO checklist
-                // We build a simulated pool using the audit_question as Q1 and pad with known info
-                const container = document.getElementById(containerId);
-                if (!container) return;
-                // Make a dedicated API call to get all clause questions
+            // Async-load all questions for this clause.
+            // container lookup must happen inside .then() — the HTML string is not yet in the DOM at this point.
+            (function(clauseId, containerId, fallbackQ) {
                 fetch(`/api/report/crossref/clause-questions?clause_id=${encodeURIComponent(clauseId)}&lang=${encodeURIComponent((window.__i18n && window.__i18n.lang) || 'en-US')}`)
                     .then(r => r.ok ? r.json() : null)
                     .then(data => {
+                        const container = document.getElementById(containerId);
+                        if (!container) return;
                         if (!data || !data.questions || !data.questions.length) {
-                            container.innerHTML = `<p class="no-data">${escapeHtml(row.audit_question || '—')}</p>`;
+                            container.innerHTML = `<p class="no-data">${escapeHtml(fallbackQ || '—')}</p>`;
                             return;
                         }
-                        const currentQ = row.audit_question || '';
+                        const currentQ = fallbackQ || '';
                         const qs = data.questions;
                         let qHtml = '<ol class="question-pool-ol">';
-                        qs.forEach((q, i) => {
+                        qs.forEach((q) => {
                             const isActive = q === currentQ;
                             qHtml += `<li class="question-pool-item${isActive ? ' active-question' : ''}">
                                 ${isActive ? '<span class="q-active-badge">▶ ' + (_i18nT('detail.selectedQuestion') || 'Selected') + '</span> ' : ''}
@@ -1374,9 +1365,10 @@
                         container.innerHTML = qHtml;
                     })
                     .catch(() => {
-                        if (container) container.innerHTML = `<p class="no-data">${escapeHtml(row.audit_question || '—')}</p>`;
+                        const container = document.getElementById(containerId);
+                        if (container) container.innerHTML = `<p class="no-data">${escapeHtml(fallbackQ || '—')}</p>`;
                     });
-            })(row.clause_id, `questionPoolDetail_${rowId}`);
+            })(row.clause_id, `questionPoolDetail_${rowId}`, row.audit_question);
 
             // Risk reasoning section — show formula and evidence stats
             if (row.risk_level && row.gap_severity) {
