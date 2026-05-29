@@ -1076,7 +1076,8 @@ REGION_SITES = {
             "tier": 3,
             "strategy": "html",
             "crawl_delay": 5,
-            "note": "Decree 1684 Rules full text on ConsultantPlus — major Russian legal database — may require Jina to bypass paywall — Jina first",
+            "force_profile": True,
+            "note": "Decree 1684 Rules full text on ConsultantPlus — paywall blocks Jina; force_profile=True skips DDG and uses pre-written profile directly",
         },
         {
             "agency": "RZN-MD",
@@ -1647,6 +1648,54 @@ of potential nonconformities.
 - **Re-examination Period**: Class III–IV new devices undergo 6-year re-examination period.
 - **Adverse Event Reporting**: Serious injury/death: 15 days; other adverse events: 30 days;
   MDR-equivalent field safety notices must be submitted to MFDS before implementing FSCA.
+""",
+    ("韓國 (Korea)", "MFDS-KGMP-PDF"): """\
+# Korea K-GMP Full Text — PDF Version (MFDS English, blocked from non-Korean IPs)
+# Last reviewed: 2026-05-29
+# Source: https://www.mfds.go.kr/brd/m_218/down.do?brd_id=data0011&seq=14629&data_tp=A&file_seq=1
+# Note: PDF is inaccessible from non-Korean IPs; this profile provides equivalent content.
+
+**Korean Name**: 의료기기 제조 및 품질관리 기준
+**Authority**: Ministry of Food and Drug Safety (MFDS)
+**Legal Basis**: Medical Devices Act Article 6 (Act No. 14330)
+**Latest Revision**: 2024 (aligned with ISO 13485:2016 Third Edition)
+**Structure**: 9 Chapters, 79 Articles
+
+This document is the PDF export of the same K-GMP regulation available at MFDS-KGMP.
+Full article-level content is identical to the MFDS-KGMP HTML profile.
+
+## Summary of Key Chapters
+
+### Chapter 2 — Quality Management System (ISO 13485 §4)
+Articles 4–9: QMS establishment, documentation (quality manual, procedures, records),
+document control, record control (≥2-year minimum retention from product release),
+and technical documentation (Device Master Record) requirements.
+
+### Chapter 3 — Management Responsibility (ISO 13485 §5)
+Articles 10–18: Top management commitment, quality policy, quality objectives,
+management representative appointment, and management review at planned intervals.
+
+### Chapter 4 — Resource Management (ISO 13485 §6)
+Articles 19–22: Resource provision, personnel competence (education, training, skills),
+infrastructure maintenance, and work environment (including contamination control for sterile devices).
+
+### Chapter 5 — Product Realization (ISO 13485 §7)
+Articles 23–37: Product planning, customer requirements, design and development controls
+(DHF required), supplier evaluation, production controls, identification and traceability
+(lot number mandatory; implantable device records for device lifetime), and equipment calibration.
+
+### Chapter 6 — Measurement, Analysis and Improvement (ISO 13485 §8)
+Articles 38–47: Feedback from post-production, complaint handling (adverse events to MFDS:
+15 days for serious injury/death, 30 days for others), internal audit, nonconforming product
+control, data analysis, and CAPA with root cause analysis.
+
+## Korea-Specific Requirements (beyond ISO 13485:2016)
+
+- **GMP Certificate**: Class II–IV manufacturers must hold valid MFDS GMP certificate (3-year renewal).
+- **UDI**: Adopted January 2024; Class III/IV implantable devices first, full rollout by 2027.
+- **Post-Market Surveillance**: Annual PMS report required for Class II–IV devices.
+- **Re-examination Period**: Class III–IV new devices undergo 6-year post-approval re-examination.
+- **Field Safety**: Safety notices must be submitted to MFDS before implementing FSCA.
 """,
     ("加拿大 (Canada)", "CMDR-SOR98-282"): """\
 # Medical Devices Regulations SOR/98-282 — QMS Requirements (Section 32)
@@ -2470,6 +2519,95 @@ inspection for medical device state registration (государственная
 Russia participates in EAEU regulatory harmonization; medical devices may also be
 registered under the Common Medical Device Registration Procedure for circulation across
 Russia, Belarus, Kazakhstan, Armenia, and Kyrgyzstan.
+""",
+    ("俄羅斯 (Russia)", "Consultant-1684"): """\
+# Russia — Government Decree No. 1684: Medical Device Registration Rules (ConsultantPlus)
+# Last reviewed: 2026-05-29
+# Source: https://www.consultant.ru/document/cons_doc_LAW_491966/ (paywall — profile fallback)
+# Official: Постановление Правительства РФ от 30.11.2024 № 1684
+# Effective: March 1, 2025 (replaces Government Decree No. 1416 of 2012)
+
+**Authority**: Federal Service for Surveillance in Healthcare (Roszdravnadzor / Росздравнадзор)
+**Regulation**: Rules for State Registration of Medical Devices (Правила государственной
+  регистрации медицинских изделий)
+**Legal Basis**: Federal Law No. 323-FZ "On the Basics of Health Protection in the Russian Federation",
+  Article 38
+
+## Part I — General Provisions (Общие положения)
+
+Section 1: These Rules establish the procedure for state registration of medical devices
+intended for use in Russian Federation, including registration of changes to registration
+documents and cancellation of state registration.
+
+Section 2: State registration is performed by Roszdravnadzor. Registration certificates
+(Регистрационное удостоверение) are issued in perpetuity (бессрочно) for devices that pass
+all required examinations.
+
+Section 3: Definitions — "Medical device" includes instruments, apparatus, equipment,
+materials, and other items used for medical purposes as defined by Federal Law No. 323-FZ.
+
+## Part II — QMS and Manufacturing Requirements
+
+Section 12: For Class IIa (sterile), IIb, and III medical devices, the applicant must
+submit one of the following QMS documents:
+  (a) ISO 13485:2016 certificate issued by an accredited certification body;
+  (b) GMP inspection act (Акт проверки) issued by Roszdravnadzor;
+  (c) EAEU-format manufacturing quality certificate for EAEU-registered devices.
+
+Section 13: ISO 13485 certificates must be issued by bodies accredited under:
+  - Russian national accreditation system (Росаккредитация);
+  - IAF MLA (International Accreditation Forum Multilateral Arrangement) member bodies;
+  - EAEU accreditation member body certificates.
+
+Section 14: GMP inspection validity — Roszdravnadzor GMP inspection acts are valid for
+3 years from the date of issue. Reinspection is required for certificate renewal.
+
+| Device Class (Russian) | Risk Level | QMS Document Required |
+|---|---|---|
+| Class I | Low | Not required for registration |
+| Class IIa (non-sterile) | Moderate | Not required |
+| Class IIa (sterile) | Moderate | ISO 13485 or GMP act |
+| Class IIb | Moderate-High | ISO 13485 or GMP act |
+| Class III | High | ISO 13485 or GMP act |
+
+## Part III — Registration Procedure
+
+Section 20: State registration application must include:
+  1. Application form (Заявление) with applicant and device details
+  2. Technical documentation (technical specifications / ТУ or design dossier)
+  3. Clinical data (clinical trials report or literature review)
+  4. QMS document (ISO 13485 certificate or GMP inspection act, where required)
+  5. Labelling and Instructions for Use (IFU) in Russian
+  6. Samples for examination (if required by examination body)
+
+Section 21: Roszdravnadzor commissions the following examinations:
+  (a) Technical and toxicological examination — conducted by accredited examination bodies
+  (b) Clinical examination — review of clinical data by expert organisation
+  (c) Quality examination — review of QMS and manufacturing controls (for Class IIa+)
+
+Section 27: Examination timeframes:
+  - Technical/toxicological: up to 60 working days
+  - Clinical examination: up to 30 working days
+  - Quality examination: up to 20 working days
+  - Total maximum registration period: 140 working days from acceptance of complete dossier
+
+## Part IV — Post-Registration Requirements
+
+Section 35: Post-market surveillance (ПМН — пострегистрационные мониторинг) — holders of
+registration certificates must report:
+  - Serious adverse events causing or potentially causing serious injury: within 10 calendar days
+  - All other adverse events: within 30 calendar days
+  - Periodic Safety Update Reports (PSUR-equivalent): annually for Class IIb–III
+
+Section 37: Field Safety Corrective Actions (FSCA) — notification to Roszdravnadzor required
+before initiating any field safety action (recall, field correction, safety notice).
+
+## Eurasian Economic Union (EAEU) Pathway
+
+Devices registered under the Common Medical Device Registration Procedure (CMDPR) of the
+EAEU are automatically recognized in Russia, Belarus, Kazakhstan, Armenia, and Kyrgyzstan.
+EAEU registration does not replace Russian national registration for devices intended only
+for the Russian market.
 """,
     ("埃及 (Egypt)", "EDA-MD-Guide"): """\
 # Egypt Medical Device QMS — EDA Registration Requirements

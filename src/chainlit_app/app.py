@@ -2663,6 +2663,16 @@ async def on_settings_update(settings):
                     f"{t('welcome.main.switch_hint')}"
                 )
             await cl.Message(content=welcome).send()
+        # Persist language/show_api_key changes immediately — the save_user_settings call
+        # at the end of this function is unreachable from this early-return path.
+        save_user_settings(
+            user_name=cl.user_session.get("user_name", ""),
+            provider_id=cl.user_session.get("provider_id", ""),
+            provider_name=cl.user_session.get("provider_name", ""),
+            model_name=cl.user_session.get("model_name", ""),
+            api_key=cl.user_session.get("real_api_key", "") or cl.user_session.get("api_key", ""),
+            language=lang_code,
+        )
         return
 
     # v3.1.0: When API key is newly entered for a cloud provider,
