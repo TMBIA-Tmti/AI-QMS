@@ -1004,19 +1004,31 @@ AI-QMS/
 ├── start.bat                    # Main launcher / 主啟動腳本
 ├── start_chainlit.bat           # Chainlit direct launcher (+ Phoenix)
 ├── start_phoenix.bat            # Phoenix standalone launcher
+├── phoenix_watchdog.bat         # Phoenix auto-restart watchdog
 ├── .gitignore
 ├── .chainlit/                   # Chainlit configuration
-│   └── config.toml
+│   ├── config.toml
+│   ├── chainlit_zh-TW.md        # Chainlit welcome message (Traditional Chinese)
+│   └── translations/            # Chainlit built-in UI translations
 ├── public/                      # Chainlit public assets
 │   ├── avatars/
 │   │   └── eira.svg             # Eira AI assistant icon
 │   ├── logo_dark.svg            # Dark theme logo
-│   └── logo_light.svg           # Light theme logo
+│   ├── logo_light.svg           # Light theme logo
+│   ├── doc_control.svg          # Document control profile icon
+│   ├── main_agent.svg           # Main agent profile icon
+│   ├── reconnect.js             # Client-side reconnect handler
+│   └── translations/
+│       └── en-US.json           # Chainlit UI English translation override
 ├── report_ui/                   # Compliance report web viewer
 │   ├── report.html              # Report page template
 │   ├── report.js                # Report rendering logic + SSE client
 │   ├── report_i18n.js           # Report UI i18n (zh/en/ja)
-│   └── report.css               # Report styles
+│   ├── report.css               # Report styles
+│   └── locales/                 # Report UI locale files
+│       ├── zh-TW.json           # Traditional Chinese
+│       ├── en-US.json           # English
+│       └── ja-JP.json           # Japanese
 ├── src/                         # Source code
 │   ├── app.py                   # Flask web application (prototype backend)
 │   ├── config.py                # Global configuration
@@ -1032,8 +1044,11 @@ AI-QMS/
 │   │   │   └── ... (20 locales) # 20 languages total
 │   │   ├── handlers/
 │   │   │   └── common.py        # Shared request handlers
-│   │   └── tools/
-│   │       └── web_search.py    # /web command search tool
+│   │   ├── tools/
+│   │   │   └── web_search.py    # /web command search tool
+│   │   └── public/              # Profile icons served by Chainlit
+│   │       ├── doc_control.svg  # Document control profile avatar
+│   │       └── main_agent.svg   # Main agent profile avatar
 │   ├── agents/                  # Agent modules
 │   │   └── tools/
 │   │       └── documents.py     # LangGraph document tools
@@ -1093,6 +1108,16 @@ AI-QMS/
 │   │   ├── obsolete_detector.py     # Document obsolescence detector
 │   │   ├── doc_hierarchy.py         # Document hierarchy manager
 │   │   └── markdown_store_service.py # Markdown storage service
+│   ├── regulations/             # Bundled regulatory reference data (33 regions)
+│   │   ├── INTL_STD.json        # International standards (ISO 13485, IEC 62304…)
+│   │   ├── USA.json             # FDA 21 CFR / QSR
+│   │   ├── EU.json              # EU MDR 2017/745
+│   │   ├── JAPAN.json           # PMDA / JPAL
+│   │   ├── TAIWAN.json          # TFDA
+│   │   ├── CN_NMPA.json         # China NMPA
+│   │   ├── KR_MFDS.json         # Korea MFDS / KGMP
+│   │   ├── MDSAP.json           # MDSAP multi-country audit
+│   │   └── ... (33 regions)     # Full global coverage
 │   ├── openwebui_tools/         # Open WebUI integration tools
 │   │   ├── doc_control_tool.py  # Document Control sub-agent tool for Open WebUI
 │   │   └── qms_main_agent.py    # QMS main agent tool for Open WebUI
@@ -1117,6 +1142,7 @@ AI-QMS/
 │   ├── extract_i18n.py          # Extract i18n strings from code
 │   ├── fill_i18n_complete.py    # Fill all missing i18n entries
 │   ├── fix_i18n_keys.py         # Fix malformed i18n keys
+│   ├── _ocr_test.py             # OCR engine smoke test
 │   ├── _update_titles.py        # Update locale title fields
 │   ├── rebuild_registry.py      # Rebuild regulatory registry
 │   ├── run_full_crawl.py        # Run full regulatory crawl
@@ -1138,10 +1164,11 @@ AI-QMS/
 │   ├── test_crawler_improvements.py    # Crawler improvement tests
 │   └── test_all_fixes.py               # Full regression test runner
 ├── tests/                       # Test suite (not in repo — excluded by .gitignore)
-├── data/                        # Runtime data (auto-generated, not in repo)
-│   ├── analysis_cache/          # Resilient report cache (JSON)
-│   ├── user_settings/           # Per-user settings (JSON)
-│   └── exports/                 # Generated Word/Excel reports
+├── data/
+│   ├── regulations/             # Bundled regulatory registry JSON (in repo, 32 regions)
+│   ├── analysis_cache/          # Resilient report cache (not in repo — auto-generated)
+│   ├── user_settings/           # Per-user settings (not in repo — auto-generated)
+│   └── exports/                 # Generated Word/Excel reports (not in repo)
 ├── uploads/                     # File upload staging (not in repo)
 └── markdown_storage/            # Converted Markdown documents (not in repo)
 ```
