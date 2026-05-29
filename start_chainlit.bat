@@ -114,15 +114,35 @@ echo.
 
 :: Auto-cleanup: Kill orphaned Chainlit Python processes on ports 3000-3010
 :: This prevents port conflicts from previous sessions that were closed improperly
+set "KILLED_ANY=0"
 for /L %%p in (3000,1,3010) do (
     for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":%%p .*LISTENING"') do (
         tasklist /FI "PID eq %%a" /FO CSV /NH 2>nul | findstr /I "python" >nul
         if not errorlevel 1 (
             echo [INFO] Found orphaned Python process on port %%p ^(PID %%a^). Cleaning up...
             taskkill /PID %%a /F >nul 2>&1
+            set "KILLED_ANY=1"
         )
     )
 )
+:: Wait for OS to release ports after kill (TIME_WAIT state)
+if not "%KILLED_ANY%"=="1" goto :wait_chainlit_ports_done
+echo [INFO] Waiting for ports to be released...
+set "WAIT_SEC=0"
+
+:wait_chainlit_ports_loop
+set "PORTS_BUSY=0"
+for /L %%p in (3000,1,3010) do (
+    netstat -ano 2>nul | findstr ":%%p .*LISTENING" >nul
+    if not errorlevel 1 set "PORTS_BUSY=1"
+)
+if "%PORTS_BUSY%"=="0" goto :wait_chainlit_ports_done
+if %WAIT_SEC% GEQ 10 goto :wait_chainlit_ports_done
+timeout /t 1 /nobreak >nul
+set /a WAIT_SEC+=1
+goto :wait_chainlit_ports_loop
+
+:wait_chainlit_ports_done
 
 :: Check if chainlit is installed
 "%QMS_PYTHON%" -c "import chainlit; print(f'[OK] Chainlit version: {chainlit.__version__}')" 2>nul
@@ -167,12 +187,12 @@ if errorlevel 1 (
     :: Check if Phoenix is already running on detected port
     netstat -an 2>nul | findstr ":%PHOENIX_PORT% .*LISTENING" >nul 2>&1
     if errorlevel 1 (
-        echo [INFO] Starting Phoenix server on port %PHOENIX_PORT% (gRPC: %PHOENIX_GRPC_PORT%^)...
+        echo [INFO] Starting Phoenix with watchdog on port %PHOENIX_PORT% (gRPC: %PHOENIX_GRPC_PORT%^)...
         if not exist "%PROJECT_DIR%logs\phoenix" mkdir "%PROJECT_DIR%logs\phoenix"
         set "PHOENIX_LOG=%PROJECT_DIR%logs\phoenix\%SESSION_STAMP%_phoenix.log"
-        >> "%CMD_LOG%" echo [Phoenix] Starting on port %PHOENIX_PORT% gRPC %PHOENIX_GRPC_PORT%
-        :: Use PowerShell Start-Process to detach Phoenix from parent console — works regardless of parent console type
-        powershell -NonInteractive -Command "Start-Process '%QMS_PYTHON%' -ArgumentList '-m','phoenix.server.main','serve','--grpc-port','%PHOENIX_GRPC_PORT%' -WindowStyle Minimized"
+        >> "%CMD_LOG%" echo [Phoenix] Starting watchdog on port %PHOENIX_PORT% gRPC %PHOENIX_GRPC_PORT%
+        :: Launch phoenix_watchdog.bat in a separate minimized window — it will auto-restart Phoenix on crash
+        start "AI-QMS Phoenix Watchdog" /min cmd /c ""%PROJECT_DIR%phoenix_watchdog.bat" "%QMS_PYTHON%" %PHOENIX_PORT% %PHOENIX_GRPC_PORT% "%PROJECT_DIR%" "%PHOENIX_LOG%""
         call :wait_for_phoenix
     ) else (
         echo [OK] Phoenix already running on port %PHOENIX_PORT%

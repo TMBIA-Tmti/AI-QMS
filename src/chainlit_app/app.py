@@ -220,6 +220,27 @@ def get_phoenix_project(profile: str = "") -> str:
     return PHOENIX_PROJECT_MAP.get(profile, PHOENIX_DEFAULT_PROJECT)
 
 
+_PHOENIX_ALLOWED_PORTS = frozenset(range(6006, 6017))
+_PHOENIX_ALLOWED_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+
+
+def _verify_phoenix_http(port: int) -> bool:
+    """Verify Phoenix is actually serving HTTP (not just TCP-open zombie process).
+
+    Only allows ports in the expected Phoenix range (6006-6016) as a
+    defense-in-depth measure against localhost SSRF via crafted env vars.
+    """
+    import urllib.request
+    if port not in _PHOENIX_ALLOWED_PORTS:
+        return False
+    try:
+        req = urllib.request.Request(f"http://localhost:{port}/", method="GET")
+        with urllib.request.urlopen(req, timeout=1.5) as resp:
+            return resp.status < 500
+    except Exception:
+        return False
+
+
 def _detect_phoenix_endpoint() -> str | None:
     """Auto-detect Phoenix endpoint by scanning ports 6006-6016.
 
@@ -228,30 +249,54 @@ def _detect_phoenix_endpoint() -> str | None:
       2. Scan ports 6006-6016 for a running Phoenix server
       3. Return None — no server found, tracing will be skipped
 
-    Returns None when no server is reachable so the caller can skip
-    registration entirely (avoids 10-second span-export timeouts per call).
+    Validates both TCP connectivity AND HTTP response to detect zombie processes
+    (processes that hold a port open but no longer serve HTTP requests).
+    Only accepts localhost endpoints to prevent trace exfiltration to remote hosts.
     """
     import socket
+    from urllib.parse import urlparse
 
     # 1. Check environment variable first (set by .bat launcher)
     env_endpoint = os.getenv("PHOENIX_COLLECTOR_ENDPOINT")
     if env_endpoint:
-        return env_endpoint
+        _parsed = urlparse(env_endpoint)
+        if _parsed.hostname not in _PHOENIX_ALLOWED_HOSTS:
+            print(
+                f"[WARN] PHOENIX_COLLECTOR_ENDPOINT points to non-local host "
+                f"'{_parsed.hostname}'. Ignoring for security."
+            )
+            env_endpoint = None
+        else:
+            try:
+                port = int(_parsed.port or 6006)
+            except (TypeError, ValueError):
+                port = 6006
+            if _verify_phoenix_http(port):
+                return env_endpoint
+            print(
+                f"[WARN] PHOENIX_COLLECTOR_ENDPOINT set but server not responding on port {port}. "
+                "Scanning for Phoenix on other ports..."
+            )
 
-    # 2. Scan ports 6006-6016 for a running Phoenix server
+    # 2. Scan ports 6006-6016 — verify both TCP + HTTP
     for port in range(6006, 6017):
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 s.settimeout(0.3)
                 if s.connect_ex(("localhost", port)) == 0:
-                    endpoint = f"http://localhost:{port}/v1/traces"
-                    if port != 6006:
-                        print(f"[INFO] Phoenix detected on non-default port {port}")
-                    return endpoint
+                    if _verify_phoenix_http(port):
+                        endpoint = f"http://localhost:{port}/v1/traces"
+                        if port != 6006:
+                            print(f"[INFO] Phoenix detected on non-default port {port}")
+                        return endpoint
+                    print(
+                        f"[WARN] Port {port}: TCP open but HTTP not responding "
+                        "(zombie process?). Skipping."
+                    )
         except Exception:
             continue
 
-    # 3. No server found — return None to suppress registration
+    # 3. No healthy server found
     return None
 
 
@@ -287,6 +332,7 @@ try:
 
         _phoenix_using_project = dangerously_using_project
         _phoenix_using_attributes = using_attributes
+        _phoenix_active_endpoint = _phoenix_endpoint
         PHOENIX_ENABLED = True
         print(
             f"[OK] Phoenix multi-project tracing enabled → {_phoenix_endpoint}"
@@ -339,6 +385,7 @@ except ImportError:
             _phoenix_tracer = _phoenix_tracer_provider.get_tracer("ai-qms-custom")
             _phoenix_using_project = dangerously_using_project
             _phoenix_using_attributes = using_attributes
+            _phoenix_active_endpoint = _phoenix_endpoint
             PHOENIX_ENABLED = True
             print(
                 f"[OK] Phoenix auto-installed and enabled → {_phoenix_endpoint}"
@@ -350,6 +397,123 @@ except Exception as e:
     print(
         f"[WARN] Phoenix tracing init failed: {e}. App will continue without tracing."
     )
+
+# ============================================================
+# Phoenix Circuit Breaker — silences log flood after server crash
+# ============================================================
+class _PhoenixCircuitBreaker(logging.Handler):
+    """Monitors OTLP export errors and trips PHOENIX_ENABLED=False after threshold.
+
+    Without this, a crashed Phoenix server causes ~170 ERROR log entries over
+    15 hours (every ~5 minutes) as the BatchSpanProcessor keeps retrying.
+    After _PHOENIX_CB_THRESHOLD consecutive failures, tracing is disabled and
+    the operator is prompted to restart Phoenix and run /phoenix to reconnect.
+    """
+
+    def __init__(self, threshold: int = 5):
+        super().__init__(level=logging.ERROR)
+        self._failures = 0
+        self._threshold = threshold
+        self._tripped = False
+
+    def emit(self, record: logging.LogRecord) -> None:
+        global PHOENIX_ENABLED
+        if self._tripped:
+            return
+        msg = record.getMessage()
+        if "Exception while exporting" in msg or "ReadTimeout" in msg:
+            self._failures += 1
+            if self._failures >= self._threshold:
+                self._tripped = True
+                PHOENIX_ENABLED = False
+                logging.getLogger(__name__).warning(
+                    "[Phoenix] Circuit breaker tripped after %d consecutive export failures. "
+                    "LLM tracing disabled. Restart Phoenix server, then type /phoenix to reconnect.",
+                    self._threshold,
+                )
+
+    def reset(self) -> None:
+        self._failures = 0
+        self._tripped = False
+
+
+_phoenix_cb_handler = _PhoenixCircuitBreaker(_PHOENIX_CB_THRESHOLD)
+_otel_logger = logging.getLogger("opentelemetry.sdk._shared_internal")
+_otel_logger.addHandler(_phoenix_cb_handler)
+
+
+_last_phoenix_reconnect_time: float = 0.0
+_PHOENIX_RECONNECT_COOLDOWN = 30.0  # seconds between /phoenix reconnect attempts
+
+
+async def _try_reconnect_phoenix() -> bool:
+    """Attempt to reconnect to a (possibly restarted) Phoenix server.
+
+    Called by the /phoenix command handler. Returns True if reconnect succeeded.
+    Shuts down the previous tracer provider before registering a new one.
+    Uninstruments LiteLLM before re-instrumenting to prevent double-span generation.
+    Runs I/O-bound endpoint detection off the event loop via run_in_executor.
+    """
+    global PHOENIX_ENABLED, _phoenix_using_project, _phoenix_using_attributes
+    global _phoenix_tracer, _phoenix_tracer_provider, _phoenix_active_endpoint
+    global _last_phoenix_reconnect_time
+
+    import time
+
+    try:
+        from phoenix.otel import register as phoenix_register
+        from openinference.instrumentation.litellm import LiteLLMInstrumentor
+        from openinference.instrumentation import (
+            dangerously_using_project,
+            using_attributes,
+        )
+    except ImportError:
+        return False
+
+    # Run the synchronous endpoint detection off the event loop
+    endpoint = await asyncio.get_running_loop().run_in_executor(
+        None, _detect_phoenix_endpoint
+    )
+    if endpoint is None:
+        return False
+
+    # Shutdown previous provider gracefully
+    if _phoenix_tracer_provider is not None:
+        try:
+            _phoenix_tracer_provider.shutdown()
+        except Exception:
+            pass
+
+    try:
+        # Uninstrument first to prevent double-span generation on re-instrument
+        try:
+            LiteLLMInstrumentor().uninstrument()
+        except Exception:
+            pass
+
+        _phoenix_tracer_provider = phoenix_register(
+            project_name=PHOENIX_DEFAULT_PROJECT,
+            endpoint=endpoint,
+            batch=True,
+        )
+        LiteLLMInstrumentor().instrument(tracer_provider=_phoenix_tracer_provider)
+        _phoenix_tracer = _phoenix_tracer_provider.get_tracer("ai-qms-custom")
+        _phoenix_using_project = dangerously_using_project
+        _phoenix_using_attributes = using_attributes
+        _phoenix_active_endpoint = endpoint
+        PHOENIX_ENABLED = True
+        _phoenix_cb_handler.reset()
+        _last_phoenix_reconnect_time = time.monotonic()
+        logging.getLogger(__name__).info(
+            "[Phoenix] Reconnected → %s (projects: %s)",
+            endpoint,
+            ", ".join(PHOENIX_PROJECT_MAP.values()),
+        )
+        return True
+    except Exception as e:
+        logging.getLogger(__name__).warning("[Phoenix] Reconnect failed: %s", e)
+        return False
+
 
 from contextlib import contextmanager
 
@@ -2972,8 +3136,18 @@ async def _daily_audit_background_scheduler():
 
                 llm_fn = _get_llm_completion_fn_standalone()
                 if llm_fn is None:
+                    for _retry in range(3):
+                        _logger.warning(
+                            "[DailyAuditScheduler] No LLM function available, "
+                            "retrying in 5m... (%d/3)", _retry + 1
+                        )
+                        await asyncio.sleep(300)
+                        llm_fn = _get_llm_completion_fn_standalone()
+                        if llm_fn is not None:
+                            break
+                if llm_fn is None:
                     _logger.warning(
-                        "[DailyAuditScheduler] No LLM function available, skipping"
+                        "[DailyAuditScheduler] No LLM function after 3 retries, skipping"
                     )
                     await asyncio.sleep(3600)
                     continue
@@ -4082,8 +4256,20 @@ async def handle_status() -> str:
     provider_name = cl.user_session.get("provider_name", "N/A")
     model_name = cl.user_session.get("model_name", "N/A")
 
-    phoenix_status = "✅ Active (Multi-Project)" if PHOENIX_ENABLED else "❌ Disabled"
-    phoenix_url = _detect_phoenix_endpoint().replace("/v1/traces", "")
+    if PHOENIX_ENABLED and _phoenix_active_endpoint:
+        phoenix_url = _phoenix_active_endpoint.replace("/v1/traces", "")
+        phoenix_status = f"✅ Active (Multi-Project) — {phoenix_url}"
+    else:
+        # Check if Phoenix is available but not connected (runs in thread to avoid blocking)
+        available_endpoint = await asyncio.get_running_loop().run_in_executor(
+            None, _detect_phoenix_endpoint
+        )
+        if available_endpoint is not None:
+            phoenix_url = available_endpoint.replace("/v1/traces", "")
+            phoenix_status = f"🟡 Available but not connected ({phoenix_url}) — type /phoenix to connect"
+        else:
+            phoenix_status = "❌ Offline — start Phoenix server (start_phoenix.bat)"
+
     phoenix_projects = (
         ", ".join(PHOENIX_PROJECT_MAP.values()) if PHOENIX_ENABLED else "N/A"
     )
@@ -4095,7 +4281,7 @@ async def handle_status() -> str:
 - **{t("status.model")}**: {model_name}
 - **{t("status.ocr")}**: {t("status.ocr_ready")}
 - **{t("status.ui")}**: Chainlit
-- **Phoenix Tracing**: {phoenix_status} ({phoenix_url})
+- **Phoenix Tracing**: {phoenix_status}
 - **Phoenix Projects**: {phoenix_projects}"""
 
 
@@ -10255,6 +10441,31 @@ async def on_message(message: cl.Message):
     if _match_cmd(text, "cmd.status") or _match_cmd_exact(text, "cmd.status"):
         response = await handle_status()
         await cl.Message(content=response).send()
+        return
+
+    # Phoenix reconnect
+    if text.lower().strip() in {"/phoenix", "phoenix", "/phoenix reconnect"}:
+        import time as _time
+        _since_last = _time.monotonic() - _last_phoenix_reconnect_time
+        if _since_last < _PHOENIX_RECONNECT_COOLDOWN:
+            _wait_remaining = int(_PHOENIX_RECONNECT_COOLDOWN - _since_last)
+            await cl.Message(
+                content=f"⏳ Please wait {_wait_remaining}s before reconnecting again."
+            ).send()
+            return
+        _reconnect_msg = await cl.Message(content="🔄 Reconnecting to Phoenix...").send()
+        success = await _try_reconnect_phoenix()
+        if success:
+            _phoenix_url = (_phoenix_active_endpoint or "").replace("/v1/traces", "")
+            await cl.Message(
+                content=f"✅ Phoenix reconnected → {_phoenix_url}\n"
+                f"Projects: {', '.join(PHOENIX_PROJECT_MAP.values())}"
+            ).send()
+        else:
+            await cl.Message(
+                content="❌ Phoenix reconnect failed. Make sure Phoenix server is running:\n"
+                "```\nstart_phoenix.bat\n```\nor check the Phoenix log in `logs/phoenix/`."
+            ).send()
         return
 
     # Report — show links to recent analysis reports at any time
