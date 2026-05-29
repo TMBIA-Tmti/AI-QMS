@@ -22,7 +22,7 @@ TMBIA-Tmti 深知醫療器材法規人員在品質管理實務中面對的挑戰
 
 系統採用**主 Agent + 子 Agent** 架構設計，由主 Agent 統籌品質管理系統各模組，文件管制子 Agent 負責文件的上傳、OCR 辨識、版本偵測、簽章驗證及稽核紀錄等作業。
 
-> **📌 開發進度：Phase 1（文件管制子 Agent）✅ 已完成 v3.6.0。Phase 2（稽核子 Agent）🔜 開發中。**
+> **📌 開發進度：Phase 1（文件管制子 Agent）✅ 已完成 v5.0.0。Phase 2（稽核子 Agent）🔜 開發中。**
 
 ## Logo 設計理念
 
@@ -68,32 +68,13 @@ Eira 的 Logo 由兩個核心符號交織而成，每一筆都承載著這個專
 - 不符合事項管理
 - 稽核報告自動生成
 
-### v3.6.0 新增功能
-- **SQLite WAL 後端** — ACID 保證，取代 JSON 檔案資料庫
-- **Docling 表格解析引擎** — PDF 表格結構還原（>100KB），MarkItDown fallback（<100KB）
-- **Ollama 自動偵測** — 零設定本機 Embedding
-- **Embedding 三級降級** — BGE-M3 → nomic-embed-text → multilingual-MiniLM
-- **雙模式任務派發** — asyncio (standalone) / Celery (server) 切換
-- **LightRAG 知識圖譜整合** — 跨文件語意搜尋基礎
-
-### v3.5.0 新增功能（強烈建議更新）
-- **法規地區自動查詢** — 查詢指定地區之最新法規資訊，與本地品質文件進行交叉分析與合規評估
-
-### v3.4.0 新增功能
-- **Arize Phoenix 可觀測性** — 即時追蹤 LLM Token 用量、延遲、成本
-- **一鍵啟動 + 自動更新** — `start.bat` 同時啟動 Chainlit + Phoenix，自動安裝新套件
-
-### v3.3.0 新增功能
-- **`/web` 網路搜尋** — `/web 關鍵字` 搜尋網路最新資訊，結合本地文件作為 LLM 上下文
-- **來源可信度排序** — 搜尋結果依來源權威性自動排序，醫療法規產業特別適用：
-  - 🏛️ Tier 0（最高）：ISO、FDA、EMA、WHO 等國際標準與法規機構
-  - 🏛️ Tier 1：政府網域（.gov、.go.jp 等）
-  - 🎓 Tier 2：學術機構（.edu、.ac.uk 等）
-  - ✅ Tier 3：驗證機構與學術出版商
-  - 🌐 Tier 4：一般搜尋結果、⬇️ Tier 9：Wikipedia
-
-### v3.2.0 新增功能
-- **20 國語言 UI** — 支援 20 種語言即時切換
+### v5.0.0 新增功能（2026-05-25）
+- **跨審查與深度報告匯出** — 跨審查記錄、深度分析報告 Word/Excel 匯出（`crossexam_export.py`）
+- **N 國 × ISO 13485 交叉對照表匯出** — Word/Excel 色彩編碼交叉對照表，含唯一需求工作表（`crossref_export.py`）
+- **法規更新報告匯出** — 法規爬取更新結果 Word/Excel 匯出（`regulatory_update_export.py`）
+- **完整使用者手冊** — 繁體中文 + 英文技術手冊（Markdown + Word），12–13 章節涵蓋安裝、LLM 選擇、分析管線、稽核問題設計、32 國法規爬取、HTML 報告 UI
+- **每日跨審查持久儲存** — 跨審查記錄跨 session 持久化，重連後自動恢復
+- **使用者設定強化** — 每位使用者獨立設定，Fernet AES-256 加密 API 金鑰儲存，TTL 自動過期機制
 
 ## 系統架構
 
@@ -351,7 +332,7 @@ TMBIA-Tmti understands the challenges that medical device regulatory professiona
 
 The system adopts a **Main Agent + Sub-Agent** architecture, where the Main Agent orchestrates all QMS modules, and the Document Control Sub-Agent handles document upload, OCR processing, version detection, signature verification, and audit logging.
 
-> **📌 Development Status: Phase 1 (Document Control Sub-Agent) ✅ complete v3.6.0. Phase 2 (Audit Sub-Agent) 🔜 in development.**
+> **📌 Development Status: Phase 1 (Document Control Sub-Agent) ✅ complete v5.0.0. Phase 2 (Audit Sub-Agent) 🔜 in development.**
 
 ## Logo Design
 
@@ -395,32 +376,13 @@ The two symbols **overlap and merge** in the logo — the pen nib touches the se
 - Non-conformance management
 - Automated audit report generation
 
-### v3.6.0 New Features
-- **SQLite WAL Backend** — ACID guarantees, replacing JSON file database
-- **Docling Table Parsing Engine** — PDF table structure restoration (>100KB), MarkItDown fallback (<100KB)
-- **Ollama Auto-Detection** — Zero-config local Embedding
-- **3-Tier Embedding Fallback** — BGE-M3 → nomic-embed-text → multilingual-MiniLM
-- **Dual-Mode Task Dispatch** — asyncio (standalone) / Celery (server) switching
-- **LightRAG Knowledge Graph Integration** — Cross-document semantic search foundation
-
-### v3.5.0 New Features (Strongly Recommended Update)
-- **Regulatory Region Auto-Query** — Retrieves latest regulatory info for selected regions and cross-analyzes with local quality documents for compliance assessment
-
-### v3.4.0 New Features
-- **Arize Phoenix Observability** — Real-time LLM token, latency, and cost tracking
-- **One-Click Launch + Auto-Update** — `start.bat` launches Chainlit + Phoenix together, auto-installs new packages
-
-### v3.3.0 New Features
-- **`/web` Web Search** — `/web keyword` searches the web for latest info, combined with local documents as LLM context
-- **Source Credibility Ranking** — Auto-ranks results by source authority, optimized for medical regulatory industry:
-  - 🏛️ Tier 0 (Highest): ISO, FDA, EMA, WHO and other international standards/regulatory bodies
-  - 🏛️ Tier 1: Government domains (.gov, .go.jp, etc.)
-  - 🎓 Tier 2: Academic institutions (.edu, .ac.uk, etc.)
-  - ✅ Tier 3: Certification bodies & academic publishers
-  - 🌐 Tier 4: General results, ⬇️ Tier 9: Wikipedia
-
-### v3.2.0 New Features
-- **20-Language UI** — Supports 20 languages with real-time switching
+### v5.0.0 New Features (2026-05-25)
+- **Cross-Examination & Deep Report Export** — Word/Excel export for cross-exam records and full deep analysis reports (`crossexam_export.py`)
+- **N-Country × ISO 13485 Cross-Reference Export** — Color-coded Word/Excel cross-reference table with unique requirements worksheet (`crossref_export.py`)
+- **Regulatory Update Report Export** — Word/Excel export for regulatory crawl update results (`regulatory_update_export.py`)
+- **Complete User Manual** — Traditional Chinese + English technical manual (Markdown + Word), 12–13 chapters covering installation, LLM selection, analysis pipeline, audit question design, 32-country regulatory crawling, and HTML report UI
+- **Daily Cross-Examination Persistent Storage** — Cross-exam records persist across sessions and reconnects
+- **User Settings Enhancement** — Per-user settings with Fernet AES-256 API key encryption and TTL auto-expiry
 
 ## System Architecture
 
@@ -678,7 +640,7 @@ TMBIA-Tmti は、医療機器の法規担当者が品質管理において直面
 
 本システムは**メイン Agent + サブ Agent** アーキテクチャを採用しており、メイン Agent が品質管理システム全体のモジュールを統括し、文書管理サブ Agent が文書のアップロード、OCR 処理、バージョン検出、署名検証、監査ログなどの業務を担当します。
 
-> **📌 開発状況：Phase 1（文書管理サブ Agent）✅ v3.6.0 完了。Phase 2（監査サブ Agent）🔜 開発中。**
+> **📌 開発状況：Phase 1（文書管理サブ Agent）✅ v5.0.0 完了。Phase 2（監査サブ Agent）🔜 開発中。**
 
 ## ロゴデザイン
 
@@ -722,32 +684,13 @@ Eira のロゴは、プロジェクトの使命を体現する 2 つのコアシ
 - 不適合管理
 - 監査報告書の自動生成
 
-### v3.6.0 新機能
-- **SQLite WAL バックエンド** — ACID 保証、JSON ファイルデータベースを置換
-- **Docling テーブル解析エンジン** — PDF テーブル構造復元（>100KB）、MarkItDown フォールバック（<100KB）
-- **Ollama 自動検出** — ゼロ設定ローカル Embedding
-- **Embedding 3段階フォールバック** — BGE-M3 → nomic-embed-text → multilingual-MiniLM
-- **デュアルモードタスクディスパッチ** — asyncio (standalone) / Celery (server) 切替
-- **LightRAG ナレッジグラフ統合** — 文書横断セマンティック検索基盤
-
-### v3.5.0 新機能（強く推奨されるアップデート）
-- **法規地域自動照会** — 指定地域の最新法規情報を取得し、ローカル品質文書とのクロス分析・準拠評価を実施
-
-### v3.4.0 新機能
-- **Arize Phoenix 可観測性** — リアルタイム LLM トークン・レイテンシ・コスト追跡
-- **ワンクリック起動 + 自動更新** — `start.bat` で Chainlit + Phoenix 同時起動、不足パッケージ自動インストール
-
-### v3.3.0 新機能
-- **`/web` ウェブ検索** — `/web キーワード` でウェブ最新情報を取得、ローカル文書と組み合わせて LLM コンテキストとして使用
-- **ソース信頼性ランキング** — 検索結果をソース権威性で自動ランキング、医療法規産業に最適：
-  - 🏛️ Tier 0（最高）：ISO、FDA、EMA、WHO 等国際標準・法規機関
-  - 🏛️ Tier 1：政府ドメイン（.gov、.go.jp 等）
-  - 🎓 Tier 2：学術機関（.edu、.ac.uk 等）
-  - ✅ Tier 3：認証機関・学術出版社
-  - 🌐 Tier 4：一般結果、⬇️ Tier 9：Wikipedia
-
-### v3.2.0 新機能
-- **20言語 UI** — 20言語対応のリアルタイム切替
+### v5.0.0 新機能（2026-05-25）
+- **クロス審査・深度レポートエクスポート** — クロス審査記録と深度分析レポートの Word/Excel エクスポート（`crossexam_export.py`）
+- **N 国 × ISO 13485 クロスリファレンス表エクスポート** — 色分けされた Word/Excel クロスリファレンス表（固有要件シート付き）（`crossref_export.py`）
+- **法規更新レポートエクスポート** — 法規クロール更新結果の Word/Excel エクスポート（`regulatory_update_export.py`）
+- **完全ユーザーマニュアル** — 繁体字中国語 + 英語技術マニュアル（Markdown + Word）、12–13 章（インストール、LLM 選択、分析パイプライン、監査質問設計、32 カ国規制クロール、HTML レポート UI）
+- **毎日クロス審査永続ストレージ** — クロス審査記録がセッション間で永続化、再接続後に自動復元
+- **ユーザー設定強化** — ユーザーごとの独立設定、Fernet AES-256 API キー暗号化、TTL 自動期限切れ
 
 ## システムアーキテクチャ
 
