@@ -1004,9 +1004,6 @@ AI-QMS/
 ├── start.bat                    # Main launcher / 主啟動腳本
 ├── start_chainlit.bat           # Chainlit direct launcher (+ Phoenix)
 ├── start_phoenix.bat            # Phoenix standalone launcher
-├── phoenix_watchdog.bat         # Phoenix auto-restart watchdog
-├── sync_to_test.bat             # Sync source to test/release directory
-├── chainlit.md                  # Chainlit welcome message
 ├── .gitignore
 ├── .chainlit/                   # Chainlit configuration
 │   └── config.toml
@@ -1140,8 +1137,7 @@ AI-QMS/
 │   ├── convert_terminal_log.ps1        # Convert terminal log format
 │   ├── test_crawler_improvements.py    # Crawler improvement tests
 │   └── test_all_fixes.py               # Full regression test runner
-├── tests/                       # Test suite
-│   └── test_regulation_analyzer.py     # Regulation analyzer tests
+├── tests/                       # Test suite (not in repo — excluded by .gitignore)
 ├── data/                        # Runtime data (auto-generated, not in repo)
 │   ├── analysis_cache/          # Resilient report cache (JSON)
 │   ├── user_settings/           # Per-user settings (JSON)
