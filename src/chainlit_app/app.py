@@ -202,6 +202,9 @@ PHOENIX_ENABLED = False
 _phoenix_using_project = None  # Will hold dangerously_using_project if available
 _phoenix_using_attributes = None  # Will hold using_attributes if available
 _phoenix_tracer = None  # Will hold OTel tracer for custom (non-LLM) spans
+_phoenix_tracer_provider = None  # Will hold tracer provider for reconnect/shutdown
+_phoenix_active_endpoint = None  # Active endpoint URL for status display
+_PHOENIX_CB_THRESHOLD = 5  # Circuit breaker: trips after N consecutive export failures
 
 # Agent profile → Phoenix project name mapping (extensible for future agents)
 PHOENIX_PROJECT_MAP = {
@@ -1027,9 +1030,21 @@ def get_system_prompt(profile: str, lang: str = None) -> str:
 重要：回答に URL やウェブアドレスを表示しないでください。
 文書データベースの内容に基づいて質問に回答してください。ユーザーは /web コマンドでウェブ検索ができます。関連情報がない場合は明確にその旨を伝え、回答を捏造しないでください。"""
 
-    else:  # en-US (default for all other languages)
+    else:  # en-US and all other languages not handled above (fr-FR, de-DE, ko-KR, etc.)
+        _LANG_NAMES = {
+            "zh-CN": "Simplified Chinese", "ko-KR": "Korean", "fr-FR": "French",
+            "de-DE": "German", "es-ES": "Spanish", "pt-BR": "Portuguese (Brazilian)",
+            "it-IT": "Italian", "ru-RU": "Russian", "ar-SA": "Arabic",
+            "hi-IN": "Hindi", "th-TH": "Thai", "vi-VN": "Vietnamese",
+            "id-ID": "Indonesian", "ms-MY": "Malay", "tr-TR": "Turkish",
+            "nl-NL": "Dutch", "pl-PL": "Polish",
+        }
+        _lang_instr = (
+            f"\nIMPORTANT: Always respond in {_LANG_NAMES[lang]}."
+            if lang in _LANG_NAMES else ""
+        )
         if profile == "Doc Control":
-            return """You are the AI assistant for the AI-QMS Document Control Sub-System (v3.3.0).
+            return f"""You are the AI assistant for the AI-QMS Document Control Sub-System (v3.3.0).
 
 Your responsibilities include:
 1. Document upload and OCR processing (auto-save to Markdown DB)
@@ -1055,9 +1070,9 @@ Available commands:
 
 Upload files: Drag & drop or upload files in the chat to start OCR processing.
 
-Answer questions based on document database content. Users can use the /web command to search the web for the latest information. If no relevant information is found, clearly state so. Do not fabricate answers."""
+Answer questions based on document database content. Users can use the /web command to search the web for the latest information. If no relevant information is found, clearly state so. Do not fabricate answers.{_lang_instr}"""
         else:
-            return """You are the main AI assistant for the AI-QMS Quality Management System (v3.3.0).
+            return f"""You are the main AI assistant for the AI-QMS Quality Management System (v3.3.0).
 
 Your responsibilities include:
 1. **Document Control** - Document upload, MarkItDown conversion, version control (all Office formats)
@@ -1079,7 +1094,7 @@ Available commands:
 - "status" - System status
 
 Important: Never display any URLs in your responses.
-Answer questions based on document database content. Users can use the /web command to search the web for the latest information. If no relevant information is found, clearly state so. Do not fabricate answers."""
+Answer questions based on document database content. Users can use the /web command to search the web for the latest information. If no relevant information is found, clearly state so. Do not fabricate answers.{_lang_instr}"""
 
 
 # ============================================================
@@ -10052,7 +10067,7 @@ async def on_message(message: cl.Message):
                     "pending_upload_files", [(el.name, el.path) for el in file_elements]
                 )
                 user_name = cl.user_session.get("user_name", "")
-                await _ask_sig_detection_toggle(user_name or "使用者")
+                await _ask_sig_detection_toggle(user_name or t("settings.user_label"))
                 return
 
             # Level range and watermark are asked AFTER upload completes

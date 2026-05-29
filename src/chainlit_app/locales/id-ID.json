@@ -1,4 +1,4 @@
-{
+﻿{
   "allrecords.error": "Eira：Tidak dapat membaca daftar: {error}",
   "allrecords.export_excel": "Eira：📋 Laporan Excel semua catatan telah dibuat ({count} dokumen).",
   "allrecords.export_hint": "Eira：📋 Format yang didukung:\n- 'unduh semua catatan word'\n- 'unduh semua catatan excel'",
@@ -129,6 +129,7 @@
   "settings.testing_connection": "Eira：🔄 Menguji koneksi LLM...",
   "settings.updated": "Eira：⚙️ Pengaturan LLM diperbarui\n- Penyedia: {provider}\n- Model: {model}\n- Model tersedia: {count}",
   "settings.updated_short": "Eira：⚙️ Pengaturan LLM diperbarui\n- Penyedia: {provider}\n- Model: {model}",
+  "settings.user_label": "Pengguna",
   "sig.detected_prefix": "Terdeteksi",
   "sig.empty_fields": "Bidang tanda tangan terdeteksi tetapi konten kosong atau tidak dapat dikenali",
   "sig.keyword_detected": "Kata kunci terkait tanda tangan terdeteksi: {keywords}",

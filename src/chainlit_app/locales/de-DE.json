@@ -1,4 +1,4 @@
-{
+﻿{
   "allrecords.error": "Eira：Liste kann nicht gelesen werden: {error}",
   "allrecords.export_excel": "Eira：📋 Alle Aufzeichnungen Excel-Bericht erstellt ({count} Dokumente).",
   "allrecords.export_hint": "Eira：📋 Unterstützte Formate:\n- 'Aufzeichnungen herunterladen word'\n- 'Aufzeichnungen herunterladen excel'",
@@ -129,6 +129,7 @@
   "settings.testing_connection": "Eira：🔄 LLM-Verbindung wird getestet...",
   "settings.updated": "Eira：⚙️ LLM-Einstellungen aktualisiert\n- Anbieter: {provider}\n- Modell: {model}\n- Verfügbare Modelle: {count}",
   "settings.updated_short": "Eira：⚙️ LLM-Einstellungen aktualisiert\n- Anbieter: {provider}\n- Modell: {model}",
+  "settings.user_label": "Benutzer",
   "sig.detected_prefix": "Erkannt",
   "sig.empty_fields": "Unterschriftsfelder erkannt, aber Inhalt ist leer oder nicht erkennbar",
   "sig.keyword_detected": "Unterschriftsbezogene Schlüsselwörter erkannt: {keywords}",

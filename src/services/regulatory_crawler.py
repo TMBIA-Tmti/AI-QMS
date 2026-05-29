@@ -3463,32 +3463,32 @@ def _classify_failure(error: Exception, url: str) -> str:
     if isinstance(error, httpx.HTTPStatusError):
         status = error.response.status_code
         if status == 403:
-            return "HTTP 403 Forbidden — 網站拒絕存取 (可能封鎖爬蟲)"
+            return "HTTP 403 Forbidden — site blocked access (possible bot block)"
         elif status == 429:
-            return "HTTP 429 Too Many Requests — 請求過於頻繁"
+            return "HTTP 429 Too Many Requests — rate limited"
         elif status == 404:
-            return "HTTP 404 Not Found — 頁面不存在或已移動"
+            return "HTTP 404 Not Found — page missing or moved"
         elif status == 503:
-            return "HTTP 503 Service Unavailable — 伺服器暫時無法使用"
+            return "HTTP 503 Service Unavailable — server temporarily unavailable"
         else:
-            return f"HTTP {status} — 伺服器回應錯誤"
+            return f"HTTP {status} — server error response"
 
     if isinstance(error, httpx.TimeoutException):
-        return f"連線逾時 (超過 {_REQUEST_TIMEOUT} 秒) — 網站回應過慢或無法連線"
+        return f"Connection timeout (exceeded {_REQUEST_TIMEOUT}s) — site too slow or unreachable"
 
     if isinstance(error, httpx.ConnectError):
-        return "無法連線至伺服器 — DNS 解析失敗或網路問題"
+        return "Cannot connect to server — DNS resolution failed or network error"
 
     if "ssl" in err_str or "certificate" in err_str:
-        return "SSL 憑證錯誤 — 網站安全憑證問題"
+        return "SSL certificate error — site security certificate issue"
 
     if "captcha" in err_str:
-        return "需要驗證碼 (CAPTCHA) — 無法自動爬取"
+        return "CAPTCHA required — cannot crawl automatically"
 
     if "javascript" in err_str or "spa" in err_str:
-        return "需要 JavaScript 渲染 — 純 HTTP 請求無法取得內容"
+        return "JavaScript rendering required — plain HTTP request cannot retrieve content"
 
-    return f"爬取失敗: {type(error).__name__}: {str(error)[:200]}"
+    return f"Crawl failed: {type(error).__name__}: {str(error)[:200]}"
 
 
 # ============================================================
@@ -4101,8 +4101,8 @@ async def _crawl_tier1_api(
             result["content_source"] = "live"
         else:
             result["failure_reason"] = (
-                "頁面內容為空或需要 JavaScript 渲染 — "
-                "網站可能為 SPA 架構，純 HTTP 請求無法取得實際內容"
+                "Page content empty or JavaScript rendering required — "
+                "site may be SPA architecture; plain HTTP request cannot retrieve content"
             )
 
     except Exception as e:
@@ -5100,8 +5100,8 @@ async def _crawl_tier2_httpx(
                     )
         else:
             result["failure_reason"] = (
-                "頁面內容為空或需要 JavaScript 渲染 — "
-                "網站可能為 SPA 架構，純 HTTP 請求無法取得實際內容"
+                "Page content empty or JavaScript rendering required — "
+                "site may be SPA architecture; plain HTTP request cannot retrieve content"
             )
 
     except Exception as e:
@@ -5199,15 +5199,15 @@ async def _crawl_tier3_jina(
             elif _jina_error:
                 _warn_line = content.split("\n")[0][:120]
                 result["failure_reason"] = (
-                    f"Jina Reader 回傳 bot-block/challenge — {_warn_line}"
+                    f"Jina Reader returned bot-block/challenge — {_warn_line}"
                 )
             else:
                 result["failure_reason"] = (
-                    "Jina Reader 回傳內容為空 — 網站可能完全封鎖爬取"
+                    "Jina Reader returned empty content — site may be fully blocking crawls"
                 )
         else:
             result["failure_reason"] = (
-                f"Jina Reader HTTP {response.status_code} — 無法透過 Jina 取得內容"
+                f"Jina Reader HTTP {response.status_code} — cannot retrieve content via Jina"
             )
 
     except Exception as e:
@@ -5329,7 +5329,7 @@ class AsyncRegulatoryUpdateCrawler:
                     self._client, site, region, self._etag_cache
                 )
                 if result.get("crawl_status") != "success":
-                    primary_reason = result.get("failure_reason", "未知")
+                    primary_reason = result.get("failure_reason", "unknown")
                     # Try fallback_urls (e.g. legislation.gov.uk PDF when CELLAR blocked)
                     fb = await self._try_fallback_urls(site, region, primary_reason)
                     if fb:
@@ -5338,8 +5338,8 @@ class AsyncRegulatoryUpdateCrawler:
                     ddgs_result = await self._fallback_ddgs_search(site, region)
                     if ddgs_result.get("crawl_status") == "success":
                         ddgs_result["note"] = (
-                            f"API 失敗 ({primary_reason})"
-                            f" → DDG URL 發現成功"
+                            f"API failed ({primary_reason})"
+                            f" → DDG URL discovery succeeded"
                         )
                         return ddgs_result
                     profile = self._fallback_profile(site, region)
@@ -5356,9 +5356,9 @@ class AsyncRegulatoryUpdateCrawler:
                     and _is_regulatory_fulltext(result.get("content_markdown", ""))
                 )
                 if not _jina_content_ok:
-                    primary_reason = result.get("failure_reason") or "Jina 內容未通過法規文本驗證"
+                    primary_reason = result.get("failure_reason") or "Jina content failed regulatory text validation"
                     if result.get("crawl_status") == "success":
-                        primary_reason = "Jina 回傳內容未通過法規文本驗證（可能為 bot-block 或導覽頁）"
+                        primary_reason = "Jina content failed regulatory text validation (possible bot-block or navigation page)"
                         result["crawl_status"] = "failed"
                         result["failure_reason"] = primary_reason
                     fb = await self._try_fallback_urls(site, region, primary_reason)
@@ -5369,15 +5369,15 @@ class AsyncRegulatoryUpdateCrawler:
                         ddgs_result = await self._fallback_ddgs_search(site, region)
                         if ddgs_result.get("crawl_status") == "success":
                             ddgs_result["note"] = (
-                                f"Jina 失敗 ({primary_reason})"
-                                f" → DuckDuckGo 備援成功"
+                                f"Jina failed ({primary_reason})"
+                                f" → DuckDuckGo fallback succeeded"
                             )
                             return ddgs_result
                     profile = self._fallback_profile(site, region)
                     if profile:
                         profile["note"] = (
-                            f"Jina 失敗 ({primary_reason})"
-                            f" → 使用預設法規摘要"
+                            f"Jina failed ({primary_reason})"
+                            f" → using pre-written regulatory profile"
                         )
                         return profile
                 return result
@@ -5387,7 +5387,7 @@ class AsyncRegulatoryUpdateCrawler:
                     jina_semaphore=self._jina_semaphore,
                 )
                 if result.get("crawl_status") != "success":
-                    original_reason = result.get("failure_reason", "未知")
+                    original_reason = result.get("failure_reason", "unknown")
                     jina_result = await _crawl_tier3_jina(
                         self._client, site, region, self._jina_semaphore
                     )
@@ -5398,16 +5398,16 @@ class AsyncRegulatoryUpdateCrawler:
                     )
                     if _jina_ok:
                         jina_result["note"] = (
-                            f"httpx 失敗 ({original_reason}) → Jina 備援成功"
+                            f"httpx failed ({original_reason}) → Jina fallback succeeded"
                         )
                         return jina_result
-                    jina_fail_reason = jina_result.get("failure_reason") or "Jina 內容未通過法規文本驗證"
+                    jina_fail_reason = jina_result.get("failure_reason") or "Jina content failed regulatory text validation"
                     if jina_result.get("crawl_status") == "success":
-                        jina_fail_reason = "Jina 回傳內容未通過法規文本驗證"
+                        jina_fail_reason = "Jina content failed regulatory text validation"
                     # Try fallback_urls before DDG
                     combined_reason = (
                         f"{original_reason}"
-                        f" → Jina 失敗 ({jina_fail_reason})"
+                        f" → Jina failed ({jina_fail_reason})"
                     )
                     fb = await self._try_fallback_urls(site, region, combined_reason)
                     if fb:
@@ -5415,23 +5415,23 @@ class AsyncRegulatoryUpdateCrawler:
                     ddgs_result = await self._fallback_ddgs_search(site, region)
                     if ddgs_result.get("crawl_status") == "success":
                         ddgs_result["note"] = (
-                            f"httpx 失敗 ({original_reason})"
-                            f" → Jina 失敗 ({jina_fail_reason})"
-                            f" → DuckDuckGo 備援成功"
+                            f"httpx failed ({original_reason})"
+                            f" → Jina failed ({jina_fail_reason})"
+                            f" → DuckDuckGo fallback succeeded"
                         )
                         return ddgs_result
                     profile = self._fallback_profile(site, region)
                     if profile:
                         profile["note"] = (
-                            f"httpx 失敗 ({original_reason})"
-                            f" → Jina 失敗 ({jina_fail_reason})"
-                            f" → DuckDuckGo 亦失敗 → 使用預設法規摘要"
+                            f"httpx failed ({original_reason})"
+                            f" → Jina failed ({jina_fail_reason})"
+                            f" → DuckDuckGo also failed → using pre-written regulatory profile"
                         )
                         return profile
                     result["failure_reason"] = (
                         f"{original_reason}"
-                        f" → Jina 備援亦失敗 ({jina_fail_reason})"
-                        f" → DuckDuckGo 備援亦失敗"
+                        f" → Jina fallback also failed ({jina_fail_reason})"
+                        f" → DuckDuckGo fallback also failed"
                     )
                 return result
 
@@ -5535,7 +5535,7 @@ class AsyncRegulatoryUpdateCrawler:
 
             search_results = await asyncio.to_thread(_ddgs_search, query, 8)
             if not search_results:
-                result["failure_reason"] = "DuckDuckGo 搜尋無結果"
+                result["failure_reason"] = "DuckDuckGo search returned no results"
                 result["crawl_duration_seconds"] = round(time.time() - start, 2)
                 return result
 
@@ -5591,9 +5591,9 @@ class AsyncRegulatoryUpdateCrawler:
                 result["title"] = f"{agency} (DDG snippet reference)"
                 result["note"] = "DDG URL 全文抓取失敗 — 以搜尋摘要作為參考資料"
             else:
-                result["failure_reason"] = "DuckDuckGo 搜尋結果內容不足"
+                result["failure_reason"] = "DuckDuckGo search content insufficient"
         except Exception as e:
-            result["failure_reason"] = f"DuckDuckGo 備援失敗: {str(e)[:200]}"
+            result["failure_reason"] = f"DuckDuckGo fallback failed: {str(e)[:200]}"
         result["crawl_duration_seconds"] = round(time.time() - start, 2)
         return result
 

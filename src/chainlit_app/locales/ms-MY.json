@@ -1,4 +1,4 @@
-{
+﻿{
   "allrecords.error": "Eira：Tidak dapat membaca senarai: {error}",
   "allrecords.export_excel": "Eira：📋 Laporan Excel semua rekod telah dijana ({count} dokumen).",
   "allrecords.export_hint": "Eira：📋 Format yang disokong:\n- 'muat turun semua rekod word'\n- 'muat turun semua rekod excel'",
@@ -129,6 +129,7 @@
   "settings.testing_connection": "Eira：🔄 Menguji sambungan LLM...",
   "settings.updated": "Eira：⚙️ Tetapan LLM dikemas kini\n- Pembekal: {provider}\n- Model: {model}\n- Model tersedia: {count}",
   "settings.updated_short": "Eira：⚙️ Tetapan LLM dikemas kini\n- Pembekal: {provider}\n- Model: {model}",
+  "settings.user_label": "Pengguna",
   "sig.detected_prefix": "Dikesan",
   "sig.empty_fields": "Medan tandatangan dikesan tetapi kandungan kosong atau tidak dapat dikenali",
   "sig.keyword_detected": "Kata kunci berkaitan tandatangan dikesan: {keywords}",

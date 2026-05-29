@@ -1,4 +1,4 @@
-{
+﻿{
   "_commands.cmd.audit": [
     "文件更動紀錄",
     "稽核紀錄",
@@ -378,6 +378,7 @@
   "settings.testing_connection": "Eira：🔄 正在測試 LLM 連線...",
   "settings.updated": "Eira：⚙️ LLM 設定已更新\n- 提供商: {provider}\n- 模型: {model}\n- 可用模型數: {count}",
   "settings.updated_short": "Eira：⚙️ LLM 設定已更新\n- 提供商: {provider}\n- 模型: {model}",
+  "settings.user_label": "使用者",
   "sig.detected_prefix": "偵測到",
   "sig.empty_fields": "偵測到簽章欄位但內容為空白或無法辨識",
   "sig.keyword_detected": "偵測到簽章相關關鍵字: {keywords}",

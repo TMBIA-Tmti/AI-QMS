@@ -1,4 +1,4 @@
-{
+﻿{
   "allrecords.error": "Eira：Không thể đọc danh sách: {error}",
   "allrecords.export_excel": "Eira：📋 Đã tạo báo cáo Excel toàn bộ bản ghi ({count} tài liệu).",
   "allrecords.export_hint": "Eira：📋 Định dạng hỗ trợ:\n- 'tải bản ghi word'\n- 'tải bản ghi excel'",
@@ -129,6 +129,7 @@
   "settings.testing_connection": "Eira：🔄 Đang kiểm tra kết nối LLM...",
   "settings.updated": "Eira：⚙️ Đã cập nhật cài đặt LLM\n- Nhà cung cấp: {provider}\n- Mô hình: {model}\n- Mô hình có sẵn: {count}",
   "settings.updated_short": "Eira：⚙️ Đã cập nhật cài đặt LLM\n- Nhà cung cấp: {provider}\n- Mô hình: {model}",
+  "settings.user_label": "Người dùng",
   "sig.detected_prefix": "Phát hiện",
   "sig.empty_fields": "Phát hiện trường chữ ký nhưng nội dung trống hoặc không nhận dạng được",
   "sig.keyword_detected": "Phát hiện từ khóa liên quan đến chữ ký: {keywords}",

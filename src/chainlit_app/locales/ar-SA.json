@@ -1,4 +1,4 @@
-{
+﻿{
   "allrecords.error": "Eira：لا يمكن قراءة القائمة: {error}",
   "allrecords.export_excel": "Eira：📋 تم إنشاء تقرير Excel لجميع السجلات ({count} مستند).",
   "allrecords.export_hint": "Eira：📋 الصيغ المتاحة:\n- 'تحميل السجلات word'\n- 'تحميل السجلات excel'",
@@ -129,6 +129,7 @@
   "settings.testing_connection": "Eira：🔄 اختبار اتصال LLM...",
   "settings.updated": "Eira：⚙️ تم تحديث إعدادات LLM\n- المزود: {provider}\n- النموذج: {model}\n- النماذج المتاحة: {count}",
   "settings.updated_short": "Eira：⚙️ تم تحديث إعدادات LLM\n- المزود: {provider}\n- النموذج: {model}",
+  "settings.user_label": "مستخدم",
   "sig.detected_prefix": "تم الكشف",
   "sig.empty_fields": "تم اكتشاف حقول توقيع لكن المحتوى فارغ أو غير قابل للتعرف",
   "sig.keyword_detected": "تم اكتشاف كلمات مفتاحية متعلقة بالتوقيع: {keywords}",

@@ -1,4 +1,4 @@
-{
+﻿{
   "allrecords.error": "Eira：Nie można odczytać listy: {error}",
   "allrecords.export_excel": "Eira：📋 Raport Excel wszystkich rekordów wygenerowany ({count} dokumentów).",
   "allrecords.export_hint": "Eira：📋 Obsługiwane formaty:\n- 'pobierz rekordy word'\n- 'pobierz rekordy excel'",
@@ -129,6 +129,7 @@
   "settings.testing_connection": "Eira：🔄 Testowanie połączenia LLM...",
   "settings.updated": "Eira：⚙️ Ustawienia LLM zaktualizowane\n- Dostawca: {provider}\n- Model: {model}\n- Dostępne modele: {count}",
   "settings.updated_short": "Eira：⚙️ Ustawienia LLM zaktualizowane\n- Dostawca: {provider}\n- Model: {model}",
+  "settings.user_label": "Użytkownik",
   "sig.detected_prefix": "Wykryto",
   "sig.empty_fields": "Wykryto pola podpisu, ale zawartość jest pusta lub nierozpoznawalna",
   "sig.keyword_detected": "Wykryto słowa kluczowe związane z podpisami: {keywords}",

@@ -1,4 +1,4 @@
-{
+﻿{
   "allrecords.error": "Eira：Impossibile leggere l'elenco: {error}",
   "allrecords.export_excel": "Eira：📋 Report Excel di tutti i record generato ({count} documenti).",
   "allrecords.export_hint": "Eira：📋 Formati disponibili:\n- 'scarica record word'\n- 'scarica record excel'",
@@ -129,6 +129,7 @@
   "settings.testing_connection": "Eira：🔄 Test connessione LLM...",
   "settings.updated": "Eira：⚙️ Impostazioni LLM aggiornate\n- Fornitore: {provider}\n- Modello: {model}\n- Modelli disponibili: {count}",
   "settings.updated_short": "Eira：⚙️ Impostazioni LLM aggiornate\n- Fornitore: {provider}\n- Modello: {model}",
+  "settings.user_label": "Utente",
   "sig.detected_prefix": "Rilevato",
   "sig.empty_fields": "Campi firma rilevati ma il contenuto è vuoto o non riconoscibile",
   "sig.keyword_detected": "Parole chiave relative alle firme rilevate: {keywords}",

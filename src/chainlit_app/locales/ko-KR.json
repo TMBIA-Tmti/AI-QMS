@@ -1,4 +1,4 @@
-{
+﻿{
   "allrecords.error": "Eira：목록을 읽을 수 없습니다: {error}",
   "allrecords.export_excel": "Eira：📋 전체 기록 Excel 보고서가 생성되었습니다 ({count}건).",
   "allrecords.export_hint": "Eira：📋 지원 형식:\n- '전체기록 다운로드 word'\n- '전체기록 다운로드 excel'",
@@ -129,6 +129,7 @@
   "settings.testing_connection": "Eira：🔄 LLM 연결 테스트 중...",
   "settings.updated": "Eira：⚙️ LLM 설정 업데이트 완료\n- 제공업체: {provider}\n- 모델: {model}\n- 사용 가능 모델 수: {count}",
   "settings.updated_short": "Eira：⚙️ LLM 설정 업데이트 완료\n- 제공업체: {provider}\n- 모델: {model}",
+  "settings.user_label": "사용자",
   "sig.detected_prefix": "감지됨",
   "sig.empty_fields": "서명 필드가 감지되었으나 내용이 비어있거나 인식 불가",
   "sig.keyword_detected": "서명 관련 키워드 감지: {keywords}",

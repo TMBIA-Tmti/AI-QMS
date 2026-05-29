@@ -277,7 +277,7 @@ class RegulatoryMarkdownStorage:
                 skipped_details.append({
                     "region": r.get("region", ""),
                     "agency": r.get("agency", ""),
-                    "reason": r.get("failure_reason", "內容為空" if not content else "爬取失敗"),
+                    "reason": r.get("failure_reason", "empty content" if not content else "crawl failed"),
                 })
                 continue
 

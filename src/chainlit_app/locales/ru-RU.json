@@ -1,4 +1,4 @@
-{
+﻿{
   "allrecords.error": "Eira：Невозможно прочитать список: {error}",
   "allrecords.export_excel": "Eira：📋 Excel-отчёт всех записей создан ({count} документов).",
   "allrecords.export_hint": "Eira：📋 Поддерживаемые форматы:\n- 'скачать записи word'\n- 'скачать записи excel'",
@@ -129,6 +129,7 @@
   "settings.testing_connection": "Eira：🔄 Тестирование подключения LLM...",
   "settings.updated": "Eira：⚙️ Настройки LLM обновлены\n- Провайдер: {provider}\n- Модель: {model}\n- Доступных моделей: {count}",
   "settings.updated_short": "Eira：⚙️ Настройки LLM обновлены\n- Провайдер: {provider}\n- Модель: {model}",
+  "settings.user_label": "Пользователь",
   "sig.detected_prefix": "Обнаружено",
   "sig.empty_fields": "Обнаружены поля для подписи, но содержимое пусто или нераспознаваемо",
   "sig.keyword_detected": "Обнаружены ключевые слова, связанные с подписями: {keywords}",

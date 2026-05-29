@@ -1,4 +1,4 @@
-{
+﻿{
   "allrecords.error": "Eira：Kan lijst niet lezen: {error}",
   "allrecords.export_excel": "Eira：📋 Excel-rapport alle records aangemaakt ({count} documenten).",
   "allrecords.export_hint": "Eira：📋 Ondersteunde formaten:\n- 'records downloaden word'\n- 'records downloaden excel'",
@@ -129,6 +129,7 @@
   "settings.testing_connection": "Eira：🔄 LLM-verbinding testen...",
   "settings.updated": "Eira：⚙️ LLM-instellingen bijgewerkt\n- Provider: {provider}\n- Model: {model}\n- Beschikbare modellen: {count}",
   "settings.updated_short": "Eira：⚙️ LLM-instellingen bijgewerkt\n- Provider: {provider}\n- Model: {model}",
+  "settings.user_label": "Gebruiker",
   "sig.detected_prefix": "Gedetecteerd",
   "sig.empty_fields": "Handtekeningvelden gedetecteerd maar inhoud is leeg of onherkenbaar",
   "sig.keyword_detected": "Handtekeninggerelateerde trefwoorden gedetecteerd: {keywords}",

@@ -1,4 +1,4 @@
-{
+﻿{
   "_commands.cmd.audit": [
     "audit trail",
     "audit record",
@@ -373,6 +373,7 @@
   "settings.testing_connection": "Eira：🔄 Testing LLM connection...",
   "settings.updated": "Eira：⚙️ LLM settings updated\n- Provider: {provider}\n- Model: {model}\n- Available models: {count}",
   "settings.updated_short": "Eira：⚙️ LLM settings updated\n- Provider: {provider}\n- Model: {model}",
+  "settings.user_label": "User",
   "sig.detected_prefix": "Detected",
   "sig.empty_fields": "Signature fields detected but content is blank or unrecognizable",
   "sig.keyword_detected": "Signature-related keywords detected: {keywords}",

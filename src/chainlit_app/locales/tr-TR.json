@@ -1,4 +1,4 @@
-{
+﻿{
   "allrecords.error": "Eira：Liste okunamıyor: {error}",
   "allrecords.export_excel": "Eira：📋 Tüm kayıtlar Excel raporu oluşturuldu ({count} belge).",
   "allrecords.export_hint": "Eira：📋 Desteklenen formatlar:\n- 'tüm kayıtları indir word'\n- 'tüm kayıtları indir excel'",
@@ -129,6 +129,7 @@
   "settings.testing_connection": "Eira：🔄 LLM bağlantısı test ediliyor...",
   "settings.updated": "Eira：⚙️ LLM ayarları güncellendi\n- Sağlayıcı: {provider}\n- Model: {model}\n- Kullanılabilir modeller: {count}",
   "settings.updated_short": "Eira：⚙️ LLM ayarları güncellendi\n- Sağlayıcı: {provider}\n- Model: {model}",
+  "settings.user_label": "Kullanıcı",
   "sig.detected_prefix": "Algılandı",
   "sig.empty_fields": "İmza alanları algılandı ancak içerik boş veya tanınmıyor",
   "sig.keyword_detected": "İmza ile ilgili anahtar kelimeler algılandı: {keywords}",

@@ -1,4 +1,4 @@
-{
+﻿{
   "allrecords.error": "Eira：Impossible de lire la liste : {error}",
   "allrecords.export_excel": "Eira：📋 Rapport Excel de tous les enregistrements généré ({count} documents).",
   "allrecords.export_hint": "Eira：📋 Formats disponibles :\n- 'télécharger enregistrements word'\n- 'télécharger enregistrements excel'",
@@ -129,6 +129,7 @@
   "settings.testing_connection": "Eira：🔄 Test de connexion LLM...",
   "settings.updated": "Eira：⚙️ Paramètres LLM mis à jour\n- Fournisseur : {provider}\n- Modèle : {model}\n- Modèles disponibles : {count}",
   "settings.updated_short": "Eira：⚙️ Paramètres LLM mis à jour\n- Fournisseur : {provider}\n- Modèle : {model}",
+  "settings.user_label": "Utilisateur",
   "sig.detected_prefix": "Détecté",
   "sig.empty_fields": "Champs de signature détectés mais le contenu est vide ou illisible",
   "sig.keyword_detected": "Mots-clés liés aux signatures détectés : {keywords}",

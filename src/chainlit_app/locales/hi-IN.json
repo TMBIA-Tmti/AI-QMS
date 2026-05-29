@@ -1,4 +1,4 @@
-{
+﻿{
   "allrecords.error": "Eira：सूची पढ़ी नहीं जा सकती: {error}",
   "allrecords.export_excel": "Eira：📋 सभी रिकॉर्ड Excel रिपोर्ट तैयार ({count} दस्तावेज़)।",
   "allrecords.export_hint": "Eira：📋 समर्थित प्रारूप:\n- 'सभी रिकॉर्ड डाउनलोड word'\n- 'सभी रिकॉर्ड डाउनलोड excel'",
@@ -129,6 +129,7 @@
   "settings.testing_connection": "Eira：🔄 LLM कनेक्शन परीक्षण...",
   "settings.updated": "Eira：⚙️ LLM सेटिंग्स अपडेट\n- प्रदाता: {provider}\n- मॉडल: {model}\n- उपलब्ध मॉडल: {count}",
   "settings.updated_short": "Eira：⚙️ LLM सेटिंग्स अपडेट\n- प्रदाता: {provider}\n- मॉडल: {model}",
+  "settings.user_label": "उपयोगकर्ता",
   "sig.detected_prefix": "पाया गया",
   "sig.empty_fields": "हस्ताक्षर फ़ील्ड पाए गए लेकिन सामग्री खाली या अपठनीय है",
   "sig.keyword_detected": "हस्ताक्षर संबंधित कीवर्ड पाए गए: {keywords}",

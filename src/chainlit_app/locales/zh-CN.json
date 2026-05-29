@@ -1,4 +1,4 @@
-{
+﻿{
   "allrecords.error": "Eira：无法读取列表: {error}",
   "allrecords.export_excel": "Eira：📋 已生成全部文件记录 Excel 报告（共 {count} 份文件）。",
   "allrecords.export_hint": "Eira：📋 支持格式：\n- 「下载列表 word」\n- 「下载列表 excel」",
@@ -129,6 +129,7 @@
   "settings.testing_connection": "Eira：🔄 正在测试 LLM 连接...",
   "settings.updated": "Eira：⚙️ LLM 设置已更新\n- 提供商: {provider}\n- 模型: {model}\n- 可用模型数: {count}",
   "settings.updated_short": "Eira：⚙️ LLM 设置已更新\n- 提供商: {provider}\n- 模型: {model}",
+  "settings.user_label": "用户",
   "sig.detected_prefix": "检测到",
   "sig.empty_fields": "检测到签章栏位但内容为空白或无法辨识",
   "sig.keyword_detected": "检测到签章相关关键字: {keywords}",

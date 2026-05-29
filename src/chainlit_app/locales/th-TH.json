@@ -1,4 +1,4 @@
-{
+﻿{
   "allrecords.error": "Eira：ไม่สามารถอ่านรายการ: {error}",
   "allrecords.export_excel": "Eira：📋 สร้างรายงาน Excel บันทึกทั้งหมดแล้ว ({count} ฉบับ)",
   "allrecords.export_hint": "Eira：📋 รูปแบบที่รองรับ:\n- 'ดาวน์โหลดบันทึกทั้งหมด word'\n- 'ดาวน์โหลดบันทึกทั้งหมด excel'",
@@ -129,6 +129,7 @@
   "settings.testing_connection": "Eira：🔄 กำลังทดสอบการเชื่อมต่อ LLM...",
   "settings.updated": "Eira：⚙️ อัปเดตการตั้งค่า LLM แล้ว\n- ผู้ให้บริการ: {provider}\n- โมเดล: {model}\n- โมเดลที่มี: {count}",
   "settings.updated_short": "Eira：⚙️ อัปเดตการตั้งค่า LLM แล้ว\n- ผู้ให้บริการ: {provider}\n- โมเดล: {model}",
+  "settings.user_label": "ผู้ใช้",
   "sig.detected_prefix": "ตรวจพบ",
   "sig.empty_fields": "ตรวจพบช่องลายเซ็นแต่เนื้อหาว่างเปล่าหรือไม่สามารถจดจำได้",
   "sig.keyword_detected": "ตรวจพบคำสำคัญที่เกี่ยวข้องกับลายเซ็น: {keywords}",

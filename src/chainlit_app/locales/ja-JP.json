@@ -1,4 +1,4 @@
-{
+﻿{
   "_commands.cmd.audit": [
     "監査証跡",
     "監査記録",
@@ -219,6 +219,7 @@
   "settings.testing_connection": "Eira：🔄 LLM 接続テスト中...",
   "settings.updated": "Eira：⚙️ LLM 設定更新完了\n- プロバイダー: {provider}\n- モデル: {model}\n- 利用可能モデル数: {count}",
   "settings.updated_short": "Eira：⚙️ LLM 設定更新完了\n- プロバイダー: {provider}\n- モデル: {model}",
+  "settings.user_label": "ユーザー",
   "sig.detected_prefix": "検出",
   "sig.empty_fields": "署名欄が検出されましたが内容が空白または認識不能",
   "sig.keyword_detected": "署名関連キーワードを検出: {keywords}",

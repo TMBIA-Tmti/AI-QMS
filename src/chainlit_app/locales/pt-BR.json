@@ -1,4 +1,4 @@
-{
+﻿{
   "allrecords.error": "Eira：Não é possível ler a lista: {error}",
   "allrecords.export_excel": "Eira：📋 Relatório Excel de todos os registros gerado ({count} documentos).",
   "allrecords.export_hint": "Eira：📋 Formatos disponíveis:\n- 'baixar registros word'\n- 'baixar registros excel'",
@@ -129,6 +129,7 @@
   "settings.testing_connection": "Eira：🔄 Testando conexão LLM...",
   "settings.updated": "Eira：⚙️ Configurações de LLM atualizadas\n- Provedor: {provider}\n- Modelo: {model}\n- Modelos disponíveis: {count}",
   "settings.updated_short": "Eira：⚙️ Configurações de LLM atualizadas\n- Provedor: {provider}\n- Modelo: {model}",
+  "settings.user_label": "Usuário",
   "sig.detected_prefix": "Detectado",
   "sig.empty_fields": "Campos de assinatura detectados mas o conteúdo está em branco ou irreconhecível",
   "sig.keyword_detected": "Palavras-chave relacionadas a assinaturas detectadas: {keywords}",
