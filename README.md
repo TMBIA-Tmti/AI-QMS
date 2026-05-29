@@ -22,7 +22,7 @@ TMBIA-Tmti 深知醫療器材法規人員在品質管理實務中面對的挑戰
 
 系統採用**主 Agent + 子 Agent** 架構設計，由主 Agent 統籌品質管理系統各模組，文件管制子 Agent 負責文件的上傳、OCR 辨識、版本偵測、簽章驗證及稽核紀錄等作業。
 
-> **📌 開發進度：Phase 1（文件管制子 Agent）✅ 已完成 v3.5.0。Phase 2（稽核子 Agent）🔜 開發中。**
+> **📌 開發進度：Phase 1（文件管制子 Agent）✅ 已完成 v3.6.0。Phase 2（稽核子 Agent）🔜 開發中。**
 
 ## Logo 設計理念
 
@@ -50,7 +50,7 @@ Eira 的 Logo 由兩個核心符號交織而成，每一筆都承載著這個專
 
 ### 文件管制子 Agent (Document Control Sub-Agent) ✅ Phase 1 完成
 - **文件上傳與 OCR 處理** — 支援 PDF、Word、Excel、PowerPoint、圖片等格式
-- **Docling 主引擎 + MarkItDown fallback** — Docling 還原 PDF 表格結構與版面分析（>100KB 文件）；MarkItDown 輕量快速（<100KB）；掃描文件自動切換 LLM Vision 備援
+- **多級 OCR 引擎** — PyMuPDF 原生文字擷取（T0）→ EasyOCR 多語言（T1，32 地區）→ MarkItDown（T2）→ Docling 表格結構還原（T3）→ LLM Vision 備援；自動依文件類型選擇最佳引擎
 - **智慧版本偵測** — 自動識別新文件 vs 版本更新，OCR 掃描文件內版本號
 - **多語言簽章/印章偵測** — 支援 15+ 語言、200+ 關鍵字自動偵測簽章狀態
 - **防竄改偵測稽核紀錄** — SHA-256 雜湊鏈，完整記錄所有文件操作，可偵測未經授權的變更
@@ -142,14 +142,15 @@ Eira 的 Logo 由兩個核心符號交織而成，每一筆都承載著這個專
 └──────────────────────┬──────────────────────────────┘
                        │
 ┌──────────────────────┴──────────────────────────────┐
-│              OCR 處理層                               │
-│  [MarkItDown (主)] ──→ [LLM Vision (備援)]            │
+│              OCR 處理層（多級引擎）                    │
+│  [PyMuPDF T0] → [EasyOCR T1] → [MarkItDown T2]      │
+│              → [Docling T3] → [LLM Vision 備援]      │
 └──────────────────────┬──────────────────────────────┘
                        │
 ┌──────────────────────┴──────────────────────────────┐
 │                   資料層                              │
-│  [JSON DB] [Markdown Storage] [Audit Log]            │
-│  [Interaction Log] [CrossExam Store]                  │
+│  [SQLite WAL] [JSON DB] [Markdown Storage]           │
+│  [Audit Log] [Interaction Log] [CrossExam Store]     │
 │  [Regulatory Storage] [MDSAP Storage]                │
 └──────────────────────┬──────────────────────────────┘
                        │
@@ -177,8 +178,8 @@ Eira 的 Logo 由兩個核心符號交織而成，每一筆都承載著這個專
 
 | 類別 | 格式 | 處理方式 |
 |------|------|----------|
-| **PDF** | `.pdf` | MarkItDown (主) + LLM Vision (備援) |
-| **圖片** | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.tiff`, `.tif`, `.bmp` | MarkItDown (主) + LLM Vision (備援) |
+| **PDF** | `.pdf` | PyMuPDF (T0) → EasyOCR (T1) → MarkItDown (T2) → Docling (T3) → LLM Vision (備援) |
+| **圖片** | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.tiff`, `.tif`, `.bmp` | EasyOCR (T1) → MarkItDown (T2) → LLM Vision (備援) |
 | **Word** | `.docx`, `.doc` | python-docx / pywin32 |
 | **Excel** | `.xlsx`, `.xls` | openpyxl / pywin32 |
 | **PowerPoint** | `.pptx`, `.ppt` | python-pptx / pywin32 |
@@ -320,18 +321,23 @@ Phoenix Dashboard：http://localhost:6006
 |------|------|
 | 程式語言 | Python 3.11 |
 | UI 框架 | Chainlit 2.9.6 |
-| Agent 框架 | LangGraph |
+| Web 後端 | Flask + Flask-CORS |
+| Agent 框架 | LangGraph + LangChain |
 | LLM 抽象層 | LiteLLM |
-| OCR 引擎 | Docling + MarkItDown + LLM Vision |
+| OCR 引擎 | PyMuPDF (T0) + EasyOCR (T1) + MarkItDown (T2) + Docling (T3) + LLM Vision (備援) |
+| 資料庫 | SQLite WAL + SQLAlchemy |
+| 向量資料庫 | ChromaDB |
+| 知識圖譜 | LightRAG |
 | LLM 可觀測性 | Arize Phoenix |
 | 追蹤框架 | OpenTelemetry + OpenInference |
 | 網路搜尋 | DuckDuckGo |
-| 本地 LLM | Ollama |
+| 本地 LLM | Ollama + LM Studio |
 | HTTP 用戶端 | httpx (HTTP/2) |
 | 印章/簽章偵測 | OpenCV + NumPy |
 | 網頁爬蟲 | BeautifulSoup4 + lxml |
 | PDF 生成 | reportlab |
 | 原子檔案 I/O | safe_io (PermissionError 重試) |
+| 任務派發 | asyncio (standalone) / Celery (server) |
 
 ---
 
@@ -345,7 +351,7 @@ TMBIA-Tmti understands the challenges that medical device regulatory professiona
 
 The system adopts a **Main Agent + Sub-Agent** architecture, where the Main Agent orchestrates all QMS modules, and the Document Control Sub-Agent handles document upload, OCR processing, version detection, signature verification, and audit logging.
 
-> **📌 Development Status: Phase 1 (Document Control Sub-Agent) ✅ complete v3.5.0. Phase 2 (Audit Sub-Agent) 🔜 in development.**
+> **📌 Development Status: Phase 1 (Document Control Sub-Agent) ✅ complete v3.6.0. Phase 2 (Audit Sub-Agent) 🔜 in development.**
 
 ## Logo Design
 
@@ -371,7 +377,7 @@ The two symbols **overlap and merge** in the logo — the pen nib touches the se
 
 ### Document Control Sub-Agent ✅ Phase 1 Complete
 - **Document Upload & OCR** — Supports PDF, Word, Excel, PowerPoint, images
-- **Docling Primary + MarkItDown Fallback** — Docling restores PDF table structure and layout analysis (>100KB files); MarkItDown lightweight and fast (<100KB); auto-fallback to LLM Vision for scanned documents
+- **Multi-Tier OCR Engine** — PyMuPDF native text extraction (T0) → EasyOCR multi-language (T1, 32 regions) → MarkItDown (T2) → Docling table/layout parsing (T3) → LLM Vision fallback; auto-selects best engine per document type
 - **Intelligent Version Detection** — Auto-detect new document vs. version update, OCR-based version number scanning
 - **Multilingual Signature/Stamp Detection** — 15+ languages, 200+ keywords for automatic signature status detection
 - **Tamper-Evident Audit Trail** — SHA-256 hash chain recording all document operations, enabling detection of unauthorized changes
@@ -463,14 +469,15 @@ The two symbols **overlap and merge** in the logo — the pen nib touches the se
 └──────────────────────┬──────────────────────────────┘
                        │
 ┌──────────────────────┴──────────────────────────────┐
-│              OCR Processing Layer                     │
-│  [MarkItDown (Primary)] ──→ [LLM Vision (Fallback)] │
+│            OCR Processing Layer (Multi-Tier)          │
+│  [PyMuPDF T0] → [EasyOCR T1] → [MarkItDown T2]      │
+│             → [Docling T3] → [LLM Vision Fallback]  │
 └──────────────────────┬──────────────────────────────┘
                        │
 ┌──────────────────────┴──────────────────────────────┐
 │                    Data Layer                         │
-│  [JSON DB] [Markdown Storage] [Audit Log]            │
-│  [Interaction Log] [CrossExam Store]                  │
+│  [SQLite WAL] [JSON DB] [Markdown Storage]           │
+│  [Audit Log] [Interaction Log] [CrossExam Store]     │
 │  [Regulatory Storage] [MDSAP Storage]                │
 └──────────────────────┬──────────────────────────────┘
                        │
@@ -498,8 +505,8 @@ The two symbols **overlap and merge** in the logo — the pen nib touches the se
 
 | Category | Formats | Processing |
 |----------|---------|------------|
-| **PDF** | `.pdf` | MarkItDown (Primary) + LLM Vision (Fallback) |
-| **Images** | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.tiff`, `.tif`, `.bmp` | MarkItDown + LLM Vision |
+| **PDF** | `.pdf` | PyMuPDF (T0) → EasyOCR (T1) → MarkItDown (T2) → Docling (T3) → LLM Vision (Fallback) |
+| **Images** | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.tiff`, `.tif`, `.bmp` | EasyOCR (T1) → MarkItDown (T2) → LLM Vision (Fallback) |
 | **Word** | `.docx`, `.doc` | python-docx / pywin32 |
 | **Excel** | `.xlsx`, `.xls` | openpyxl / pywin32 |
 | **PowerPoint** | `.pptx`, `.ppt` | python-pptx / pywin32 |
@@ -641,18 +648,23 @@ Phoenix Dashboard: http://localhost:6006
 |----------|------------|
 | Language | Python 3.11 |
 | UI Framework | Chainlit 2.9.6 |
-| Agent Framework | LangGraph |
+| Web Backend | Flask + Flask-CORS |
+| Agent Framework | LangGraph + LangChain |
 | LLM Abstraction | LiteLLM |
-| OCR Engine | Docling + MarkItDown + LLM Vision |
+| OCR Engine | PyMuPDF (T0) + EasyOCR (T1) + MarkItDown (T2) + Docling (T3) + LLM Vision (Fallback) |
+| Database | SQLite WAL + SQLAlchemy |
+| Vector Database | ChromaDB |
+| Knowledge Graph | LightRAG |
 | LLM Observability | Arize Phoenix |
 | Tracing Framework | OpenTelemetry + OpenInference |
 | Web Search | DuckDuckGo |
-| Local LLM | Ollama |
+| Local LLM | Ollama + LM Studio |
 | HTTP Client | httpx (HTTP/2) |
 | Stamp/Seal Detection | OpenCV + NumPy |
 | Web Scraping | BeautifulSoup4 + lxml |
 | PDF Generation | reportlab |
 | Atomic File I/O | safe_io (PermissionError retry) |
+| Task Dispatch | asyncio (standalone) / Celery (server) |
 
 ---
 
@@ -666,7 +678,7 @@ TMBIA-Tmti は、医療機器の法規担当者が品質管理において直面
 
 本システムは**メイン Agent + サブ Agent** アーキテクチャを採用しており、メイン Agent が品質管理システム全体のモジュールを統括し、文書管理サブ Agent が文書のアップロード、OCR 処理、バージョン検出、署名検証、監査ログなどの業務を担当します。
 
-> **📌 開発状況：Phase 1（文書管理サブ Agent）✅ v3.5.0 完了。Phase 2（監査サブ Agent）🔜 開発中。**
+> **📌 開発状況：Phase 1（文書管理サブ Agent）✅ v3.6.0 完了。Phase 2（監査サブ Agent）🔜 開発中。**
 
 ## ロゴデザイン
 
@@ -692,7 +704,7 @@ Eira のロゴは、プロジェクトの使命を体現する 2 つのコアシ
 
 ### 文書管理サブ Agent (Document Control Sub-Agent) ✅ Phase 1 完了
 - **文書アップロードと OCR 処理** — PDF、Word、Excel、PowerPoint、画像に対応
-- **Docling 主エンジン + MarkItDown フォールバック** — Docling で PDF テーブル構造復元とレイアウト分析（>100KB ファイル）；MarkItDown 軽量高速（<100KB）；スキャン文書は自動的に LLM Vision にフォールバック
+- **マルチ段階 OCR エンジン** — PyMuPDF ネイティブテキスト抽出（T0）→ EasyOCR 多言語（T1、32地域）→ MarkItDown（T2）→ Docling テーブル構造復元（T3）→ LLM Vision フォールバック；文書タイプに応じて最適エンジンを自動選択
 - **インテリジェントバージョン検出** — 新規文書 vs バージョン更新を自動識別、OCR によるバージョン番号スキャン
 - **多言語署名・印鑑検出** — 15以上の言語、200以上のキーワードによる署名状態の自動検出
 - **改ざん検出監査証跡** — SHA-256 ハッシュチェーンによる全文書操作の記録、不正な変更の検出が可能
@@ -784,14 +796,15 @@ Eira のロゴは、プロジェクトの使命を体現する 2 つのコアシ
 └──────────────────────┬──────────────────────────────┘
                        │
 ┌──────────────────────┴──────────────────────────────┐
-│                OCR 処理層                             │
-│  [MarkItDown (主)] ──→ [LLM Vision (フォールバック)]   │
+│            OCR 処理層（マルチ段階エンジン）            │
+│  [PyMuPDF T0] → [EasyOCR T1] → [MarkItDown T2]      │
+│          → [Docling T3] → [LLM Vision フォールバック] │
 └──────────────────────┬──────────────────────────────┘
                        │
 ┌──────────────────────┴──────────────────────────────┐
 │                  データ層                             │
-│  [JSON DB] [Markdown Storage] [Audit Log]            │
-│  [Interaction Log] [CrossExam Store]                  │
+│  [SQLite WAL] [JSON DB] [Markdown Storage]           │
+│  [Audit Log] [Interaction Log] [CrossExam Store]     │
 │  [Regulatory Storage] [MDSAP Storage]                │
 └──────────────────────┬──────────────────────────────┘
                        │
@@ -819,8 +832,8 @@ Eira のロゴは、プロジェクトの使命を体現する 2 つのコアシ
 
 | カテゴリ | 形式 | 処理方法 |
 |----------|------|----------|
-| **PDF** | `.pdf` | MarkItDown (主) + LLM Vision (フォールバック) |
-| **画像** | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.tiff`, `.tif`, `.bmp` | MarkItDown + LLM Vision |
+| **PDF** | `.pdf` | PyMuPDF (T0) → EasyOCR (T1) → MarkItDown (T2) → Docling (T3) → LLM Vision (フォールバック) |
+| **画像** | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.tiff`, `.tif`, `.bmp` | EasyOCR (T1) → MarkItDown (T2) → LLM Vision (フォールバック) |
 | **Word** | `.docx`, `.doc` | python-docx / pywin32 |
 | **Excel** | `.xlsx`, `.xls` | openpyxl / pywin32 |
 | **PowerPoint** | `.pptx`, `.ppt` | python-pptx / pywin32 |
@@ -961,18 +974,23 @@ Phoenix ダッシュボード：http://localhost:6006
 |----------|------|
 | プログラミング言語 | Python 3.11 |
 | UI フレームワーク | Chainlit 2.9.6 |
-| Agent フレームワーク | LangGraph |
+| Web バックエンド | Flask + Flask-CORS |
+| Agent フレームワーク | LangGraph + LangChain |
 | LLM 抽象層 | LiteLLM |
-| OCR エンジン | Docling + MarkItDown + LLM Vision |
+| OCR エンジン | PyMuPDF (T0) + EasyOCR (T1) + MarkItDown (T2) + Docling (T3) + LLM Vision (フォールバック) |
+| データベース | SQLite WAL + SQLAlchemy |
+| ベクターデータベース | ChromaDB |
+| ナレッジグラフ | LightRAG |
 | LLM 可観測性 | Arize Phoenix |
 | トレースフレームワーク | OpenTelemetry + OpenInference |
 | ウェブ検索 | DuckDuckGo |
-| ローカル LLM | Ollama |
+| ローカル LLM | Ollama + LM Studio |
 | HTTP クライアント | httpx (HTTP/2) |
 | 印鑑・署名検出 | OpenCV + NumPy |
 | ウェブスクレイピング | BeautifulSoup4 + lxml |
 | PDF 生成 | reportlab |
 | アトミックファイル I/O | safe_io (PermissionError リトライ) |
+| タスクディスパッチ | asyncio (standalone) / Celery (server) |
 
 ---
 
@@ -986,6 +1004,8 @@ AI-QMS/
 ├── start.bat                    # Main launcher / 主啟動腳本
 ├── start_chainlit.bat           # Chainlit direct launcher (+ Phoenix)
 ├── start_phoenix.bat            # Phoenix standalone launcher
+├── phoenix_watchdog.bat         # Phoenix auto-restart watchdog
+├── sync_to_test.bat             # Sync source to test/release directory
 ├── chainlit.md                  # Chainlit welcome message
 ├── .gitignore
 ├── .chainlit/                   # Chainlit configuration
@@ -1001,25 +1021,32 @@ AI-QMS/
 │   ├── report_i18n.js           # Report UI i18n (zh/en/ja)
 │   └── report.css               # Report styles
 ├── src/                         # Source code
+│   ├── app.py                   # Flask web application (prototype backend)
 │   ├── config.py                # Global configuration
 │   ├── llm_providers.py         # 16 LLM provider manager
 │   ├── chainlit_app/            # Chainlit application
-│   │   ├── app.py               # Main app entry point (v3.5.0)
+│   │   ├── app.py               # Main app entry point (v3.6.0)
 │   │   ├── i18n.py              # 20-language translations (JSON loader)
+│   │   ├── lang_config.py       # Language configuration helpers
 │   │   ├── locales/             # i18n JSON locale files
 │   │   │   ├── zh-TW.json       # Master locale (Traditional Chinese)
 │   │   │   ├── en-US.json       # English
 │   │   │   ├── ja-JP.json       # Japanese
 │   │   │   └── ... (20 locales) # 20 languages total
-│   │   └── handlers/
-│   │       └── common.py        # Shared request handlers
+│   │   ├── handlers/
+│   │   │   └── common.py        # Shared request handlers
+│   │   └── tools/
+│   │       └── web_search.py    # /web command search tool
 │   ├── agents/                  # Agent modules
 │   │   └── tools/
 │   │       └── documents.py     # LangGraph document tools
-│   ├── workflows/               # LangGraph workflows
-│   │   └── doc_workflow.py      # Document control workflow
-│   ├── ocr/                     # OCR processing
-│   │   └── vision_ocr.py        # MarkItDown + Vision OCR
+│   ├── ocr/                     # OCR processing (multi-tier engine)
+│   │   ├── vision_ocr.py        # OCR dispatcher + LLM Vision fallback
+│   │   ├── pymupdf_engine.py    # Tier 0: PDF native text extraction
+│   │   ├── easyocr_engine.py    # Tier 1: Multi-language OCR (32 regions)
+│   │   ├── docling_engine.py    # Tier 3: PDF table/layout parsing
+│   │   ├── gpu_check.py         # GPU/CUDA capability detection
+│   │   └── model_setup.py       # OCR model download & initialization
 │   ├── analysis/                # Compliance analysis pipeline
 │   │   ├── pipeline.py          # 8-phase analysis orchestrator
 │   │   ├── pipeline_runner.py   # Pipeline execution manager
@@ -1037,12 +1064,19 @@ AI-QMS/
 │   │   ├── compliance_rules.py  # Regulatory compliance rule engine
 │   │   ├── report_api.py        # Report API endpoints + SSE
 │   │   ├── crossref_report.py   # Cross-reference validation report
-│   │   └── daily_audit.py       # Scheduled daily audit runner
+│   │   ├── daily_audit.py       # Scheduled daily audit runner
+│   │   ├── regulation_analyzer.py # Regulatory document analyzer
+│   │   ├── qms_annotator.py     # QMS document annotation engine
+│   │   ├── question_generator.py # AI question generation for audits
+│   │   └── cross_country_html.py # Multi-country comparison HTML report
 │   ├── database/                # Database modules
+│   │   ├── sqlite_backend.py    # SQLite WAL backend (ACID, v3.6.0)
+│   │   ├── migration.py         # Database schema migration
 │   │   ├── audit_log.py         # SHA-256 hash chain audit trail
-│   │   ├── document_store.py    # JSON document store
+│   │   ├── document_store.py    # Document metadata store
 │   │   ├── interaction_log.py   # User interaction logging
-│   │   └── crossexam_store.py   # Cross-examination data store
+│   │   ├── crossexam_store.py   # Cross-examination data store
+│   │   └── daily_crossexam_store.py # Daily cross-exam session store
 │   ├── storage/                 # Markdown & regulatory storage
 │   │   ├── markdown_storage.py  # Document markdown storage
 │   │   ├── regulatory_storage.py # Regulatory reference storage
@@ -1052,45 +1086,62 @@ AI-QMS/
 │   │   └── product_docs_storage.py         # Product document storage
 │   ├── services/                # Business logic services
 │   │   ├── regulatory_crawler.py    # Regulatory website crawler
-│   │   ├── watermark_engine.py      # Watermark detection engine
-│   │   ├── watermark_service.py     # Watermark service layer
+│   │   ├── regulatory_diff.py       # Regulatory version diff engine
+│   │   ├── regulatory_verifier.py   # Regulatory source verifier
+│   │   ├── taiwan_bulk_api.py       # Taiwan regulation bulk API client
+│   │   ├── watermark_service.py     # Watermark/stamp detection service
+│   │   ├── embedding_provider.py    # 3-tier embedding provider (BGE-M3→MiniLM)
+│   │   ├── ollama_detector.py       # Ollama auto-detection + model selection
+│   │   ├── task_dispatcher.py       # Dual-mode task dispatch (asyncio/Celery)
 │   │   ├── obsolete_detector.py     # Document obsolescence detector
 │   │   ├── doc_hierarchy.py         # Document hierarchy manager
 │   │   └── markdown_store_service.py # Markdown storage service
+│   ├── openwebui_tools/         # Open WebUI integration tools
+│   │   ├── doc_control_tool.py  # Document Control sub-agent tool for Open WebUI
+│   │   └── qms_main_agent.py    # QMS main agent tool for Open WebUI
 │   └── utils/                   # Utility modules
 │       ├── safe_io.py           # Atomic file I/O + PermissionError retry
 │       ├── analysis_cache.py    # Resilient analysis caching (disconnect recovery)
 │       ├── user_settings.py     # User/LLM settings persistence
+│       ├── app_settings.py      # Application-level settings manager
+│       ├── watermark.py         # Watermark/stamp utility functions
 │       ├── audit_export.py      # Audit log Word/Excel export
 │       ├── regulatory_export.py # Regulatory/Reference list export
 │       ├── regulatory_update_export.py  # Regulatory update export
 │       ├── doclist_export.py    # Document list Word/Excel export
-│       └── crossexam_export.py  # Cross-examination report export
-├── scripts/                     # Utility scripts
+│       ├── crossexam_export.py  # Cross-examination report export
+│       └── crossref_export.py   # Cross-reference report export
+├── scripts/                     # Utility & maintenance scripts
 │   ├── auto_translate.py        # AI-powered i18n translation
 │   ├── inject_missing_translations.py  # Missing translation injector
+│   ├── inject_all_translations.py      # Full translation injection
 │   ├── add_i18n_keys.py         # Add new i18n keys
+│   ├── add_region_i18n.py       # Add region-specific i18n keys
 │   ├── extract_i18n.py          # Extract i18n strings from code
-│   └── _update_titles.py        # Update locale title fields
-├── tests/                       # Test suite (18 files)
-│   ├── t2_import_chain.py       # Import chain validation
-│   ├── t3_state_serialization.py # State serialization tests
-│   ├── t4_comparison_table.py   # Comparison table tests
-│   ├── t5_risk_compliance.py    # Risk matrix + compliance rules
-│   ├── t6_report_api.py         # Report API endpoint tests
-│   ├── t7_stamp_ocr.py          # Stamp/OCR detection tests
-│   ├── t8_db_audit.py           # Database + audit trail tests
-│   ├── t9_t10_storage_crawler.py # Storage + crawler tests
-│   ├── t11_i18n.py              # i18n system tests
-│   ├── t12_t13_llm_exports.py   # LLM + export tests
-│   ├── t14_t15_storage_cache.py  # Storage + cache tests
-│   ├── t16_integration.py        # Integration tests
-│   ├── t17_t18_t19_t20_frontend_bat_env.py  # Frontend + env tests
-│   ├── t21_assessment_mode.py    # Assessment mode tests
-│   ├── t22_crossref_feedback.py  # Cross-ref + feedback tests
-│   ├── t23_crossexam_system.py   # Cross-examination tests
-│   ├── t24_html_api_integration.py # HTML API integration tests
-│   └── t25_extreme_edge_cases.py  # Extreme edge case tests
+│   ├── fill_i18n_complete.py    # Fill all missing i18n entries
+│   ├── fix_i18n_keys.py         # Fix malformed i18n keys
+│   ├── _update_titles.py        # Update locale title fields
+│   ├── rebuild_registry.py      # Rebuild regulatory registry
+│   ├── run_full_crawl.py        # Run full regulatory crawl
+│   ├── run_full_pipeline.py     # Run full analysis pipeline
+│   ├── setup_models.py          # Download & setup OCR/embedding models
+│   ├── download_all_regulation_pdfs.py # Bulk regulation PDF downloader
+│   ├── download_kgmp_full_text.py      # KGMP full text downloader
+│   ├── download_mdr_full_text.py       # MDR full text downloader
+│   ├── download_taiwan_bulk_laws.py    # Taiwan laws bulk downloader
+│   ├── export_all_regulations_md.py    # Export all regulations to Markdown
+│   ├── merge_full_texts.py      # Merge downloaded regulation full texts
+│   ├── export_claude_session.ps1       # Export Claude session transcript
+│   ├── export_phoenix_traces.ps1       # Export Arize Phoenix traces
+│   ├── setup_terminal_logging.ps1      # Setup terminal session logging
+│   ├── snapshot_lmstudio_log.ps1       # Snapshot LM Studio logs
+│   ├── snapshot_ollama_log.ps1         # Snapshot Ollama logs
+│   ├── snapshot_service_logs.ps1       # Snapshot all service logs
+│   ├── convert_terminal_log.ps1        # Convert terminal log format
+│   ├── test_crawler_improvements.py    # Crawler improvement tests
+│   └── test_all_fixes.py               # Full regression test runner
+├── tests/                       # Test suite
+│   └── test_regulation_analyzer.py     # Regulation analyzer tests
 ├── data/                        # Runtime data (auto-generated, not in repo)
 │   ├── analysis_cache/          # Resilient report cache (JSON)
 │   ├── user_settings/           # Per-user settings (JSON)
