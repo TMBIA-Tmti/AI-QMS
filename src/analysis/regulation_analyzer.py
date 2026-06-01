@@ -274,7 +274,7 @@ def _detect_content_language(crawled_texts: list[dict]) -> str:
     """
     sample = ""
     for ct in crawled_texts:
-        sample += ct.get("content_markdown", "")[:300]
+        sample += (ct.get("content_markdown") or "")[:300]
         if len(sample) >= 1000:
             break
     if not sample:
@@ -373,7 +373,7 @@ def _build_focused_regulatory_text(
     valid: list[dict] = []
     weights: list[int] = []
     for ct in crawled_texts:
-        if not ct.get("content_markdown", "").strip():
+        if not (ct.get("content_markdown") or "").strip():
             continue
         doc_type = ct.get("doc_type") or (_gdt(ct) if _gdt else "primary")
         if doc_type == "portal":
@@ -481,7 +481,7 @@ async def analyze_supplemental_guidance(
     scored: list[tuple[int, dict]] = []
     for ct in guidance_texts:
         title = ct.get("agency", "") + " " + ct.get("url", "")
-        preview = ct.get("content_markdown", "")[:300]
+        preview = (ct.get("content_markdown") or "")[:300]
         rel = classify_qms_relevance(title, preview)
         score = {"qms_relevant": 2, "uncertain": 1, "not_relevant": 0}[rel]
         if score > 0:
@@ -495,7 +495,7 @@ async def analyze_supplemental_guidance(
 
     for ct in selected:
         agency = ct.get("agency", "Unknown")
-        content = ct.get("content_markdown", "")[:max_chars]
+        content = (ct.get("content_markdown") or "")[:max_chars]
         if not content.strip():
             continue
 
@@ -615,7 +615,7 @@ async def analyze_regulation_with_llm(
     )
 
     # Quick emptiness check (Direction B: don't combine yet — text is built per batch)
-    if not any(ct.get("content_markdown", "").strip() for ct in crawled_texts):
+    if not any((ct.get("content_markdown") or "").strip() for ct in crawled_texts):
         logger.warning(
             f"No crawled text available for {region_name}, skipping analysis"
         )
