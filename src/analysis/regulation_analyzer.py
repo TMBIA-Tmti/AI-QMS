@@ -602,7 +602,16 @@ async def analyze_regulation_with_llm(
     """
     zh_name, en_name = _extract_region_parts(region_name)
     profile_id = generate_profile_id_from_region(region_name)
-    country_code = profile_id.split("_")[0] if "_" in profile_id else profile_id[:2]
+    # Solution C: use predefined profile's ISO code as ground truth when available.
+    # profile_id[:2] is unreliable for names like "TAIWAN"→"TA" or "JAPAN"→"JA".
+    try:
+        from src.analysis.compliance_rules import _REGION_TO_PROFILE_STATIC, PREDEFINED_REGULATIONS as _PREDEF
+        _pred_id = _REGION_TO_PROFILE_STATIC.get(region_name)
+        _pred = _PREDEF.get(_pred_id) if _pred_id else None
+        country_code = (_pred.country if (_pred and _pred.country)
+                        else (profile_id.split("_")[0] if "_" in profile_id else profile_id[:2]))
+    except Exception:
+        country_code = profile_id.split("_")[0] if "_" in profile_id else profile_id[:2]
 
     # is_local_override lets callers (e.g. app.py) pass the provider manager's
     # actual is_local flag, bypassing the static _LOCAL_PROVIDERS name check.
@@ -999,6 +1008,15 @@ async def analyze_regulation_with_llm(
                         f"Upgraded predefined profile {_predefined_id} "
                         f"via merge with {profile_id} → {_upgraded_path}"
                     )
+                    # Solution B: remove standalone crawled entry from memory so it
+                    # does not generate a duplicate country column in the Excel report.
+                    from src.analysis.compliance_rules import PREDEFINED_REGULATIONS as _PR
+                    if profile_id in _PR and profile_id != _predefined_id:
+                        del _PR[profile_id]
+                        logger.info(
+                            f"Removed standalone crawled entry {profile_id!r} "
+                            f"from memory (merged into predefined {_predefined_id!r})"
+                        )
                 else:
                     logger.info(
                         f"Crawled profile {profile_id} quality below threshold "

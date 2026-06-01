@@ -57,10 +57,25 @@ def _t(key: str, lang: str = "zh-TW", **kwargs) -> str:
 
 
 def _get_crossref_data() -> Optional[dict]:
-    """Call crossref report generator and return data dict, or None on failure."""
+    """Call crossref report generator and return data dict, or None on failure.
+
+    Calls load_all_crawled_regulations() before collecting reg_ids to ensure
+    any crawled profiles added during the pipeline run are merged with their
+    predefined counterparts (e.g., TAIWAN → TFDA, JAPAN → PMDA), preventing
+    duplicate country columns in the output (Solution F).
+    """
     try:
         from src.analysis.crossref_report import generate_crossref_validation_report
-        from src.analysis.compliance_rules import PREDEFINED_REGULATIONS
+        from src.analysis.compliance_rules import (
+            PREDEFINED_REGULATIONS,
+            load_all_crawled_regulations,
+        )
+
+        # Re-run merge to absorb any profiles crawled since startup
+        try:
+            load_all_crawled_regulations()
+        except Exception as _merge_exc:
+            logger.debug("load_all_crawled_regulations in _get_crossref_data failed: %s", _merge_exc)
 
         reg_ids = [
             rid for rid, p in PREDEFINED_REGULATIONS.items() if p.iso_mapped
@@ -169,8 +184,16 @@ def _build_country_groups(reg_ids: list, country_stats: dict) -> list:
 
     for rid in reg_ids:
         profile = PREDEFINED_REGULATIONS.get(rid)
-        # Use country code from profile; fall back to reg_id so it gets its own column
-        country_key = (profile.country if profile and profile.country else rid)
+        # Use country_name_en → country_code → reg_id as dedup key (Solution A).
+        # country_name_en is the canonical string shared by both predefined (e.g.
+        # TFDA.country_name_en="Taiwan") and crawled (TAIWAN.country_name_en="Taiwan")
+        # profiles, so using it as the primary key merges them into one column.
+        # This mirrors cross_country_html.py load_all_profiles() logic exactly.
+        country_key = (
+            profile.country_name_en if (profile and profile.country_name_en)
+            else (profile.country if (profile and profile.country)
+                  else rid)
+        )
 
         if country_key not in seen:
             stats = country_stats.get(rid, {})
