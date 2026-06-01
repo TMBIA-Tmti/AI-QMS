@@ -54,15 +54,28 @@ _CLOUD_PARAMS: dict = {
     "max_tokens_unique": 16384,
 }
 
-# batch_size 8: 8 clauses × ~200 token/clause ≈ 1,600 token output → fits in 8k
-# max_regulatory_chars 2500: distributed evenly across sites for richer coverage
-_LOCAL_PARAMS: dict = {
-    "batch_size": 8,
-    "max_regulatory_chars": 2500,
-    "max_unique_req_chars": 3000,
+# Language-aware local params:
+#   CJK (Chinese/Japanese/Korean): ~2 tokens/char → 50,000 chars ≈ 100K tokens (safe within 128K)
+#   Latin/English: ~0.25 tokens/char → 80,000 chars ≈ 20K tokens
+# batch_size 6: fewer clauses per call → more focused context per clause
+_LOCAL_PARAMS_CJK: dict = {
+    "batch_size": 6,
+    "max_regulatory_chars": 50000,
+    "max_unique_req_chars": 40000,
     "max_tokens_clause": 8000,
     "max_tokens_unique": 8000,
 }
+
+_LOCAL_PARAMS_LATIN: dict = {
+    "batch_size": 6,
+    "max_regulatory_chars": 80000,
+    "max_unique_req_chars": 60000,
+    "max_tokens_clause": 8000,
+    "max_tokens_unique": 8000,
+}
+
+# Keep backward-compatible alias (resolved at runtime via _get_model_params)
+_LOCAL_PARAMS: dict = _LOCAL_PARAMS_CJK
 
 # Broad keywords for unique-requirement pass (market-access signals)
 _UNIQUE_REQ_KEYWORDS: list[str] = [
@@ -148,6 +161,99 @@ _CLAUSE_KEYWORDS: dict[str, list[str]] = {
     "8.5.3":  ["preventive action", "CAPA"],
 }
 
+# ============================================================
+# Multilingual Clause Keywords (CJK + Arabic)
+# ============================================================
+
+_CLAUSE_KEYWORDS_ZH: dict[str, list[str]] = {
+    "4.1":    ["品質管理系統", "品質系統", "外包", "過程"],
+    "4.2.1":  ["文件", "記錄", "品質手冊", "程序書"],
+    "4.2.2":  ["品質手冊"],
+    "4.2.3":  ["文件管制", "文件審查", "文件核准", "文件版次", "主清單"],
+    "4.2.4":  ["記錄管制", "記錄保存", "記錄保管"],
+    "4.2.5":  ["技術文件", "器材主記錄", "設計歷史"],
+    "5.6.1":  ["管理審查", "管理階層審查"],
+    "6.2":    ["人力資源", "職能", "訓練", "資格", "教育訓練"],
+    "6.3":    ["基礎設施", "設施", "設備維護"],
+    "7.2.1":  ["顧客要求", "產品要求", "適用法規"],
+    "7.3.2":  ["設計輸入", "設計要求"],
+    "7.3.5":  ["設計驗證"],
+    "7.3.6":  ["設計確認", "臨床評估"],
+    "7.4.1":  ["採購", "供應商", "核准供應商"],
+    "7.5.3":  ["識別", "追溯", "批號", "唯一器材識別"],
+    "7.5.6":  ["製程驗證", "特殊製程"],
+    "7.6":    ["量測設備", "校正", "量測管理"],
+    "8.2.1":  ["回饋", "顧客回饋", "上市後監視"],
+    "8.2.2":  ["抱怨", "客訴", "抱怨處理", "不良事件"],
+    "8.2.3":  ["法規通報", "不良事件通報", "主管機關"],
+    "8.2.4":  ["內部稽核"],
+    "8.3":    ["不符合品", "不符合事項"],
+    "8.5.2":  ["矯正措施", "根本原因"],
+    "8.5.3":  ["預防措施"],
+}
+
+_CLAUSE_KEYWORDS_JA: dict[str, list[str]] = {
+    "4.2.3":  ["文書管理", "文書の承認", "文書の版管理", "マスターリスト"],
+    "4.2.4":  ["記録管理", "記録の保管"],
+    "5.6.1":  ["マネジメントレビュー"],
+    "6.2":    ["人的資源", "力量", "トレーニング", "教育訓練"],
+    "7.3.2":  ["設計入力", "設計要求事項"],
+    "7.4.1":  ["購買", "供給者管理", "承認業者"],
+    "7.5.3":  ["識別", "トレーサビリティ"],
+    "8.2.1":  ["市販後調査", "フィードバック"],
+    "8.2.2":  ["苦情処理", "クレーム", "不具合"],
+    "8.2.3":  ["規制当局への報告", "副作用報告"],
+    "8.5.2":  ["是正処置", "根本原因分析"],
+}
+
+_CLAUSE_KEYWORDS_KO: dict[str, list[str]] = {
+    "4.2.3":  ["문서 관리", "문서 승인", "문서 개정"],
+    "6.2":    ["인적 자원", "역량", "교육 훈련"],
+    "7.3.2":  ["설계 입력", "설계 요구사항"],
+    "7.4.1":  ["구매", "공급자 관리"],
+    "7.5.3":  ["식별", "추적성"],
+    "8.2.1":  ["시판 후 조사", "피드백"],
+    "8.2.2":  ["불만 처리", "이상 사례"],
+    "8.2.3":  ["규제 기관 보고"],
+    "8.5.2":  ["시정 조치", "근본 원인"],
+}
+
+_ALL_CLAUSE_KW_DICTS: list[dict] = [
+    _CLAUSE_KEYWORDS,
+    _CLAUSE_KEYWORDS_ZH,
+    _CLAUSE_KEYWORDS_JA,
+    _CLAUSE_KEYWORDS_KO,
+]
+
+# Multilingual unique-requirement keywords (market access signals)
+_UNIQUE_REQ_KEYWORDS_ZH: list[str] = [
+    "登記", "許可", "上市", "申請", "核准", "認證",
+    "唯一器材識別", "標籤", "標示",
+    "不良事件", "上市後監視", "上市後追蹤",
+    "授權代理人", "負責人", "本地代理",
+    "進口", "輸入", "市場准入",
+]
+
+_UNIQUE_REQ_KEYWORDS_JA: list[str] = [
+    "認証", "承認", "届出", "申請", "登録",
+    "外国製造業者", "選任外国製造業者",
+    "副作用報告", "不具合報告",
+    "市販後調査", "市販後安全管理",
+]
+
+_UNIQUE_REQ_KEYWORDS_KO: list[str] = [
+    "허가", "인증", "신고", "등록", "승인",
+    "이상 사례", "시판 후 조사",
+    "국내 대리인", "수입",
+]
+
+_ALL_UNIQUE_REQ_KEYWORDS: list[str] = (
+    _UNIQUE_REQ_KEYWORDS
+    + _UNIQUE_REQ_KEYWORDS_ZH
+    + _UNIQUE_REQ_KEYWORDS_JA
+    + _UNIQUE_REQ_KEYWORDS_KO
+)
+
 
 # ============================================================
 # Provider & Parameter Helpers
@@ -158,21 +264,61 @@ def _is_local_provider(provider_id: str) -> bool:
     return provider_id.lower() in _LOCAL_PROVIDERS
 
 
-def _get_model_params(is_local: bool) -> dict:
-    return _LOCAL_PARAMS if is_local else _CLOUD_PARAMS
+def _detect_content_language(crawled_texts: list[dict]) -> str:
+    """Detect dominant script in crawled content to select safe char limits.
+
+    Samples first 1,000 chars of combined content. Returns 'cjk' if CJK
+    characters (Chinese/Japanese/Korean) exceed 20% of sampled chars, else
+    'latin'. Arabic script is treated as latin for token estimation purposes
+    (Arabic tokenizes similarly to Latin in Gemma).
+    """
+    sample = ""
+    for ct in crawled_texts:
+        sample += ct.get("content_markdown", "")[:300]
+        if len(sample) >= 1000:
+            break
+    if not sample:
+        return "latin"
+    cjk_count = sum(
+        1 for c in sample
+        if (
+            "一" <= c <= "鿿"   # CJK Unified Ideographs
+            or "぀" <= c <= "ゟ" # Hiragana
+            or "゠" <= c <= "ヿ" # Katakana
+            or "가" <= c <= "힯" # Hangul Syllables
+        )
+    )
+    return "cjk" if cjk_count / max(len(sample), 1) > 0.20 else "latin"
+
+
+def _get_model_params(is_local: bool, crawled_texts: list[dict] | None = None) -> dict:
+    """Return parameter set based on provider type and detected content language.
+
+    For local models, selects CJK-safe limits (50K chars) or Latin limits (80K)
+    based on detected script to avoid context-window overflow with CJK text.
+    """
+    if not is_local:
+        return _CLOUD_PARAMS
+    lang = _detect_content_language(crawled_texts or [])
+    return _LOCAL_PARAMS_CJK if lang == "cjk" else _LOCAL_PARAMS_LATIN
 
 
 def _get_batch_keywords(clause_ids: list[str]) -> list[str]:
-    """Collect keywords for a batch of ISO 13485 clause IDs (with parent fallback)."""
+    """Collect keywords for a batch of ISO 13485 clause IDs (with parent fallback).
+
+    Merges English, Chinese, Japanese, and Korean keyword dicts so paragraph
+    scoring works correctly for non-English regulatory text.
+    """
     keywords: set[str] = set()
-    for cid in clause_ids:
-        if cid in _CLAUSE_KEYWORDS:
-            keywords.update(_CLAUSE_KEYWORDS[cid])
-        parts = cid.split(".")
-        for i in range(1, len(parts)):
-            parent = ".".join(parts[:i])
-            if parent in _CLAUSE_KEYWORDS:
-                keywords.update(_CLAUSE_KEYWORDS[parent])
+    for kw_dict in _ALL_CLAUSE_KW_DICTS:
+        for cid in clause_ids:
+            if cid in kw_dict:
+                keywords.update(kw_dict[cid])
+            parts = cid.split(".")
+            for i in range(1, len(parts)):
+                parent = ".".join(parts[:i])
+                if parent in kw_dict:
+                    keywords.update(kw_dict[parent])
     return list(keywords)
 
 
@@ -238,17 +384,27 @@ def _build_focused_regulatory_text(
     if not valid:
         return ""
 
+    _ANCHOR_RATIO = 0.20  # Reserve 20% of budget as structural anchor (preamble/TOC)
+
     total_weight = sum(weights)
     parts: list[str] = []
     for ct, w in zip(valid, weights):
         site_chars = max(int(max_chars * w / total_weight), 300)
         agency = ct.get("agency", "")
         raw = ct["content_markdown"]
-        excerpt = (
-            _filter_relevant_paragraphs(raw, clause_keywords, site_chars)
+
+        # Front-load structural anchor: preserve first 20% to retain article hierarchy
+        anchor_chars = int(site_chars * _ANCHOR_RATIO)
+        body_chars = site_chars - anchor_chars
+        anchor = raw[:anchor_chars]
+        body_raw = raw[anchor_chars:]
+        body = (
+            _filter_relevant_paragraphs(body_raw, clause_keywords, body_chars)
             if clause_keywords
-            else raw[:site_chars]
+            else body_raw[:body_chars]
         )
+        excerpt = (anchor + "\n\n" + body) if anchor.strip() else body
+
         header = f"[{agency}]" if agency else "[Source]"
         parts.append(f"{header}\n{excerpt}")
 
@@ -451,7 +607,7 @@ async def analyze_regulation_with_llm(
     # is_local_override lets callers (e.g. app.py) pass the provider manager's
     # actual is_local flag, bypassing the static _LOCAL_PROVIDERS name check.
     is_local = is_local_override if is_local_override is not None else _is_local_provider(provider_id)
-    _params = _get_model_params(is_local)
+    _params = _get_model_params(is_local, crawled_texts)
     _batch_size = _params["batch_size"]
     logger.info(
         f"analyze_regulation_with_llm: provider={provider_id} is_local={is_local} "
@@ -690,7 +846,7 @@ async def analyze_regulation_with_llm(
     _unique_messages: list[dict] = []
     try:
         focused_unique = _build_focused_regulatory_text(
-            crawled_texts, _UNIQUE_REQ_KEYWORDS, _params["max_unique_req_chars"]
+            crawled_texts, _ALL_UNIQUE_REQ_KEYWORDS, _params["max_unique_req_chars"]
         )
         if is_local:
             _unique_messages = _build_unique_requirements_prompt_compact(
@@ -850,6 +1006,29 @@ async def analyze_regulation_with_llm(
                     )
     except Exception as _upg_err:
         logger.warning(f"Profile upgrade step failed for {profile_id}: {_upg_err}")
+
+    # Coverage diagnostic: warn when clauses were missed or N/A ratio is suspiciously high
+    _all_clause_ids = set(ISO_13485_CHECKLIST.keys())
+    _analyzed_ids = set(iso_mapped.keys())
+    _not_analyzed = _all_clause_ids - _analyzed_ids
+    _na_count = sum(1 for m in iso_mapped.values() if m.status == MappingStatus.NOT_APPLICABLE)
+    _na_ratio = _na_count / max(len(iso_mapped), 1)
+    if _not_analyzed:
+        logger.warning(
+            "[Coverage] %s: %d clauses not analyzed: %s",
+            profile_id, len(_not_analyzed), sorted(_not_analyzed),
+        )
+    if _na_ratio > 0.5:
+        logger.warning(
+            "[Coverage] %s: N/A ratio %.0f%% unusually high "
+            "(possible context truncation — consider re-running with more context or RAG)",
+            profile_id, _na_ratio * 100,
+        )
+    else:
+        logger.info(
+            "[Coverage] %s: %d/%d clauses analyzed, N/A ratio %.0f%%",
+            profile_id, len(_analyzed_ids), len(_all_clause_ids), _na_ratio * 100,
+        )
 
     if send_progress_fn:
         mapped_count = sum(
