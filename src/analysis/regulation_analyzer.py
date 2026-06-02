@@ -828,17 +828,17 @@ async def analyze_regulation_with_llm(
         *[_run_batch(idx, batch) for idx, batch in enumerate(batches, 1)]
     )
 
-    # Fill any missing clauses with NA
+    # Fill any missing clauses with NOT_ANALYZED
     for cid in clause_ids:
         if cid not in iso_mapped:
             iso_mapped[cid] = ClauseMapping(
                 iso_clause=cid,
-                status=MappingStatus.NOT_APPLICABLE,
+                status=MappingStatus.NOT_ANALYZED,
                 regulation_ref="",
-                rationale_en="No mapping data available",
-                rationale_zh="無可用的映射資料",
+                rationale_en="Clause not analyzed in any batch",
+                rationale_zh="此條款未在任何批次中被分析",
                 method=MappingMethod.LLM_ANALYSIS,
-                confidence=0.1,
+                confidence=0.0,
             )
 
     # ── Step 2: Identify unique requirements ──
@@ -1593,8 +1593,9 @@ def _parse_status(status_str: str) -> MappingStatus:
         "na": MappingStatus.NOT_APPLICABLE,
         "not_applicable": MappingStatus.NOT_APPLICABLE,
         "exceeds": MappingStatus.EXCEEDS,
+        "not_analyzed": MappingStatus.NOT_ANALYZED,
     }
-    return status_map.get(status_str.lower().strip(), MappingStatus.NOT_APPLICABLE)
+    return status_map.get(status_str.lower().strip(), MappingStatus.NOT_ANALYZED)
 
 
 def _extract_region_parts(region_name: str) -> tuple[str, str]:
@@ -1629,17 +1630,21 @@ def _fill_batch_fallback(
     iso_mapped: dict[str, ClauseMapping],
     batch: list[str],
 ) -> None:
-    """Fill a batch of clauses with NA fallback when LLM fails."""
+    """Fill a batch of clauses with NOT_ANALYZED when LLM fails.
+
+    Uses NOT_ANALYZED (not NOT_APPLICABLE) to distinguish 'analysis failed'
+    from 'regulation genuinely does not cover this clause'.
+    """
     for cid in batch:
         if cid not in iso_mapped:
             iso_mapped[cid] = ClauseMapping(
                 iso_clause=cid,
-                status=MappingStatus.NOT_APPLICABLE,
+                status=MappingStatus.NOT_ANALYZED,
                 regulation_ref="",
                 rationale_en="LLM analysis failed for this clause",
                 rationale_zh="此條款的 LLM 分析失敗",
                 method=MappingMethod.LLM_ANALYSIS,
-                confidence=0.1,
+                confidence=0.0,
             )
 
 

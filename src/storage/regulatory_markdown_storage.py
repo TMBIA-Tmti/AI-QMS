@@ -81,6 +81,39 @@ class RegulatoryMarkdownStorage:
         }
         self._save_registry()
 
+    # Minimum content length for a document to be considered non-empty
+    _MIN_CONTENT_CHARS = 100
+
+    # Phrases that indicate a crawl stub / error page rather than real content
+    _CRAWL_ERROR_SIGNATURES = (
+        "connection refused",
+        "failed to connect",
+        "404 not found",
+        "503 service unavailable",
+        "crawl failed",
+        "timeout error",
+        "ssl error",
+        "[crawl error]",
+    )
+
+    def _passes_quality_gate(self, content: str) -> tuple[bool, str]:
+        """Check whether crawled content meets minimum quality requirements.
+
+        Args:
+            content: Raw markdown content string (without the auto-header).
+
+        Returns:
+            (passes: bool, reason: str) — reason is empty string when passes=True.
+        """
+        stripped = content.strip()
+        if len(stripped) < self._MIN_CONTENT_CHARS:
+            return False, f"content too short ({len(stripped)} chars < {self._MIN_CONTENT_CHARS})"
+        lower = stripped[:500].lower()
+        for sig in self._CRAWL_ERROR_SIGNATURES:
+            if sig in lower:
+                return False, f"crawl error signature detected: '{sig}'"
+        return True, ""
+
     def _save_registry(self) -> None:
         """Save registry to file with atomic write."""
         self.registry["last_updated"] = datetime.now(timezone.utc).isoformat()
@@ -331,6 +364,20 @@ class RegulatoryMarkdownStorage:
             prev_body_hash: Optional[str] = prev_doc.get("body_hash") if prev_doc else None
             prev_content: Optional[str] = prev_doc.get("content") if prev_doc else None
             is_first_baseline = prev_body_hash is None
+
+            # Save-time quality gate: reject documents that are too short or contain crawl errors
+            _passes, _gate_reason = self._passes_quality_gate(content)
+            if not _passes:
+                skipped_count += 1
+                skipped_details.append({
+                    "region": region,
+                    "agency": agency,
+                    "reason": f"quality gate: {_gate_reason}",
+                })
+                logger.warning(
+                    f"Quality gate rejected {region}/{agency}: {_gate_reason}"
+                )
+                continue
 
             # QMS section annotation — runs before save, failure never blocks save
             if _annotator_ok:

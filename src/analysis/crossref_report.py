@@ -83,6 +83,7 @@ def generate_crossref_validation_report(
             "partial_count": 0,
             "exceeds_count": 0,
             "na_count": 0,
+            "not_analyzed_count": 0,
             "not_mapped_count": 0,
             "delta_count": 0,
             "total_confidence": 0.0,
@@ -161,8 +162,10 @@ def generate_crossref_validation_report(
                 stats["partial_count"] += 1
             elif status == "exceeds":
                 stats["exceeds_count"] += 1
-            elif status == "not_applicable":
+            elif status in ("na", "not_applicable"):
                 stats["na_count"] += 1
+            elif status == "not_analyzed":
+                stats["not_analyzed_count"] += 1
             else:
                 stats["not_mapped_count"] += 1
 
@@ -245,11 +248,13 @@ def generate_crossref_validation_report(
 # ============================================================
 
 _STATUS_LABELS = {
-    "full": {"zh": "✅ 完全對應", "en": "Full", "icon": "✅"},
-    "partial": {"zh": "🔶 部分對應", "en": "Partial", "icon": "🔶"},
-    "exceeds": {"zh": "⬆️ 超出 ISO", "en": "Exceeds", "icon": "⬆️"},
-    "not_applicable": {"zh": "⬜ 不適用", "en": "N/A", "icon": "⬜"},
-    "not_mapped": {"zh": "❓ 未映射", "en": "Not Mapped", "icon": "❓"},
+    "full":          {"zh": "✅ 完全對應",  "en": "Full",         "ja": "✅ 完全対応",     "icon": "✅"},
+    "partial":       {"zh": "🔶 部分對應",  "en": "Partial",      "ja": "🔶 部分対応",     "icon": "🔶"},
+    "exceeds":       {"zh": "⬆️ 超出 ISO", "en": "Exceeds",      "ja": "⬆️ ISO 超過",    "icon": "⬆️"},
+    "na":            {"zh": "⬜ 不適用",   "en": "N/A",          "ja": "⬜ 非適用",       "icon": "⬜"},
+    "not_applicable":{"zh": "⬜ 不適用",   "en": "N/A",          "ja": "⬜ 非適用",       "icon": "⬜"},
+    "not_mapped":    {"zh": "❓ 未映射",   "en": "Not Mapped",   "ja": "❓ 未マッピング",  "icon": "❓"},
+    "not_analyzed":  {"zh": "🔲 未分析",   "en": "Not Analyzed", "ja": "🔲 未分析",       "icon": "🔲"},
 }
 
 _IMPACT_LABELS = {

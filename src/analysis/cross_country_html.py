@@ -6,7 +6,7 @@ Loads all RegulationProfile JSONs from data/regulations/ and renders a self-cont
 HTML file with:
   - Rows  = ISO 13485:2016 clauses (71 rows)
   - Cols  = Countries/regulations (up to 32)
-  - Cells = MappingStatus badge  ✅ full | ⚠️ partial | ❌ na | ➕ exceeds
+  - Cells = MappingStatus badge  ✅ full | ⚠️ partial | ❌ na | ➕ exceeds | 🔲 not_analyzed
   - Frozen left column (clause #) + frozen top header row
   - Horizontal scroll for 32 columns
   - Click-to-expand tooltip with rationale + unique_requirements
@@ -28,10 +28,11 @@ _DEFAULT_OUTPUT_PATH = Path("data/cross_country_comparison.html")
 
 # Status → display badge
 _STATUS_BADGE = {
-    "full":    '<span class="badge badge-full"    title="Full coverage">✅ Full</span>',
-    "partial": '<span class="badge badge-partial" title="Partial coverage">⚠️ Partial</span>',
-    "na":      '<span class="badge badge-na"      title="Not addressed / Not found">❌ N/A</span>',
-    "exceeds": '<span class="badge badge-exceeds" title="Exceeds ISO 13485 requirements">➕ Exceeds</span>',
+    "full":         '<span class="badge badge-full"         title="Full coverage">✅ Full</span>',
+    "partial":      '<span class="badge badge-partial"      title="Partial coverage">⚠️ Partial</span>',
+    "na":           '<span class="badge badge-na"           title="Not addressed / Not found">❌ N/A</span>',
+    "exceeds":      '<span class="badge badge-exceeds"      title="Exceeds ISO 13485 requirements">➕ Exceeds</span>',
+    "not_analyzed": '<span class="badge badge-not-analyzed" title="Analysis attempted but did not complete">🔲 N/A*</span>',
 }
 
 _QUALITY_BADGE = {
@@ -398,9 +399,10 @@ def generate_html(
     .badge-full    { background: #d4edda; color: #155724; }
     .badge-partial { background: #fff3cd; color: #856404; }
     .badge-na      { background: #f8d7da; color: #721c24; }
-    .badge-exceeds { background: #d1ecf1; color: #0c5460; }
-    .cell-full    { background: #f0fff4; text-align: center; }
-    .cell-partial { background: #fffbf0; text-align: center; }
+    .badge-exceeds      { background: #d1ecf1; color: #0c5460; }
+    .badge-not-analyzed { background: #e9ecef; color: #495057; }
+    .cell-full         { background: #f0fff4; text-align: center; }
+    .cell-partial      { background: #fffbf0; text-align: center; }
     .cell-na      { background: #fff5f5; text-align: center; color: #ccc; font-size: 16px; }
     .cell-exceeds { background: #f0fbff; text-align: center; }
     /* Tooltip */
@@ -520,6 +522,7 @@ def generate_html(
       <div class="legend-item"><span class="badge badge-partial">⚠️ Partial</span> — Clause partially covered or referenced</div>
       <div class="legend-item"><span class="badge badge-na">❌ N/A</span> — Clause not addressed or not found</div>
       <div class="legend-item"><span class="badge badge-exceeds">➕ Exceeds</span> — National regulation exceeds ISO 13485 requirements</div>
+      <div class="legend-item"><span class="badge badge-not-analyzed">🔲 N/A*</span> — Analysis was attempted but LLM batch did not complete</div>
     </div>"""
 
     # ── Full HTML ─────────────────────────────────────────────────────────────

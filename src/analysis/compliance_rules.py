@@ -54,6 +54,8 @@ __all__ = [
     "load_crawled_regulation",
     "save_crawled_regulation",
     "backup_predefined_profile",
+    "backup_any_file",
+    "restore_predefined_profile",
     "merge_profiles",
     "map_unique_to_iso_clause",
     "get_profile_id_for_region",
@@ -4332,6 +4334,7 @@ class MappingStatus(str, Enum):
     PARTIAL = "partial"  # Regulation partially covers (some gaps or additions)
     NOT_APPLICABLE = "na"  # Regulation does not address this clause area
     EXCEEDS = "exceeds"  # Regulation exceeds ISO 13485 requirements for this clause
+    NOT_ANALYZED = "not_analyzed"  # LLM batch failed — analysis was attempted but did not complete
 
 
 class MappingMethod(str, Enum):
@@ -14829,19 +14832,104 @@ CRAWLED_REGULATIONS_DIR = os.path.join(
 def backup_predefined_profile(profile_id: str) -> Optional[str]:
     """Backup a predefined profile to data/regulations/backups/ before overwriting.
 
+    Uses a datetime timestamp (YYYYMMDD_HHMMSS) so multiple backups on the same
+    day do not overwrite each other.
+
     Returns the backup file path, or None if the profile is not on disk.
     """
     src_path = os.path.join(CRAWLED_REGULATIONS_DIR, f"{profile_id}.json")
     if not os.path.exists(src_path):
         return None
-    from datetime import date as _date_cls
+    from datetime import datetime as _dt_cls
+    import shutil as _shutil
     backup_dir = os.path.join(CRAWLED_REGULATIONS_DIR, "backups")
     os.makedirs(backup_dir, exist_ok=True)
-    date_str = _date_cls.today().strftime("%Y%m%d")
-    backup_path = os.path.join(backup_dir, f"{profile_id}_backup_{date_str}.json")
-    import shutil as _shutil
+    ts_str = _dt_cls.now().strftime("%Y%m%d_%H%M%S")
+    backup_path = os.path.join(backup_dir, f"{profile_id}_backup_{ts_str}.json")
     _shutil.copy2(src_path, backup_path)
     return backup_path
+
+
+def backup_any_file(src_path: str, label: str = "") -> Optional[str]:
+    """Universal backup for any file to data/regulations/backups/.
+
+    Args:
+        src_path: Absolute or relative path to the file to back up.
+        label:    Optional label appended to the backup filename.
+
+    Returns:
+        Backup file path, or None if source file does not exist.
+    """
+    if not os.path.exists(src_path):
+        return None
+    from datetime import datetime as _dt_cls
+    import shutil as _shutil
+    backup_dir = os.path.join(CRAWLED_REGULATIONS_DIR, "backups")
+    os.makedirs(backup_dir, exist_ok=True)
+    ts_str = _dt_cls.now().strftime("%Y%m%d_%H%M%S")
+    stem = os.path.splitext(os.path.basename(src_path))[0]
+    ext = os.path.splitext(src_path)[1]
+    suffix = f"_{label}" if label else ""
+    backup_path = os.path.join(backup_dir, f"{stem}_backup_{ts_str}{suffix}{ext}")
+    _shutil.copy2(src_path, backup_path)
+    return backup_path
+
+
+def restore_predefined_profile(
+    profile_id: str,
+    backup_path: Optional[str] = None,
+) -> dict:
+    """Restore a predefined profile from the most recent backup.
+
+    Args:
+        profile_id:  Profile ID (e.g., 'QMSR', 'EU_MDR', 'TFDA').
+        backup_path: Explicit backup file path to restore from.
+                     If None, the most recent backup for profile_id is used.
+
+    Returns:
+        dict with keys: 'success' (bool), 'profile_id', 'restored_from', 'message'.
+    """
+    import shutil as _shutil
+    backup_dir = os.path.join(CRAWLED_REGULATIONS_DIR, "backups")
+    dest_path = os.path.join(CRAWLED_REGULATIONS_DIR, f"{profile_id}.json")
+
+    if backup_path is None:
+        if not os.path.exists(backup_dir):
+            return {
+                "success": False,
+                "profile_id": profile_id,
+                "restored_from": None,
+                "message": "No backups directory found",
+            }
+        pattern = f"{profile_id}_backup_"
+        candidates = sorted(
+            [f for f in os.listdir(backup_dir) if f.startswith(pattern) and f.endswith(".json")],
+            reverse=True,
+        )
+        if not candidates:
+            return {
+                "success": False,
+                "profile_id": profile_id,
+                "restored_from": None,
+                "message": f"No backups found for {profile_id}",
+            }
+        backup_path = os.path.join(backup_dir, candidates[0])
+
+    if not os.path.exists(backup_path):
+        return {
+            "success": False,
+            "profile_id": profile_id,
+            "restored_from": backup_path,
+            "message": f"Backup file not found: {backup_path}",
+        }
+
+    _shutil.copy2(backup_path, dest_path)
+    return {
+        "success": True,
+        "profile_id": profile_id,
+        "restored_from": backup_path,
+        "message": f"Restored {profile_id} from {os.path.basename(backup_path)}",
+    }
 
 
 def merge_profiles(
