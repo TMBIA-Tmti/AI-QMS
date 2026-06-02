@@ -137,7 +137,7 @@ def build_change_summary(save_result: dict, crawl_results: dict) -> dict:
                 eu_mdr_core.append({
                     "agency": agency,
                     "changed": changed,
-                    "articles": entry.get("changed_articles", []),
+                    "changed_articles": entry.get("changed_articles", []),
                     "first_baseline": first_baseline,
                 })
             elif agency.startswith(_MDCG_AGENCY_PREFIX):

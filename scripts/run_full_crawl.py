@@ -57,7 +57,7 @@ async def main():
             if core["first_baseline"]:
                 print(f"  EU / {core['agency']}: [first baseline]")
             elif core["changed"]:
-                arts = ", ".join(core["changed_articles"]) or "—"
+                arts = ", ".join(core.get("changed_articles", [])) or "—"
                 print(f"  EU / {core['agency']}: CHANGED — {arts}")
             else:
                 print(f"  EU / {core['agency']}: no change")
