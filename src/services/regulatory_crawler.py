@@ -3764,7 +3764,22 @@ _REGULATORY_KEYWORDS = frozenset([
 
 def _is_regulatory_fulltext(content: str) -> bool:
     """M3: Heuristic — does this content look like regulatory full text vs an intro/index page?"""
-    if len(content) < 1500:
+    if not content or len(content) < 1500:
+        return False
+    # Immediately reject JS-disabled / bot-block pages (Bug A fix)
+    _head = content[:400].lower()
+    _block_indicators = (
+        "javascript is disabled",
+        "please enable javascript",
+        "cf-challenge",
+        "enable javascript to view",
+        "your browser does not support javascript",
+        "this site requires javascript",
+        "access denied",
+        "403 forbidden",
+        "max challenge attempts exceeded",
+    )
+    if any(ind in _head for ind in _block_indicators):
         return False
     lines = [ln for ln in content.splitlines() if ln.strip()]
     if len(lines) < 25:
@@ -5217,6 +5232,155 @@ async def _crawl_tier3_jina(
     return result
 
 
+async def _crawl_tier_playwright(
+    site: dict,
+    region: str,
+    playwright_semaphore: asyncio.Semaphore,
+) -> dict:
+    """Tier Playwright: Full headless Chromium for JS-rendered / Cloudflare-protected sites.
+
+    Cross-platform (Windows/Linux/macOS). Uses playwright-stealth to evade bot detection.
+    Memory: each instance ~150-300MB RAM. Semaphore limits concurrency to avoid OOM.
+    On low-memory systems (<8GB), set env QMS_PLAYWRIGHT_CONCURRENCY=1.
+    All browser instances auto-closed via async context managers — no memory leaks.
+    Falls back gracefully (returns failure dict) if playwright not installed.
+    """
+    result = _make_result_template(site, region)
+    url = site["url"]
+    start = time.time()
+
+    try:
+        from playwright.async_api import async_playwright
+        from playwright_stealth import stealth
+
+        async with playwright_semaphore:
+            async with async_playwright() as pw:
+                browser = await pw.chromium.launch(
+                    headless=True,
+                    args=[
+                        "--no-sandbox",            # required on Linux
+                        "--disable-setuid-sandbox",
+                        "--disable-dev-shm-usage", # prevent /dev/shm OOM on Linux
+                        "--disable-blink-features=AutomationControlled",
+                        "--disable-extensions",
+                    ],
+                )
+                try:
+                    context = await browser.new_context(
+                        user_agent=(
+                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                            "AppleWebKit/537.36 (KHTML, like Gecko) "
+                            "Chrome/131.0.0.0 Safari/537.36"
+                        ),
+                        viewport={"width": 1280, "height": 720},
+                        locale="en-US",
+                        java_script_enabled=True,
+                    )
+                    page = await context.new_page()
+                    # Apply stealth evasion (playwright-stealth 2.x API)
+                    try:
+                        stealth(page)
+                    except Exception:
+                        pass  # stealth is optional enhancement
+                    await page.goto(url, wait_until="networkidle", timeout=60000)
+                    await page.wait_for_timeout(2000)  # extra wait for heavy JS
+                    html_content = await page.content()
+                    title = await page.title()
+                    await context.close()
+                finally:
+                    await browser.close()
+
+                # Convert HTML → clean text via BS4
+                if html_content:
+                    try:
+                        from bs4 import BeautifulSoup
+                        soup = BeautifulSoup(html_content, "html.parser")
+                        for tag in soup(["script", "style", "nav", "footer", "header", "aside", "noscript"]):
+                            tag.decompose()
+                        content = soup.get_text(separator="\n", strip=True)
+                    except Exception:
+                        content = html_content
+                else:
+                    content = ""
+
+                if content and _is_regulatory_fulltext(content):
+                    result["content_markdown"] = content
+                    result["title"] = title or site.get("name", site["agency"])
+                    result["crawl_status"] = "success"
+                    result["content_source"] = "live"
+                elif content and len(content) > 200:
+                    result["failure_reason"] = (
+                        f"Playwright fetched {len(content)} chars but content failed "
+                        "regulatory text validation"
+                    )
+                else:
+                    result["failure_reason"] = "Playwright returned empty or near-empty page"
+
+    except ImportError:
+        result["failure_reason"] = "playwright not installed (pip install playwright && playwright install chromium)"
+    except Exception as e:
+        result["failure_reason"] = f"Playwright error: {str(e)[:200]}"
+
+    result["crawl_duration_seconds"] = round(time.time() - start, 2)
+    return result
+
+
+async def _crawl_tier_crawl4ai(
+    site: dict,
+    region: str,
+    crawl4ai_semaphore: asyncio.Semaphore,
+) -> dict:
+    """Tier Crawl4AI: Async browser-based crawling with automatic Markdown extraction.
+
+    Cross-platform (Windows/Linux/macOS). Lighter than Playwright for semi-static JS pages.
+    Uses Playwright internally — ensure 'playwright install chromium' has been run.
+    On low-memory systems, set env QMS_CRAWL4AI_CONCURRENCY=1.
+    Falls back gracefully if crawl4ai not installed.
+    """
+    result = _make_result_template(site, region)
+    url = site["url"]
+    start = time.time()
+
+    try:
+        from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
+
+        async with crawl4ai_semaphore:
+            async with AsyncWebCrawler() as crawler:
+                config = CrawlerRunConfig(
+                    wait_for_timeout=15000,
+                    page_timeout=60000,
+                )
+                crawl_result = await crawler.arun(url=url, config=config)
+
+                if crawl_result.success and crawl_result.markdown:
+                    content = crawl_result.markdown
+                    if _is_regulatory_fulltext(content):
+                        _meta = getattr(crawl_result, "metadata", None) or {}
+                        result["content_markdown"] = content
+                        result["title"] = (
+                            _meta.get("title", site.get("name", site["agency"]))
+                            if isinstance(_meta, dict) else site.get("name", site["agency"])
+                        )
+                        result["crawl_status"] = "success"
+                        result["content_source"] = "live"
+                    else:
+                        result["failure_reason"] = (
+                            f"Crawl4AI fetched {len(content)} chars but content failed "
+                            "regulatory text validation"
+                        )
+                else:
+                    _err = getattr(crawl_result, "error_message", None) or "unknown error"
+                    result["failure_reason"] = f"Crawl4AI failed: {_err}"
+
+    except ImportError:
+        result["failure_reason"] = "crawl4ai not installed (pip install crawl4ai)"
+    except Exception as e:
+        result["failure_reason"] = f"Crawl4AI error: {str(e)[:200]}"
+
+    result["crawl_duration_seconds"] = round(time.time() - start, 2)
+    return result
+
+
 # ============================================================
 # Core Async Crawler Class
 # ============================================================
@@ -5240,6 +5404,11 @@ class AsyncRegulatoryUpdateCrawler:
         self._sitemap_scanner = SitemapScanner()
         self._domain_semaphores: dict[str, asyncio.Semaphore] = {}
         self._jina_semaphore = asyncio.Semaphore(2)
+        # Playwright: max 2 concurrent browsers (~300MB each). Set QMS_PLAYWRIGHT_CONCURRENCY=1 on low-RAM systems.
+        import os as _os
+        self._playwright_semaphore = asyncio.Semaphore(int(_os.environ.get("QMS_PLAYWRIGHT_CONCURRENCY", "2")))
+        # Crawl4AI: max 3 concurrent. Set QMS_CRAWL4AI_CONCURRENCY=1 if needed.
+        self._crawl4ai_semaphore = asyncio.Semaphore(int(_os.environ.get("QMS_CRAWL4AI_CONCURRENCY", "3")))
 
     async def _ensure_client(self) -> None:
         """Lazy-init shared AsyncClient with HTTP/2 and connection pool."""
@@ -5364,12 +5533,23 @@ class AsyncRegulatoryUpdateCrawler:
                     fb = await self._try_fallback_urls(site, region, primary_reason)
                     if fb:
                         return fb
+                    # Playwright: full JS rendering fallback
+                    pw_result = await _crawl_tier_playwright(site, region, self._playwright_semaphore)
+                    if pw_result.get("crawl_status") == "success":
+                        pw_result["note"] = f"Jina failed ({primary_reason}) → Playwright succeeded"
+                        return pw_result
+                    # Crawl4AI: async browser fallback
+                    c4_result = await _crawl_tier_crawl4ai(site, region, self._crawl4ai_semaphore)
+                    if c4_result.get("crawl_status") == "success":
+                        c4_result["note"] = f"Jina failed ({primary_reason}) → Crawl4AI succeeded"
+                        return c4_result
                     # B-5: force_profile sites skip DDG — they are known-blocked
                     if not site.get("force_profile"):
                         ddgs_result = await self._fallback_ddgs_search(site, region)
                         if ddgs_result.get("crawl_status") == "success":
                             ddgs_result["note"] = (
                                 f"Jina failed ({primary_reason})"
+                                f" → Playwright/Crawl4AI failed"
                                 f" → DuckDuckGo fallback succeeded"
                             )
                             return ddgs_result
@@ -5412,11 +5592,30 @@ class AsyncRegulatoryUpdateCrawler:
                     fb = await self._try_fallback_urls(site, region, combined_reason)
                     if fb:
                         return fb
+                    # Playwright: full JS rendering fallback
+                    pw_result = await _crawl_tier_playwright(site, region, self._playwright_semaphore)
+                    if pw_result.get("crawl_status") == "success":
+                        pw_result["note"] = (
+                            f"httpx failed ({original_reason})"
+                            f" → Jina failed ({jina_fail_reason})"
+                            f" → Playwright succeeded"
+                        )
+                        return pw_result
+                    # Crawl4AI: async browser fallback
+                    c4_result = await _crawl_tier_crawl4ai(site, region, self._crawl4ai_semaphore)
+                    if c4_result.get("crawl_status") == "success":
+                        c4_result["note"] = (
+                            f"httpx failed ({original_reason})"
+                            f" → Jina failed ({jina_fail_reason})"
+                            f" → Crawl4AI succeeded"
+                        )
+                        return c4_result
                     ddgs_result = await self._fallback_ddgs_search(site, region)
                     if ddgs_result.get("crawl_status") == "success":
                         ddgs_result["note"] = (
                             f"httpx failed ({original_reason})"
                             f" → Jina failed ({jina_fail_reason})"
+                            f" → Playwright/Crawl4AI failed"
                             f" → DuckDuckGo fallback succeeded"
                         )
                         return ddgs_result
@@ -5431,6 +5630,7 @@ class AsyncRegulatoryUpdateCrawler:
                     result["failure_reason"] = (
                         f"{original_reason}"
                         f" → Jina fallback also failed ({jina_fail_reason})"
+                        f" → Playwright/Crawl4AI also failed"
                         f" → DuckDuckGo fallback also failed"
                     )
                 return result

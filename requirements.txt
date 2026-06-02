@@ -120,3 +120,6 @@ torchaudio==2.4.1
 # redis>=5.0.0
 # flower>=2.0.0
 # bcrypt>=4.0.0
+playwright>=1.60.0
+crawl4ai>=0.8.0
+playwright-stealth>=2.0.0
