@@ -330,22 +330,29 @@ def format_crossref_report_markdown(
     else:
         lines.append("## Summary")
     lines.append("")
+    _is_ja = lang.startswith("ja")
     if _show_zh:
         lines.append(
-            "| 國家 | 完全對應 | 部分對應 | 超出ISO | 不適用 | 未映射 | 獨有需求 | 平均信心度 |"
+            "| 國家 | 完全對應 | 部分對應 | 超出ISO | 不適用 | 未分析 | 未映射 | 獨有需求 | 平均信心度 |"
+        )
+    elif _is_ja:
+        lines.append(
+            "| 国 | 完全対応 | 部分対応 | ISO超過 | 非適用 | 未分析 | 未マッピング | 固有要件 | 平均信頼度 |"
         )
     else:
         lines.append(
-            "| Country | Full | Partial | Exceeds | N/A | Not Mapped | Unique Reqs | Avg Confidence |"
+            "| Country | Full | Partial | Exceeds | N/A | Not Analyzed | Not Mapped | Unique Reqs | Avg Confidence |"
         )
     lines.append(
-        "|------|---------|---------|---------|--------|--------|---------|-----------|"
+        "|------|---------|---------|---------|--------|--------|--------|---------|-----------|"
     )
     for reg_id, stats in country_stats.items():
         if _show_zh:
             name = stats.get("country_name_zh", reg_id)
             if _show_en:
                 name += f" ({stats.get('country_name_en', '')})"
+        elif _is_ja:
+            name = stats.get("country_name_en", reg_id)
         else:
             name = stats.get("country_name_en", reg_id)
         lines.append(
@@ -354,6 +361,7 @@ def format_crossref_report_markdown(
             f"| {stats.get('partial_count', 0)} "
             f"| {stats.get('exceeds_count', 0)} "
             f"| {stats.get('na_count', 0)} "
+            f"| {stats.get('not_analyzed_count', 0)} "
             f"| {stats.get('not_mapped_count', 0)} "
             f"| {stats.get('delta_count', 0)} "
             f"| {stats.get('avg_confidence', 0):.1%} |"

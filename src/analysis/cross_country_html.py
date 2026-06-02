@@ -32,7 +32,7 @@ _STATUS_BADGE = {
     "partial":      '<span class="badge badge-partial"      title="Partial coverage">⚠️ Partial</span>',
     "na":           '<span class="badge badge-na"           title="Not addressed / Not found">❌ N/A</span>',
     "exceeds":      '<span class="badge badge-exceeds"      title="Exceeds ISO 13485 requirements">➕ Exceeds</span>',
-    "not_analyzed": '<span class="badge badge-not-analyzed" title="Analysis attempted but did not complete">🔲 N/A*</span>',
+    "not_analyzed": '<span class="badge badge-not-analyzed" title="Analysis attempted but did not complete | 已嘗試分析但未完成 | 分析は試みられましたが完了しませんでした">🔲 N/A*</span>',
 }
 
 _QUALITY_BADGE = {
@@ -522,7 +522,7 @@ def generate_html(
       <div class="legend-item"><span class="badge badge-partial">⚠️ Partial</span> — Clause partially covered or referenced</div>
       <div class="legend-item"><span class="badge badge-na">❌ N/A</span> — Clause not addressed or not found</div>
       <div class="legend-item"><span class="badge badge-exceeds">➕ Exceeds</span> — National regulation exceeds ISO 13485 requirements</div>
-      <div class="legend-item"><span class="badge badge-not-analyzed">🔲 N/A*</span> — Analysis was attempted but LLM batch did not complete</div>
+      <div class="legend-item"><span class="badge badge-not-analyzed">🔲 N/A*</span> — Analysis was attempted but LLM batch did not complete｜已嘗試分析但 LLM 批次未完成｜分析は試みられましたが LLM バッチが完了しませんでした</div>
     </div>"""
 
     # ── Full HTML ─────────────────────────────────────────────────────────────
