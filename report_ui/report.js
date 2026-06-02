@@ -2823,7 +2823,7 @@
             const m = meta[rid] || {};
             const flag = FLAG_EMOJIS[m.country] || "🏳️";
             // Count statuses from rows
-            let fullCount = 0, partialCount = 0, exceedsCount = 0, naCount = 0;
+            let fullCount = 0, partialCount = 0, exceedsCount = 0, naCount = 0, notAnalyzedCount = 0;
             for (const row of (data.rows || [])) {
                 const regData = (row.regulations || {})[rid];
                 if (!regData) continue;
@@ -2831,6 +2831,7 @@
                 else if (regData.status === "partial") partialCount++;
                 else if (regData.status === "exceeds") exceedsCount++;
                 else if (regData.status === "na" || regData.status === "not_mapped") naCount++;
+                else if (regData.status === "not_analyzed") notAnalyzedCount++;
             }
             const uniqueReqs = (data.unique_requirements || {})[rid] || [];
 
@@ -2842,6 +2843,7 @@
                 <div class="stat-row"><span>⬆️ ${t('crossref.legendExceeds')}</span><strong style="color:#2563eb">${exceedsCount}</strong></div>
                 <div class="stat-row"><span>⚠️ ${t('crossref.legendPartial')}</span><strong style="color:var(--partial)">${partialCount}</strong></div>
                 <div class="stat-row"><span>➖ ${t('crossref.legendNA')}</span><strong style="color:var(--insufficient)">${naCount}</strong></div>
+                ${notAnalyzedCount > 0 ? `<div class="stat-row"><span>🔲 ${t('crossref.legendNotAnalyzed')}</span><strong style="color:var(--muted,#888)">${notAnalyzedCount}</strong></div>` : ''}
                 <div class="stat-row"><span>🚨 ${t('ui.uniqueReqs')}</span><strong style="color:var(--non-compliant)">${uniqueReqs.length}</strong></div>
                 <div class="stat-bar">
                     <div class="stat-bar-fill" style="width:${Math.round(fullCount / (data.iso_clause_count || 71) * 100)}%;background:var(--compliant)"></div>
@@ -2889,7 +2891,7 @@
         els.crossrefTableHead.innerHTML = headHtml;
 
         // Status priority for merging same-country regulations
-        const statusPriority = {exceeds: 5, full: 4, partial: 3, na: 2, not_applicable: 2, not_mapped: 1};
+        const statusPriority = {exceeds: 5, full: 4, partial: 3, na: 2, not_applicable: 2, not_mapped: 1, not_analyzed: 1};
 
         // Build body rows
         let bodyHtml = "";
@@ -2915,6 +2917,7 @@
                     exceeds: t('crossref.stat_exceeds') || "⬆️ Exceeds",
                     na: t('crossref.stat_na') || "➖ N/A",
                     not_mapped: t('crossref.stat_na') || "➖ N/A",
+                    not_analyzed: t('crossref.legendNotAnalyzed') || "🔲 N/A*",
                 };
                 const hasDelta = reg.delta_items && reg.delta_items.length > 0;
                 const uniqueClass = hasDelta ? " unique-marker" : "";

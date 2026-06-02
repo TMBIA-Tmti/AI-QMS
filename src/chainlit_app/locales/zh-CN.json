@@ -784,6 +784,7 @@
   "crossref.legendPartial": "部分採用 (Partial)",
   "crossref.legendExceeds": "超越 ISO (Exceeds)",
   "crossref.legendNA": "不適用 (N/A)",
+  "crossref.legendNotAnalyzed": "🔲 未分析（LLM 批次未完成）",
   "crossref.interCountry": "🔀 國家間差异分析",
   "crossref.interCountryDesc": "以下显示各國法规之間的差异 — 某國有但其他國家沒有的獨特要求。",
   "crossref.deltaTitle": "🚨 國家獨有要求 (Delta Items) — 最高優先級",

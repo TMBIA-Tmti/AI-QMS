@@ -778,6 +778,7 @@
   "crossref.legendPartial": "Partial Adoption",
   "crossref.legendExceeds": "Exceeds ISO",
   "crossref.legendNA": "Not Applicable",
+  "crossref.legendNotAnalyzed": "🔲 Not Analyzed (LLM Incomplete)",
   "crossref.interCountry": "🔀 Inter-Country Difference Analysis",
   "crossref.interCountryDesc": "Differences between countries' regulations — unique requirements that one country has but others don't.",
   "crossref.deltaTitle": "🚨 Country-Specific Requirements (Delta Items) — Highest Priority",

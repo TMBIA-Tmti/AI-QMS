@@ -744,6 +744,7 @@
   "crossref.legendPartial": "部分採用",
   "crossref.legendExceeds": "ISO 超過",
   "crossref.legendNA": "該当なし",
+  "crossref.legendNotAnalyzed": "🔲 未分析（LLM バッチ未完了）",
   "crossref.interCountry": "🔀 国間差異分析",
   "crossref.interCountryDesc": "各国規制間の差異 — ある国にあり他国にない固有の要件。",
   "crossref.deltaTitle": "🚨 国固有の要件 (Delta Items) — 最優先",

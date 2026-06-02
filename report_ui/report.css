@@ -1345,6 +1345,7 @@ body {
 .status-partial { background: var(--partial-bg); color: var(--partial); }
 .status-exceeds { background: #dbeafe; color: #2563eb; }
 .status-na      { background: var(--insufficient-bg); color: var(--insufficient); }
+.status-not_analyzed { background: #f1f3f5; color: #868e96; }
 
 /* Unique-to-country marker */
 .status-cell.unique-marker {
