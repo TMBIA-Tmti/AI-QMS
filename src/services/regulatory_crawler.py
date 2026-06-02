@@ -897,12 +897,12 @@ REGION_SITES = {
         },
         {
             "agency": "BPK-Permenkes20",
-            "name": "Permenkes No. 20 Tahun 2017 — CPAKB Direct PDF Download (Farmalkes Kemkes wpdmdl=11316)",
-            "url": "https://farmalkes.kemkes.go.id/?wpdmdl=11316",
+            "name": "Permenkes No. 20 Tahun 2017 — CPAKB Full Text (JDIH Kemenkes official regulation portal)",
+            "url": "https://hukor.kemkes.go.id/uploads/produk_hukum/PMK_No._20_Th_2017_ttg_Cara_Pembuatan_Alat_Kesehatan_Dan_Perbekalan_Kesehatan_Rumah_Tangga_Yang_Baik.pdf",
             "tier": 3,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "Full text of CPAKB regulation — confirmed 3.5MB, 60-page Indonesian-language PDF directly from Farmalkes Kemkes (WordPress WPDM stable download); peraturan.bpk.go.id returns 403 Forbidden — Jina/MarkItDown for PDF",
+            "note": "Full text of CPAKB regulation — hukor.kemkes.go.id official PDF (Ministry of Health legal bureau). Previous URL farmalkes.kemkes.go.id/?wpdmdl=11316 caused Jina Reader to redirect to pmda.go.jp (Japan PMDA) — wrong content. This direct PDF URL avoids the WordPress WPDM redirect chain.",
         },
     ],
     "馬來西亞 (Malaysia)": [
@@ -1132,12 +1132,12 @@ REGION_SITES = {
         },
         {
             "agency": "MOHAP",
-            "name": "UAE Ministry of Health and Prevention — Homepage",
-            "url": "https://mohap.gov.ae/",
-            "tier": 2,
+            "name": "UAE Ministry of Health and Prevention — Medical Products & Equipment Regulations",
+            "url": "https://mohap.gov.ae/en/departments/medical-products-and-equipments",
+            "tier": 3,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "MOHAP portal — fallback for regulation updates and announcements",
+            "note": "MOHAP medical products and equipment regulations page — secondary source for registration and licensing requirements. Previous URL mohap.gov.ae/ (homepage) caused crawler to follow links to WHO AMR PDF (uae_nap-amr_2025-2031.pdf) — wrong content entirely. Jina Reader to handle JS-rendered content.",
         },
     ],
 }
