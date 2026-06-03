@@ -2858,11 +2858,11 @@ _INDEX_DIFF_CACHE_PATH = Path("data/index_page_diff_cache.json")
 _AGENCY_DOC_TYPE: dict[str, str] = {
     # Taiwan — bulk API replaces individual Jina entries; EN kept as supplementary
     "TFDA-BulkAPI": "primary",
-    "TFDA-QMS": "primary", "TFDA-QMS-EN": "qms_guidance", "TFDA-QMS-Inspection": "primary",
+    "TFDA-QMS-EN": "qms_guidance",
     # USA
     "FDA-QMSR": "primary", "eCFR-820": "primary",
     # EU
-    "EUR-Lex-MDR-CELLAR": "primary", "EUR-Lex-MDR-UK": "primary", "EUR-Lex-MDR-OJ": "primary",
+    "EUR-Lex-MDR-CELLAR": "primary", "EUR-Lex-MDR-UK": "primary",
     "MDCG": "qms_guidance", "MDCG-2019-11": "qms_guidance", "MDCG-2021-25": "qms_guidance",
     "MDCG-2020-7": "qms_guidance", "MDCG-2022-14": "qms_guidance", "MDCG-2021-27": "qms_guidance",
     "MDCG-2022-21": "qms_guidance", "MDCG-2019-6": "qms_guidance", "MDCG-2018-1": "qms_guidance",
@@ -2870,7 +2870,7 @@ _AGENCY_DOC_TYPE: dict[str, str] = {
     # UK
     "UK-MDR-2002": "primary", "MHRA-Guidance": "qms_guidance",
     # Japan
-    "eGov-QMS-169": "primary", "PMDA-QMS-EN": "primary", "PMDA-QMS": "primary",
+    "eGov-QMS-169": "primary", "PMDA-QMS-EN": "qms_guidance", "PMDA-QMS": "primary",
     # China
     "NMPA-GMP-CN": "primary", "NMPA-GMP-Announcement": "qms_guidance", "NMPA-Regulations": "portal",
     # Korea
@@ -2897,7 +2897,7 @@ _AGENCY_DOC_TYPE: dict[str, str] = {
     # Saudi Arabia
     "SFDA-MDS-REQ10": "primary", "SFDA-ISO13485-Guidance": "qms_guidance",
     # Thailand
-    "Thai-FDA-GMP": "primary", "Thai-FDA-GMP-Law": "primary",
+    "Thai-FDA-GMP-Law": "primary",
     "Thai-FDA-NewLaws": "qms_guidance", "Thai-FDA-GMP-About": "qms_guidance",
     # New Zealand
     "Medsafe-MD-Legislation": "primary", "MoH-NZ-MD-Regulation": "primary",
@@ -3918,6 +3918,7 @@ def _make_result_template(site: dict, region: str) -> dict:
         "crawl_timestamp": datetime.now(timezone.utc).isoformat(),
         "crawl_duration_seconds": 0.0,
         "note": site.get("note", ""),
+        "doc_type": get_site_doc_type(site),
     }
 
 

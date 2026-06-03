@@ -945,6 +945,47 @@ async def analyze_regulation_with_llm(
                     )
             break
 
+    # ── Step 2.5: Analyze supplemental guidance docs (qms_guidance type) ──
+    _guidance_texts = [ct for ct in crawled_texts if ct.get("doc_type") == "qms_guidance"]
+    if _guidance_texts:
+        if send_progress_fn:
+            if lang.startswith("ja"):
+                await send_progress_fn(
+                    f"🔍 {zh_name} ({en_name}) の補足ガイダンス文書を分析中 "
+                    f"({len(_guidance_texts)} 件)..."
+                )
+            elif lang.startswith("zh"):
+                await send_progress_fn(
+                    f"🔍 分析 {zh_name} ({en_name}) 補充指引文件 "
+                    f"（共 {len(_guidance_texts)} 份）..."
+                )
+            else:
+                await send_progress_fn(
+                    f"🔍 Analyzing {len(_guidance_texts)} supplemental guidance doc(s) for {en_name}..."
+                )
+        try:
+            _supplemental = await analyze_supplemental_guidance(
+                region_name=region_name,
+                guidance_texts=_guidance_texts,
+                llm_completion_fn=llm_completion_fn,
+                model=model,
+                provider_id=provider_id,
+                is_local_override=is_local_override,
+            )
+            if _supplemental:
+                unique_reqs.extend(_supplemental)
+                logger.info(
+                    "analyze_supplemental_guidance added %d requirements for %s",
+                    len(_supplemental),
+                    region_name,
+                )
+        except Exception as _sg_err:
+            logger.warning(
+                "Supplemental guidance analysis failed for %s: %s",
+                region_name,
+                _sg_err,
+            )
+
     # ── Step 3: Build and save profile ──
     # D-2: compute content_quality based on non-na ratio
     _non_na_count = sum(

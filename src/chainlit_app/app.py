@@ -3071,6 +3071,7 @@ async def _regulatory_background_scheduler():
                 f"[Scheduler] Regulatory crawl complete: "
                 f"{summary.get('success_count', 0)}/{summary.get('total_sites', 0)} succeeded"
             )
+            _write_last_crawl_date("scheduler")
 
         except asyncio.CancelledError:
             break
@@ -3154,14 +3155,25 @@ async def _daily_audit_background_scheduler():
 
                 mdsap_on = get_app_setting("mdsap_verify_enabled", False)
 
-                # Check regulation freshness to determine incomplete countries
+                # Check regulation freshness — skip live crawl if already ran today (P2-2)
                 incomplete_countries: list[str] = []
                 try:
-                    from src.services.regulatory_crawler import (
-                        check_country_data_completeness,
-                    )
-
-                    completeness = await check_country_data_completeness()
+                    import datetime as _dt_da
+                    _da_guard = _read_last_crawl_date()
+                    _da_today = _dt_da.datetime.now().strftime("%Y-%m-%d")
+                    if _da_guard.get("last_full_crawl_date") == _da_today:
+                        _logger.info(
+                            "[DailyAuditScheduler] Crawl already ran today "
+                            "(source: %s at %s) — skipping live crawl",
+                            _da_guard.get("trigger_source", "unknown"),
+                            _da_guard.get("last_full_crawl_timestamp", "?"),
+                        )
+                        completeness = {"incomplete_countries": []}
+                    else:
+                        from src.services.regulatory_crawler import (
+                            check_country_data_completeness,
+                        )
+                        completeness = await check_country_data_completeness()
                     incomplete_countries = completeness.get("incomplete_countries", [])
                     if incomplete_countries:
                         _logger.info(
@@ -3236,6 +3248,41 @@ async def _daily_audit_background_scheduler():
 
 
 _FRESHNESS_TIMESTAMP_FILE = Path("data/last_freshness_check.json")
+
+
+# --- Shared daily-crawl deduplication guard ---
+_LAST_CRAWL_DATE_PATH = Path("data/last_crawl_date.json")
+
+
+def _read_last_crawl_date() -> dict:
+    """Read last crawl date from shared guard file. Returns {} if not found."""
+    try:
+        if _LAST_CRAWL_DATE_PATH.exists():
+            import json as _json
+            data = _json.loads(_LAST_CRAWL_DATE_PATH.read_text(encoding="utf-8"))
+            return data if isinstance(data, dict) else {}
+    except Exception:
+        pass
+    return {}
+
+
+def _write_last_crawl_date(trigger_source: str) -> None:
+    """Write today's date to shared crawl guard file."""
+    import json as _json
+    import datetime as _dt_wcd
+    now = _dt_wcd.datetime.now()
+    data = {
+        "last_full_crawl_date": now.strftime("%Y-%m-%d"),
+        "last_full_crawl_timestamp": now.isoformat(),
+        "trigger_source": trigger_source,
+    }
+    try:
+        _LAST_CRAWL_DATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _LAST_CRAWL_DATE_PATH.write_text(
+            _json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+    except Exception:
+        pass
 
 
 def _should_run_freshness_check() -> bool:
@@ -5976,8 +6023,34 @@ async def handle_regulatory_update():
     store = get_regulatory_store()
     selected_regions: list = []
 
-    # Check if config already exists (non-first run)
-    if config_mgr.has_config():
+    # P2-3: Use cached results if already crawled today (non-manual source)
+    import datetime as _dt_p23
+    _p23_guard = _read_last_crawl_date()
+    _p23_today = _dt_p23.datetime.now().strftime("%Y-%m-%d")
+    _p23_cached_results = None
+    if (
+        _p23_guard.get("last_full_crawl_date") == _p23_today
+        and _p23_guard.get("trigger_source") != "manual"
+    ):
+        _p23_loaded = result_store.load_last_results()
+        if _p23_loaded and _p23_loaded.get("results"):
+            _p23_cached_results = _p23_loaded
+            lang = cl.user_session.get("language", DEFAULT_LANG)
+            _p23_ts = _p23_guard.get("last_full_crawl_timestamp", "")
+            _p23_src = _p23_guard.get("trigger_source", "?")
+            if lang.startswith("zh"):
+                await cl.Message(content=f"💾 今日已完成爬取（{_p23_ts}，來源：{_p23_src}），使用快取資料。").send()
+            elif lang.startswith("ja"):
+                await cl.Message(content=f"💾 本日クロール済み（{_p23_ts}、ソース：{_p23_src}）。キャッシュを使用します。").send()
+            else:
+                await cl.Message(content=f"💾 Already crawled today ({_p23_ts}, source: {_p23_src}). Using cached data.").send()
+
+    if _p23_cached_results is not None:
+        crawl_results = _p23_cached_results
+        crawl_results["selected_regions"] = selected_regions
+        cl.user_session.set("last_regulatory_update", crawl_results)
+        store.save_crawl_results(crawl_results)
+    elif config_mgr.has_config():
         selected_regions = config_mgr.get_selected_regions()
         if selected_regions:
             # Non-first run: crawl only selected regions
@@ -6052,12 +6125,13 @@ async def handle_regulatory_update():
                     crawl_results.get("summary", {}).get("total_sites", 0),
                 )
 
-    # Store results in session
-    crawl_results["selected_regions"] = selected_regions
-    cl.user_session.set("last_regulatory_update", crawl_results)
+    # Store results in session (only for actual crawl paths; cached path already saved)
+    if _p23_cached_results is None:
+        crawl_results["selected_regions"] = selected_regions
+        cl.user_session.set("last_regulatory_update", crawl_results)
 
-    # Save crawl results to JSON
-    store.save_crawl_results(crawl_results)
+        # Save crawl results to JSON
+        store.save_crawl_results(crawl_results)
 
     # Save individual markdown files to independent regulatory markdown DB
     reg_md_store = get_regulatory_markdown_store()
@@ -6313,40 +6387,60 @@ async def handle_regulatory_update_rescan(selected_regions: list):
             f"{profile_cleanup['deleted_ids']}"
         )
 
-    # Re-scan only selected regions
-    await cl.Message(content=t("regulatory_update.rescan")).send()
-    crawler = get_regulatory_crawler()
-    with phoenix_span(
-        "regulatory_crawl_rescan",
-        profile="Doc Control",
-        attributes={
-            "crawl.type": "rescan_selected",
-            "crawl.regions": ", ".join(selected_regions),
-        },
-    ) as span:
-        crawl_results = await crawler.crawl_selected_regions(selected_regions)
-        if span is not None:
-            span.set_attribute(
-                "crawl.success_count",
-                crawl_results.get("summary", {}).get("success_count", 0),
-            )
-            span.set_attribute(
-                "crawl.failed_count",
-                crawl_results.get("summary", {}).get("failed_count", 0),
-            )
-            span.set_attribute(
-                "crawl.total_sites",
-                crawl_results.get("summary", {}).get("total_sites", 0),
-            )
-            span.set_attribute(
-                "crawl.duration_seconds",
-                crawl_results.get("summary", {}).get("crawl_duration_seconds", 0),
-            )
-
-    # Store results
-    crawl_results["selected_regions"] = selected_regions
-    cl.user_session.set("last_regulatory_update", crawl_results)
-    store.save_crawl_results(crawl_results)
+    # Re-scan: reuse cached session results to avoid a second full crawl (P0-3)
+    _rescan_cached = cl.user_session.get("last_regulatory_update")
+    if _rescan_cached and _rescan_cached.get("results"):
+        _rescan_filtered = [
+            r for r in _rescan_cached.get("results", [])
+            if r.get("region") in selected_regions
+        ]
+        crawl_results = dict(_rescan_cached)
+        crawl_results["results"] = _rescan_filtered
+        crawl_results["selected_regions"] = selected_regions
+        _rescan_succ = sum(1 for r in _rescan_filtered if r.get("crawl_status") == "success")
+        _rescan_fail = sum(1 for r in _rescan_filtered if r.get("crawl_status") != "success")
+        crawl_results["summary"] = {
+            **_rescan_cached.get("summary", {}),
+            "total_sites": len(_rescan_filtered),
+            "success_count": _rescan_succ,
+            "failed_count": _rescan_fail,
+            "regions_covered": selected_regions,
+        }
+        cl.user_session.set("last_regulatory_update", crawl_results)
+        store.save_crawl_results(crawl_results)
+    else:
+        # Fallback: perform crawl if no cached results available
+        await cl.Message(content=t("regulatory_update.rescan")).send()
+        crawler = get_regulatory_crawler()
+        with phoenix_span(
+            "regulatory_crawl_rescan",
+            profile="Doc Control",
+            attributes={
+                "crawl.type": "rescan_selected",
+                "crawl.regions": ", ".join(selected_regions),
+            },
+        ) as span:
+            crawl_results = await crawler.crawl_selected_regions(selected_regions)
+            if span is not None:
+                span.set_attribute(
+                    "crawl.success_count",
+                    crawl_results.get("summary", {}).get("success_count", 0),
+                )
+                span.set_attribute(
+                    "crawl.failed_count",
+                    crawl_results.get("summary", {}).get("failed_count", 0),
+                )
+                span.set_attribute(
+                    "crawl.total_sites",
+                    crawl_results.get("summary", {}).get("total_sites", 0),
+                )
+                span.set_attribute(
+                    "crawl.duration_seconds",
+                    crawl_results.get("summary", {}).get("crawl_duration_seconds", 0),
+                )
+        crawl_results["selected_regions"] = selected_regions
+        cl.user_session.set("last_regulatory_update", crawl_results)
+        store.save_crawl_results(crawl_results)
 
     # Save individual markdown files to independent regulatory markdown DB
     reg_md_store = get_regulatory_markdown_store()
@@ -6470,6 +6564,7 @@ async def handle_regulatory_update_rescan(selected_regions: list):
                             "agency": _r.get("agency", ""),
                             "content_markdown": _r.get("content_markdown", ""),
                             "url": _r.get("url", ""),
+                            "doc_type": _r.get("doc_type", "primary"),
                         })
 
                 async def _analyze_one_region(region: str) -> tuple:
