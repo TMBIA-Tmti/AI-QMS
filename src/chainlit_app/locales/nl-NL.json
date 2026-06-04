@@ -114,6 +114,7 @@
   "search.failed": "Eira：Zoeken mislukt: {error}",
   "search.no_results": "Eira：🔍 Geen documenten gevonden met '{query}'.\n\nControleer het zoekwoord of probeer andere zoektermen.",
   "search.results": "Eira：🔍 **Zoekresultaten voor '{query}'** ({count} gevonden)",
+  "search.semantic_results": "Eira：🔍 **Semantische zoekresultaten voor '{query}'** ({count} gevonden, gesorteerd op gelijkenis)",
   "settings.api_key": "API-sleutel (vereist voor clouddiensten)",
   "settings.api_key_placeholder": "Voer API-sleutel in...",
   "settings.connection_failed": "Eira：❌ Verbindingstest mislukt: {error}",

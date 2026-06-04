@@ -4466,9 +4466,30 @@ async def handle_document_list() -> str:
 
 
 async def handle_search(query: str) -> str:
-    """Handle search command"""
+    """Handle search command — tries vector semantic search first, falls back to keyword."""
     if not query:
         return t("search.empty")
+    try:
+        from src.services.vector_store import get_vector_store
+        store = get_vector_store()
+        if store.is_available:
+            vec_results = await store.search_similar(query, n_results=5)
+            if vec_results:
+                result_list = "\n".join(
+                    f"- **{r['doc_id']}**: {r['metadata'].get('filename', r['doc_id'])}"
+                    f" (v{r['metadata'].get('version', '?')})"
+                    f" — similarity {r['score']:.0%}\n"
+                    f"  > {r['content'][:100]}..."
+                    for r in vec_results
+                )
+                return (
+                    t("search.semantic_results", query=query, count=len(vec_results))
+                    + f"\n\n{result_list}"
+                )
+    except Exception:
+        pass
+
+    # Keyword fallback
     try:
         md_service = MarkdownStoreService()
         results = md_service.search(query, limit=5)

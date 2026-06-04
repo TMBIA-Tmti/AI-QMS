@@ -68,6 +68,19 @@ Eira 的 Logo 由兩個核心符號交織而成，每一筆都承載著這個專
 - 不符合事項管理
 - 稽核報告自動生成
 
+### v5.1.1 新增功能（2026-06-04）
+- **知識圖譜服務** — QMS 文件自動建立知識圖譜，可依條款（如 ISO 13485）查詢相關文件
+- **語義搜尋升級** — 「搜尋」指令改為向量語義搜尋，結果依相似度排序並顯示相似度分數，無向量資料庫時自動回退關鍵字搜尋
+- **20 語言介面更新** — 語義搜尋回應訊息同步更新至全部 20 個語言
+
+### v5.1.0 新增功能（2026-06-03）
+- **P1-1 RAG Backbone** — 向量資料庫基礎設施正式接線，文件語義搜尋功能上線
+  - `src/services/vector_store.py` — ChromaDB PersistentClient 單例，`CHROMA_PERSIST_DIR` 正式接線
+  - `src/services/rag_ingestion.py` — `markdown_storage` → embedding → ChromaDB 批次 ingestion pipeline
+  - `src/services/lightrag_service.py` — LightRAG 服務初始化，`LIGHTRAG_WORKING_DIR` 正式接線（P1-2 知識圖譜前置）
+  - `src/database/document_store.py` — `find_documents_referencing_version()` TODO 替換為真實向量語義搜尋
+- **32 國法規爬蟲更新** — 土耳其 URL 修正（mevzuat.gov.tr）、俄羅斯 ConsultantPlus crawl_delay、加拿大 MDSAP 3 新 entries（QMS/General/Assessment）、智利 MINSAL fallback、日本 eGov tier 升級、菲律賓 FDA URL 修正、墨西哥 NOM241 降級 qms_guidance
+
 ### v5.0.0 新增功能（2026-05-25）
 - **跨審查與深度報告匯出** — 跨審查記錄、深度分析報告 Word/Excel 匯出（`crossexam_export.py`）
 - **N 國 × ISO 13485 交叉對照表匯出** — Word/Excel 色彩編碼交叉對照表，含唯一需求工作表（`crossref_export.py`）
@@ -376,6 +389,11 @@ The two symbols **overlap and merge** in the logo — the pen nib touches the se
 - Non-conformance management
 - Automated audit report generation
 
+### v5.1.1 New Features (2026-06-04)
+- **Knowledge Graph Service** — QMS documents are automatically indexed into a knowledge graph; query related documents by regulatory clause (e.g. ISO 13485)
+- **Semantic Search Upgrade** — The "search" command now uses vector semantic search, results are ranked by similarity score; falls back to keyword search when the vector store is unavailable
+- **20-Language UI Update** — Semantic search response messages updated across all 20 supported languages
+
 ### v5.0.0 New Features (2026-05-25)
 - **Cross-Examination & Deep Report Export** — Word/Excel export for cross-exam records and full deep analysis reports (`crossexam_export.py`)
 - **N-Country × ISO 13485 Cross-Reference Export** — Color-coded Word/Excel cross-reference table with unique requirements worksheet (`crossref_export.py`)
@@ -683,6 +701,11 @@ Eira のロゴは、プロジェクトの使命を体現する 2 つのコアシ
 - 内部監査スケジュールと追跡
 - 不適合管理
 - 監査報告書の自動生成
+
+### v5.1.1 新機能（2026-06-04）
+- **ナレッジグラフサービス** — QMS 文書を自動的にナレッジグラフに登録し、条項（例：ISO 13485）から関連文書を検索可能
+- **セマンティック検索強化** — 「検索」コマンドがベクター意味検索に対応、類似度スコア付きで結果を表示。ベクターDBが利用できない場合はキーワード検索にフォールバック
+- **20 言語 UI 更新** — セマンティック検索の応答メッセージを全 20 言語に対応
 
 ### v5.0.0 新機能（2026-05-25）
 - **クロス審査・深度レポートエクスポート** — クロス審査記録と深度分析レポートの Word/Excel エクスポート（`crossexam_export.py`）

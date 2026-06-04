@@ -185,7 +185,7 @@ REGION_SITES = {
         {
             "agency": "EUR-Lex-MDR-CELLAR",
             "name": "Regulation (EU) 2017/745 — EU MDR Full Text PDF, consolidated 02017R0745-20260101 (EUR-Lex CELLAR official, English)",
-            "url": "http://publications.europa.eu/resource/cellar/fddb3266-f0ab-11f0-8d3c-01aa75ed71a1.0007.03/DOC_1",
+            "url": "https://publications.europa.eu/resource/cellar/fddb3266-f0ab-11f0-8d3c-01aa75ed71a1.0007.03/DOC_1",
             "tier": 1,
             "strategy": "html",
             "crawl_delay": 3,
@@ -330,10 +330,10 @@ REGION_SITES = {
             "agency": "eGov-QMS-169",
             "name": "医療機器及び体外診断用医薬品の製造管理及び品質管理の基準に関する省令 (MHLW Ordinance No. 169 — QMS省令 full text)",
             "url": "https://laws.e-gov.go.jp/law/416M60000100169",
-            "tier": 3,
+            "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "PRIMARY QMS regulation: MHLW Ministerial Ordinance No. 169 (2004, revised 2021) — Japanese QMS Ordinance (QMS省令) mirroring ISO 13485:2016 — official e-Gov law database",
+            "note": "PRIMARY QMS regulation: MHLW Ministerial Ordinance No. 169 (2004, revised 2021) — Japanese QMS Ordinance (QMS省令) mirroring ISO 13485:2016 — official e-Gov law database; tier 2 httpx first, Jina fallback if needed",
         },
         {
             "agency": "PMDA-QMS",
@@ -442,8 +442,39 @@ REGION_SITES = {
             "url": "https://www.mdsap.global/documents/audit-procedures-and-forms",
             "tier": 3,
             "strategy": "html",
-            "crawl_delay": 5,
-            "note": "Akamai protection — Jina Reader first",
+            "crawl_delay": 10,
+            "index_page": True,
+            "note": "Akamai protection — Jina Reader first; index_page=True to capture all linked documents",
+        },
+        {
+            "agency": "MDSAP-Global-QMS",
+            "name": "MDSAP Quality Management System",
+            "url": "https://www.mdsap.global/documents/quality-management-system",
+            "tier": 3,
+            "strategy": "html",
+            "crawl_delay": 10,
+            "index_page": True,
+            "note": "Akamai protection — Jina Reader first; index_page=True",
+        },
+        {
+            "agency": "MDSAP-Global-General",
+            "name": "MDSAP General Documents and Procedures",
+            "url": "https://www.mdsap.global/documents/general-documents-and-procedures",
+            "tier": 3,
+            "strategy": "html",
+            "crawl_delay": 10,
+            "index_page": True,
+            "note": "Akamai protection — frequent timeouts, Jina Reader fallback; index_page=True",
+        },
+        {
+            "agency": "MDSAP-Global-Assessment",
+            "name": "MDSAP Assessment Procedures and Forms",
+            "url": "https://www.mdsap.global/documents/assessment-procedures-and-forms",
+            "tier": 3,
+            "strategy": "html",
+            "crawl_delay": 10,
+            "index_page": True,
+            "note": "Akamai protection — frequent timeouts, Jina Reader fallback; index_page=True",
         },
         {
             "agency": "FDA-MDSAP-Audit",
@@ -803,7 +834,7 @@ REGION_SITES = {
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "English version of NOM-241-SSA1-2021 (2021 version, now superseded by 2025 revision) — retained for reference on prior requirements",
+            "note": "English version of NOM-241-SSA1-2021 (2021 version, now superseded by 2025 revision) — retained for reference on prior requirements: Downgraded to qms_guidance — this is the 2021 English version, now superseded by NOM-241-SSA1-2025",
         },
     ],
     "阿根廷 (Argentina)": [
@@ -867,13 +898,12 @@ REGION_SITES = {
         },
         {
             "agency": "TITCK-MD-Legislation",
-            "name": "Tıbbi Cihaz Yönetmeliği — Resmi Gazete 31499 Mükerrer PDF (2 June 2021)",
-            "url": "https://www.resmigazete.gov.tr/eskiler/2021/06/20210602M1-2.pdf",
+            "name": "Tıbbi Cihaz Yönetmeliği — mevzuat.gov.tr PDF (KurumVeKurulusYonetmeligi No. 38657)",
+            "url": "https://mevzuat.gov.tr/mevzuatmetin/KurumVeKurulusYonetmeligi5.38657.pdf",
             "tier": 3,
             "strategy": "html",
             "crawl_delay": 5,
-            "force_profile": True,
-            "note": "Resmi Gazete PDF (4.9MB scanned image) — fitz: no text layer; docling: OOM on 142 pages; Jina: HTTP 422 — using pre-written profile (EU MDR 2017/745 equivalent QMS requirements)",
+            "note": "Alternative PDF source for Tıbbi Cihaz Yönetmeliği — mevzuat.gov.tr downloadable PDF; previous Resmi Gazete URL was 142-page scanned image with no text layer (fitz/docling/Jina all failed) — Jina first",
         },
         {
             "agency": "TITCK-New-Regs",
@@ -984,12 +1014,12 @@ REGION_SITES = {
         },
         {
             "agency": "FDA-PH-MD",
-            "name": "Philippines FDA — Medical Devices Homepage (CDRRHR)",
-            "url": "https://www.fda.gov.ph/",
+            "name": "Philippines FDA — Medical Devices (CDRRHR portal)",
+            "url": "https://www.fda.gov.ph/medical-devices/",
             "tier": 2,
             "strategy": "html",
             "crawl_delay": 3,
-            "note": "Philippines FDA portal — fallback for regulation updates and guidance",
+            "note": "Philippines FDA medical devices portal (CDRRHR section) — fallback for RA9711 regulation updates and guidance",
         },
     ],
     "越南 (Vietnam)": [
@@ -1075,9 +1105,9 @@ REGION_SITES = {
             "url": "https://www.consultant.ru/document/cons_doc_LAW_491966/e8558fcb2d8260bcdf939ff0403d32dfcc37110c/",
             "tier": 3,
             "strategy": "html",
-            "crawl_delay": 5,
+            "crawl_delay": 10,
             "force_profile": True,
-            "note": "Decree 1684 Rules full text on ConsultantPlus — paywall blocks Jina; force_profile=True skips DDG and uses pre-written profile directly",
+            "note": "Decree 1684 Rules full text on ConsultantPlus — paywall blocks Jina; force_profile=True skips DDG and uses pre-written profile directly: ZakonRF-1684 is the primary working source; this entry serves as secondary reference only",
         },
         {
             "agency": "RZN-MD",
@@ -1110,6 +1140,15 @@ REGION_SITES = {
         },
     ],
     "智利 (Chile)": [
+        {
+            "agency": "MINSAL-Reglamentos",
+            "name": "MINSAL Chile — Reglamentos de dispositivos médicos (Ministerio de Salud)",
+            "url": "https://www.minsal.cl/reglamentos-y-normas-medicos-y-farmaceu/",
+            "tier": 3,
+            "strategy": "html",
+            "crawl_delay": 5,
+            "note": "MINSAL Chile medical device regulations portal — fallback for ISP-Regulations; Cloudflare protection — Jina first",
+        },
         {
             "agency": "ISP-Regulations",
             "name": "Decreto Supremo N° 825 de 1998 — Reglamento de Control de Productos y Elementos de Uso Médico (BCN Ley Chile)",
@@ -2903,7 +2942,7 @@ _AGENCY_DOC_TYPE: dict[str, str] = {
     "Medsafe-MD-Legislation": "primary", "MoH-NZ-MD-Regulation": "primary",
     "NZ-Medicines-Act-1981": "primary", "Medsafe-GMP": "qms_guidance",
     # Mexico
-    "NOM241-EN-PDF": "primary", "DOF-NOM241-2025": "primary",
+    "NOM241-EN-PDF": "qms_guidance", "DOF-NOM241-2025": "primary",
     # Argentina
     "ANMAT-Disposicion64-25": "primary", "ANMAT-MD": "portal",
     # South Africa
@@ -2930,7 +2969,7 @@ _AGENCY_DOC_TYPE: dict[str, str] = {
     # Egypt
     "EDA-MD-Guide": "primary", "EDA": "portal",
     # Chile
-    "ISP-Regulations": "primary",
+    "ISP-Regulations": "primary", "MINSAL-Reglamentos": "qms_guidance",
     # UAE
     "MOHAP-FDL38-2024": "primary", "MOHAP": "portal",
 }

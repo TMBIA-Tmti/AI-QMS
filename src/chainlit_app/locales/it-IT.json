@@ -114,6 +114,7 @@
   "search.failed": "Eira：Ricerca fallita: {error}",
   "search.no_results": "Eira：🔍 Nessun documento trovato contenente '{query}'.\n\nVerificare la parola chiave o provare altri termini di ricerca.",
   "search.results": "Eira：🔍 **Risultati della ricerca per '{query}'** ({count} trovati)",
+  "search.semantic_results": "Eira：🔍 **Risultati della ricerca semantica per '{query}'** ({count} trovati, ordinati per similarità)",
   "settings.api_key": "Chiave API (richiesta per servizi cloud)",
   "settings.api_key_placeholder": "Inserisci la chiave API...",
   "settings.connection_failed": "Eira：❌ Test di connessione fallito: {error}",

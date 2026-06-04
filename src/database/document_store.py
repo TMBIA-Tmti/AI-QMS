@@ -135,8 +135,16 @@ class DocumentStore:
         找出引用指定版本的文件
         TODO: 整合向量資料庫搜尋
         """
-        # 暫時返回空清單，待整合 ChromaDB
-        return []
+        try:
+            from src.services.vector_store import get_vector_store
+            import asyncio
+            store = get_vector_store()
+            loop = asyncio.new_event_loop()
+            results = loop.run_until_complete(store.search_similar(f"{doc_id} version {old_version}", n_results=10))
+            loop.close()
+            return [r["doc_id"] for r in results if r.get("doc_id") != doc_id]
+        except Exception:
+            return []
 
 
 # 測試

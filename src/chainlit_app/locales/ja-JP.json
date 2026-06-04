@@ -204,6 +204,7 @@
   "search.failed": "Eira：検索失敗: {error}",
   "search.no_results": "Eira：🔍 「{query}」を含む文書が見つかりません。\n\nキーワードを確認するか、別の検索語をお試しください。",
   "search.results": "Eira：🔍 **「{query}」の検索結果** ({count} 件)",
+  "search.semantic_results": "Eira：🔍 **「{query}」のセマンティック検索結果** ({count} 件、類似度順)",
   "settings.api_key": "API Key (クラウドサービスに必要)",
   "settings.api_key_placeholder": "API Key を入力...",
   "settings.connection_failed": "Eira：❌ 接続テスト失敗: {error}",
