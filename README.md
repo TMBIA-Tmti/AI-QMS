@@ -80,12 +80,16 @@ Eira 的 Logo 由兩個核心符號交織而成，每一筆都承載著這個專
 
 ### v5.1.0 新增功能（2026-06-03）
 - **P1-1 RAG Backbone** — 向量資料庫基礎設施正式接線，文件語義搜尋功能上線
+  - `src/services/vector_store.py` — ChromaDB PersistentClient 單例，`CHROMA_PERSIST_DIR` 正式接線
+  - `src/services/rag_ingestion.py` — `markdown_storage` → embedding → ChromaDB 批次 ingestion pipeline
+  - `src/services/lightrag_service.py` — LightRAG 服務初始化，`LIGHTRAG_WORKING_DIR` 正式接線（P1-2 知識圖譜前置）
+  - `src/database/document_store.py` — `find_documents_referencing_version()` TODO 替換為真實向量語義搜尋
 - **32 國法規爬蟲更新** — 土耳其 URL 修正（mevzuat.gov.tr）、俄羅斯 ConsultantPlus crawl_delay、加拿大 MDSAP 3 新 entries（QMS/General/Assessment）、智利 MINSAL fallback、日本 eGov tier 升級、菲律賓 FDA URL 修正、墨西哥 NOM241 降級 qms_guidance
 
 ### v5.0.0 新增功能（2026-05-25）
-- **跨審查與深度報告匯出** — 跨審查記錄、深度分析報告 Word/Excel 匯出（crossexam_export.py）
-- **N 國 × ISO 13485 交叉對照表匯出** — Word/Excel 色彩編碼交叉對照表，含唯一需求工作表（crossref_export.py）
-- **法規更新報告匯出** — 法規爬取更新結果 Word/Excel 匯出（regulatory_update_export.py）
+- **跨審查與深度報告匯出** — 跨審查記錄、深度分析報告 Word/Excel 匯出（`crossexam_export.py`）
+- **N 國 × ISO 13485 交叉對照表匯出** — Word/Excel 色彩編碼交叉對照表，含唯一需求工作表（`crossref_export.py`）
+- **法規更新報告匯出** — 法規爬取更新結果 Word/Excel 匯出（`regulatory_update_export.py`）
 - **完整使用者手冊** — 繁體中文 + 英文技術手冊（Markdown + Word），12–13 章節涵蓋安裝、LLM 選擇、分析管線、稽核問題設計、32 國法規爬取、HTML 報告 UI
 - **每日跨審查持久儲存** — 跨審查記錄跨 session 持久化，重連後自動恢復
 - **使用者設定強化** — 每位使用者獨立設定，Fernet AES-256 加密 API 金鑰儲存，TTL 自動過期機制
@@ -396,9 +400,9 @@ The two symbols **overlap and merge** in the logo — the pen nib touches the se
 - **20-Language UI Update** — Semantic search response messages updated across all 20 supported languages
 
 ### v5.0.0 New Features (2026-05-25)
-- **Cross-Examination & Deep Report Export** — Word/Excel export for cross-exam records and full deep analysis reports (crossexam_export.py)
-- **N-Country × ISO 13485 Cross-Reference Export** — Color-coded Word/Excel cross-reference table with unique requirements worksheet (crossref_export.py)
-- **Regulatory Update Report Export** — Word/Excel export for regulatory crawl update results (regulatory_update_export.py)
+- **Cross-Examination & Deep Report Export** — Word/Excel export for cross-exam records and full deep analysis reports (`crossexam_export.py`)
+- **N-Country × ISO 13485 Cross-Reference Export** — Color-coded Word/Excel cross-reference table with unique requirements worksheet (`crossref_export.py`)
+- **Regulatory Update Report Export** — Word/Excel export for regulatory crawl update results (`regulatory_update_export.py`)
 - **Complete User Manual** — Traditional Chinese + English technical manual (Markdown + Word), 12–13 chapters covering installation, LLM selection, analysis pipeline, audit question design, 32-country regulatory crawling, and HTML report UI
 - **Daily Cross-Examination Persistent Storage** — Cross-exam records persist across sessions and reconnects
 - **User Settings Enhancement** — Per-user settings with Fernet AES-256 API key encryption and TTL auto-expiry
@@ -709,9 +713,9 @@ Eira のロゴは、プロジェクトの使命を体現する 2 つのコアシ
 - **20 言語 UI 更新** — セマンティック検索の応答メッセージを全 20 言語に対応
 
 ### v5.0.0 新機能（2026-05-25）
-- **クロス審査・深度レポートエクスポート** — クロス審査記録と深度分析レポートの Word/Excel エクスポート（crossexam_export.py）
-- **N 国 × ISO 13485 クロスリファレンス表エクスポート** — 色分けされた Word/Excel クロスリファレンス表（固有要件シート付き）（crossref_export.py）
-- **法規更新レポートエクスポート** — 法規クロール更新結果の Word/Excel エクスポート（regulatory_update_export.py）
+- **クロス審査・深度レポートエクスポート** — クロス審査記録と深度分析レポートの Word/Excel エクスポート（`crossexam_export.py`）
+- **N 国 × ISO 13485 クロスリファレンス表エクスポート** — 色分けされた Word/Excel クロスリファレンス表（固有要件シート付き）（`crossref_export.py`）
+- **法規更新レポートエクスポート** — 法規クロール更新結果の Word/Excel エクスポート（`regulatory_update_export.py`）
 - **完全ユーザーマニュアル** — 繁体字中国語 + 英語技術マニュアル（Markdown + Word）、12–13 章（インストール、LLM 選択、分析パイプライン、監査質問設計、32 カ国規制クロール、HTML レポート UI）
 - **毎日クロス審査永続ストレージ** — クロス審査記録がセッション間で永続化、再接続後に自動復元
 - **ユーザー設定強化** — ユーザーごとの独立設定、Fernet AES-256 API キー暗号化、TTL 自動期限切れ
