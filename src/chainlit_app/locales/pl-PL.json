@@ -114,7 +114,7 @@
   "search.failed": "Eira：Wyszukiwanie nie powiodło się: {error}",
   "search.no_results": "Eira：🔍 Nie znaleziono dokumentów zawierających '{query}'.\n\nZweryfikuj słowo kluczowe lub wypróbuj inne terminy wyszukiwania.",
   "search.results": "Eira：🔍 **Wyniki wyszukiwania dla '{query}'** ({count} znalezionych)",
-  "search.semantic_results": "Eira：🔍 **Wyniki wyszukiwania semantycznego dla '{query}'** (znaleziono {count}, posortowane według podobieństwa)",
+  "search.semantic_results": "Eira：🔍 **Wyniki wyszukiwania semantycznego '{query}'** ({count} znaleziono)",
   "settings.api_key": "Klucz API (wymagany dla usług chmurowych)",
   "settings.api_key_placeholder": "Wprowadź klucz API...",
   "settings.connection_failed": "Eira：❌ Test połączenia nie powiódł się: {error}",

@@ -114,7 +114,7 @@
   "search.failed": "Eira：فشل البحث: {error}",
   "search.no_results": "Eira：🔍 لم يتم العثور على مستندات تحتوي على '{query}'.\n\nيرجى التحقق من الكلمة المفتاحية أو تجربة مصطلحات بحث أخرى.",
   "search.results": "Eira：🔍 **نتائج البحث عن '{query}'** ({count} نتيجة)",
-  "search.semantic_results": "Eira：🔍 **نتائج البحث الدلالي عن '{query}'** (تم العثور على {count}، مرتبة حسب التشابه)",
+  "search.semantic_results": "Eira：🔍 **نتائج البحث الدلالي '{query}'** ({count} نتيجة)",
   "settings.api_key": "مفتاح API (مطلوب للخدمات السحابية)",
   "settings.api_key_placeholder": "أدخل مفتاح API...",
   "settings.connection_failed": "Eira：❌ فشل اختبار الاتصال: {error}",

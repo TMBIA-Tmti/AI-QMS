@@ -114,7 +114,7 @@
   "search.failed": "Eira：Pencarian gagal: {error}",
   "search.no_results": "Eira：🔍 Tidak ada dokumen yang mengandung '{query}'.\n\nSilakan verifikasi kata kunci atau coba istilah pencarian lain.",
   "search.results": "Eira：🔍 **Hasil pencarian untuk '{query}'** ({count} ditemukan)",
-  "search.semantic_results": "Eira：🔍 **Hasil pencarian semantik untuk '{query}'** ({count} ditemukan, diurutkan berdasarkan kesamaan)",
+  "search.semantic_results": "Eira：🔍 **Hasil pencarian semantik untuk '{query}'** ({count} ditemukan)",
   "settings.api_key": "Kunci API (diperlukan untuk layanan cloud)",
   "settings.api_key_placeholder": "Masukkan Kunci API...",
   "settings.connection_failed": "Eira：❌ Tes koneksi gagal: {error}",

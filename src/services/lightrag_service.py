@@ -14,6 +14,9 @@ try:
     _AVAILABLE = True
 except ImportError:
     _AVAILABLE = False
+    LightRAG = None
+    QueryParam = None
+    EmbeddingFunc = None
     logger.warning("lightrag-hku not installed — LightRAG in degraded mode")
 
 _instance: Optional[Any] = None
@@ -76,7 +79,8 @@ async def query_knowledge(question: str, mode: str = "hybrid") -> str:
     if not _initialized and not await initialize_lightrag():
         return ""
     try:
-        return await _instance.aquery(question, param=QueryParam(mode=mode)) or ""
+        param = QueryParam(mode=mode) if QueryParam is not None else None
+        return await _instance.aquery(question, param=param) or ""
     except Exception as exc:
         logger.error("LightRAG query failed: %s", exc)
         return ""

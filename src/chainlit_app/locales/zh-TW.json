@@ -363,7 +363,7 @@
   "search.failed": "Eira：搜尋失敗: {error}",
   "search.no_results": "Eira：🔍 找不到包含「{query}」的文件。\n\n請確認關鍵字是否正確，或嘗試其他搜尋詞。",
   "search.results": "Eira：🔍 **搜尋「{query}」結果** (共 {count} 筆)",
-  "search.semantic_results": "Eira：🔍 **語意搜尋「{query}」結果** (共 {count} 筆，依相似度排序)",
+  "search.semantic_results": "Eira：🔍 **語意搜尋結果：'{query}'** （找到 {count} 筆）",
   "settings.api_key": "API Key (雲端服務需要)",
   "settings.api_key_placeholder": "輸入 API Key...",
   "settings.connection_failed": "Eira：❌ 連線測試失敗: {error}",

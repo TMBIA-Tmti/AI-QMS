@@ -114,7 +114,7 @@
   "search.failed": "Eira：Arama başarısız: {error}",
   "search.no_results": "Eira：🔍 '{query}' içeren belge bulunamadı.\n\nLütfen anahtar kelimeyi doğrulayın veya başka arama terimleri deneyin.",
   "search.results": "Eira：🔍 **'{query}' için arama sonuçları** ({count} bulundu)",
-  "search.semantic_results": "Eira：🔍 **'{query}' için semantik arama sonuçları** ({count} bulundu, benzerliğe göre sıralandı)",
+  "search.semantic_results": "Eira：🔍 **'{query}' için anlamsal arama sonuçları** ({count} bulundu)",
   "settings.api_key": "API Anahtarı (bulut hizmetleri için gerekli)",
   "settings.api_key_placeholder": "API Anahtarını girin...",
   "settings.connection_failed": "Eira：❌ Bağlantı testi başarısız: {error}",

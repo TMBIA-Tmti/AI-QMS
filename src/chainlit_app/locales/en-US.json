@@ -358,7 +358,7 @@
   "search.failed": "Eira：Search failed: {error}",
   "search.no_results": "Eira：🔍 No documents found containing '{query}'.\n\nPlease verify the keyword or try other search terms.",
   "search.results": "Eira：🔍 **Search results for '{query}'** ({count} found)",
-  "search.semantic_results": "Eira：🔍 **Semantic search results for '{query}'** ({count} found, sorted by similarity)",
+  "search.semantic_results": "Eira：🔍 **Semantic search results for '{query}'** ({count} found)",
   "settings.api_key": "API Key (Required for cloud services)",
   "settings.api_key_placeholder": "Enter API Key...",
   "settings.connection_failed": "Eira：❌ Connection test failed: {error}",

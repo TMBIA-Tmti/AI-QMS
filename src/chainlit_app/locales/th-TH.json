@@ -114,7 +114,7 @@
   "search.failed": "Eira：การค้นหาล้มเหลว: {error}",
   "search.no_results": "Eira：🔍 ไม่พบเอกสารที่มี '{query}'\n\nโปรดตรวจสอบคำสำคัญหรือลองคำค้นหาอื่น",
   "search.results": "Eira：🔍 **ผลการค้นหาสำหรับ '{query}'** ({count} รายการ)",
-  "search.semantic_results": "Eira：🔍 **ผลการค้นหาเชิงความหมายสำหรับ '{query}'** (พบ {count} รายการ เรียงตามความคล้ายคลึง)",
+  "search.semantic_results": "Eira：🔍 **ผลการค้นหาเชิงความหมายสำหรับ '{query}'** ({count} รายการ)",
   "settings.api_key": "API Key (จำเป็นสำหรับบริการคลาวด์)",
   "settings.api_key_placeholder": "ป้อน API Key...",
   "settings.connection_failed": "Eira：❌ การทดสอบการเชื่อมต่อล้มเหลว: {error}",

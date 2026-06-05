@@ -114,7 +114,7 @@
   "search.failed": "Eira：Ошибка поиска: {error}",
   "search.no_results": "Eira：🔍 Документы, содержащие '{query}', не найдены.\n\nПроверьте ключевое слово или попробуйте другие поисковые термины.",
   "search.results": "Eira：🔍 **Результаты поиска для '{query}'** ({count} найдено)",
-  "search.semantic_results": "Eira：🔍 **Результаты семантического поиска по '{query}'** (найдено {count}, отсортировано по сходству)",
+  "search.semantic_results": "Eira：🔍 **Результаты семантического поиска '{query}'** ({count} найдено)",
   "settings.api_key": "API-ключ (требуется для облачных сервисов)",
   "settings.api_key_placeholder": "Введите API-ключ...",
   "settings.connection_failed": "Eira：❌ Тест подключения не пройден: {error}",

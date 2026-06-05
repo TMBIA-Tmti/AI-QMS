@@ -3087,6 +3087,9 @@ _daily_audit_scheduler_started = False
 _daily_audit_scheduler_lock = asyncio.Lock()
 _DAILY_AUDIT_SCHEDULE_HOUR = 7  # Run daily audit at 7 AM
 
+_rag_indexing_started = False
+_rag_indexing_lock = asyncio.Lock()
+
 
 async def _daily_audit_background_scheduler():
     """Background loop: run daily audit once per day at scheduled hour.
@@ -3245,6 +3248,37 @@ async def _daily_audit_background_scheduler():
         except Exception as e:
             _logger.error("[DailyAuditScheduler] Failed: %s", e)
             await asyncio.sleep(3600)
+
+
+async def _background_rag_indexing() -> None:
+    """Background: index existing docs into ChromaDB + LightRAG on first startup."""
+    try:
+        from src.services.rag_ingestion import ingest_all_documents
+        await ingest_all_documents()
+    except Exception as exc:
+        logger.warning("Background RAG ingestion failed: %s", exc)
+    try:
+        from src.services.lightrag_graph import ensure_ingested
+        await ensure_ingested()
+    except Exception as exc:
+        logger.warning("Background LightRAG graph ingestion failed: %s", exc)
+
+
+async def _background_ingest_single(markdown_path: str, doc_id: str = "") -> None:
+    """Background: add a newly saved markdown document to ChromaDB and LightRAG."""
+    from pathlib import Path as _Path
+    _mp = _Path(markdown_path)
+    try:
+        from src.services.rag_ingestion import ingest_document
+        await ingest_document(_mp)
+    except Exception as exc:
+        logger.warning("Single-doc ChromaDB ingest failed (%s): %s", doc_id, exc)
+    try:
+        from src.services.lightrag_service import insert_document
+        content = _mp.read_text(encoding="utf-8", errors="replace")
+        await insert_document(doc_id or _mp.stem, content)
+    except Exception as exc:
+        logger.warning("Single-doc LightRAG ingest failed (%s): %s", doc_id, exc)
 
 
 _FRESHNESS_TIMESTAMP_FILE = Path("data/last_freshness_check.json")
@@ -3913,6 +3947,13 @@ async def on_chat_start():
         if not _daily_audit_scheduler_started:
             _daily_audit_scheduler_started = True
             asyncio.create_task(_daily_audit_background_scheduler())
+
+    # Wire P1-1/P1-2 background RAG indexing (first user only)
+    global _rag_indexing_started
+    async with _rag_indexing_lock:
+        if not _rag_indexing_started:
+            _rag_indexing_started = True
+            asyncio.create_task(_background_rag_indexing())
 
     # Check for saved user settings (auto-reconnect)
     saved = load_user_settings()
@@ -8817,6 +8858,12 @@ def process_uploaded_file_sync(
     )
 
     if save_result.get("success"):
+        # Background: index new document into ChromaDB + LightRAG (P1-1/P1-2)
+        _md_path = save_result.get("path")
+        if _md_path:
+            asyncio.create_task(
+                _background_ingest_single(_md_path, save_result.get("doc_id", ""))
+            )
         return {
             "success": True,
             "filename": filename,
@@ -9029,28 +9076,59 @@ async def chat_with_llm(message_text: str, profile: str):
         await cl.Message(content=t("error.llm_init", error=str(e))).send()
         return
 
-    # Search Markdown DB for context
+    # Search for context — vector semantic search first, keyword fallback
     db_context = ""
     ref_docs = []
     try:
-        md_service = MarkdownStoreService()
-        search_results = md_service.search(message_text, limit=3)
-        if search_results:
-            context_parts = []
-            for r in search_results:
-                doc_data = md_service.get_document(r["doc_id"])
-                if doc_data.get("success"):
-                    content = doc_data["content"]
+        from src.services.vector_store import get_vector_store
+        _vs = get_vector_store()
+        if _vs.is_available:
+            _vec_results = await _vs.search_similar(message_text, n_results=3)
+            if _vec_results:
+                context_parts = []
+                for r in _vec_results:
+                    content = r["content"]
                     if len(content) > 2000:
                         content = content[:2000] + "..."
                     context_parts.append(
-                        f"{t('llm.doc_label', doc_id=r['doc_id'], title=r['title'])}\n{content}"
+                        f"{t('llm.doc_label', doc_id=r['doc_id'], title=r['metadata'].get('filename', r['doc_id']))}\n{content}"
                     )
-                    ref_docs.append(r["doc_id"])
-            if context_parts:
-                db_context = t("llm.db_context_header") + "\n\n---\n\n".join(
-                    context_parts
-                )
+                    _base_id = r["doc_id"].split("__chunk")[0]
+                    if _base_id not in ref_docs:
+                        ref_docs.append(_base_id)
+                if context_parts:
+                    db_context = t("llm.db_context_header") + "\n\n---\n\n".join(context_parts)
+    except Exception:
+        pass
+
+    # Keyword fallback when vector store unavailable or empty
+    if not db_context:
+        try:
+            md_service = MarkdownStoreService()
+            search_results = md_service.search(message_text, limit=3)
+            if search_results:
+                context_parts = []
+                for r in search_results:
+                    doc_data = md_service.get_document(r["doc_id"])
+                    if doc_data.get("success"):
+                        content = doc_data["content"]
+                        if len(content) > 2000:
+                            content = content[:2000] + "..."
+                        context_parts.append(
+                            f"{t('llm.doc_label', doc_id=r['doc_id'], title=r['title'])}\n{content}"
+                        )
+                        ref_docs.append(r["doc_id"])
+                if context_parts:
+                    db_context = t("llm.db_context_header") + "\n\n---\n\n".join(context_parts)
+        except Exception:
+            pass
+
+    # Augment with LightRAG knowledge graph (P1-2)
+    try:
+        from src.services.lightrag_graph import graph_query
+        _graph_ans = await graph_query(message_text, auto_ingest=False)
+        if _graph_ans:
+            db_context += f"\n\n---\n\n**[Knowledge Graph]**\n{_graph_ans}"
     except Exception:
         pass
 

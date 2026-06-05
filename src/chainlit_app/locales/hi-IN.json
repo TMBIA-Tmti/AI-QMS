@@ -114,7 +114,7 @@
   "search.failed": "Eira：खोज विफल: {error}",
   "search.no_results": "Eira：🔍 '{query}' वाले कोई दस्तावेज़ नहीं मिले।\n\nकृपया कीवर्ड सत्यापित करें या अन्य खोज शब्द आज़माएं।",
   "search.results": "Eira：🔍 **'{query}' के लिए खोज परिणाम** ({count} मिले)",
-  "search.semantic_results": "Eira：🔍 **'{query}' के लिए सिमेंटिक खोज परिणाम** ({count} मिले, समानता के अनुसार क्रमबद्ध)",
+  "search.semantic_results": "Eira：🔍 **'{query}' के सिमेंटिक खोज परिणाम** ({count} मिले)",
   "settings.api_key": "API कुंजी (क्लाउड सेवाओं के लिए आवश्यक)",
   "settings.api_key_placeholder": "API कुंजी दर्ज करें...",
   "settings.connection_failed": "Eira：❌ कनेक्शन परीक्षण विफल: {error}",

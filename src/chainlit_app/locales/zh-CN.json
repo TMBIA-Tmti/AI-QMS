@@ -114,7 +114,7 @@
   "search.failed": "Eira：搜索失败: {error}",
   "search.no_results": "Eira：🔍 找不到包含「{query}」的文件。\n\n请确认关键字是否正确，或尝试其他搜索词。",
   "search.results": "Eira：🔍 **搜索「{query}」结果** (共 {count} 条)",
-  "search.semantic_results": "Eira：🔍 **语义搜索「{query}」结果** (共 {count} 条，按相似度排序)",
+  "search.semantic_results": "Eira：🔍 **语义搜索结果：'{query}'** （找到 {count} 条）",
   "settings.api_key": "API Key (云端服务需要)",
   "settings.api_key_placeholder": "输入 API Key...",
   "settings.connection_failed": "Eira：❌ 连接测试失败: {error}",

@@ -114,7 +114,7 @@
   "search.failed": "Eira：Tìm kiếm thất bại: {error}",
   "search.no_results": "Eira：🔍 Không tìm thấy tài liệu chứa '{query}'.\n\nVui lòng kiểm tra từ khóa hoặc thử các cụm từ tìm kiếm khác.",
   "search.results": "Eira：🔍 **Kết quả tìm kiếm cho '{query}'** ({count} kết quả)",
-  "search.semantic_results": "Eira：🔍 **Kết quả tìm kiếm ngữ nghĩa cho '{query}'** ({count} kết quả, sắp xếp theo độ tương đồng)",
+  "search.semantic_results": "Eira：🔍 **Kết quả tìm kiếm ngữ nghĩa '{query}'** ({count} kết quả)",
   "settings.api_key": "API Key (cần cho dịch vụ đám mây)",
   "settings.api_key_placeholder": "Nhập API Key...",
   "settings.connection_failed": "Eira：❌ Kiểm tra kết nối thất bại: {error}",

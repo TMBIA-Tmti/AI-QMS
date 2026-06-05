@@ -114,7 +114,7 @@
   "search.failed": "Eira：Suche fehlgeschlagen: {error}",
   "search.no_results": "Eira：🔍 Keine Dokumente mit '{query}' gefunden.\n\nBitte überprüfen Sie das Suchwort oder versuchen Sie andere Suchbegriffe.",
   "search.results": "Eira：🔍 **Suchergebnisse für '{query}'** ({count} gefunden)",
-  "search.semantic_results": "Eira：🔍 **Semantische Suchergebnisse für '{query}'** ({count} gefunden, nach Ähnlichkeit sortiert)",
+  "search.semantic_results": "Eira：🔍 **Semantische Suchergebnisse für '{query}'** ({count} gefunden)",
   "settings.api_key": "API-Schlüssel (für Cloud-Dienste erforderlich)",
   "settings.api_key_placeholder": "API-Schlüssel eingeben...",
   "settings.connection_failed": "Eira：❌ Verbindungstest fehlgeschlagen: {error}",
