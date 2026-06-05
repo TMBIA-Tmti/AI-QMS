@@ -68,27 +68,25 @@ Eira 的 Logo 由兩個核心符號交織而成，每一筆都承載著這個專
 - 不符合事項管理
 - 稽核報告自動生成
 
-### v5.1.2 新增功能（2026-06-05）
+### v5.1.2 新增功能
 - **RAG 驗證測試套件完善** — 82 個單元測試全數通過，修正測試相容性問題
 - **lightrag_service 穩定性修正** — 套件未安裝時的降級模式查詢穩定性改善
 - **32 國法規資料庫設計文件** — 詳細說明爬蟲架構與 ISO 13485 clause mapping 設計
 
-### v5.1.1 新增功能（2026-06-04）
+### v5.1.1 新增功能
 - **知識圖譜服務** — QMS 文件自動建立知識圖譜，可依條款（如 ISO 13485）查詢相關文件
 - **語義搜尋升級** — 「搜尋」指令改為向量語義搜尋，結果依相似度排序並顯示相似度分數，無向量資料庫時自動回退關鍵字搜尋
 - **20 語言介面更新** — 語義搜尋回應訊息同步更新至全部 20 個語言
 
-### v5.1.0 新增功能（2026-06-03）
+### v5.1.0 新增功能
 - **P1-1 RAG Backbone** — 向量資料庫基礎設施正式接線，文件語義搜尋功能上線
 - **32 國法規爬蟲更新** — 土耳其 URL 修正（mevzuat.gov.tr）、俄羅斯 ConsultantPlus crawl_delay、加拿大 MDSAP 3 新 entries（QMS/General/Assessment）、智利 MINSAL fallback、日本 eGov tier 升級、菲律賓 FDA URL 修正、墨西哥 NOM241 降級 qms_guidance
 
-### v5.0.0 新增功能（2026-05-25）
+### v5.0.0 新增功能
 - **跨審查與深度報告匯出** — 跨審查記錄、深度分析報告 Word/Excel 匯出
 - **N 國 × ISO 13485 交叉對照表匯出** — Word/Excel 色彩編碼交叉對照表，含唯一需求工作表
-- **法規更新報告匯出** — 法規爬取更新結果 Word/Excel 匯出
-- **完整使用者手冊** — 繁體中文 + 英文技術手冊（Markdown + Word），12–13 章節涵蓋安裝、LLM 選擇、分析管線、稽核問題設計、32 國法規爬取、HTML 報告 UI
-- **每日跨審查持久儲存** — 跨審查記錄跨 session 持久化，重連後自動恢復
-- **使用者設定強化** — 每位使用者獨立設定，Fernet AES-256 加密 API 金鑰儲存，TTL 自動過期機制
+- **完整使用者手冊** — 繁體中文 + 英文技術手冊，涵蓋安裝、LLM 選擇、分析管線、32 國法規爬取等
+- **使用者設定強化** — 每位使用者獨立設定，AES-256 加密 API 金鑰儲存
 
 ## 系統架構
 
@@ -390,18 +388,16 @@ The two symbols **overlap and merge** in the logo — the pen nib touches the se
 - Non-conformance management
 - Automated audit report generation
 
-### v5.1.1 New Features (2026-06-04)
+### v5.1.1 New Features
 - **Knowledge Graph Service** — QMS documents are automatically indexed into a knowledge graph; query related documents by regulatory clause (e.g. ISO 13485)
 - **Semantic Search Upgrade** — The "search" command now uses vector semantic search, results are ranked by similarity score; falls back to keyword search when the vector store is unavailable
 - **20-Language UI Update** — Semantic search response messages updated across all 20 supported languages
 
-### v5.0.0 New Features (2026-05-25)
+### v5.0.0 New Features
 - **Cross-Examination & Deep Report Export** — Word/Excel export for cross-exam records and deep analysis reports
 - **N-Country × ISO 13485 Cross-Reference Export** — Color-coded Word/Excel cross-reference table with unique requirements worksheet
-- **Regulatory Update Report Export** — Word/Excel export for regulatory crawl update results
-- **Complete User Manual** — Traditional Chinese + English technical manual (Markdown + Word), 12–13 chapters covering installation, LLM selection, analysis pipeline, audit question design, 32-country regulatory crawling, and HTML report UI
-- **Daily Cross-Examination Persistent Storage** — Cross-exam records persist across sessions and reconnects
-- **User Settings Enhancement** — Per-user settings with Fernet AES-256 API key encryption and TTL auto-expiry
+- **Complete User Manual** — Traditional Chinese + English technical manual covering installation, LLM selection, analysis pipeline, and 32-country regulatory crawling
+- **User Settings Enhancement** — Per-user settings with AES-256 encrypted API key storage
 
 ## System Architecture
 
@@ -703,18 +699,16 @@ Eira のロゴは、プロジェクトの使命を体現する 2 つのコアシ
 - 不適合管理
 - 監査報告書の自動生成
 
-### v5.1.1 新機能（2026-06-04）
+### v5.1.1 新機能
 - **ナレッジグラフサービス** — QMS 文書を自動的にナレッジグラフに登録し、条項（例：ISO 13485）から関連文書を検索可能
 - **セマンティック検索強化** — 「検索」コマンドがベクター意味検索に対応、類似度スコア付きで結果を表示。ベクターDBが利用できない場合はキーワード検索にフォールバック
 - **20 言語 UI 更新** — セマンティック検索の応答メッセージを全 20 言語に対応
 
-### v5.0.0 新機能（2026-05-25）
+### v5.0.0 新機能
 - **クロス審査・深度レポートエクスポート** — クロス審査記録と深度分析レポートの Word/Excel エクスポート
 - **N 国 × ISO 13485 クロスリファレンス表エクスポート** — 色分けされた Word/Excel クロスリファレンス表（固有要件シート付き）
-- **法規更新レポートエクスポート** — 法規クロール更新結果の Word/Excel エクスポート
-- **完全ユーザーマニュアル** — 繁体字中国語 + 英語技術マニュアル（Markdown + Word）、12–13 章（インストール、LLM 選択、分析パイプライン、監査質問設計、32 カ国規制クロール、HTML レポート UI）
-- **毎日クロス審査永続ストレージ** — クロス審査記録がセッション間で永続化、再接続後に自動復元
-- **ユーザー設定強化** — ユーザーごとの独立設定、Fernet AES-256 API キー暗号化、TTL 自動期限切れ
+- **完全ユーザーマニュアル** — 繁体字中国語 + 英語技術マニュアル、インストール・LLM 選択・分析パイプライン・32 カ国規制クロールを網羅
+- **ユーザー設定強化** — ユーザーごとの独立設定、AES-256 暗号化 API キー保存
 
 ## システムアーキテクチャ
 
