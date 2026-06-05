@@ -84,7 +84,6 @@ Eira 的 Logo 由兩個核心符號交織而成，每一筆都承載著這個專
 ### v5.0.0 新增功能
 - **跨審查與深度報告匯出** — 跨審查記錄、深度分析報告 Word/Excel 匯出
 - **N 國 × ISO 13485 交叉對照表匯出** — Word/Excel 色彩編碼交叉對照表，含唯一需求工作表
-- **完整使用者手冊** — 繁體中文 + 英文技術手冊，涵蓋安裝、LLM 選擇、分析管線、32 國法規爬取等
 - **使用者設定強化** — 每位使用者獨立設定，AES-256 加密 API 金鑰儲存
 
 ## 系統架構
@@ -395,7 +394,6 @@ The two symbols **overlap and merge** in the logo — the pen nib touches the se
 ### v5.0.0 New Features
 - **Cross-Examination & Deep Report Export** — Word/Excel export for cross-exam records and deep analysis reports
 - **N-Country × ISO 13485 Cross-Reference Export** — Color-coded Word/Excel cross-reference table with unique requirements worksheet
-- **Complete User Manual** — Traditional Chinese + English technical manual covering installation, LLM selection, analysis pipeline, and 32-country regulatory crawling
 - **User Settings Enhancement** — Per-user settings with AES-256 encrypted API key storage
 
 ## System Architecture
@@ -706,7 +704,6 @@ Eira のロゴは、プロジェクトの使命を体現する 2 つのコアシ
 ### v5.0.0 新機能
 - **クロス審査・深度レポートエクスポート** — クロス審査記録と深度分析レポートの Word/Excel エクスポート
 - **N 国 × ISO 13485 クロスリファレンス表エクスポート** — 色分けされた Word/Excel クロスリファレンス表（固有要件シート付き）
-- **完全ユーザーマニュアル** — 繁体字中国語 + 英語技術マニュアル、インストール・LLM 選択・分析パイプライン・32 カ国規制クロールを網羅
 - **ユーザー設定強化** — ユーザーごとの独立設定、AES-256 暗号化 API キー保存
 
 ## システムアーキテクチャ
