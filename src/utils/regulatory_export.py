@@ -40,7 +40,7 @@ def _t(key: str, lang: str = "zh-TW", **kwargs) -> str:
             os.path.dirname(__file__), "..", "chainlit_app", "locales", f"{lang}.json"
         )
         try:
-            with open(locale_path, "r", encoding="utf-8") as f:
+            with open(locale_path, "r", encoding="utf-8-sig") as f:
                 _cache[lang] = json.load(f)
         except Exception:
             _cache[lang] = {}

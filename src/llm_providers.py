@@ -34,8 +34,11 @@ import copy
 import os
 import base64
 import threading
+import logging
 from typing import TypedDict, Optional, Any
 from pathlib import Path
+
+_logger = logging.getLogger(__name__)
 
 # Thread-local storage for the active pipeline run_id.
 # Set by gap_scanner / checklist_verifier before each LLM call so that
@@ -996,7 +999,7 @@ class LLMProviderManager:
 
         except Exception as e:
             error_msg = str(e)
-            print(f"[ERROR] LLM completion failed: {error_msg}")
+            _logger.warning("[ERROR] LLM completion failed: %s", error_msg)
 
             # ── Auto-reconnect for local providers ──────────────────────────
             # When Ollama / LM Studio disconnects (connection error / server error),
@@ -1020,10 +1023,12 @@ class LLMProviderManager:
                 _reconnect_delays = [0, 15, 30]
                 for _r_idx, _r_delay in enumerate(_reconnect_delays):
                     if _r_delay:
-                        print(
-                            f"[WAIT] {provider.get('display_name', 'Local LLM')} model "
-                            f"still loading — retrying in {_r_delay}s "
-                            f"(attempt {_r_idx + 1}/{len(_reconnect_delays)})"
+                        _logger.warning(
+                            "[WAIT] %s model still loading — retrying in %ss (attempt %d/%d)",
+                            provider.get("display_name", "Local LLM"),
+                            _r_delay,
+                            _r_idx + 1,
+                            len(_reconnect_delays),
                         )
                         _time.sleep(_r_delay)
                     try:

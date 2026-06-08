@@ -36,6 +36,46 @@ logger = logging.getLogger(__name__)
 FALLBACK_MODEL_NAME = "paraphrase-multilingual-MiniLM-L12-v2"
 FALLBACK_EMBEDDING_DIM = 384
 
+_safe_device_cache: Optional[str] = None
+
+
+def _select_safe_torch_device() -> str:
+    """Pick 'cuda' only if the installed PyTorch build actually has compiled
+    kernels for this GPU's compute capability; otherwise fall back to 'cpu'.
+
+    Some installs report torch.cuda.is_available() == True (driver/runtime load
+    fine) yet crash at the first kernel launch with "CUDA error: no kernel
+    image is available for execution on the device" — e.g. a cu124 build on a
+    Blackwell (sm_120) GPU. Detecting that mismatch up front avoids crashing
+    every embedding call; once the user installs a torch build that ships
+    sm_120 kernels, this will automatically pick 'cuda' again.
+    """
+    global _safe_device_cache
+    if _safe_device_cache is not None:
+        return _safe_device_cache
+
+    device = "cpu"
+    try:
+        import torch
+        if torch.cuda.is_available():
+            major, minor = torch.cuda.get_device_capability(0)
+            arch_list = torch.cuda.get_arch_list()
+            if f"sm_{major}{minor}" in arch_list:
+                device = "cuda"
+            else:
+                logger.warning(
+                    "GPU compute capability sm_%d%d not in this PyTorch build's "
+                    "arch list %s — using CPU for embeddings to avoid CUDA "
+                    "kernel crashes (reinstall torch with matching CUDA support "
+                    "to enable GPU)",
+                    major, minor, arch_list,
+                )
+    except Exception as e:
+        logger.debug("CUDA capability check failed, defaulting to CPU: %s", e)
+
+    _safe_device_cache = device
+    return device
+
 
 # ============================================================
 # EmbeddingProvider 類別
@@ -122,12 +162,13 @@ class EmbeddingProvider:
                 f"原始錯誤：{e}"
             ) from e
 
-        logger.info("載入 sentence-transformers 模型：%s", FALLBACK_MODEL_NAME)
+        device = _select_safe_torch_device()
+        logger.info("載入 sentence-transformers 模型：%s（device=%s）", FALLBACK_MODEL_NAME, device)
         # 在 executor 中載入（避免阻塞 event loop）
         loop = asyncio.get_event_loop()
         self._st_model = await loop.run_in_executor(
             None,
-            lambda: SentenceTransformer(FALLBACK_MODEL_NAME),
+            lambda: SentenceTransformer(FALLBACK_MODEL_NAME, device=device),
         )
         self._use_ollama = False
         self._embedding_dim = FALLBACK_EMBEDDING_DIM

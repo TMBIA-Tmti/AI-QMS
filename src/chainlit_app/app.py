@@ -3398,7 +3398,9 @@ async def _auto_trigger_crossexam():
             except Exception:
                 _freshness_skip_res = None
 
-            if _freshness_skip_res and _freshness_skip_res.get("name") == "freshness_check_skip":
+            if _freshness_skip_res is None or _freshness_skip_res.get("name") == "freshness_check_skip":
+                # No response within the timeout is treated the same as an explicit
+                # skip — the user must opt in to running the crawl, not opt out.
                 _record_freshness_check()
                 await cl.Message(content=t("freshness_check.skipped"), author="Eira").send()
                 await _show_pipeline_progress()
@@ -3562,7 +3564,9 @@ async def _run_and_display_daily_audit(
         except Exception:
             _skip_res = None
 
-        if _skip_res and _skip_res.get("name") == "daily_audit_skip":
+        if _skip_res is None or _skip_res.get("name") == "daily_audit_skip":
+            # No response within the timeout is treated the same as an explicit
+            # skip — the user must opt in to running the audit, not opt out.
             await cl.Message(content=t("daily_audit.skipped"), author="Eira").send()
             return
 
@@ -5969,7 +5973,7 @@ async def _display_change_summary(save_result: dict, crawl_results: dict) -> Non
             label = t("regulatory_update.first_baseline")
             lines.append(f"🇪🇺 **{agency}**: {label}")
         elif core["changed"]:
-            articles_str = ", ".join(core["articles"]) if core["articles"] else "—"
+            articles_str = ", ".join(core.get("articles") or []) or "—"
             lines.append(f"🆕 🇪🇺 **{agency}**: {t('regulatory_update.eu_mdr_changed', articles=articles_str)}")
         else:
             lines.append(f"✅ 🇪🇺 **{agency}**: {t('regulatory_update.eu_mdr_no_change')}")
