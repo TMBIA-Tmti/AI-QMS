@@ -193,8 +193,8 @@ if errorlevel 1 (
         if not exist "%PROJECT_DIR%logs\phoenix" mkdir "%PROJECT_DIR%logs\phoenix"
         set "PHOENIX_LOG=%PROJECT_DIR%logs\phoenix\%SESSION_STAMP%_phoenix.log"
         >> "%CMD_LOG%" echo [Phoenix] Starting watchdog on port %PHOENIX_PORT% gRPC %PHOENIX_GRPC_PORT%
-        :: Launch phoenix_watchdog.bat in a separate minimized window - it will auto-restart Phoenix on crash
-        start "AI-QMS Phoenix Watchdog" /min cmd /c ""%PROJECT_DIR%phoenix_watchdog.bat" "%QMS_PYTHON%" %PHOENIX_PORT% %PHOENIX_GRPC_PORT% "%PROJECT_DIR%" "%PHOENIX_LOG%""
+        :: Launch start_phoenix.bat in watchdog mode (args -> Mode B, skips setup, runs restart loop)
+        start "AI-QMS Phoenix Watchdog" /min cmd /c ""%PROJECT_DIR%start_phoenix.bat" "%QMS_PYTHON%" %PHOENIX_PORT% %PHOENIX_GRPC_PORT% "%PROJECT_DIR%" "%PHOENIX_LOG%""
         call :wait_for_phoenix
     ) else (
         echo [OK] Phoenix already running on port %PHOENIX_PORT%

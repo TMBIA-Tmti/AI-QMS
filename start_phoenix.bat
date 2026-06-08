@@ -1,6 +1,33 @@
 @echo off
 chcp 65001 >nul 2>&1
-title AI-QMS - Phoenix Observability Server
+
+:: ============================================================
+:: AI-QMS Phoenix Server - v3.7.0 (2026-06-09)
+::
+:: Dual-mode script:
+::
+::   MODE A - Standalone (no args, user double-clicks):
+::     - Auto-detects Python/conda environment
+::     - Checks/updates dependencies
+::     - Finds free port
+::     - Opens browser
+::     - Runs Phoenix in foreground with watchdog restart loop
+::
+::   MODE B - Watchdog (5 args, called by start_chainlit.bat):
+::     - Skips all setup (Python/port/log already provided)
+::     - Runs Phoenix restart loop silently in background window
+::     - Arguments: <python> <http_port> <grpc_port> <project_dir> <log_file>
+::
+:: Both modes share the same watchdog restart loop at :phoenix_loop.
+:: ============================================================
+
+:: Detect mode: if first argument is present, skip setup
+if not "%~1"=="" goto :watchdog_mode
+
+:: ============================================================
+:: MODE A: Standalone launcher
+:: ============================================================
+title AI-QMS - Phoenix Observability Server v3.7.0
 
 echo ========================================================
 echo  AI-QMS - Arize Phoenix LLM Observability
@@ -33,7 +60,7 @@ for %%P in (
 ) do (
     if exist %%P (
         set "QMS_PYTHON=%%~P"
-        goto :found
+        goto :standalone_found_python
     )
 )
 
@@ -43,7 +70,7 @@ if not errorlevel 1 (
     for /f "tokens=*" %%i in ('conda run -n QMS where python 2^>nul') do (
         if exist "%%i" (
             set "QMS_PYTHON=%%i"
-            goto :found
+            goto :standalone_found_python
         )
     )
 )
@@ -55,7 +82,7 @@ if not errorlevel 1 (
     echo [WARN] Using system Python.
     echo.
     set "QMS_PYTHON=python"
-    goto :found
+    goto :standalone_found_python
 )
 
 echo [ERROR] Python not found!
@@ -68,22 +95,22 @@ echo.
 pause
 exit /b 1
 
-:found
+:standalone_found_python
 echo [OK] Python: %QMS_PYTHON%
 echo.
 
-:: --- Phoenix session log -----------------------------------------------------
+:: --- Phoenix session log ---------------------------------------------------
 if not exist "%PROJECT_DIR%logs\phoenix" mkdir "%PROJECT_DIR%logs\phoenix"
 for /f %%t in ('powershell -NoProfile -Command "Get-Date -Format yyyy-MM-dd_HH-mm-ss"') do set "SESSION_STAMP=%%t"
 set "PHOENIX_LOG=%PROJECT_DIR%logs\phoenix\%SESSION_STAMP%_phoenix.log"
 echo [LOG] Phoenix log: logs\phoenix\%SESSION_STAMP%_phoenix.log
 echo SESSION START: %SESSION_STAMP% > "%PHOENIX_LOG%"
-:: -----------------------------------------------------------------------------
+:: ---------------------------------------------------------------------------
 
-:: -- No-disconnect settings ----------------------------------------------------
+:: -- No-disconnect settings -------------------------------------------------
 set "UVICORN_TIMEOUT_KEEP_ALIVE=0"
 set "UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN=300"
-:: -----------------------------------------------------------------------------
+:: ---------------------------------------------------------------------------
 
 :: Auto-update: always sync all packages from requirements.txt
 echo [INFO] Checking dependencies...
@@ -98,7 +125,7 @@ echo.
 :: Check if Phoenix is installed
 "%QMS_PYTHON%" -c "import phoenix; print(f'[OK] Phoenix version: {phoenix.__version__}')" 2>nul
 if errorlevel 1 (
-    echo [ERROR] Arize Phoenix failed to install.
+    echo [ERROR] Arize Phoenix not installed.
     echo.
     echo Please install manually:
     echo   conda activate QMS
@@ -124,39 +151,113 @@ if not errorlevel 1 (
     exit /b 0
 )
 
-:: Start Phoenix server
-echo [INFO] Starting Phoenix server on port %PHOENIX_PORT%...
-echo [INFO] Dashboard: http://localhost:%PHOENIX_PORT%
+:: Open browser (Phoenix starts in a few seconds)
+start "" "http://localhost:%PHOENIX_PORT%"
+
+echo [INFO] Starting Phoenix server on port %PHOENIX_PORT% (gRPC: %PHOENIX_GRPC_PORT%)
+echo [INFO] Auto-restart ON - will recover from crashes automatically
 echo [INFO] Press Ctrl+C to stop
 echo.
 
-:: Auto-open browser after short delay
-start "" "http://localhost:%PHOENIX_PORT%"
+cd /d "%PROJECT_DIR%"
+:: Remove any stale stop sentinel
+if exist "%PROJECT_DIR%.phoenix_stop" del "%PROJECT_DIR%.phoenix_stop" >nul 2>&1
+
+set "PHOENIX_RESTARTS=0"
+goto :phoenix_loop
+
+:: ============================================================
+:: MODE B: Watchdog (called by start_chainlit.bat with 5 args)
+:: ============================================================
+:watchdog_mode
+title AI-QMS Phoenix Watchdog
+
+set "QMS_PYTHON=%~1"
+set "PHOENIX_PORT=%~2"
+set "PHOENIX_GRPC_PORT=%~3"
+set "PROJECT_DIR=%~4"
+set "PHOENIX_LOG=%~5"
+
+if "%PHOENIX_PORT%"=="" set "PHOENIX_PORT=6006"
+if "%PHOENIX_GRPC_PORT%"=="" set "PHOENIX_GRPC_PORT=4317"
+if "%PROJECT_DIR%"=="" set "PROJECT_DIR=%~dp0"
+if "%PHOENIX_LOG%"=="" set "PHOENIX_LOG=%PROJECT_DIR%logs\phoenix\phoenix.log"
+
+echo ========================================================
+echo  AI-QMS Phoenix Watchdog
+echo  Phoenix HTTP:  http://localhost:%PHOENIX_PORT%
+echo  Phoenix gRPC:  localhost:%PHOENIX_GRPC_PORT%
+echo  Log file:      %PHOENIX_LOG%
+echo  Auto-restart:  ON
+echo  To stop:       Close this window
+echo ========================================================
+echo.
+
+:: Remove any stale stop sentinel from a previous session
+if exist "%PROJECT_DIR%.phoenix_stop" del "%PROJECT_DIR%.phoenix_stop" >nul 2>&1
+
+>> "%PHOENIX_LOG%" echo ============================================================
+>> "%PHOENIX_LOG%" echo [Watchdog] Started at %date% %time%
+>> "%PHOENIX_LOG%" echo [Watchdog] Python: %QMS_PYTHON%
+>> "%PHOENIX_LOG%" echo [Watchdog] HTTP port: %PHOENIX_PORT% / gRPC port: %PHOENIX_GRPC_PORT%
+>> "%PHOENIX_LOG%" echo ============================================================
 
 cd /d "%PROJECT_DIR%"
-echo [LOG] Phoenix output is saved to: logs\phoenix\%SESSION_STAMP%_phoenix.log
-"%QMS_PYTHON%" -m phoenix.server.main serve --grpc-port %PHOENIX_GRPC_PORT% 2>&1 | "%QMS_PYTHON%" -u -c "import sys,io,os; f=open(os.environ['PHOENIX_LOG'],'a',encoding='utf-8',buffering=1); [(sys.stdout.write(l),sys.stdout.flush(),f.write(l)) for l in io.TextIOWrapper(sys.stdin.buffer,'utf-8','replace')]"
+set "PHOENIX_RESTARTS=0"
 
-if errorlevel 1 (
+:: ============================================================
+:: Shared watchdog loop (used by both MODE A and MODE B)
+:: ============================================================
+:phoenix_loop
+if %PHOENIX_RESTARTS% GTR 0 (
     echo.
-    echo [ERROR] Phoenix server failed to start.
-    echo.
-    echo Common issues:
-    echo   1. Port %PHOENIX_PORT% already in use
-    echo   2. Missing dependencies (run: pip install arize-phoenix)
-    echo.
+    echo [Watchdog] Phoenix stopped unexpectedly ^(run %PHOENIX_RESTARTS%^).
+    echo [Watchdog] Restarting in 10 seconds... Press Ctrl+C to stop.
+    >> "%PHOENIX_LOG%" echo [Watchdog] Run %PHOENIX_RESTARTS% CRASHED at %date% %time%. Restarting in 10s.
+    timeout /t 10 /nobreak >nul
+
+    :: Kill any zombie on the port before restart
+    for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":%PHOENIX_PORT% .*LISTENING"') do (
+        taskkill /PID %%a /F >nul 2>&1
+    )
+    timeout /t 2 /nobreak >nul
 )
-pause
-goto :eof
+
+set /a PHOENIX_RESTARTS+=1
+echo [Watchdog] Starting Phoenix (run %PHOENIX_RESTARTS%)...
+>> "%PHOENIX_LOG%" echo [Watchdog] Run %PHOENIX_RESTARTS% starting at %date% %time%
+
+:: Run Phoenix - stderr->log, stdout->console (preserves exit code for restart logic)
+"%QMS_PYTHON%" -m phoenix.server.main serve --grpc-port %PHOENIX_GRPC_PORT% 2>> "%PHOENIX_LOG%"
+set "PHOENIX_EXIT=%errorlevel%"
+>> "%PHOENIX_LOG%" echo [Watchdog] Run %PHOENIX_RESTARTS% exited code %PHOENIX_EXIT% at %date% %time%
+
+:: Check for stop sentinel file
+if exist "%PROJECT_DIR%.phoenix_stop" (
+    del "%PROJECT_DIR%.phoenix_stop" >nul 2>&1
+    echo.
+    echo [Watchdog] Stop signal received. Exiting.
+    >> "%PHOENIX_LOG%" echo [Watchdog] Stop sentinel detected. Exiting at %date% %time%.
+    goto :eof
+)
+
+:: Exit code 0 = clean stop (Ctrl+C or window close) - do NOT restart
+if "%PHOENIX_EXIT%"=="0" (
+    echo.
+    echo [Watchdog] Phoenix exited cleanly. Stopping.
+    >> "%PHOENIX_LOG%" echo [Watchdog] Clean exit. Stopped at %date% %time%.
+    goto :eof
+)
+
+:: Non-zero exit = crash -> restart
+goto :phoenix_loop
 
 :: ============================================================
 :: Subroutine: Find free ports for Phoenix
-:: Uses individual checks to avoid for/L + goto batch parser bugs
 :: ============================================================
 :find_free_phoenix_port
 set "PHOENIX_PORT=6006"
 set "PHOENIX_GRPC_PORT=4317"
-:: Find free HTTP port
 call :check_phoenix_http 6006 && goto :phoenix_http_found
 call :check_phoenix_http 6007 && goto :phoenix_http_found
 call :check_phoenix_http 6008 && goto :phoenix_http_found
@@ -175,12 +276,10 @@ goto :phoenix_find_grpc
 :phoenix_http_found
 if "%PHOENIX_PORT%"=="6006" goto :phoenix_find_grpc
 echo.
-echo [WARN] Port 6006 is occupied by another process.
-echo [INFO] Auto-switching Phoenix HTTP to port %PHOENIX_PORT%
+echo [WARN] Port 6006 is occupied. Auto-switching Phoenix to port %PHOENIX_PORT%
 echo.
 
 :phoenix_find_grpc
-:: Find free gRPC port
 call :check_phoenix_grpc 4317 && goto :phoenix_grpc_found
 call :check_phoenix_grpc 4318 && goto :phoenix_grpc_found
 call :check_phoenix_grpc 4319 && goto :phoenix_grpc_found
