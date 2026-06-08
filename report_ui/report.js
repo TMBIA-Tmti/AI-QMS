@@ -1214,6 +1214,9 @@
         if (typeof val === "number" || typeof val === "boolean") return String(val);
         if (Array.isArray(val)) return val.map(extractRoleContent).filter(Boolean).join("\n");
         if (typeof val === "object") {
+            // An empty object (LLM returned `{}` / malformed JSON) carries no
+            // displayable content — treat it as absent rather than rendering "{}"
+            if (Object.keys(val).length === 0) return "";
             // Try common text field names in priority order
             const TEXT_KEYS = ["position", "response", "overall_assessment", "content",
                                "text", "message", "assessment", "summary", "description"];
@@ -1282,7 +1285,11 @@
             }
         }
 
-        return parts.join("") || `<div class="role-main-text">${escapeHtml(extractRoleContent(data))}</div>`;
+        if (parts.length) return parts.join("");
+        const fallbackText = extractRoleContent(data);
+        return fallbackText
+            ? `<div class="role-main-text">${escapeHtml(fallbackText)}</div>`
+            : `<div class="role-empty-notice">⚠️ ${t('ui.roundDataMissing') || 'Round data not available (LLM may have returned empty response)'}</div>`;
     }
 
     function renderRow(r) {
