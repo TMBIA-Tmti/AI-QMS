@@ -159,7 +159,7 @@ echo [INFO] Auto-restart ON - will recover from crashes automatically
 echo [INFO] Press Ctrl+C to stop
 echo.
 
-cd /d "%PROJECT_DIR%"
+cd /d "%PROJECT_DIR%" >nul 2>&1
 :: Remove any stale stop sentinel
 if exist "%PROJECT_DIR%.phoenix_stop" del "%PROJECT_DIR%.phoenix_stop" >nul 2>&1
 
@@ -202,7 +202,7 @@ if exist "%PROJECT_DIR%.phoenix_stop" del "%PROJECT_DIR%.phoenix_stop" >nul 2>&1
 >> "%PHOENIX_LOG%" echo [Watchdog] HTTP port: %PHOENIX_PORT% / gRPC port: %PHOENIX_GRPC_PORT%
 >> "%PHOENIX_LOG%" echo ============================================================
 
-cd /d "%PROJECT_DIR%"
+cd /d "%PROJECT_DIR%" >nul 2>&1
 set "PHOENIX_RESTARTS=0"
 
 :: ============================================================

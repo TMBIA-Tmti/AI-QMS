@@ -103,6 +103,45 @@ async def _llm_model_func(
     return result.get("content", "") if isinstance(result, dict) else str(result)
 
 
+_LIGHTRAG_KV_STORES = [
+    "kv_store_doc_status.json",
+    "kv_store_text_chunks.json",
+    "kv_store_llm_response_cache.json",
+    "kv_store_full_entities.json",
+    "kv_store_full_relations.json",
+    "kv_store_entity_chunks.json",
+    "kv_store_relation_chunks.json",
+]
+
+
+def _repair_corrupt_lightrag_json(working_dir: str) -> list[str]:
+    """Detect and remove corrupt (truncated/malformed) LightRAG JSON KV store files.
+
+    LightRAG KV stores can be truncated on abrupt process termination. A corrupt
+    file blocks all future initializations because _init_failed=True is set. This
+    function scans all KV JSON files, deletes any that fail json.loads(), and
+    returns the list of deleted file names so the caller can log them.
+    """
+    import json as _json
+    from pathlib import Path as _Path
+
+    wd = _Path(working_dir)
+    deleted = []
+    for fname in _LIGHTRAG_KV_STORES:
+        fp = wd / fname
+        if not fp.exists():
+            continue
+        try:
+            _json.loads(fp.read_text(encoding="utf-8"))
+        except (_json.JSONDecodeError, UnicodeDecodeError):
+            try:
+                fp.unlink()
+                deleted.append(fname)
+            except OSError:
+                pass
+    return deleted
+
+
 async def initialize_lightrag() -> bool:
     global _instance, _initialized, _init_failed
     if _initialized:
@@ -129,7 +168,32 @@ async def initialize_lightrag() -> bool:
         _initialized = True
         logger.info("LightRAG initialised at %s", LIGHTRAG_WORKING_DIR)
         return True
-    except Exception as exc:
+    except (ValueError, Exception) as exc:
+        import json as _json
+        if isinstance(exc, _json.JSONDecodeError) or "Expecting" in str(exc) or "delimiter" in str(exc):
+            # Corrupt KV store file — scan, delete bad files, and retry ONCE
+            from src.config import LIGHTRAG_WORKING_DIR as _wd
+            deleted = _repair_corrupt_lightrag_json(str(_wd))
+            if deleted:
+                logger.warning(
+                    "LightRAG: removed %d corrupt KV store file(s): %s — retrying init",
+                    len(deleted), deleted,
+                )
+                _instance = None
+                try:
+                    _instance = LightRAG(
+                        working_dir=str(_wd),
+                        embedding_func=ef if 'ef' in dir() else await _build_embed_func(),
+                        llm_model_func=_llm_model_func,
+                    )
+                    await _instance.initialize_storages()
+                    _initialized = True
+                    logger.info("LightRAG re-initialised after corrupt file repair at %s", _wd)
+                    return True
+                except Exception as retry_exc:
+                    _init_failed = True
+                    logger.warning("LightRAG init failed after repair attempt: %s", retry_exc)
+                    return False
         _init_failed = True
         logger.warning("LightRAG init failed: %s", exc)
         return False
