@@ -270,12 +270,11 @@ if not errorlevel 1 (
 ) else (
     echo      Starting Phoenix on port %PHOENIX_PORT% (gRPC: %PHOENIX_GRPC_PORT%^)...
     if not exist "%PROJECT_DIR%logs\phoenix" mkdir "%PROJECT_DIR%logs\phoenix"
-    set "PHOENIX_LOG_FILE=logs\phoenix\%SESSION_STAMP%_phoenix.log"
-    >> "%CMD_LOG%" echo [Phoenix] Starting on port %PHOENIX_PORT% gRPC %PHOENIX_GRPC_PORT% - log: %PHOENIX_LOG_FILE%
-    :: cd to project dir first so the relative log path resolves correctly (avoids spaces-in-path issue)
-    pushd "%PROJECT_DIR%"
-    start "AI-QMS Phoenix" /min cmd /c ""%QMS_PYTHON%" -m phoenix.server.main serve --grpc-port %PHOENIX_GRPC_PORT% >> "%PHOENIX_LOG_FILE%" 2>&1"
-    popd
+    set "PHOENIX_LOG_FILE=%PROJECT_DIR%logs\phoenix\%SESSION_STAMP%_phoenix.log"
+    >> "%CMD_LOG%" echo [Phoenix] Starting on port %PHOENIX_PORT% gRPC %PHOENIX_GRPC_PORT% - log: logs\phoenix\%SESSION_STAMP%_phoenix.log
+    :: Call start_phoenix.bat in watchdog mode (Mode B: 5 args -> skips setup, runs restart loop)
+    :: Using the same pattern as start_chainlit.bat - proven to avoid nested-quote redirect failures
+    start "AI-QMS Phoenix" /min cmd /c ""%PROJECT_DIR%start_phoenix.bat" "%QMS_PYTHON%" %PHOENIX_PORT% %PHOENIX_GRPC_PORT% "%PROJECT_DIR%" "%PHOENIX_LOG_FILE%""
     call :wait_for_phoenix
 )
 
