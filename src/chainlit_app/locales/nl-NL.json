@@ -1,4 +1,4 @@
-﻿{
+{
   "allrecords.error": "Eira：Kan lijst niet lezen: {error}",
   "allrecords.export_excel": "Eira：📋 Excel-rapport alle records aangemaakt ({count} documenten).",
   "allrecords.export_hint": "Eira：📋 Ondersteunde formaten:\n- 'records downloaden word'\n- 'records downloaden excel'",

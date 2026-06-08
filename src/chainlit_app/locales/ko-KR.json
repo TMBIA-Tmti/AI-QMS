@@ -1,4 +1,4 @@
-﻿{
+{
   "allrecords.error": "Eira：목록을 읽을 수 없습니다: {error}",
   "allrecords.export_excel": "Eira：📋 전체 기록 Excel 보고서가 생성되었습니다 ({count}건).",
   "allrecords.export_hint": "Eira：📋 지원 형식:\n- '전체기록 다운로드 word'\n- '전체기록 다운로드 excel'",

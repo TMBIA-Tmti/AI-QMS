@@ -1,4 +1,4 @@
-﻿{
+{
   "allrecords.error": "Eira：Liste okunamıyor: {error}",
   "allrecords.export_excel": "Eira：📋 Tüm kayıtlar Excel raporu oluşturuldu ({count} belge).",
   "allrecords.export_hint": "Eira：📋 Desteklenen formatlar:\n- 'tüm kayıtları indir word'\n- 'tüm kayıtları indir excel'",

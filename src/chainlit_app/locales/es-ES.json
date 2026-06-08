@@ -1,4 +1,4 @@
-﻿{
+{
   "allrecords.error": "Eira：No se puede leer la lista: {error}",
   "allrecords.export_excel": "Eira：📋 Informe Excel de todos los registros generado ({count} documentos).",
   "allrecords.export_hint": "Eira：📋 Formatos disponibles:\n- 'descargar registros word'\n- 'descargar registros excel'",

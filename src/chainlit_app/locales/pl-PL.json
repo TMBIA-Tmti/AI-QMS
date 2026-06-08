@@ -1,4 +1,4 @@
-﻿{
+{
   "allrecords.error": "Eira：Nie można odczytać listy: {error}",
   "allrecords.export_excel": "Eira：📋 Raport Excel wszystkich rekordów wygenerowany ({count} dokumentów).",
   "allrecords.export_hint": "Eira：📋 Obsługiwane formaty:\n- 'pobierz rekordy word'\n- 'pobierz rekordy excel'",

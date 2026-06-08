@@ -1,4 +1,4 @@
-﻿{
+{
   "allrecords.error": "Eira：Tidak dapat membaca senarai: {error}",
   "allrecords.export_excel": "Eira：📋 Laporan Excel semua rekod telah dijana ({count} dokumen).",
   "allrecords.export_hint": "Eira：📋 Format yang disokong:\n- 'muat turun semua rekod word'\n- 'muat turun semua rekod excel'",

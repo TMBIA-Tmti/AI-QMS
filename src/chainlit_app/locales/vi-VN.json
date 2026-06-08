@@ -1,4 +1,4 @@
-﻿{
+{
   "allrecords.error": "Eira：Không thể đọc danh sách: {error}",
   "allrecords.export_excel": "Eira：📋 Đã tạo báo cáo Excel toàn bộ bản ghi ({count} tài liệu).",
   "allrecords.export_hint": "Eira：📋 Định dạng hỗ trợ:\n- 'tải bản ghi word'\n- 'tải bản ghi excel'",

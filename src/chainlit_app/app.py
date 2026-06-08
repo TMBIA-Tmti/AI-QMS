@@ -2312,53 +2312,59 @@ def _xlsx_has_stamp_images(file_path: str) -> Optional[bool]:
         from openpyxl import load_workbook
 
         wb = load_workbook(file_path, data_only=True)
-        large_image_blobs = []  # Collect large images for color-based fallback
-        for ws in wb.worksheets:
-            for img in ws._images:
-                try:
-                    # openpyxl Image stores width/height in EMU or pixels
-                    w = getattr(img, "width", 0) or 0
-                    h = getattr(img, "height", 0) or 0
-                    # If dimensions are in EMU (> 100000), convert to pixels
-                    if w > 100000:
-                        w = int(w / 9525)  # 1 px = 9525 EMU
-                    if h > 100000:
-                        h = int(h / 9525)
-                    if w <= 0 or h <= 0:
-                        # Can't determine size — assume it could be a stamp
+        try:
+            large_image_blobs = []  # Collect large images for color-based fallback
+            for ws in wb.worksheets:
+                for img in ws._images:
+                    try:
+                        # openpyxl Image stores width/height in EMU or pixels
+                        w = getattr(img, "width", 0) or 0
+                        h = getattr(img, "height", 0) or 0
+                        # If dimensions are in EMU (> 100000), convert to pixels
+                        if w > 100000:
+                            w = int(w / 9525)  # 1 px = 9525 EMU
+                        if h > 100000:
+                            h = int(h / 9525)
+                        if w <= 0 or h <= 0:
+                            # Can't determine size — assume it could be a stamp
+                            return True
+                        area = w * h
+                        aspect = max(w, h) / max(min(w, h), 1)
+                        # Skip tiny images (icons, bullets): < 50x50
+                        if min(w, h) < 50:
+                            continue
+                        # Large images (photos, charts): > 2M px
+                        # Save for color-based detection instead of skipping
+                        if area > 2000000:
+                            try:
+                                blob = img._data()
+                                large_image_blobs.append(blob)
+                            except Exception:
+                                pass
+                            continue
+                        # Skip extreme aspect ratios (banners, borders): > 4.0
+                        if aspect > 4.0:
+                            continue
+                        # Remaining images are likely stamps/signatures
                         return True
-                    area = w * h
-                    aspect = max(w, h) / max(min(w, h), 1)
-                    # Skip tiny images (icons, bullets): < 50x50
-                    if min(w, h) < 50:
-                        continue
-                    # Large images (photos, charts): > 2M px
-                    # Save for color-based detection instead of skipping
-                    if area > 2000000:
-                        try:
-                            blob = img._data()
-                            large_image_blobs.append(blob)
-                        except Exception:
-                            pass
-                        continue
-                    # Skip extreme aspect ratios (banners, borders): > 4.0
-                    if aspect > 4.0:
-                        continue
-                    # Remaining images are likely stamps/signatures
-                    return True
+                    except Exception:
+                        # Can't check dimensions — assume it could be a stamp
+                        return True
+
+            # --- Color-based fallback for large images (scanned pages) ---
+            for blob in large_image_blobs:
+                try:
+                    if _detect_stamps_by_color(blob):
+                        return True
                 except Exception:
-                    # Can't check dimensions — assume it could be a stamp
-                    return True
+                    continue
 
-        # --- Color-based fallback for large images (scanned pages) ---
-        for blob in large_image_blobs:
-            try:
-                if _detect_stamps_by_color(blob):
-                    return True
-            except Exception:
-                continue
-
-        return False
+            return False
+        finally:
+            # Close the workbook to release the underlying file handle —
+            # otherwise Windows keeps the upload temp file locked and
+            # chainlit's session cleanup (shutil.rmtree) raises PermissionError.
+            wb.close()
     except Exception:
         return None
 

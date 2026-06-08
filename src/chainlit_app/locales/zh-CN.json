@@ -1,4 +1,4 @@
-﻿{
+{
   "allrecords.error": "Eira：无法读取列表: {error}",
   "allrecords.export_excel": "Eira：📋 已生成全部文件记录 Excel 报告（共 {count} 份文件）。",
   "allrecords.export_hint": "Eira：📋 支持格式：\n- 「下载列表 word」\n- 「下载列表 excel」",

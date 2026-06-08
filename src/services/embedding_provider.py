@@ -102,6 +102,7 @@ class EmbeddingProvider:
         self._ollama_base_url: Optional[str] = None
         self._st_model = None               # sentence-transformers 模型物件
         self._use_ollama: bool = False
+        self._unavailable_reason: Optional[str] = None
 
     async def initialize(self) -> None:
         """
@@ -147,7 +148,19 @@ class EmbeddingProvider:
                     "Ollama Embedding 不可用（%s），降級至 sentence-transformers",
                     fallback_reason,
                 )
-                await self._load_sentence_transformers()
+                try:
+                    await self._load_sentence_transformers()
+                except Exception as exc:
+                    # Cache the failure so embed_texts() doesn't re-trigger
+                    # Ollama detection + sentence-transformers import on every
+                    # single call — that loop is what flooded the log with
+                    # thousands of duplicate WARNING/ERROR lines.
+                    self._unavailable_reason = str(exc)
+                    self._provider_name = "unavailable"
+                    self._embedding_dim = 0
+                    logger.error(
+                        "Embedding 降級失敗，向量搜尋功能停用：%s", exc
+                    )
 
             self._initialized = True
 
@@ -190,6 +203,11 @@ class EmbeddingProvider:
         """
         if not self._initialized:
             await self.initialize()
+
+        if self._unavailable_reason is not None:
+            raise RuntimeError(
+                f"Embedding provider unavailable: {self._unavailable_reason}"
+            )
 
         if not texts:
             return []
@@ -247,6 +265,16 @@ class EmbeddingProvider:
     def is_initialized(self) -> bool:
         """是否已初始化"""
         return self._initialized
+
+    @property
+    def is_available(self) -> bool:
+        """是否有可用的 Embedding 策略（Ollama 或 sentence-transformers 降級）"""
+        return self._unavailable_reason is None
+
+    @property
+    def unavailable_reason(self) -> Optional[str]:
+        """無法使用 Embedding 時的原因（已初始化但不可用時才有值）"""
+        return self._unavailable_reason
 
 
 # ============================================================

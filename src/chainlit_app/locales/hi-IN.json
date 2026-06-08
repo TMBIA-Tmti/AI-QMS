@@ -1,4 +1,4 @@
-﻿{
+{
   "allrecords.error": "Eira：सूची पढ़ी नहीं जा सकती: {error}",
   "allrecords.export_excel": "Eira：📋 सभी रिकॉर्ड Excel रिपोर्ट तैयार ({count} दस्तावेज़)।",
   "allrecords.export_hint": "Eira：📋 समर्थित प्रारूप:\n- 'सभी रिकॉर्ड डाउनलोड word'\n- 'सभी रिकॉर्ड डाउनलोड excel'",

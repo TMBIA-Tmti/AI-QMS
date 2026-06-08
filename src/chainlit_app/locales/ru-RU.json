@@ -1,4 +1,4 @@
-﻿{
+{
   "allrecords.error": "Eira：Невозможно прочитать список: {error}",
   "allrecords.export_excel": "Eira：📋 Excel-отчёт всех записей создан ({count} документов).",
   "allrecords.export_hint": "Eira：📋 Поддерживаемые форматы:\n- 'скачать записи word'\n- 'скачать записи excel'",

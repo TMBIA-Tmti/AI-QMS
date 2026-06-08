@@ -1,4 +1,4 @@
-﻿{
+{
   "allrecords.error": "Eira：لا يمكن قراءة القائمة: {error}",
   "allrecords.export_excel": "Eira：📋 تم إنشاء تقرير Excel لجميع السجلات ({count} مستند).",
   "allrecords.export_hint": "Eira：📋 الصيغ المتاحة:\n- 'تحميل السجلات word'\n- 'تحميل السجلات excel'",

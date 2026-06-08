@@ -1,4 +1,4 @@
-﻿{
+{
   "allrecords.error": "Eira：Liste kann nicht gelesen werden: {error}",
   "allrecords.export_excel": "Eira：📋 Alle Aufzeichnungen Excel-Bericht erstellt ({count} Dokumente).",
   "allrecords.export_hint": "Eira：📋 Unterstützte Formate:\n- 'Aufzeichnungen herunterladen word'\n- 'Aufzeichnungen herunterladen excel'",

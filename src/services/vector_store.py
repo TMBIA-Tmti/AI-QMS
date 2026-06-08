@@ -27,6 +27,7 @@ class VectorStore:
         self._collection = None
         self._degraded = False
         self._embedding_provider = None
+        self._embedding_unavailable_logged = False
         self._init()
 
     def _init(self) -> None:
@@ -54,8 +55,33 @@ class VectorStore:
             self._embedding_provider = EmbeddingProvider()
         return self._embedding_provider
 
+    async def _embedding_ready(self) -> bool:
+        """Initialise the embedding provider and report whether it can embed text.
+
+        Logs the "unavailable" condition exactly once per process instead of
+        once per chunk — with no Ollama/sentence-transformers fallback installed,
+        every add_document/search_similar call would otherwise re-attempt
+        initialisation and log a fresh WARNING+ERROR pair, flooding the log
+        (observed: 9k+ WARNING / 880+ ERROR lines from a single startup).
+        """
+        provider = self._provider()
+        if not provider.is_initialized:
+            await provider.initialize()
+        if provider.is_available:
+            return True
+        if not self._embedding_unavailable_logged:
+            logger.warning(
+                "Vector store running without embeddings (%s) — "
+                "semantic indexing/search disabled, keyword search still works",
+                provider.unavailable_reason,
+            )
+            self._embedding_unavailable_logged = True
+        return False
+
     async def add_document(self, doc_id: str, content: str, metadata: dict) -> None:
         if self._degraded or self._collection is None:
+            return
+        if not await self._embedding_ready():
             return
         try:
             vecs = await self._provider().embed_texts([content])
@@ -66,6 +92,8 @@ class VectorStore:
 
     async def search_similar(self, query: str, n_results: int = 5) -> list[dict]:
         if self._degraded or self._collection is None:
+            return []
+        if not await self._embedding_ready():
             return []
         try:
             vecs = await self._provider().embed_texts([query])

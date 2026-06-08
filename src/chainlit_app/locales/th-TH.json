@@ -1,4 +1,4 @@
-﻿{
+{
   "allrecords.error": "Eira：ไม่สามารถอ่านรายการ: {error}",
   "allrecords.export_excel": "Eira：📋 สร้างรายงาน Excel บันทึกทั้งหมดแล้ว ({count} ฉบับ)",
   "allrecords.export_hint": "Eira：📋 รูปแบบที่รองรับ:\n- 'ดาวน์โหลดบันทึกทั้งหมด word'\n- 'ดาวน์โหลดบันทึกทั้งหมด excel'",
