@@ -1447,8 +1447,13 @@ async def get_rows(
 
 
 @report_router.get("/{run_id}/row/{row_id}")
-async def get_row_detail(run_id: str, row_id: str):
-    """Get detailed data for a single row, including all phase results."""
+async def get_row_detail(run_id: str, row_id: str, lang: str = Query("zh-TW")):
+    """Get detailed data for a single row, including all phase results.
+
+    ``lang`` — UI language code used to dynamically fill ``question_en`` /
+    ``question_zh`` when the pipeline run pre-dates the multi-language storage
+    or when Side A stored an empty ``question_en``.
+    """
     table = await _load_table(run_id)
     row = table.state.get_row(row_id)
     if row is None:
@@ -1456,6 +1461,31 @@ async def get_row_detail(run_id: str, row_id: str):
 
     row_dict = row.to_dict()
     row_dict = _row_to_api(row_dict)
+
+    # Back-fill question_en / question_zh / question_ja for older runs or Side A
+    # with empty fields.  Uses the same seed-less call so the result is
+    # deterministic for the same clause regardless of run date.
+    clause_id = row_dict.get("clause_id", "")
+    doc_id = row_dict.get("doc_id", "")
+    if clause_id:
+        try:
+            from src.analysis.compliance_rules import ISO_13485_CHECKLIST, get_audit_question
+            clause_info = ISO_13485_CHECKLIST.get(clause_id, {})
+            if clause_info:
+                if not row_dict.get("question_en"):
+                    row_dict["question_en"] = get_audit_question(
+                        clause_info, doc_id=doc_id, lang="en-US"
+                    )
+                if not row_dict.get("question_zh"):
+                    row_dict["question_zh"] = get_audit_question(
+                        clause_info, doc_id=doc_id, lang="zh-TW"
+                    )
+                if not row_dict.get("question_ja"):
+                    row_dict["question_ja"] = get_audit_question(
+                        clause_info, doc_id=doc_id, lang="ja-JP"
+                    )
+        except Exception:
+            pass
 
     return JSONResponse(content={"row": row_dict})
 

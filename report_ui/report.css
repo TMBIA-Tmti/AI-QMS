@@ -826,15 +826,102 @@ body {
 .verification-role {
     font-weight: 600;
     margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
 }
 
 .verification-role.analyzer { color: var(--primary); }
 .verification-role.verifier { color: var(--risk-deadline); }
 
+.role-round-type {
+    font-size: 0.72rem;
+    font-weight: 400;
+    color: var(--text-muted, #64748b);
+    background: var(--bg, #f8fafc);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+}
+
 .verification-text {
     color: var(--text);
     line-height: 1.5;
     margin-bottom: 8px;
+}
+
+.role-main-text {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.role-sub-section {
+    margin-top: 8px;
+    padding: 6px 10px;
+    background: var(--bg, #f8fafc);
+    border-left: 3px solid var(--border);
+    border-radius: 0 4px 4px 0;
+    font-size: 0.82rem;
+}
+
+.role-sub-section ul {
+    margin: 4px 0 0 16px;
+    padding: 0;
+}
+
+.role-sub-section li {
+    margin-bottom: 2px;
+}
+
+.role-concession {
+    border-left-color: #f59e0b;
+    background: #fffbeb;
+}
+
+.role-empty-notice {
+    color: #94a3b8;
+    font-size: 0.8rem;
+    font-style: italic;
+    padding: 6px 0;
+}
+
+.crossexam-decision-summary {
+    background: var(--bg, #f8fafc);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    font-size: 0.85rem;
+}
+
+.crossexam-verdict-label {
+    font-weight: 600;
+    margin-right: 6px;
+}
+
+.crossexam-ra-notice {
+    margin-top: 6px;
+    color: #dc2626;
+    font-weight: 500;
+}
+
+.crossexam-agreed-notice {
+    margin-top: 6px;
+    color: #16a34a;
+    font-weight: 500;
+}
+
+.round-status-agreed { color: #16a34a; font-weight: 600; }
+.round-status-disagreed { color: #dc2626; font-weight: 600; }
+
+.question-alt-lang {
+    margin-top: 6px;
+}
+
+.question-alt-lang summary {
+    cursor: pointer;
+    user-select: none;
 }
 
 /* Version history */

@@ -1,11 +1,11 @@
 @echo off
 chcp 65001 >nul 2>&1
-title AI-QMS Phase 1 - Chainlit v3.6.0
+title AI-QMS Phase 1 - Chainlit v3.7.0
 
 echo ========================================================
 echo  AI-QMS Phase 1 Document Control System
-echo  Version: v3.6.0 (Chainlit + Phoenix)
-echo  Date: 2026-04-19
+echo  Version: v3.7.0 (Chainlit + Phoenix)
+echo  Date: 2026-06-09
 echo ========================================================
 echo.
 echo  Architecture (Chainlit + Phoenix):
@@ -14,6 +14,8 @@ echo    Chat Profiles:      Main Agent + Doc Control
 echo    Local LLM:          Ollama (Port 11434)
 echo    LLM Observability:  Phoenix (Port 6006)
 echo.
+echo  v3.7.0 - Multi-lang audit questions (zh/en/ja), Cross-exam full decision display,
+echo           Embedding auto-install, Phoenix log redirect fix, VectorStore singleton fix
 echo  v3.6.0 - Full i18n: zh/ja/en across all UI, reports, Word/Excel, pipeline, ISO clauses
 echo  v3.5.0 - Regulatory Region Auto-Query, Disconnect Resilience, Eira AI Assistant
 echo  v3.4.0 - Arize Phoenix LLM Observability, One-Click Launch + Auto-Update
@@ -76,7 +78,7 @@ exit /b 1
 echo [OK] Python: %QMS_PYTHON%
 echo.
 
-:: ─── CMD session log ─────────────────────────────────────────────────────────
+:: --- CMD session log ---------------------------------------------------------
 if not exist "%PROJECT_DIR%logs\cmd" mkdir "%PROJECT_DIR%logs\cmd"
 for /f %%t in ('powershell -NoProfile -Command "Get-Date -Format yyyy-MM-dd_HH-mm-ss"') do set "SESSION_STAMP=%%t"
 set "CMD_LOG=%PROJECT_DIR%logs\cmd\%SESSION_STAMP%_start_chainlit.log"
@@ -84,12 +86,12 @@ set "CMD_LOG=%PROJECT_DIR%logs\cmd\%SESSION_STAMP%_start_chainlit.log"
 >> "%CMD_LOG%" echo SESSION START: %SESSION_STAMP%
 >> "%CMD_LOG%" echo Script: start_chainlit.bat
 >> "%CMD_LOG%" echo =============================================
-:: ─────────────────────────────────────────────────────────────────────────────
+:: -----------------------------------------------------------------------------
 
-:: ── No-disconnect settings ────────────────────────────────────────────────────
+:: -- No-disconnect settings ----------------------------------------------------
 set "UVICORN_TIMEOUT_KEEP_ALIVE=0"
 set "UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN=300"
-:: ─────────────────────────────────────────────────────────────────────────────
+:: -----------------------------------------------------------------------------
 
 :: Auto-accept Conda Terms of Service (required since Miniconda 25.1.1)
 where conda >nul 2>&1
@@ -191,7 +193,7 @@ if errorlevel 1 (
         if not exist "%PROJECT_DIR%logs\phoenix" mkdir "%PROJECT_DIR%logs\phoenix"
         set "PHOENIX_LOG=%PROJECT_DIR%logs\phoenix\%SESSION_STAMP%_phoenix.log"
         >> "%CMD_LOG%" echo [Phoenix] Starting watchdog on port %PHOENIX_PORT% gRPC %PHOENIX_GRPC_PORT%
-        :: Launch phoenix_watchdog.bat in a separate minimized window — it will auto-restart Phoenix on crash
+        :: Launch phoenix_watchdog.bat in a separate minimized window - it will auto-restart Phoenix on crash
         start "AI-QMS Phoenix Watchdog" /min cmd /c ""%PROJECT_DIR%phoenix_watchdog.bat" "%QMS_PYTHON%" %PHOENIX_PORT% %PHOENIX_GRPC_PORT% "%PROJECT_DIR%" "%PHOENIX_LOG%""
         call :wait_for_phoenix
     ) else (
@@ -220,7 +222,7 @@ echo ========================================================
 echo.
 
 :: ============================================================
-:: Watchdog Loop — auto-restart Chainlit on unexpected exit
+:: Watchdog Loop - auto-restart Chainlit on unexpected exit
 :: Press Ctrl+C twice (or close window) to fully stop.
 :: ============================================================
 cd /d "%PROJECT_DIR%"
@@ -251,8 +253,8 @@ echo [WATCHDOG] Starting Chainlit (run %CHAINLIT_RESTARTS%)...
 >> "%CMD_LOG%" echo [Chainlit] Run %CHAINLIT_RESTARTS% started at %date% %time%
 "%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port %CHAINLIT_PORT%
 
-:: errorlevel 0 = clean exit (Ctrl+C / manual stop) → do NOT restart
-:: errorlevel 1 = crash → restart
+:: errorlevel 0 = clean exit (Ctrl+C / manual stop) -> do NOT restart
+:: errorlevel 1 = crash -> restart
 if errorlevel 1 (
     >> "%CMD_LOG%" echo [Chainlit] Run %CHAINLIT_RESTARTS% CRASHED at %date% %time%
     goto :watchdog_loop

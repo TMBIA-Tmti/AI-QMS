@@ -202,6 +202,8 @@ class ComparisonTable:
                     audit_question=_q_result["question"],
                     question_source=_q_result["source"],
                     question_en=_q_result.get("question_en", ""),
+                    question_zh=_q_result.get("question_zh", ""),
+                    question_ja=_q_result.get("question_ja", ""),
                     expected_evidence=_q_result["expected_evidence"],
                 )
                 self._state.add_row(row)
@@ -246,6 +248,8 @@ class ComparisonTable:
                         audit_question=_q_result2["question"],
                         question_source=_q_result2["source"],
                         question_en=_q_result2.get("question_en", ""),
+                        question_zh=_q_result2.get("question_zh", ""),
+                        question_ja=_q_result2.get("question_ja", ""),
                         expected_evidence=_q_result2["expected_evidence"],
                     )
                     self._state.add_row(row)

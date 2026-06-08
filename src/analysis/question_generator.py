@@ -575,6 +575,8 @@ def get_audit_question_hybrid(
             return {
                 "question": primary,
                 "question_en": q_b.get("question_en", ""),
+                "question_zh": q_b.get("question_zh", "") or q_b.get("question_en", ""),
+                "question_ja": q_b.get("question_ja", "") or q_b.get("question_en", ""),
                 "source": "B",
                 "clause_id": clause_id,
                 "audit_impact": audit_impact,
@@ -590,9 +592,14 @@ def get_audit_question_hybrid(
 
     # ── Side A: static pool with date + doc_id hash ──────────────────────────
     question_a = get_audit_question(clause_info, seed=seed, doc_id=doc_id, lang=lang)
+    question_en_a = get_audit_question(clause_info, seed=seed, doc_id=doc_id, lang="en-US")
+    question_zh_a = get_audit_question(clause_info, seed=seed, doc_id=doc_id, lang="zh-TW")
+    question_ja_a = get_audit_question(clause_info, seed=seed, doc_id=doc_id, lang="ja-JP")
     return {
         "question": question_a,
-        "question_en": "",
+        "question_en": question_en_a,
+        "question_zh": question_zh_a,
+        "question_ja": question_ja_a,
         "source": "A",
         "clause_id": clause_id,
         "audit_impact": audit_impact,

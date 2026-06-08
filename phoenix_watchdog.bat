@@ -3,7 +3,7 @@ chcp 65001 >nul 2>&1
 title AI-QMS Phoenix Watchdog
 
 :: ============================================================
-:: Phoenix Watchdog — auto-restarts Phoenix on crash
+:: Phoenix Watchdog - auto-restarts Phoenix on crash
 ::
 :: Arguments:
 ::   %1  Python executable path
@@ -76,7 +76,7 @@ set /a PHOENIX_RESTARTS+=1
 echo [Watchdog] Starting Phoenix (run %PHOENIX_RESTARTS%)...
 >> "%PHOENIX_LOG%" echo [Watchdog] Run %PHOENIX_RESTARTS% starting at %date% %time%
 
-:: Run Phoenix — redirect stderr to log, stdout to console for live feedback.
+:: Run Phoenix - redirect stderr to log, stdout to console for live feedback.
 :: NOTE: piping stdout+stderr loses the exit code (pipe returns last cmd's code).
 :: Using stderr-only redirect preserves Phoenix's real exit code for restart logic.
 "%QMS_PYTHON%" -m phoenix.server.main serve --grpc-port %PHOENIX_GRPC_PORT% 2>> "%PHOENIX_LOG%"
@@ -92,7 +92,7 @@ if exist "%PROJECT_DIR%.phoenix_stop" (
     goto :eof
 )
 
-:: errorlevel 0 = window closed or process exited cleanly → also stop (no restart)
+:: errorlevel 0 = window closed or process exited cleanly -> also stop (no restart)
 if "%PHOENIX_EXIT%"=="0" (
     echo.
     echo [Watchdog] Phoenix exited cleanly. Watchdog stopping.
@@ -100,5 +100,5 @@ if "%PHOENIX_EXIT%"=="0" (
     goto :eof
 )
 
-:: Non-zero exit = crash → restart
+:: Non-zero exit = crash -> restart
 goto :watchdog_loop

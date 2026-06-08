@@ -1,11 +1,11 @@
 @echo off
 chcp 65001 >nul 2>&1
-title AI-QMS Phase 1 Document Control - Launcher v3.6.0
+title AI-QMS Phase 1 Document Control - Launcher v3.7.0
 
 echo ========================================================
 echo  AI-QMS Phase 1 Document Control System
-echo  Version: v3.6.0 (Chainlit + Phoenix)
-echo  Date: 2026-04-19
+echo  Version: v3.7.0 (Chainlit + Phoenix)
+echo  Date: 2026-06-09
 echo ========================================================
 echo.
 echo  Architecture (Chainlit):
@@ -13,6 +13,8 @@ echo    Chainlit App:       Port 3000 (Single App, Chat Profiles)
 echo    Local LLM:          Ollama (Port 11434)
 echo    Phoenix:            Port 6006 (LLM Observability)
 echo.
+echo  v3.7.0 - Multi-lang audit questions (zh/en/ja), Cross-exam full decision display,
+echo           Embedding auto-install, Phoenix log redirect fix, VectorStore singleton fix
 echo  v3.6.0 - Full i18n: zh/ja/en across all UI, reports, Word/Excel, pipeline, ISO clauses
 echo  v3.5.0 - Regulatory Region Auto-Query, Disconnect Resilience, Eira AI Assistant
 echo  v3.4.0 - Arize Phoenix LLM Observability, One-Click Launch + Auto-Update
@@ -75,7 +77,7 @@ exit /b 1
 echo [OK] Python: %QMS_PYTHON%
 echo.
 
-:: ─── CMD session log ─────────────────────────────────────────────────────────
+:: --- CMD session log ---------------------------------------------------------
 if not exist "%PROJECT_DIR%logs\cmd" mkdir "%PROJECT_DIR%logs\cmd"
 for /f %%t in ('powershell -NoProfile -Command "Get-Date -Format yyyy-MM-dd_HH-mm-ss"') do set "SESSION_STAMP=%%t"
 set "CMD_LOG=%PROJECT_DIR%logs\cmd\%SESSION_STAMP%_start.log"
@@ -83,15 +85,15 @@ set "CMD_LOG=%PROJECT_DIR%logs\cmd\%SESSION_STAMP%_start.log"
 >> "%CMD_LOG%" echo SESSION START: %SESSION_STAMP%
 >> "%CMD_LOG%" echo Script: start.bat
 >> "%CMD_LOG%" echo =============================================
-:: ─────────────────────────────────────────────────────────────────────────────
+:: -----------------------------------------------------------------------------
 
-:: ── No-disconnect settings ────────────────────────────────────────────────────
-:: UVICORN_TIMEOUT_KEEP_ALIVE=0  → HTTP keep-alive never expires (fixes HTML page drop)
-:: UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN=300 → allow 5 min for graceful shutdown
+:: -- No-disconnect settings ----------------------------------------------------
+:: UVICORN_TIMEOUT_KEEP_ALIVE=0  -> HTTP keep-alive never expires (fixes HTML page drop)
+:: UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN=300 -> allow 5 min for graceful shutdown
 :: These env vars are inherited by all child processes (Chainlit, Phoenix)
 set "UVICORN_TIMEOUT_KEEP_ALIVE=0"
 set "UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN=300"
-:: ─────────────────────────────────────────────────────────────────────────────
+:: -----------------------------------------------------------------------------
 
 :: Auto-accept Conda Terms of Service (required since Miniconda 25.1.1)
 where conda >nul 2>&1
@@ -129,7 +131,7 @@ for /L %%p in (3000,1,3010) do (
 )
 :: Wait for OS to release ports after kill (TIME_WAIT state)
 :: Polls every second until all ports 3000-3010 are free, or 10s has elapsed.
-:: NOTE: Labels inside compound if-blocks are invalid in CMD — loop lives at top level.
+:: NOTE: Labels inside compound if-blocks are invalid in CMD - loop lives at top level.
 if not "%KILLED_ANY%"=="1" goto :wait_ports_done
 echo [INFO] Waiting for ports to be released...
 set "WAIT_SEC=0"
@@ -267,9 +269,13 @@ if not errorlevel 1 (
     set "PHOENIX_LAUNCHED=1"
 ) else (
     echo      Starting Phoenix on port %PHOENIX_PORT% (gRPC: %PHOENIX_GRPC_PORT%^)...
-    >> "%CMD_LOG%" echo [Phoenix] Starting on port %PHOENIX_PORT% gRPC %PHOENIX_GRPC_PORT%
-    :: Use PowerShell Start-Process to detach Phoenix from parent console — works regardless of parent console type
-    powershell -NonInteractive -Command "Start-Process '%QMS_PYTHON%' -ArgumentList '-m','phoenix.server.main','serve','--grpc-port','%PHOENIX_GRPC_PORT%' -WindowStyle Minimized"
+    if not exist "%PROJECT_DIR%logs\phoenix" mkdir "%PROJECT_DIR%logs\phoenix"
+    set "PHOENIX_LOG_FILE=logs\phoenix\%SESSION_STAMP%_phoenix.log"
+    >> "%CMD_LOG%" echo [Phoenix] Starting on port %PHOENIX_PORT% gRPC %PHOENIX_GRPC_PORT% - log: %PHOENIX_LOG_FILE%
+    :: cd to project dir first so the relative log path resolves correctly (avoids spaces-in-path issue)
+    pushd "%PROJECT_DIR%"
+    start "AI-QMS Phoenix" /min cmd /c ""%QMS_PYTHON%" -m phoenix.server.main serve --grpc-port %PHOENIX_GRPC_PORT% >> "%PHOENIX_LOG_FILE%" 2>&1"
+    popd
     call :wait_for_phoenix
 )
 

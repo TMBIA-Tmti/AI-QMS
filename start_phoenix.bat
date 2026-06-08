@@ -4,8 +4,8 @@ title AI-QMS - Phoenix Observability Server
 
 echo ========================================================
 echo  AI-QMS - Arize Phoenix LLM Observability
-echo  Version: v3.6.0
-echo  Date: 2026-04-19
+echo  Version: v3.7.0
+echo  Date: 2026-06-09
 echo ========================================================
 echo.
 echo  Phoenix provides:
@@ -72,18 +72,18 @@ exit /b 1
 echo [OK] Python: %QMS_PYTHON%
 echo.
 
-:: ─── Phoenix session log ─────────────────────────────────────────────────────
+:: --- Phoenix session log -----------------------------------------------------
 if not exist "%PROJECT_DIR%logs\phoenix" mkdir "%PROJECT_DIR%logs\phoenix"
 for /f %%t in ('powershell -NoProfile -Command "Get-Date -Format yyyy-MM-dd_HH-mm-ss"') do set "SESSION_STAMP=%%t"
 set "PHOENIX_LOG=%PROJECT_DIR%logs\phoenix\%SESSION_STAMP%_phoenix.log"
 echo [LOG] Phoenix log: logs\phoenix\%SESSION_STAMP%_phoenix.log
 echo SESSION START: %SESSION_STAMP% > "%PHOENIX_LOG%"
-:: ─────────────────────────────────────────────────────────────────────────────
+:: -----------------------------------------------------------------------------
 
-:: ── No-disconnect settings ────────────────────────────────────────────────────
+:: -- No-disconnect settings ----------------------------------------------------
 set "UVICORN_TIMEOUT_KEEP_ALIVE=0"
 set "UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN=300"
-:: ─────────────────────────────────────────────────────────────────────────────
+:: -----------------------------------------------------------------------------
 
 :: Auto-update: always sync all packages from requirements.txt
 echo [INFO] Checking dependencies...

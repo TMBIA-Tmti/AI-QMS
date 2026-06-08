@@ -1197,6 +1197,94 @@
         return r.clause_title || "";
     }
 
+    // Return language-appropriate audit question for a row (table or detail).
+    // Priority: stored per-lang field → audit_question (primary lang) → any fallback.
+    function getAuditQuestion(r) {
+        const lang = (window.__i18n && window.__i18n.lang) || "en-US";
+        if (lang.startsWith("zh")) return r.question_zh || r.audit_question || "—";
+        if (lang.startsWith("ja")) return r.question_ja || r.audit_question || r.question_zh || "—";
+        return r.question_en || r.audit_question || "—";
+    }
+
+    // Robustly extract a displayable string from any LLM response field value.
+    // Handles: string, object with known text keys, nested objects, arrays.
+    function extractRoleContent(val) {
+        if (!val && val !== 0) return "";
+        if (typeof val === "string") return val;
+        if (typeof val === "number" || typeof val === "boolean") return String(val);
+        if (Array.isArray(val)) return val.map(extractRoleContent).filter(Boolean).join("\n");
+        if (typeof val === "object") {
+            // Try common text field names in priority order
+            const TEXT_KEYS = ["position", "response", "overall_assessment", "content",
+                               "text", "message", "assessment", "summary", "description"];
+            for (const k of TEXT_KEYS) {
+                const v = val[k];
+                if (v && typeof v === "string") return v;
+            }
+            // Fallback: JSON stringify for full transparency
+            return JSON.stringify(val, null, 2);
+        }
+        return String(val);
+    }
+
+    // Build a structured display block for one LLM role's round data (analyzer or verifier).
+    function buildRoleDetail(data, roleKey) {
+        if (!data) return "";
+        const isObj = typeof data === "object" && !Array.isArray(data);
+        const parts = [];
+
+        if (roleKey === "analyzer") {
+            // Round 1 format: {position, key_evidence, confidence, acknowledged_weaknesses}
+            // Round 2+ format: {response, additional_evidence, concession, revised_confidence}
+            const mainText = isObj
+                ? (extractRoleContent(data.position) || extractRoleContent(data.response))
+                : extractRoleContent(data);
+            if (mainText) parts.push(`<div class="role-main-text">${escapeHtml(mainText)}</div>`);
+
+            const evidence = isObj ? (data.key_evidence || data.additional_evidence) : null;
+            if (evidence && evidence.length) {
+                parts.push(`<div class="role-sub-section"><strong>📎 ${t('ui.keyEvidence') || 'Key Evidence'}:</strong><ul>${
+                    evidence.map(e => `<li>${escapeHtml(String(e))}</li>`).join("")
+                }</ul></div>`);
+            }
+            const conf = isObj ? (data.confidence != null ? data.confidence : data.revised_confidence) : null;
+            if (conf != null) {
+                const pct = Math.round(Number(conf) * 100);
+                parts.push(`<div class="role-sub-section"><strong>📊 ${t('ui.confidence') || 'Confidence'}:</strong> ${pct}%</div>`);
+            }
+            const weak = isObj ? (data.acknowledged_weaknesses || (data.concession ? [data.concession] : null)) : null;
+            if (weak && (Array.isArray(weak) ? weak.length : weak)) {
+                const items = Array.isArray(weak) ? weak : [weak];
+                parts.push(`<div class="role-sub-section role-concession"><strong>⚠️ ${t('ui.concession') || 'Acknowledged Weakness'}:</strong><ul>${
+                    items.filter(Boolean).map(w => `<li>${escapeHtml(String(w))}</li>`).join("")
+                }</ul></div>`);
+            }
+        } else if (roleKey === "verifier") {
+            const mainText = isObj
+                ? (extractRoleContent(data.overall_assessment) || extractRoleContent(data.response))
+                : extractRoleContent(data);
+            if (mainText) parts.push(`<div class="role-main-text">${escapeHtml(mainText)}</div>`);
+
+            const challenges = isObj ? data.challenges : null;
+            if (challenges && challenges.length) {
+                parts.push(`<div class="role-sub-section"><strong>❓ ${t('ui.challenges') || 'Challenges'}:</strong><ul>${
+                    challenges.map(c => {
+                        const txt = typeof c === "string" ? c
+                            : (c.challenge || c.question || c.description || JSON.stringify(c));
+                        return `<li>${escapeHtml(txt)}</li>`;
+                    }).join("")
+                }</ul></div>`);
+            }
+            const agreeLevel = isObj ? data.agreement_level : null;
+            if (agreeLevel) {
+                const icon = agreeLevel === "agree" ? "✅" : agreeLevel === "partial" ? "⚠️" : "❌";
+                parts.push(`<div class="role-sub-section"><strong>${icon} ${t('ui.agreementLevel') || 'Agreement'}:</strong> ${escapeHtml(agreeLevel)}</div>`);
+            }
+        }
+
+        return parts.join("") || `<div class="role-main-text">${escapeHtml(extractRoleContent(data))}</div>`;
+    }
+
     function renderRow(r) {
         const flagged = r.flagged_for_ra;
         const rowClass = flagged ? "row-flagged" : "";
@@ -1229,7 +1317,7 @@
                 <div class="doc-title" title="${escapeAttr(r.doc_title)}">${escapeHtml(r.doc_title)}</div>
             </td>
             <td class="col-question">
-                <div class="audit-question">${escapeHtml(r.audit_question || "—")}</div>
+                <div class="audit-question">${escapeHtml(getAuditQuestion(r))}</div>
             </td>
             <td class="col-pipeline">
                 <div class="pipeline-icons">${pipelineIcons}</div>
@@ -1296,7 +1384,8 @@
         currentRowId = rowId;
 
         try {
-            const data = await apiFetch(`/${RUN_ID}/row/${rowId}`);
+            const _uiLang = (window.__i18n && window.__i18n.lang) || "zh-TW";
+            const data = await apiFetch(`/${RUN_ID}/row/${rowId}?lang=${encodeURIComponent(_uiLang)}`);
             const row = data.row;
 
             const _dLang = window.__i18n ? window.__i18n.lang : "en-US";
@@ -1323,7 +1412,15 @@
                     <span class="detail-label">${_i18nT("detail.auditQuestion")}</span>
                     <span class="detail-value">
                         ${row.question_source === "B" ? '<span class="badge badge-side-b" title="LLM-generated question">🤖 Side B</span> ' : '<span class="badge badge-side-a" title="Static question pool">📋 Side A</span> '}
-                        ${escapeHtml(row.audit_question || "—")}
+                        ${escapeHtml(getAuditQuestion(row))}
+                        ${(row.question_en || row.question_zh || row.question_ja)
+                            ? `<details class="question-alt-lang"><summary style="font-size:0.75rem;color:#64748b;cursor:pointer">🌐 ${_i18nT('detail.altLangQuestion') || 'All language versions'}</summary>
+                                ${row.question_zh ? `<div style="font-size:0.78rem;color:#475569;margin-top:4px">🇹🇼 <strong>ZH</strong>: ${escapeHtml(row.question_zh)}</div>` : ""}
+                                ${row.question_en ? `<div style="font-size:0.78rem;color:#475569;margin-top:2px">🇺🇸 <strong>EN</strong>: ${escapeHtml(row.question_en)}</div>` : ""}
+                                ${row.question_ja ? `<div style="font-size:0.78rem;color:#475569;margin-top:2px">🇯🇵 <strong>JA</strong>: ${escapeHtml(row.question_ja)}</div>` : ""}
+                              </details>`
+                            : ""
+                        }
                     </span>
                     <span class="detail-label">${_i18nT("detail.verdict")}</span>
                     <span class="detail-value">${getVerdictBadge(row.verdict, row.verdict_icon, row.verdict ? t("verdict." + row.verdict) : "", !!row.ra_override)}</span>
@@ -1469,51 +1566,73 @@
                 html += `</ul></div>`;
             }
 
-            // Verification rounds
+            // Verification rounds — full decision logic display
             const rounds = row.verification_rounds || [];
             if (rounds.length > 0) {
-                html += `<div class="detail-section">
-                    <h3>${_i18nT('detail.crossExam')} (${rounds.length} ${_i18nT('ui.rounds')})</h3>`;
+                const finalAgreed = row.verification_agreed;
+                const overallStatusIcon = finalAgreed === true ? "✅" : finalAgreed === false ? "❌" : "⏳";
+                const overallStatusText = finalAgreed === true
+                    ? t('ui.crossexamAgreed', {rounds: rounds.length})
+                    : finalAgreed === false
+                        ? (row.flagged_for_ra ? `${t('ui.crossexamDisagreed', {rounds: rounds.length})} — 🚩 ${t('detail.flaggedForRA')}` : t('ui.crossexamDisagreed', {rounds: rounds.length}))
+                        : t('ui.crossexamPending');
+
+                html += `<div class="detail-section crossexam-section">
+                    <h3>${_i18nT('detail.crossExam')} ${overallStatusIcon} (${rounds.length} ${_i18nT('ui.rounds')})</h3>
+                    <div class="crossexam-decision-summary">
+                        <span class="crossexam-verdict-label">${_i18nT('ui.finalDecision') || 'Final Decision'}:</span>
+                        <span class="crossexam-verdict-value">${escapeHtml(overallStatusText)}</span>
+                        ${row.flagged_for_ra ? `<div class="crossexam-ra-notice">🚩 ${_i18nT('ui.raDecisionRequired') || 'RA Review Required — All 3 rounds completed without agreement. Human expert review needed.'}</div>` : ""}
+                        ${finalAgreed === true ? `<div class="crossexam-agreed-notice">✅ ${_i18nT('ui.crossexamAgreedDetail') || 'Verifier and Analyzer reached consensus. Compliance verdict is well-supported.'}</div>` : ""}
+                    </div>`;
 
                 for (let i = 0; i < rounds.length; i++) {
                     const round = rounds[i];
-                    const agreed = round.agreed;
-                    const statusText = agreed ? t("ui.agreed") : t("ui.disagreed");
+                    // Correctly derive agreement from verifier's agreement_level
+                    const roundAgreed = (round.verifier && typeof round.verifier === 'object')
+                        ? round.verifier.agreement_level === 'agree'
+                        : false;
+                    const statusIcon = roundAgreed ? "✅" : "❌";
+                    const statusText = roundAgreed ? t("ui.agreed") : t("ui.disagreed");
 
+                    const _roundStatusClass = roundAgreed ? "round-status round-status-agreed" : "round-status round-status-disagreed";
                     html += `<div class="verification-round">
                         <div class="verification-round-header">
-                            <span>${t('ui.roundN', {n: i + 1})}</span>
-                            <span>${statusText}</span>
+                            <span class="round-label">${t('ui.roundN', {n: i + 1})}</span>
+                            <span class="${_roundStatusClass}">${statusIcon} ${statusText}</span>
                         </div>
                         <div class="verification-round-body">`;
 
-                    const _analyzerContent = round.analyzer_response
-                        || (round.analyzer && typeof round.analyzer === 'object'
-                            ? (round.analyzer.position || round.analyzer.response
-                                || (round.analyzer.key_evidence ? JSON.stringify(round.analyzer) : ''))
-                            : (typeof round.analyzer === 'string' ? round.analyzer : ''));
-                    if (_analyzerContent) {
-                        html += `<div class="verification-role analyzer">🔍 ${_i18nT('ui.analyzer')}</div>
-                            <div class="verification-text">${escapeHtml(String(_analyzerContent))}</div>`;
+                    // Analyzer section (always render if data present)
+                    const analyzerData = round.analyzer || round.analyzer_response;
+                    if (analyzerData) {
+                        const analyzerBody = buildRoleDetail(analyzerData, "analyzer");
+                        if (analyzerBody) {
+                            html += `<div class="verification-role analyzer">🔍 ${_i18nT('ui.analyzer')}
+                                <span class="role-round-type">${i === 0 ? (_i18nT('ui.initialPosition') || 'Initial Position') : (_i18nT('ui.followUpResponse') || 'Follow-up Response')}</span>
+                            </div>
+                            <div class="verification-text">${analyzerBody}</div>`;
+                        }
                     }
 
-                    const _verifierContent = round.verifier_response
-                        || (round.verifier && typeof round.verifier === 'object'
-                            ? (round.verifier.overall_assessment || round.verifier.response
-                                || (round.verifier.challenges ? JSON.stringify(round.verifier) : ''))
-                            : (typeof round.verifier === 'string' ? round.verifier : ''));
-                    if (_verifierContent) {
-                        html += `<div class="verification-role verifier">🛡️ ${_i18nT('ui.verifier')}</div>
-                            <div class="verification-text">${escapeHtml(String(_verifierContent))}</div>`;
+                    // Verifier section (always render if data present)
+                    const verifierData = round.verifier || round.verifier_response;
+                    if (verifierData) {
+                        const verifierBody = buildRoleDetail(verifierData, "verifier");
+                        if (verifierBody) {
+                            html += `<div class="verification-role verifier">🛡️ ${_i18nT('ui.verifier')}
+                                <span class="role-round-type">${i === 0 ? (_i18nT('ui.initialChallenge') || 'Initial Challenge') : (_i18nT('ui.reEvaluation') || 'Re-evaluation')}</span>
+                            </div>
+                            <div class="verification-text">${verifierBody}</div>`;
+                        }
+                    }
+
+                    // Show empty-round notice if neither role had data
+                    if (!analyzerData && !verifierData) {
+                        html += `<div class="role-empty-notice">⚠️ ${_i18nT('ui.roundDataMissing') || 'Round data not available (LLM may have returned empty response)'}</div>`;
                     }
 
                     html += `</div></div>`;
-                }
-
-                if (row.flagged_for_ra) {
-                    html += `<div class="ra-override-info">
-                        <strong>🚩 ${_i18nT('detail.flaggedForRA')}</strong>
-                    </div>`;
                 }
 
                 html += `</div>`;

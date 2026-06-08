@@ -51,8 +51,8 @@ class VectorStore:
 
     def _provider(self):
         if self._embedding_provider is None:
-            from src.services.embedding_provider import EmbeddingProvider
-            self._embedding_provider = EmbeddingProvider()
+            from src.services.embedding_provider import get_embedding_provider
+            self._embedding_provider = get_embedding_provider()
         return self._embedding_provider
 
     async def _embedding_ready(self) -> bool:
