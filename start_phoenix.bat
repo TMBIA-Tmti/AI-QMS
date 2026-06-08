@@ -181,7 +181,12 @@ set "PHOENIX_LOG=%~5"
 if "%PHOENIX_PORT%"=="" set "PHOENIX_PORT=6006"
 if "%PHOENIX_GRPC_PORT%"=="" set "PHOENIX_GRPC_PORT=4317"
 if "%PROJECT_DIR%"=="" set "PROJECT_DIR=%~dp0"
-if "%PHOENIX_LOG%"=="" set "PHOENIX_LOG=%PROJECT_DIR%logs\phoenix\phoenix.log"
+
+:: If caller did not supply a log path, fall back to a timestamped file
+:: (not the bare "phoenix.log") so each run keeps its own history instead
+:: of overwriting the previous session's log.
+if "%PHOENIX_LOG%"=="" if not exist "%PROJECT_DIR%logs\phoenix" mkdir "%PROJECT_DIR%logs\phoenix"
+if "%PHOENIX_LOG%"=="" for /f %%t in ('powershell -NoProfile -Command "Get-Date -Format yyyy-MM-dd_HH-mm-ss"') do set "PHOENIX_LOG=%PROJECT_DIR%logs\phoenix\%%t_phoenix.log"
 
 echo ========================================================
 echo  AI-QMS Phoenix Watchdog
