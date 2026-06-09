@@ -1242,7 +1242,29 @@
             const mainText = isObj
                 ? (extractRoleContent(data.position) || extractRoleContent(data.response))
                 : extractRoleContent(data);
-            if (mainText) parts.push(`<div class="role-main-text">${escapeHtml(mainText)}</div>`);
+            if (mainText) {
+                let rendered = false;
+                if (mainText.trim().startsWith('{')) {
+                    try {
+                        const parsed = JSON.parse(mainText);
+                        const ckKeys = Object.keys(parsed).filter(k => /^challenge_\d+/.test(k));
+                        if (ckKeys.length > 0) {
+                            const blocks = ckKeys.map(key => {
+                                const ch = parsed[key];
+                                let h = `<div class="challenge-response-block"><div class="challenge-response-key">${escapeHtml(key.replace('_', ' '))}</div>`;
+                                if (ch.assessment_justification) h += `<div class="challenge-field">${escapeHtml(ch.assessment_justification)}</div>`;
+                                if (ch.document_mentions) h += `<div class="challenge-field">📄 ${escapeHtml(ch.document_mentions)}</div>`;
+                                if (ch.concession) h += `<div class="challenge-concession">✅ ${escapeHtml(ch.concession)}</div>`;
+                                h += `</div>`;
+                                return h;
+                            }).join('');
+                            parts.push(`<div class="role-main-text">${blocks}</div>`);
+                            rendered = true;
+                        }
+                    } catch(e) {}
+                }
+                if (!rendered) parts.push(`<div class="role-main-text">${escapeHtml(mainText)}</div>`);
+            }
 
             const evidence = isObj ? (data.key_evidence || data.additional_evidence) : null;
             if (evidence && evidence.length) {
@@ -1270,13 +1292,21 @@
 
             const challenges = isObj ? data.challenges : null;
             if (challenges && challenges.length) {
-                parts.push(`<div class="role-sub-section"><strong>❓ ${t('ui.challenges') || 'Challenges'}:</strong><ul>${
-                    challenges.map(c => {
-                        const txt = typeof c === "string" ? c
-                            : (c.challenge || c.question || c.description || JSON.stringify(c));
-                        return `<li>${escapeHtml(txt)}</li>`;
-                    }).join("")
-                }</ul></div>`);
+                const challengeHtml = challenges.map(c => {
+                    let obj = null;
+                    if (typeof c === 'string') { try { obj = JSON.parse(c); } catch(e) {} }
+                    else if (c && typeof c === 'object') { obj = c; }
+                    if (obj) {
+                        const pt = obj.point || obj.challenge || obj.question || obj.description || '';
+                        let h = pt ? `<div class="challenge-point">${escapeHtml(pt)}</div>` : '';
+                        if (obj.regulation_basis) h += `<div class="challenge-field">⚖️ ${escapeHtml(obj.regulation_basis)}</div>`;
+                        if (obj.expected_evidence) h += `<div class="challenge-field">📋 ${escapeHtml(obj.expected_evidence)}</div>`;
+                        if (obj.worst_case_impact) h += `<div class="challenge-field challenge-risk">⚠️ ${escapeHtml(obj.worst_case_impact)}</div>`;
+                        return `<div class="challenge-item">${h || escapeHtml(JSON.stringify(obj))}</div>`;
+                    }
+                    return `<div class="challenge-item">${escapeHtml(String(c))}</div>`;
+                }).join('');
+                parts.push(`<div class="role-sub-section"><strong>❓ ${t('ui.challenges') || 'Challenges'}:</strong><div class="challenge-list">${challengeHtml}</div></div>`);
             }
             const agreeLevel = isObj ? data.agreement_level : null;
             if (agreeLevel) {
@@ -1584,7 +1614,7 @@
                         ? (row.flagged_for_ra ? `${t('ui.crossexamDisagreed', {rounds: rounds.length})} — 🚩 ${t('detail.flaggedForRA')}` : t('ui.crossexamDisagreed', {rounds: rounds.length}))
                         : t('ui.crossexamPending');
 
-                html += `<div class="detail-section crossexam-section">
+                html += `<div class="detail-section">
                     <h3>${_i18nT('detail.crossExam')} ${overallStatusIcon} (${rounds.length} ${_i18nT('ui.rounds')})</h3>
                     <div class="crossexam-decision-summary">
                         <span class="crossexam-verdict-label">${_i18nT('ui.finalDecision') || 'Final Decision'}:</span>

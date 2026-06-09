@@ -1165,6 +1165,7 @@ class AnalysisPipeline:
         with self._state_lock:
             for row in self._state.get_all_rows():
                 if row.current_phase == Phase.SOURCE_CHECK.value:
+                    row.set_phase_result(Phase.SOURCE_CHECK, result)
                     row.advance_to_next_phase()
                     self._state.update_row(row)
 
