@@ -3747,6 +3747,7 @@ body {
 .question-pool-item { margin: 6px 0; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; }
 .question-pool-item.active-question { color: var(--text-primary); font-weight: 500; }
 .q-active-badge { font-size: 0.75rem; background: #dcfce7; color: #166534; padding: 1px 6px; border-radius: 10px; margin-right: 4px; }
+.side-b-pool-note { font-size: 0.83rem; color: #1d4ed8; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 8px 12px; margin: 6px 0 0; line-height: 1.5; }
 
 /* ── Challenge items in verification rounds (detail modal) ── */
 .challenge-list { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }

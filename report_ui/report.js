@@ -1466,43 +1466,55 @@
                 </div>
             </div>`;
 
-            // D-1 fix: Show all 7 questions from the static pool (collapsible)
-            html += `<div class="detail-section question-pool-section">
-                <h3>📚 ${_i18nT("detail.allQuestions") || "Complete Question Pool (ISO 13485)"}</h3>
-                <div id="questionPoolDetail_${escapeAttr(rowId)}" class="question-pool-list">
-                    <div class="loading-cell">${t('table.loading') || "Loading..."}</div>
-                </div>
-            </div>`;
-            // Async-load all questions for this clause.
-            // container lookup must happen inside .then() — the HTML string is not yet in the DOM at this point.
-            (function(clauseId, containerId, fallbackQ) {
-                fetch(`/api/report/crossref/clause-questions?clause_id=${encodeURIComponent(clauseId)}&lang=${encodeURIComponent((window.__i18n && window.__i18n.lang) || 'en-US')}`)
-                    .then(r => r.ok ? r.json() : null)
-                    .then(data => {
-                        const container = document.getElementById(containerId);
-                        if (!container) return;
-                        if (!data || !data.questions || !data.questions.length) {
-                            container.innerHTML = `<p class="no-data">${escapeHtml(fallbackQ || '—')}</p>`;
-                            return;
-                        }
-                        const currentQ = fallbackQ || '';
-                        const qs = data.questions;
-                        let qHtml = '<ol class="question-pool-ol">';
-                        qs.forEach((q) => {
-                            const isActive = q === currentQ;
-                            qHtml += `<li class="question-pool-item${isActive ? ' active-question' : ''}">
-                                ${isActive ? '<span class="q-active-badge">▶ ' + (_i18nT('detail.selectedQuestion') || 'Selected') + '</span> ' : ''}
-                                ${escapeHtml(q)}
-                            </li>`;
+            // Show question pool only for Side A (static rotation).
+            // Side B is an LLM-generated custom question — no static pool applies.
+            if (row.question_source !== "B") {
+                html += `<div class="detail-section question-pool-section">
+                    <h3>📚 ${_i18nT("detail.allQuestions") || "Complete Question Pool (ISO 13485)"}</h3>
+                    <div id="questionPoolDetail_${escapeAttr(rowId)}" class="question-pool-list">
+                        <div class="loading-cell">${t('table.loading') || "Loading..."}</div>
+                    </div>
+                </div>`;
+                // Bug fix: use getAuditQuestion(row) so the comparison language
+                // matches the pool API language (both use the current UI language).
+                // Previously used row.audit_question which could be a different language
+                // from the pool when the UI language differs from the audit run language.
+                (function(clauseId, containerId, fallbackQ) {
+                    fetch(`/api/report/crossref/clause-questions?clause_id=${encodeURIComponent(clauseId)}&lang=${encodeURIComponent((window.__i18n && window.__i18n.lang) || 'en-US')}`)
+                        .then(r => r.ok ? r.json() : null)
+                        .then(data => {
+                            const container = document.getElementById(containerId);
+                            if (!container) return;
+                            if (!data || !data.questions || !data.questions.length) {
+                                container.innerHTML = `<p class="no-data">${escapeHtml(fallbackQ || '—')}</p>`;
+                                return;
+                            }
+                            const currentQ = fallbackQ || '';
+                            const qs = data.questions;
+                            let qHtml = '<ol class="question-pool-ol">';
+                            qs.forEach((q) => {
+                                const isActive = q === currentQ;
+                                qHtml += `<li class="question-pool-item${isActive ? ' active-question' : ''}">
+                                    ${isActive ? '<span class="q-active-badge">▶ ' + (_i18nT('detail.selectedQuestion') || 'Selected') + '</span> ' : ''}
+                                    ${escapeHtml(q)}
+                                </li>`;
+                            });
+                            qHtml += '</ol>';
+                            container.innerHTML = qHtml;
+                        })
+                        .catch(() => {
+                            const container = document.getElementById(containerId);
+                            if (container) container.innerHTML = `<p class="no-data">${escapeHtml(fallbackQ || '—')}</p>`;
                         });
-                        qHtml += '</ol>';
-                        container.innerHTML = qHtml;
-                    })
-                    .catch(() => {
-                        const container = document.getElementById(containerId);
-                        if (container) container.innerHTML = `<p class="no-data">${escapeHtml(fallbackQ || '—')}</p>`;
-                    });
-            })(row.clause_id, `questionPoolDetail_${rowId}`, row.audit_question);
+                })(row.clause_id, `questionPoolDetail_${rowId}`, getAuditQuestion(row));
+            } else {
+                html += `<div class="detail-section question-pool-section">
+                    <h3>📚 ${_i18nT("detail.allQuestions") || "Complete Question Pool (ISO 13485)"}</h3>
+                    <p class="side-b-pool-note">
+                        🤖 ${_i18nT("detail.sideBPoolNote") || "This question was dynamically generated by the LLM (Side B) for this specific document and clause. The static question pool does not apply."}
+                    </p>
+                </div>`;
+            }
 
             // Risk reasoning section — show formula and evidence stats
             if (row.risk_level && row.gap_severity) {

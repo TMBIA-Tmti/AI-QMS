@@ -434,6 +434,7 @@
   "audit.minor": "次要",
   "detail.allQuestions": "📚 完整問題集（ISO 13485）",
   "detail.selectedQuestion": "目前選用",
+  "detail.sideBPoolNote": "此問題由 LLM 針對本文件與條款動態生成（Side B），不適用靜態問題集。",
   "phase.configTitle": "⚙️ 分析階段設定",
   "phase.toggleBtn": "▼ 展開",
   "phase.collapseBtn": "▲ 收合",

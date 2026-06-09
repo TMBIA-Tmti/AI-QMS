@@ -434,6 +434,7 @@
   "audit.minor": "軽微",
   "detail.allQuestions": "📚 完全な質問プール（ISO 13485）",
   "detail.selectedQuestion": "選択済み",
+  "detail.sideBPoolNote": "この質問はLLMが本文書と条項に対して動的に生成したものです（Side B）。静的な質問プールは適用されません。",
   "phase.configTitle": "⚙️ 分析フェーズ設定",
   "phase.toggleBtn": "▼ 展開",
   "phase.collapseBtn": "▲ 折りたたむ",
