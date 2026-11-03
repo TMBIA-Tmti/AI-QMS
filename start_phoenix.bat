@@ -233,9 +233,14 @@ echo [Watchdog] Starting Phoenix (run %PHOENIX_RESTARTS%)...
 >> "%PHOENIX_LOG%" echo [Watchdog] Run %PHOENIX_RESTARTS% starting at %date% %time%
 
 :: Run Phoenix - stderr->log, stdout->console (preserves exit code for restart logic)
-"%QMS_PYTHON%" -m phoenix.server.main serve --grpc-port %PHOENIX_GRPC_PORT% 2>> "%PHOENIX_LOG%"
+:: Back-fill traces from previous runs into logs\phoenix\export (no server needed)
+if exist "%PROJECT_DIR%scripts\export_phoenix_traces.py" "%QMS_PYTHON%" "%PROJECT_DIR%scripts\export_phoenix_traces.py" >> "%PHOENIX_LOG%" 2>&1
+:: Run Phoenix - stdout+stderr both go to the log (exit code preserved for restart logic)
+"%QMS_PYTHON%" -m phoenix.server.main serve --grpc-port %PHOENIX_GRPC_PORT% >> "%PHOENIX_LOG%" 2>&1
 set "PHOENIX_EXIT=%errorlevel%"
 >> "%PHOENIX_LOG%" echo [Watchdog] Run %PHOENIX_RESTARTS% exited code %PHOENIX_EXIT% at %date% %time%
+:: Save this run's traces right after shutdown
+if exist "%PROJECT_DIR%scripts\export_phoenix_traces.py" "%QMS_PYTHON%" "%PROJECT_DIR%scripts\export_phoenix_traces.py" >> "%PHOENIX_LOG%" 2>&1
 
 :: Check for stop sentinel file
 if exist "%PROJECT_DIR%.phoenix_stop" (

@@ -86,6 +86,7 @@ set "CMD_LOG=%PROJECT_DIR%logs\cmd\%SESSION_STAMP%_start_chainlit.log"
 >> "%CMD_LOG%" echo SESSION START: %SESSION_STAMP%
 >> "%CMD_LOG%" echo Script: start_chainlit.bat
 >> "%CMD_LOG%" echo =============================================
+if exist "%PROJECT_DIR%scripts\export_phoenix_traces.py" "%QMS_PYTHON%" "%PROJECT_DIR%scripts\export_phoenix_traces.py" >> "%CMD_LOG%" 2>&1
 :: -----------------------------------------------------------------------------
 
 :: -- No-disconnect settings ----------------------------------------------------
@@ -251,11 +252,13 @@ if %CHAINLIT_RESTARTS% GTR 0 (
 set /a CHAINLIT_RESTARTS+=1
 echo [WATCHDOG] Starting Chainlit (run %CHAINLIT_RESTARTS%)...
 >> "%CMD_LOG%" echo [Chainlit] Run %CHAINLIT_RESTARTS% started at %date% %time%
-"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port %CHAINLIT_PORT%
+"%QMS_PYTHON%" -m src.run_logged run src/chainlit_app/app.py --port %CHAINLIT_PORT%
+set "CHAINLIT_EXIT=%errorlevel%"
+if exist "%PROJECT_DIR%scripts\export_phoenix_traces.py" "%QMS_PYTHON%" "%PROJECT_DIR%scripts\export_phoenix_traces.py" >> "%CMD_LOG%" 2>&1
 
 :: errorlevel 0 = clean exit (Ctrl+C / manual stop) -> do NOT restart
 :: errorlevel 1 = crash -> restart
-if errorlevel 1 (
+if not "%CHAINLIT_EXIT%"=="0" (
     >> "%CMD_LOG%" echo [Chainlit] Run %CHAINLIT_RESTARTS% CRASHED at %date% %time%
     goto :watchdog_loop
 )

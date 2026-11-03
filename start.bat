@@ -85,6 +85,7 @@ set "CMD_LOG=%PROJECT_DIR%logs\cmd\%SESSION_STAMP%_start.log"
 >> "%CMD_LOG%" echo SESSION START: %SESSION_STAMP%
 >> "%CMD_LOG%" echo Script: start.bat
 >> "%CMD_LOG%" echo =============================================
+if exist "%PROJECT_DIR%scripts\export_phoenix_traces.py" "%QMS_PYTHON%" "%PROJECT_DIR%scripts\export_phoenix_traces.py" >> "%CMD_LOG%" 2>&1
 :: -----------------------------------------------------------------------------
 
 :: -- No-disconnect settings ----------------------------------------------------
@@ -209,7 +210,7 @@ if %CHAINLIT_RESTARTS% GTR 0 (
 )
 set /a CHAINLIT_RESTARTS+=1
 >> "%CMD_LOG%" echo [Chainlit] Run %CHAINLIT_RESTARTS% starting at %date% %time% on port %CHAINLIT_PORT%
-"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port %CHAINLIT_PORT%
+"%QMS_PYTHON%" -m src.run_logged run src/chainlit_app/app.py --port %CHAINLIT_PORT%
 if errorlevel 1 goto main_watchdog_loop
 >> "%CMD_LOG%" echo SESSION END (clean stop): %date% %time%
 goto check_error
@@ -248,7 +249,7 @@ echo  Press Ctrl+C to stop Chainlit
 echo.
 
 cd /d "%PROJECT_DIR%"
-"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port %CHAINLIT_PORT%
+"%QMS_PYTHON%" -m src.run_logged run src/chainlit_app/app.py --port %CHAINLIT_PORT%
 goto check_error
 
 :start_phoenix
@@ -296,7 +297,7 @@ echo.
 start "" "http://localhost:%PHOENIX_PORT%"
 
 cd /d "%PROJECT_DIR%"
-"%QMS_PYTHON%" -m chainlit run src/chainlit_app/app.py --port %CHAINLIT_PORT%
+"%QMS_PYTHON%" -m src.run_logged run src/chainlit_app/app.py --port %CHAINLIT_PORT%
 goto check_error
 
 

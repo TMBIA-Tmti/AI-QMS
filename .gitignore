@@ -121,3 +121,6 @@ scripts/test_*.py
 # Allow regulation data files
 !data/regulations/
 !data/regulations/*.json
+
+# Phoenix trace exports (large, generated)
+logs/phoenix/export/
