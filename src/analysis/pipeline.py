@@ -404,6 +404,14 @@ class AnalysisPipeline:
             return self._run_impl()
         finally:
             deactivate_llm_run(self._state.run_id)
+            # Keep the cross-exam history store in step with the saved run
+            # (also for paused / interrupted runs). Never raises.
+            try:
+                from src.analysis.crossexam_history import save_run_record
+
+                save_run_record(self._state.run_id)
+            except Exception:
+                pass
 
     def _run_impl(self) -> PipelineState:
         """Run the pipeline to completion (or until pause/budget).
