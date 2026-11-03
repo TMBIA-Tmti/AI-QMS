@@ -395,6 +395,17 @@ class AnalysisPipeline:
     # ── Execution ──
 
     def run(self) -> PipelineState:
+        """Run the pipeline (see ``_run_impl``) while registering the run id so
+        every LLM call it makes is attributed to this run in the call log."""
+        from src.llm_providers import activate_llm_run, deactivate_llm_run
+
+        activate_llm_run(self._state.run_id)
+        try:
+            return self._run_impl()
+        finally:
+            deactivate_llm_run(self._state.run_id)
+
+    def _run_impl(self) -> PipelineState:
         """Run the pipeline to completion (or until pause/budget).
 
         In AUTO_RUN mode: runs all phases, pauses only on critical gaps.

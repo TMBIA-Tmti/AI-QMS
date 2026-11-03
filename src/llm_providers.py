@@ -47,6 +47,32 @@ _logger = logging.getLogger(__name__)
 _llm_run_context = threading.local()
 
 
+_active_runs: set = set()
+_active_runs_lock = threading.Lock()
+
+
+def activate_llm_run(run_id: str) -> None:
+    """Mark a pipeline run as active (process-wide) so LLM calls made on worker
+    threads that never called set_llm_run_context() are still attributed to it
+    in the call log. Attribution is exact when one run is active at a time."""
+    if run_id:
+        with _active_runs_lock:
+            _active_runs.add(run_id)
+
+
+def deactivate_llm_run(run_id: str) -> None:
+    with _active_runs_lock:
+        _active_runs.discard(run_id)
+
+
+def _current_run_id() -> Optional[str]:
+    rid = getattr(_llm_run_context, "run_id", None)
+    if rid:
+        return rid
+    with _active_runs_lock:
+        return next(iter(_active_runs)) if len(_active_runs) == 1 else None
+
+
 def set_llm_run_context(run_id: str) -> None:
     """Register the current pipeline run_id on the calling thread.
 
@@ -726,6 +752,119 @@ PROVIDER_CATEGORIES = {
 # ============================================================
 
 
+class _LoggedStream:
+    """Transparent proxy around a streaming response that records the full
+    assembled text when the stream ends (or is closed early)."""
+
+    def __init__(self, inner, meta, messages, t0):
+        self._inner = inner
+        self._meta = meta
+        self._messages = messages
+        self._t0 = t0
+        self._parts: list[str] = []
+        self._done = False
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        try:
+            chunk = next(self._inner)
+        except StopIteration:
+            self._finish()
+            raise
+        except Exception as exc:
+            self._finish(error=repr(exc))
+            raise
+        try:
+            piece = chunk.choices[0].delta.content
+            if piece:
+                self._parts.append(piece)
+        except Exception:
+            pass
+        return chunk
+
+    def _finish(self, error=None):
+        if self._done:
+            return
+        self._done = True
+        text = "".join(self._parts)
+        _llm_call_record(
+            self._meta, self._messages, {"content": text, "usage": {}}, self._t0, error=error
+        )
+
+    def close(self):
+        self._finish()
+        closer = getattr(self._inner, "close", None)
+        if closer:
+            closer()
+
+    def __del__(self):
+        try:
+            self._finish()
+        except Exception:
+            pass
+
+    def __getattr__(self, name):
+        return getattr(self._inner, name)
+
+
+def _llm_call_meta(mgr, model, temperature, max_tokens, stream, kwargs, frame) -> dict:
+    """Collect call context (never raises)."""
+    try:
+        via_fallback = False
+        f = frame
+        while f is not None and f.f_globals.get("__name__") == __name__:
+            via_fallback = via_fallback or f.f_code.co_name == "_try_fallback"
+            f = f.f_back
+        caller = f"{f.f_globals.get('__name__')}.{f.f_code.co_name}" if f is not None else "?"
+        return {
+            "provider": getattr(mgr, "current_provider_id", None),
+            "model_requested": model,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "stream": bool(stream),
+            "extra_params": sorted(k for k in kwargs if k != "stream"),
+            "caller": caller,
+            "via_fallback": via_fallback,
+            "thread": threading.current_thread().name,
+            "run_id": _current_run_id(),
+            "active_run_ids": sorted(_active_runs) if len(_active_runs) > 1 else None,
+        }
+    except Exception:
+        return {"run_id": None}
+
+
+def _llm_call_record(meta, messages, result, t0, error=None) -> None:
+    """Append one record to the central LLM call log (never raises)."""
+    try:
+        import time as _time
+        from src.utils.llm_call_log import log_llm_call
+
+        content = (result or {}).get("content") if isinstance(result, dict) else None
+        failed = bool(error) or (
+            isinstance(result, dict)
+            and (result.get("all_failed") or str(content or "").startswith("[ERROR]"))
+        )
+        rec = {
+            **{k: v for k, v in meta.items() if k != "run_id"},
+            "status": "error" if failed else "ok",
+            "duration_s": round(_time.time() - t0, 3),
+            "messages": messages,
+            "response": content,
+            "usage": (result or {}).get("usage") if isinstance(result, dict) else None,
+            "model": (result or {}).get("model") if isinstance(result, dict) else None,
+            "error": error or (content if failed else None),
+        }
+        if isinstance(result, dict):
+            for k in ("fallback_used", "original_provider", "reconnected"):
+                if result.get(k):
+                    rec[k] = result[k]
+        log_llm_call(rec, run_id=meta.get("run_id"))
+    except Exception:
+        pass
+
+
 class LLMProviderManager:
     """
     Manages LLM provider connections with dynamic switching and fallback support.
@@ -893,7 +1032,46 @@ class LLMProviderManager:
         else:
             return model_name
 
+    # ------------------------------------------------------------------
+    # Public entry point: every LLM call is recorded (see utils/llm_call_log)
+    # ------------------------------------------------------------------
     def completion(
+        self,
+        messages: list[dict],
+        model: Optional[str] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        stream: bool = False,
+        **kwargs,
+    ) -> Any:
+        """Call the LLM and append the full request/response to the call log.
+
+        Behaviour is identical to ``_completion_impl``; this wrapper only adds
+        recording (success, error, streaming) and never changes the result.
+        """
+        import sys as _sys
+        import time as _time
+
+        t0 = _time.time()
+        meta = _llm_call_meta(self, model, temperature, max_tokens, stream, kwargs, _sys._getframe(1))
+        try:
+            result = self._completion_impl(
+                messages,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stream=stream,
+                **kwargs,
+            )
+        except Exception as exc:
+            _llm_call_record(meta, messages, None, t0, error=repr(exc))
+            raise
+        if stream:
+            return _LoggedStream(result, meta, messages, t0)
+        _llm_call_record(meta, messages, result, t0)
+        return result
+
+    def _completion_impl(
         self,
         messages: list[dict],
         model: Optional[str] = None,
