@@ -122,6 +122,137 @@ SUPPORTED_EXTENSIONS = {
 
 
 # ============================================================
+# Scanned / Image-Heavy PDF Detection
+# ============================================================
+#
+# MarkItDown's PDF backend is a text-layer extractor only (pdfminer-based);
+# it has no OCR of its own. A scanned QMS form therefore yields whatever
+# printed template text happens to be in the text layer (field labels,
+# table column headers) while the handwritten answers -- the actual records
+# -- are invisible to it. A pure character-count threshold is blind to this,
+# so we additionally inspect page composition and route image-heavy pages to
+# LLM Vision OCR, which is the only stage able to transcribe handwriting.
+
+# A page whose largest placed raster image covers at least this fraction of
+# the page area is treated as a scan/photo of a page (not a mere figure).
+_SCAN_IMAGE_COVERAGE_RATIO = 0.5
+
+# A page that carries a raster image and fewer than this many characters of
+# text layer is treated as scan-like (printed labels only, no real content).
+_SCAN_SPARSE_TEXT_CHARS = 200
+
+# Route the whole PDF to Vision OCR once this fraction of pages is scan-like.
+_SCAN_PAGE_RATIO_THRESHOLD = 0.5
+
+
+def _scan_like_ratio_pymupdf(file_path: str) -> Optional[float]:
+    """Fraction of scan-like pages, measured with PyMuPDF. None if unavailable."""
+    try:
+        import fitz  # PyMuPDF
+    except ImportError:
+        return None
+
+    doc = None
+    try:
+        doc = fitz.open(file_path)
+        page_count = doc.page_count
+        if page_count == 0:
+            return None
+
+        scan_like = 0
+        for page in doc:
+            text_chars = len(page.get_text("text").strip())
+            page_area = abs(page.rect.width * page.rect.height)
+
+            has_image = False
+            max_coverage = 0.0
+            for block in page.get_text("dict").get("blocks", []):
+                # block type 1 == image block, with a bbox in page coordinates
+                if block.get("type") != 1:
+                    continue
+                has_image = True
+                bbox = block.get("bbox")
+                if bbox and page_area > 0:
+                    width = abs(bbox[2] - bbox[0])
+                    height = abs(bbox[3] - bbox[1])
+                    max_coverage = max(max_coverage, (width * height) / page_area)
+
+            if has_image and (
+                max_coverage >= _SCAN_IMAGE_COVERAGE_RATIO
+                or text_chars < _SCAN_SPARSE_TEXT_CHARS
+            ):
+                scan_like += 1
+
+        return scan_like / page_count
+
+    except Exception as e:
+        print(f"[WARN] PyMuPDF scan detection failed: {e}")
+        return None
+    finally:
+        if doc is not None:
+            try:
+                doc.close()
+            except Exception:
+                pass
+
+
+def _scan_like_ratio_pypdf(file_path: str) -> Optional[float]:
+    """Fraction of scan-like pages, measured with pypdf. None if unavailable.
+
+    pypdf exposes embedded images but not their placement on the page, so this
+    fallback uses the weaker 'has an image and almost no text' signal only.
+    """
+    if not PYPDF_AVAILABLE:
+        return None
+
+    try:
+        import pypdf
+
+        with open(file_path, "rb") as f:
+            reader = pypdf.PdfReader(f)
+            page_count = len(reader.pages)
+            if page_count == 0:
+                return None
+
+            scan_like = 0
+            for page in reader.pages:
+                try:
+                    text_chars = len((page.extract_text() or "").strip())
+                except Exception:
+                    text_chars = 0
+                try:
+                    has_image = len(page.images) > 0
+                except Exception:
+                    has_image = False
+
+                if has_image and text_chars < _SCAN_SPARSE_TEXT_CHARS:
+                    scan_like += 1
+
+            return scan_like / page_count
+
+    except Exception as e:
+        print(f"[WARN] pypdf scan detection failed: {e}")
+        return None
+
+
+def is_scanned_pdf(file_path: str) -> bool:
+    """
+    Heuristic: does this PDF look like a scan / photographed form?
+
+    Prefers PyMuPDF (knows where images are placed on the page, so it also
+    catches searchable scans that carry an OCR'd text layer under a full-page
+    image). Falls back to pypdf, and returns False when neither is available
+    so that behaviour degrades to the previous character-count-only routing.
+    """
+    ratio = _scan_like_ratio_pymupdf(file_path)
+    if ratio is None:
+        ratio = _scan_like_ratio_pypdf(file_path)
+    if ratio is None:
+        return False
+    return ratio >= _SCAN_PAGE_RATIO_THRESHOLD
+
+
+# ============================================================
 # Type Definitions
 # ============================================================
 
@@ -265,6 +396,7 @@ class VisionOCRProcessor:
             self.llm = llm_provider_manager
 
         self.system_prompt = VISION_OCR_SYSTEM_PROMPT
+        self.model_name = ""
 
         # Initialize MarkItDown
         if MARKITDOWN_AVAILABLE:
@@ -292,6 +424,7 @@ class VisionOCRProcessor:
         start_time = time.time()
         path = Path(file_path)
         suffix = path.suffix.lower()
+        self.model_name = model_name or ""
 
         if suffix not in SUPPORTED_EXTENSIONS:
             return self._error_result(
@@ -312,14 +445,31 @@ class VisionOCRProcessor:
                 return self._process_legacy_format(file_path, file_type)
 
             # All other formats: try MarkItDown first
+            markitdown_text = ""
             if self._markitdown is not None:
-                result = self._process_with_markitdown(file_path, file_type)
+                result, markitdown_text = self._process_with_markitdown(
+                    file_path, file_type
+                )
                 if result is not None:
                     return result
 
             # MarkItDown not available or failed: use LLM for PDFs, error for others
             if file_type == "pdf":
-                return self._process_pdf_with_llm(file_path, model_name=model_name)
+                llm_result = self._process_pdf_with_llm(
+                    file_path,
+                    model_name=model_name,
+                    markitdown_text=markitdown_text,
+                )
+                if llm_result.get("success") or not markitdown_text.strip():
+                    return llm_result
+                # Vision OCR failed but MarkItDown did extract a text layer:
+                # keep that rather than regressing to a hard error.
+                print(
+                    "[WARN] LLM Vision OCR failed; falling back to MarkItDown text layer."
+                )
+                return self._markitdown_result(
+                    markitdown_text, file_path, file_type, start_time
+                )
             else:
                 return self._error_result(
                     "MarkItDown not available and no fallback for this file type.",
@@ -334,17 +484,20 @@ class VisionOCRProcessor:
 
     def _process_with_markitdown(
         self, file_path: str, file_type: str
-    ) -> Optional[OCRResult]:
+    ) -> tuple[Optional[OCRResult], str]:
         """
         Process file using MarkItDown.
-        Returns None if MarkItDown fails or returns empty content (scanned PDF).
 
         Args:
             file_path: Path to file
             file_type: Type of file (pdf, word, excel, etc.)
 
         Returns:
-            OCRResult or None if MarkItDown can't handle this file
+            Tuple of (result, markitdown_text).
+            `result` is None when the caller should fall back to LLM Vision OCR
+            (empty extraction, or a PDF whose pages look scanned). The raw
+            MarkItDown text is always returned so the caller can merge it with
+            the Vision OCR transcription instead of discarding it.
         """
         start_time = time.time()
 
@@ -352,68 +505,111 @@ class VisionOCRProcessor:
             result = self._markitdown.convert(file_path)
             markdown_content = result.markdown or ""
 
-            # Check if content is meaningful (not empty/too short)
             stripped = markdown_content.strip()
-            if len(stripped) < 50:
-                # MarkItDown returned empty/minimal content
-                # This likely means it's a scanned PDF (image-only)
-                if file_type == "pdf":
+
+            if file_type == "pdf":
+                # A character count alone cannot tell a real text PDF from a
+                # scanned form: the printed template (field labels, column
+                # headers) routinely clears any threshold while the handwritten
+                # answers never reach MarkItDown at all. So check page
+                # composition too, and let Vision OCR handle anything scan-like.
+                if len(stripped) < 50:
                     print(
                         f"[INFO] MarkItDown returned minimal content ({len(stripped)} chars), "
                         f"falling back to LLM Vision OCR for scanned PDF"
                     )
-                    return None  # Signal to use LLM fallback
-                # For non-PDF files, still return the result (might be legitimately short)
+                    return None, markdown_content
 
-            processing_time = int((time.time() - start_time) * 1000)
+                if is_scanned_pdf(file_path):
+                    print(
+                        f"[INFO] PDF pages look scanned/image-heavy despite "
+                        f"{len(stripped)} chars of text layer; routing to LLM "
+                        f"Vision OCR to capture handwriting, stamps and signatures"
+                    )
+                    return None, markdown_content
+            # For non-PDF files, still return the result (might be legitimately short)
 
-            # Get page count for PDFs
-            page_count = 1
-            if file_type == "pdf" and PYPDF2_AVAILABLE:
-                try:
-                    with open(file_path, "rb") as f:
-                        reader = PyPDF2.PdfReader(f)
-                        page_count = len(reader.pages)
-                except Exception:
-                    pass
-
-            return OCRResult(
-                success=True,
-                provider_used="MarkItDown",
-                text_content=markdown_content,
-                markdown_content=markdown_content,
-                confidence=1.0,  # Direct text extraction = high confidence
-                processing_time_ms=processing_time,
-                page_count=page_count,
-                detected_elements={
-                    "stamps": [],
-                    "signatures": [],
-                    "tables": [],
-                    "headers": [],
-                    "metadata": {},
-                },
-                fallback_used=False,
-                error_message=None,
-                file_type=file_type,
+            return (
+                self._markitdown_result(
+                    markdown_content, file_path, file_type, start_time
+                ),
+                markdown_content,
             )
 
         except Exception as e:
             print(f"[WARN] MarkItDown failed: {e}")
             if file_type == "pdf":
-                return None  # Fall back to LLM for PDFs
+                return None, ""  # Fall back to LLM for PDFs
             # For non-PDF, return error
-            return self._error_result(
-                f"MarkItDown conversion failed: {e}",
-                start_time,
-                file_type,
+            return (
+                self._error_result(
+                    f"MarkItDown conversion failed: {e}",
+                    start_time,
+                    file_type,
+                ),
+                "",
             )
 
-    def _process_pdf_with_llm(self, pdf_path: str) -> OCRResult:
+    def _markitdown_result(
+        self,
+        markdown_content: str,
+        file_path: str,
+        file_type: str,
+        start_time: float,
+    ) -> OCRResult:
+        """Build a successful OCRResult from MarkItDown-extracted text."""
+        processing_time = int((time.time() - start_time) * 1000)
+
+        # Get page count for PDFs
+        page_count = 1
+        if file_type == "pdf" and PYPDF2_AVAILABLE:
+            try:
+                with open(file_path, "rb") as f:
+                    reader = PyPDF2.PdfReader(f)
+                    page_count = len(reader.pages)
+            except Exception:
+                pass
+
+        return OCRResult(
+            success=True,
+            provider_used="MarkItDown",
+            text_content=markdown_content,
+            markdown_content=markdown_content,
+            confidence=1.0,  # Direct text extraction = high confidence
+            processing_time_ms=processing_time,
+            page_count=page_count,
+            detected_elements={
+                "stamps": [],
+                "signatures": [],
+                "tables": [],
+                "headers": [],
+                "metadata": {},
+            },
+            fallback_used=False,
+            error_message=None,
+            file_type=file_type,
+        )
+
+    def _process_pdf_with_llm(
+        self,
+        pdf_path: str,
+        model_name: str = "",
+        markitdown_text: str = "",
+    ) -> OCRResult:
         """
         Process PDF using LLM Vision OCR (fallback for scanned PDFs).
         Tries native PDF OCR first, then pdf2image per-page approach.
+
+        Args:
+            pdf_path: Path to the PDF
+            model_name: Model to use (empty string uses provider default)
+            markitdown_text: Text layer already extracted by MarkItDown. The
+                Vision OCR transcription is preferred; this is appended as a
+                labelled section so nothing extracted is lost.
         """
         start_time = time.time()
+        if model_name:
+            self.model_name = model_name
 
         path = Path(pdf_path)
         if not path.exists():
@@ -424,7 +620,7 @@ class VisionOCRProcessor:
         # Try native PDF OCR first (send PDF directly to LLM)
         native_result = self._try_native_pdf_ocr(pdf_path, start_time)
         if native_result is not None:
-            return native_result
+            return self._merge_markitdown_text(native_result, markitdown_text)
 
         # Fallback: pdf2image per-page approach
         if not PDF2IMAGE_AVAILABLE:
@@ -502,35 +698,56 @@ class VisionOCRProcessor:
             processing_time = int((time.time() - start_time) * 1000)
             avg_confidence = total_confidence / page_count if page_count > 0 else 0.0
 
-            return OCRResult(
-                success=True,
-                provider_used=provider_used,
-                text_content="\n\n".join(all_text),
-                markdown_content="\n\n".join(all_markdown),
-                confidence=avg_confidence,
-                processing_time_ms=processing_time,
-                page_count=page_count,
-                detected_elements=all_elements,
-                fallback_used=fallback_used,
-                error_message=None,
-                file_type="pdf",
+            return self._merge_markitdown_text(
+                OCRResult(
+                    success=True,
+                    provider_used=provider_used,
+                    text_content="\n\n".join(all_text),
+                    markdown_content="\n\n".join(all_markdown),
+                    confidence=avg_confidence,
+                    processing_time_ms=processing_time,
+                    page_count=page_count,
+                    detected_elements=all_elements,
+                    fallback_used=fallback_used,
+                    error_message=None,
+                    file_type="pdf",
+                ),
+                markitdown_text,
             )
 
         except Exception as e:
             return self._error_result(f"LLM Vision OCR failed: {e}", start_time, "pdf")
 
-    def process_image(self, image_path: str) -> OCRResult:
+    @staticmethod
+    def _merge_markitdown_text(result: OCRResult, markitdown_text: str) -> OCRResult:
+        """
+        Prefer the Vision OCR transcription, but keep the MarkItDown text layer
+        as a labelled appendix so nothing already extracted is discarded.
+        """
+        extra = (markitdown_text or "").strip()
+        if not extra or not result.get("success"):
+            return result
+
+        appendix = f"\n\n---\n\n## PDF Text Layer (MarkItDown)\n\n{extra}"
+        result["text_content"] = result["text_content"] + appendix
+        result["markdown_content"] = result["markdown_content"] + appendix
+        return result
+
+    def process_image(self, image_path: str, model_name: str = "") -> OCRResult:
         """
         Process a single image file with LLM Vision OCR.
         Images always require LLM since MarkItDown can't extract text from images.
 
         Args:
             image_path: Path to image file (PNG, JPG, etc.)
+            model_name: Model to use (empty string uses provider default)
 
         Returns:
             OCRResult with extracted text and metadata
         """
         start_time = time.time()
+        if model_name:
+            self.model_name = model_name
 
         path = Path(image_path)
         if not path.exists():
@@ -750,6 +967,17 @@ class VisionOCRProcessor:
         Works with Gemini models that support PDF file input.
         Returns None if native PDF OCR is not supported by current provider.
         """
+        # Local providers (Ollama, LM Studio) don't parse PDF files natively —
+        # only rasterized images. Sending one anyway used to reach the LLM
+        # call, fail there, and burn minutes in the completion layer's
+        # retry/fallback-provider logic before finally giving up here. Skip
+        # straight to the pdf2image per-page fallback instead.
+        try:
+            if getattr(self.llm, "current_provider", {}).get("is_local"):
+                return None
+        except Exception:
+            pass
+
         try:
             with open(pdf_path, "rb") as f:
                 pdf_base64 = base64.b64encode(f.read()).decode("utf-8")

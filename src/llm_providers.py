@@ -1210,6 +1210,15 @@ class LLMProviderManager:
         else:
             return {"content": "[ERROR] No image provided", "usage": {}}
 
+        # If no model was explicitly requested, don't silently fall through to
+        # completion()'s generic default — for a local provider that default is
+        # whatever text model is configured (e.g. a small instruct model with no
+        # vision capability), and sending an image to a non-vision Ollama model
+        # produces a confusing downstream "illegal base64 data" error rather
+        # than a clear one. Resolve an actual vision-capable model instead.
+        if not model:
+            model = self._get_vision_capable_model_name()
+
         # Build messages with image
         messages = [
             {
@@ -1219,6 +1228,31 @@ class LLMProviderManager:
         ]
 
         return self.completion(messages, model=model, **kwargs)
+
+    def _get_vision_capable_model_name(self) -> Optional[str]:
+        """Best-effort: find a vision-capable model for the current provider.
+
+        Only needed for local providers, where the configured default model
+        is a plain text model chosen independently of vision support. Cloud
+        multimodal providers (OpenAI, Anthropic, Google, ...) already route
+        image requests to a vision-capable model via their default, so this
+        only overrides the model for Ollama.
+        """
+        provider = self.current_provider
+        if provider.get("is_local") and self.current_provider_id == "ollama":
+            try:
+                import requests as _requests
+
+                base = provider.get("api_base_url", "http://localhost:11434")
+                resp = _requests.get(f"{base}/api/tags", timeout=5)
+                resp.raise_for_status()
+                for m in resp.json().get("models", []):
+                    caps = m.get("capabilities", [])
+                    if "vision" in caps:
+                        return m.get("name")
+            except Exception as e:
+                _logger.warning("Could not query Ollama for a vision-capable model: %s", e)
+        return None  # fall back to completion()'s normal default resolution
 
     def pdf_completion(
         self,
