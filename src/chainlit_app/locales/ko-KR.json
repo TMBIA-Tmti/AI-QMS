@@ -161,6 +161,7 @@
   "upload.progress_title": "Eira：📄 **처리 진행 {step}**: `{filename}`",
   "upload.result_label": "**결과**",
   "upload.same_version_error": "Eira：동일 버전 문서가 이미 존재합니다 ({doc_id} V{version}), 중복 업로드할 수 없습니다.",
+  "upload.version_downgrade_error": "Eira：버전 다운그레이드가 거부되었습니다: 업로드된 버전 {new_version}이(가) 문서 {doc_id}의 현재 버전 {current_version}보다 새롭지 않습니다.",
   "upload.save_duplicate": "Eira：⚠️ 중복 문서 ({doc_id})",
   "upload.save_label": "**저장 결과**",
   "upload.save_new_version": "Eira：🔄 새 버전 감지 ({doc_id} V{old_ver} → V{new_ver})",

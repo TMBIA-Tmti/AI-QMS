@@ -161,6 +161,7 @@
   "upload.progress_title": "Eira：📄 **Memproses {step}**: `{filename}`",
   "upload.result_label": "**Hasil**",
   "upload.same_version_error": "Eira：Dokumen versi sama sudah wujud ({doc_id} V{version}), tidak boleh memuat naik pendua.",
+  "upload.version_downgrade_error": "Eira：Penurunan versi ditolak: versi yang dimuat naik {new_version} tidak lebih baharu daripada versi semasa {current_version} untuk dokumen {doc_id}.",
   "upload.save_duplicate": "Eira：⚠️ Dokumen pendua ({doc_id})",
   "upload.save_label": "**Hasil Penyimpanan**",
   "upload.save_new_version": "Eira：🔄 Versi baharu dikesan ({doc_id} V{old_ver} → V{new_ver})",

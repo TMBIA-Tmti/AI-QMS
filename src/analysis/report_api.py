@@ -65,6 +65,7 @@ from fastapi.responses import (
 
 from src.analysis.state import Phase
 from src.analysis.comparison_table import ComparisonTable
+from src.database.audit_log import ImmutableAuditLog
 from src.analysis.risk_matrix import (
     RISK_LEVEL_DISPLAY,
     VERDICT_DISPLAY,
@@ -1672,23 +1673,134 @@ async def llm_assist_endpoint(request: Request):
 
 
 # ============================================================
+# Identity & Audit Trail (21 CFR Part 11)
+# ============================================================
+
+
+def _resolve_authenticated_user(request: Request) -> tuple[str, str]:
+    """Resolve ``(user_id, role)`` from the Chainlit session cookie.
+
+    The report API is mounted on Chainlit's own FastAPI app (see
+    src/chainlit_app/app.py), so the browser sends Chainlit's signed
+    ``access_token`` cookie with every /api/report request. That cookie — not
+    anything in the request body — is the only accepted source of identity:
+    a client-supplied ``user_id`` would let anyone sign an override as
+    somebody else, which 21 CFR Part 11 §11.10(d) forbids.
+
+    2026-09-04: ``config.AUTH_ENABLED`` auto-detects whether any login
+    account actually exists yet (see src/config.py). While the credential
+    store is empty, there is no session to read and no way for a caller to
+    ever obtain one — so this returns a fixed placeholder identity instead
+    of permanently 401-ing these endpoints. The moment the first account is
+    created and the app restarts, AUTH_ENABLED flips to True and this
+    function goes back to strictly requiring a verified session.
+
+    Raises:
+        HTTPException 401 when the caller has no valid session (only once
+        AUTH_ENABLED is True, i.e. at least one account exists).
+    """
+    from src.config import AUTH_ENABLED
+
+    if not AUTH_ENABLED:
+        return "anonymous", "unverified"
+
+    try:
+        from chainlit.auth import get_token_from_cookies
+        from chainlit.auth.jwt import decode_jwt
+    except ImportError as e:  # pragma: no cover — Chainlit is a hard dependency
+        logger.error("Chainlit auth unavailable, refusing write: %s", e)
+        raise HTTPException(status_code=503, detail="Authentication unavailable")
+
+    token = get_token_from_cookies(request.cookies)
+    if not token:
+        # Fallback for non-browser clients using the documented bearer scheme.
+        scheme, _, value = request.headers.get("Authorization", "").partition(" ")
+        if scheme.lower() == "bearer" and value.strip():
+            token = value.strip()
+
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    try:
+        user = decode_jwt(token)
+    except Exception as e:
+        logger.warning("Rejected report API write with invalid session token: %s", e)
+        raise HTTPException(status_code=401, detail="Invalid or expired session")
+
+    user_id = (getattr(user, "identifier", "") or "").strip()
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid or expired session")
+
+    metadata = getattr(user, "metadata", None)
+    role = metadata.get("role", "") if isinstance(metadata, dict) else ""
+    return user_id, role
+
+
+def _audit_report_write(
+    action: str,
+    run_id: str,
+    row_id: str,
+    user_id: str,
+    role: str,
+    before: dict,
+    after: dict,
+    extra: Optional[dict] = None,
+) -> None:
+    """Append a tamper-evident audit record for an RA write.
+
+    Must be called BEFORE the pipeline state is persisted: if the hash-chained
+    audit log cannot be written, this raises and the caller never reaches
+    ``_save_table``, so no override/note/restore can land on disk without a
+    matching audit entry (21 CFR Part 11 §11.10(e)).
+    """
+    details = {
+        "run_id": run_id,
+        "row_id": row_id,
+        "role": role,
+        "before": before,
+        "after": after,
+    }
+    if extra:
+        details.update(extra)
+
+    try:
+        ImmutableAuditLog().create_record(
+            action=action,
+            document_id=f"{run_id}/{row_id}",
+            user_id=user_id,
+            details=details,
+        )
+    except Exception as e:
+        logger.error(
+            "Audit log write failed for %s on %s/%s: %s", action, run_id, row_id, e
+        )
+        raise HTTPException(
+            status_code=500, detail="Audit trail unavailable — change rejected"
+        )
+
+
+# ============================================================
 # API Endpoints — Write (RA Modifications)
 # ============================================================
 
 
 @report_router.post("/{run_id}/row/{row_id}/override")
-async def override_verdict(run_id: str, row_id: str, body: dict):
+async def override_verdict(run_id: str, row_id: str, body: dict, request: Request):
     """RA overrides a row's verdict.
+
+    Requires an authenticated Chainlit session; the override is attributed to
+    that identity and recorded in the immutable audit log.
 
     Body:
         {"verdict": "full_compliance", "reason": "已確認文件內容符合要求"}
     """
+    user_id, role = _resolve_authenticated_user(request)
+
     with _phoenix_report_span(
         "report_override_verdict", {"run_id": run_id, "row_id": row_id}
     ):
         new_verdict = body.get("verdict")
         reason = body.get("reason", "")
-        user_id = body.get("user_id", "ra_user")
 
         if not new_verdict:
             raise HTTPException(status_code=400, detail="Missing 'verdict' field")
@@ -1701,6 +1813,17 @@ async def override_verdict(run_id: str, row_id: str, body: dict):
             raise HTTPException(status_code=400, detail="Missing 'reason' field")
 
         table = await _load_table(run_id)
+        prev_row = table.state.get_row(row_id)
+        if prev_row is None:
+            raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
+        before = {
+            "verdict": prev_row.verdict,
+            "risk_level": prev_row.risk_level,
+            "ra_override": prev_row.ra_override,
+        }
+        clause_id = getattr(prev_row, "clause_id", "")
+        doc_id = getattr(prev_row, "doc_id", "")
+
         updated = table.override_verdict(row_id, new_verdict, reason, user_id)
         if updated is None:
             raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
@@ -1713,6 +1836,21 @@ async def override_verdict(run_id: str, row_id: str, body: dict):
                 updated.risk_level = new_risk
                 table.state.update_row(updated)
 
+        _audit_report_write(
+            action="RA_VERDICT_OVERRIDE",
+            run_id=run_id,
+            row_id=row_id,
+            user_id=user_id,
+            role=role,
+            before=before,
+            after={
+                "verdict": updated.verdict,
+                "risk_level": updated.risk_level,
+                "ra_override": updated.ra_override,
+            },
+            extra={"clause_id": clause_id, "doc_id": doc_id, "reason": reason},
+        )
+
         _save_table(table)
 
         row_dict = _row_to_api(updated.to_dict())
@@ -1720,23 +1858,45 @@ async def override_verdict(run_id: str, row_id: str, body: dict):
 
 
 @report_router.post("/{run_id}/row/{row_id}/note")
-async def add_note(run_id: str, row_id: str, body: dict):
+async def add_note(run_id: str, row_id: str, body: dict, request: Request):
     """Add a permanent note to a clause.
+
+    Requires an authenticated Chainlit session; the note is attributed to that
+    identity and recorded in the immutable audit log.
 
     Body:
         {"note": "此條款在本公司不適用，因為..."}
     """
+    user_id, role = _resolve_authenticated_user(request)
+
     with _phoenix_report_span("report_add_note", {"run_id": run_id, "row_id": row_id}):
         note = body.get("note", "")
-        user_id = body.get("user_id", "ra_user")
 
         if not note:
             raise HTTPException(status_code=400, detail="Missing 'note' field")
 
         table = await _load_table(run_id)
+        prev_row = table.state.get_row(row_id)
+        if prev_row is None:
+            raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
+        before = {"ra_notes": prev_row.ra_notes}
+        clause_id = getattr(prev_row, "clause_id", "")
+        doc_id = getattr(prev_row, "doc_id", "")
+
         updated = table.add_clause_note(row_id, note, user_id)
         if updated is None:
             raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
+
+        _audit_report_write(
+            action="RA_CLAUSE_NOTE",
+            run_id=run_id,
+            row_id=row_id,
+            user_id=user_id,
+            role=role,
+            before=before,
+            after={"ra_notes": updated.ra_notes},
+            extra={"clause_id": clause_id, "doc_id": doc_id},
+        )
 
         _save_table(table)
 
@@ -1745,15 +1905,45 @@ async def add_note(run_id: str, row_id: str, body: dict):
 
 
 @report_router.post("/{run_id}/row/{row_id}/restore")
-async def restore_original(run_id: str, row_id: str):
-    """Restore the LLM's original verdict (undo RA override)."""
+async def restore_original(run_id: str, row_id: str, request: Request):
+    """Restore the LLM's original verdict (undo RA override).
+
+    Requires an authenticated Chainlit session; the restore is attributed to
+    that identity and recorded in the immutable audit log.
+    """
+    user_id, role = _resolve_authenticated_user(request)
+
     with _phoenix_report_span(
         "report_restore_original", {"run_id": run_id, "row_id": row_id}
     ):
         table = await _load_table(run_id)
-        updated = table.restore_llm_original(row_id)
+        prev_row = table.state.get_row(row_id)
+        if prev_row is None:
+            raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
+        before = {
+            "verdict": prev_row.verdict,
+            "ra_override": prev_row.ra_override,
+        }
+        clause_id = getattr(prev_row, "clause_id", "")
+        doc_id = getattr(prev_row, "doc_id", "")
+
+        updated = table.restore_llm_original(row_id, user_id)
         if updated is None:
             raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
+
+        _audit_report_write(
+            action="RA_OVERRIDE_RESTORED",
+            run_id=run_id,
+            row_id=row_id,
+            user_id=user_id,
+            role=role,
+            before=before,
+            after={
+                "verdict": updated.verdict,
+                "ra_override": updated.ra_override,
+            },
+            extra={"clause_id": clause_id, "doc_id": doc_id},
+        )
 
         _save_table(table)
 
@@ -1785,21 +1975,57 @@ async def preview_evidence_recalc(run_id: str, row_id: str, body: dict):
 
 
 @report_router.post("/{run_id}/row/{row_id}/evidence/confirm")
-async def confirm_evidence_update(run_id: str, row_id: str, body: dict):
-    """Confirm and save evidence item changes with rule-engine recalculation."""
+async def confirm_evidence_update(
+    run_id: str, row_id: str, body: dict, request: Request
+):
+    """Confirm and save evidence item changes with rule-engine recalculation.
+
+    Recalculating evidence re-derives gap_severity → risk → verdict, so this is
+    a compliance-verdict change and carries the same identity and audit-trail
+    requirements as an explicit RA override.
+    """
+    user_id, role = _resolve_authenticated_user(request)
+
     evidence_items = body.get("evidence_items")
     if evidence_items is None:
         raise HTTPException(status_code=400, detail="Missing 'evidence_items' field")
-
-    user_id = body.get("user_id", "ra_user")
 
     with _phoenix_report_span(
         "report_evidence_confirm", {"run_id": run_id, "row_id": row_id}
     ):
         table = await _load_table(run_id)
+        prev_row = table.state.get_row(row_id)
+        if prev_row is None:
+            raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
+        before = {
+            "verdict": prev_row.verdict,
+            "risk_level": prev_row.risk_level,
+            "gap_severity": prev_row.gap_severity,
+            "evidence_count": len(prev_row.evidence_items or []),
+        }
+        clause_id = getattr(prev_row, "clause_id", "")
+        doc_id = getattr(prev_row, "doc_id", "")
+
         updated = table.update_evidence_items(row_id, evidence_items, user_id)
         if updated is None:
             raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
+
+        _audit_report_write(
+            action="RA_EVIDENCE_UPDATE",
+            run_id=run_id,
+            row_id=row_id,
+            user_id=user_id,
+            role=role,
+            before=before,
+            after={
+                "verdict": updated.verdict,
+                "risk_level": updated.risk_level,
+                "gap_severity": updated.gap_severity,
+                "evidence_count": len(updated.evidence_items or []),
+            },
+            extra={"clause_id": clause_id, "doc_id": doc_id},
+        )
+
         _save_table(table)
 
     row_dict = _row_to_api(updated.to_dict())
@@ -1807,17 +2033,32 @@ async def confirm_evidence_update(run_id: str, row_id: str, body: dict):
 
 
 @report_router.post("/{run_id}/row/{row_id}/evidence/deep-recalc")
-async def deep_recalc_evidence(run_id: str, row_id: str, body: dict = None):
-    """Deep LLM recalculation — re-runs Phase 1+2+3 for this row."""
-    user_id = (body or {}).get("user_id", "ra_user")
+async def deep_recalc_evidence(
+    run_id: str, row_id: str, request: Request, body: dict = None
+):
+    """Deep LLM recalculation — re-runs Phase 1+2+3 for this row.
+
+    Clearing the row's verdict/risk for re-analysis changes the compliance
+    outcome, so it requires an authenticated session and an audit record.
+    """
+    user_id, role = _resolve_authenticated_user(request)
 
     with _phoenix_report_span(
         "report_evidence_deep_recalc", {"run_id": run_id, "row_id": row_id}
     ):
         table = await _load_table(run_id)
-        row = table._state.get_row(row_id)
+        row = table.state.get_row(row_id)
         if row is None:
             raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
+
+        before = {
+            "verdict": row.verdict,
+            "risk_level": row.risk_level,
+            "gap_severity": row.gap_severity,
+            "current_phase": row.current_phase,
+        }
+        clause_id = getattr(row, "clause_id", "")
+        doc_id = getattr(row, "doc_id", "")
 
         row.version_history.append(
             {
@@ -1832,6 +2073,23 @@ async def deep_recalc_evidence(run_id: str, row_id: str, body: dict = None):
         updated = table.reset_row_for_rerun(row_id, Phase.GAP_SCAN)
         if updated is None:
             raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
+
+        _audit_report_write(
+            action="RA_EVIDENCE_DEEP_RECALC",
+            run_id=run_id,
+            row_id=row_id,
+            user_id=user_id,
+            role=role,
+            before=before,
+            after={
+                "verdict": updated.verdict,
+                "risk_level": updated.risk_level,
+                "gap_severity": updated.gap_severity,
+                "current_phase": updated.current_phase,
+            },
+            extra={"clause_id": clause_id, "doc_id": doc_id},
+        )
+
         _save_table(table)
 
     row_dict = _row_to_api(updated.to_dict())
@@ -1845,12 +2103,20 @@ async def deep_recalc_evidence(run_id: str, row_id: str, body: dict = None):
 
 
 @report_router.post("/{run_id}/row/{row_id}/rerun")
-async def reset_for_rerun(run_id: str, row_id: str, body: dict = None):
+async def reset_for_rerun(
+    run_id: str, row_id: str, request: Request, body: dict = None
+):
     """Reset a row to re-run from Phase 1 (Gap Scan).
+
+    Clears the row's verdict/risk back to pending — the same state mutation
+    `deep_recalc_evidence` performs, so it requires an authenticated session
+    and an audit record for the same 21 CFR Part 11 reasons.
 
     Body (optional):
         {"from_phase": "phase_1"}  (default: phase_1)
     """
+    user_id, role = _resolve_authenticated_user(request)
+
     with _phoenix_report_span(
         "report_reset_for_rerun", {"run_id": run_id, "row_id": row_id}
     ):
@@ -1864,9 +2130,36 @@ async def reset_for_rerun(run_id: str, row_id: str, body: dict = None):
             )
 
         table = await _load_table(run_id)
+        prev_row = table.state.get_row(row_id)
+        if prev_row is None:
+            raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
+        before = {
+            "verdict": prev_row.verdict,
+            "risk_level": prev_row.risk_level,
+            "gap_severity": prev_row.gap_severity,
+        }
+        clause_id = getattr(prev_row, "clause_id", "")
+        doc_id = getattr(prev_row, "doc_id", "")
+
         updated = table.reset_row_for_rerun(row_id, from_phase)
         if updated is None:
             raise HTTPException(status_code=404, detail=f"Row '{row_id}' not found")
+
+        _audit_report_write(
+            action="RA_ROW_RESET_FOR_RERUN",
+            run_id=run_id,
+            row_id=row_id,
+            user_id=user_id,
+            role=role,
+            before=before,
+            after={
+                "verdict": updated.verdict,
+                "risk_level": updated.risk_level,
+                "gap_severity": updated.gap_severity,
+                "from_phase": from_phase.value,
+            },
+            extra={"clause_id": clause_id, "doc_id": doc_id},
+        )
 
         _save_table(table)
 
@@ -2648,18 +2941,33 @@ async def stream_cross_examination(run_id: str):
 
 
 @report_router.post("/{run_id}/inject")
-async def inject_human_message(run_id: str, body: dict):
+async def inject_human_message(run_id: str, body: dict, request: Request):
     """Inject a human message into the cross-examination.
 
+    The injected message steers the verifier and therefore the resulting
+    verdict, so it requires an authenticated session and is attributed to that
+    identity in the immutable audit log.
+
     Body:
-        {"message": "你問錯了，應該問...", "user_id": "ra_user"}
+        {"message": "你問錯了，應該問..."}
     """
+    user_id, role = _resolve_authenticated_user(request)
+
     with _phoenix_report_span("report_inject_human", {"run_id": run_id}):
         message = body.get("message", "").strip()
-        user_id = body.get("user_id", "human")
 
         if not message:
             raise HTTPException(status_code=400, detail="Missing 'message' field")
+
+        _audit_report_write(
+            action="RA_CROSS_EXAM_INJECTION",
+            run_id=run_id,
+            row_id="",
+            user_id=user_id,
+            role=role,
+            before={},
+            after={"message": message},
+        )
 
         # Store message for the pipeline verifier to pick up
         with _pipeline_controls_lock:
@@ -2685,8 +2993,14 @@ async def inject_human_message(run_id: str, body: dict):
 
 
 @report_router.post("/{run_id}/pause")
-async def pause_cross_examination(run_id: str):
-    """Pause the pipeline/cross-examination for this run."""
+async def pause_cross_examination(run_id: str, request: Request):
+    """Pause the pipeline/cross-examination for this run.
+
+    No record is written (nothing to audit), but an unauthenticated caller
+    could otherwise disrupt any run's pipeline, so a valid session is still
+    required.
+    """
+    _resolve_authenticated_user(request)
     event = get_pause_event(run_id)
     if event:
         event.clear()  # Block pipeline threads waiting on this event
@@ -2695,8 +3009,9 @@ async def pause_cross_examination(run_id: str):
 
 
 @report_router.post("/{run_id}/resume")
-async def resume_cross_examination(run_id: str):
-    """Resume the pipeline/cross-examination for this run."""
+async def resume_cross_examination(run_id: str, request: Request):
+    """Resume the pipeline/cross-examination for this run. See pause note above."""
+    _resolve_authenticated_user(request)
     event = get_pause_event(run_id)
     if event:
         event.set()  # Unblock pipeline threads

@@ -161,6 +161,7 @@
   "upload.progress_title": "Eira：📄 **Traitement {step}** : `{filename}`",
   "upload.result_label": "**Résultat**",
   "upload.same_version_error": "Eira：Un document de même version existe déjà ({doc_id} V{version}), impossible de télécharger un doublon.",
+  "upload.version_downgrade_error": "Eira：Rétrogradation de version refusée : la version téléchargée {new_version} n'est pas plus récente que la version actuelle {current_version} du document {doc_id}.",
   "upload.save_duplicate": "Eira：⚠️ Document en double ({doc_id})",
   "upload.save_label": "**Résultat de sauvegarde**",
   "upload.save_new_version": "Eira：🔄 Nouvelle version détectée ({doc_id} V{old_ver} → V{new_ver})",

@@ -15,6 +15,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from src.config import ALLOWED_EXTENSIONS as _RAW_ALLOWED_EXTENSIONS
 from src.llm_providers import (
     DEFAULT_PROVIDERS,
     create_provider_manager,
@@ -33,27 +34,10 @@ from src.storage.markdown_storage import MarkdownStorageManager, POC_DOCUMENT_LI
 
 UPLOAD_FOLDER = Path("./uploads")
 
-ALLOWED_EXTENSIONS = {
-    ".pdf",
-    ".png",
-    ".jpg",
-    ".jpeg",
-    ".gif",
-    ".webp",
-    ".tiff",
-    ".tif",
-    ".bmp",
-    ".docx",
-    ".doc",
-    ".xlsx",
-    ".xls",
-    ".pptx",
-    ".ppt",
-    ".txt",
-    ".md",
-    ".csv",
-    ".rtf",
-}
+# Dotted-extension form of the single source of truth in src/config.py
+# (which matches what the OCR pipeline can process — see
+# src/ocr/vision_ocr.SUPPORTED_EXTENSIONS). Do not hardcode a separate list.
+ALLOWED_EXTENSIONS = {f".{ext}" for ext in _RAW_ALLOWED_EXTENSIONS}
 
 
 # ============================================================

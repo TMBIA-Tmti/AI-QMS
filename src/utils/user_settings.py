@@ -28,24 +28,86 @@ import os
 import time
 import tempfile
 import logging
-import uuid as _uuid
 from pathlib import Path
 from datetime import datetime, timedelta
+from typing import Optional
 from cryptography.fernet import Fernet as _Fernet
 
 logger = logging.getLogger(__name__)
 
+# Encryption key for user settings (API keys at rest).
+#
+# The key is NOT derived from machine-identifiable data (e.g. MAC address)
+# since that is not a secret and provides no real confidentiality. Instead:
+#   1. USER_SETTINGS_ENCRYPTION_KEY env var takes precedence, if set — lets
+#      production deployments inject a key via secrets management.
+#   2. Otherwise a random key is generated on first run and persisted
+#      OUTSIDE the settings files it protects, at data/.secrets/.
+_KEY_DIR = Path(__file__).parent.parent.parent / "data" / ".secrets"
+_KEY_PATH = _KEY_DIR / "user_settings_key"
+_ENV_KEY_VAR = "USER_SETTINGS_ENCRYPTION_KEY"
+
+_cached_key: Optional[bytes] = None
+
+
+def _load_or_create_key() -> bytes:
+    """Resolve the Fernet key for user settings encryption (cached after first call)."""
+    global _cached_key
+    if _cached_key is not None:
+        return _cached_key
+
+    env_key = os.environ.get(_ENV_KEY_VAR, "").strip()
+    if env_key:
+        try:
+            candidate = env_key.encode("utf-8")
+            _Fernet(candidate)  # validate format
+            _cached_key = candidate
+            return _cached_key
+        except Exception:
+            logger.warning(
+                "%s is set but is not a valid Fernet key; ignoring it and "
+                "falling back to the file-based key.",
+                _ENV_KEY_VAR,
+            )
+
+    try:
+        if _KEY_PATH.exists():
+            existing = _KEY_PATH.read_bytes().strip()
+            if existing:
+                _Fernet(existing)  # validate format
+                _cached_key = existing
+                return _cached_key
+    except Exception:
+        logger.warning(
+            "Failed to read existing encryption key at %s; a new key will "
+            "be generated (previously saved API keys will no longer decrypt).",
+            _KEY_PATH,
+        )
+
+    # No valid key found from env or disk — generate and persist a new one.
+    new_key = _Fernet.generate_key()
+    try:
+        _KEY_DIR.mkdir(parents=True, exist_ok=True)
+        _KEY_PATH.write_bytes(new_key)
+        try:
+            os.chmod(_KEY_PATH, 0o600)  # best-effort; Windows ACLs differ
+        except OSError:
+            pass
+    except Exception as exc:
+        logger.warning(
+            "Failed to persist encryption key to %s: %s. Key will only "
+            "live for this process's lifetime.",
+            _KEY_PATH,
+            exc,
+        )
+
+    _cached_key = new_key
+    return _cached_key
+
 
 def _get_fernet() -> _Fernet:
-    """Derive a machine-stable Fernet key from MAC address."""
-    try:
-        machine_id = str(_uuid.getnode())
-    except Exception:
-        machine_id = "ai-qms-fallback"
-    raw = hashlib.sha256(f"ai-qms-{machine_id}".encode()).digest()
-    import base64 as _b64
-    key = _b64.urlsafe_b64encode(raw)
-    return _Fernet(key)
+    """Get a Fernet cipher using the env-provided or persisted encryption key."""
+    return _Fernet(_load_or_create_key())
 
 
 def _encrypt_key(api_key: str) -> str:
@@ -60,6 +122,12 @@ def _decrypt_key(encrypted: str) -> str:
     try:
         return _get_fernet().decrypt(encrypted.encode()).decode()
     except Exception:
+        logger.warning(
+            "Failed to decrypt stored API key — it was likely encrypted "
+            "with a previous encryption key (e.g. before a key rotation or "
+            "migration). Treating as no saved API key; user will need to "
+            "re-enter it."
+        )
         return ""
 
 

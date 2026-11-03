@@ -161,6 +161,7 @@
   "upload.progress_title": "Eira：📄 **Processando {step}**: `{filename}`",
   "upload.result_label": "**Resultado**",
   "upload.same_version_error": "Eira：Documento com a mesma versão já existe ({doc_id} V{version}), não é possível carregar duplicado.",
+  "upload.version_downgrade_error": "Eira：Downgrade de versão rejeitado: a versão enviada {new_version} não é mais recente que a versão atual {current_version} do documento {doc_id}.",
   "upload.save_duplicate": "Eira：⚠️ Documento duplicado ({doc_id})",
   "upload.save_label": "**Resultado do salvamento**",
   "upload.save_new_version": "Eira：🔄 Nova versão detectada ({doc_id} V{old_ver} → V{new_ver})",

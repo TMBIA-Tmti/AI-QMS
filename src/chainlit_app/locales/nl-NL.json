@@ -161,6 +161,7 @@
   "upload.progress_title": "Eira：📄 **Verwerking {step}**: `{filename}`",
   "upload.result_label": "**Resultaat**",
   "upload.same_version_error": "Eira：Document met dezelfde versie bestaat al ({doc_id} V{version}), kan geen dubbel uploaden.",
+  "upload.version_downgrade_error": "Eira：Versiedowngrade geweigerd: geüploade versie {new_version} is niet nieuwer dan de huidige versie {current_version} van document {doc_id}.",
   "upload.save_duplicate": "Eira：⚠️ Dubbel document ({doc_id})",
   "upload.save_label": "**Opslagresultaat**",
   "upload.save_new_version": "Eira：🔄 Nieuwe versie gedetecteerd ({doc_id} V{old_ver} → V{new_ver})",

@@ -161,6 +161,7 @@
   "upload.progress_title": "Eira：📄 **Memproses {step}**: `{filename}`",
   "upload.result_label": "**Hasil**",
   "upload.same_version_error": "Eira：Dokumen versi yang sama sudah ada ({doc_id} V{version}), tidak dapat mengunggah duplikat.",
+  "upload.version_downgrade_error": "Eira：Penurunan versi ditolak: versi yang diunggah {new_version} tidak lebih baru dari versi saat ini {current_version} untuk dokumen {doc_id}.",
   "upload.save_duplicate": "Eira：⚠️ Dokumen duplikat ({doc_id})",
   "upload.save_label": "**Hasil Penyimpanan**",
   "upload.save_new_version": "Eira：🔄 Versi baru terdeteksi ({doc_id} V{old_ver} → V{new_ver})",

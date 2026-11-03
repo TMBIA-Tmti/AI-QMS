@@ -417,6 +417,7 @@
   "upload.progress_title": "Eira：📄 **Processing {step}**: `{filename}`",
   "upload.result_label": "**Result**",
   "upload.same_version_error": "Eira：Same version document already exists ({doc_id} V{version}), cannot upload duplicate.",
+  "upload.version_downgrade_error": "Eira：Version downgrade rejected: uploaded version {new_version} is not newer than the current version {current_version} for document {doc_id}.",
   "upload.save_duplicate": "Eira：⚠️ Duplicate document ({doc_id})",
   "upload.save_label": "**Save Result**",
   "upload.save_new_version": "Eira：🔄 New version detected ({doc_id} V{old_ver} → V{new_ver})",

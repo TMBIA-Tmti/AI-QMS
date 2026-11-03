@@ -161,6 +161,7 @@
   "upload.progress_title": "Eira：📄 **กำลังประมวลผล {step}**: `{filename}`",
   "upload.result_label": "**ผลลัพธ์**",
   "upload.same_version_error": "Eira：เอกสารเวอร์ชันเดียวกันมีอยู่แล้ว ({doc_id} V{version}) ไม่สามารถอัปโหลดซ้ำ",
+  "upload.version_downgrade_error": "Eira：ปฏิเสธการดาวน์เกรดเวอร์ชัน: เวอร์ชันที่อัปโหลด {new_version} ไม่ใหม่กว่าเวอร์ชันปัจจุบัน {current_version} ของเอกสาร {doc_id}",
   "upload.save_duplicate": "Eira：⚠️ เอกสารซ้ำ ({doc_id})",
   "upload.save_label": "**ผลการบันทึก**",
   "upload.save_new_version": "Eira：🔄 ตรวจพบเวอร์ชันใหม่ ({doc_id} V{old_ver} → V{new_ver})",

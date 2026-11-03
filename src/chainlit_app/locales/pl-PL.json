@@ -161,6 +161,7 @@
   "upload.progress_title": "Eira：📄 **Przetwarzanie {step}**: `{filename}`",
   "upload.result_label": "**Wynik**",
   "upload.same_version_error": "Eira：Dokument w tej samej wersji już istnieje ({doc_id} V{version}), nie można przesłać duplikatu.",
+  "upload.version_downgrade_error": "Eira：Odrzucono obniżenie wersji: przesłana wersja {new_version} nie jest nowsza niż bieżąca wersja {current_version} dokumentu {doc_id}.",
   "upload.save_duplicate": "Eira：⚠️ Duplikat dokumentu ({doc_id})",
   "upload.save_label": "**Wynik zapisu**",
   "upload.save_new_version": "Eira：🔄 Wykryto nową wersję ({doc_id} V{old_ver} → V{new_ver})",

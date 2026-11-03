@@ -422,6 +422,7 @@
   "upload.progress_title": "Eira：📄 **處理進度 {step}**: `{filename}`",
   "upload.result_label": "**結果**",
   "upload.same_version_error": "Eira：同版本文件已存在 ({doc_id} V{version})，無法重複上傳。",
+  "upload.version_downgrade_error": "Eira：版本降級遭拒絕：上傳的版本 {new_version} 並未新於文件 {doc_id} 的目前版本 {current_version}，不允許以舊版覆蓋新版。",
   "upload.save_duplicate": "Eira：⚠️ 重複文件 ({doc_id})",
   "upload.save_label": "**儲存結果**",
   "upload.save_new_version": "Eira：🔄 偵測到新版本 ({doc_id} V{old_ver} → V{new_ver})",

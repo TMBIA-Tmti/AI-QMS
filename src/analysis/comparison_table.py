@@ -835,10 +835,16 @@ class ComparisonTable:
         self._state.update_row(row)
         return row
 
-    def restore_llm_original(self, row_id: str) -> Optional[RowState]:
+    def restore_llm_original(
+        self, row_id: str, user_id: str = "ra_user"
+    ) -> Optional[RowState]:
         """Restore the LLM's original verdict (undo RA override).
 
         All versions are preserved in version_history.
+
+        Args:
+            row_id: Row to restore
+            user_id: Who performed the restore (recorded in version_history)
         """
         row = self._state.get_row(row_id)
         if row is None:
@@ -862,6 +868,7 @@ class ComparisonTable:
                 "action": "restore_original",
                 "overridden_verdict": row.verdict,
                 "restored_verdict": original_verdict,
+                "by": user_id,
                 "at": time.time(),
             }
         )

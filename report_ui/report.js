@@ -626,7 +626,6 @@
             showToast(t('toast.evidenceConfirming'), 'info');
             const result = await apiPost(`/${RUN_ID}/row/${evidenceEditorData.rowId}/evidence/confirm`, {
                 evidence_items: evidenceEditorData.items,
-                user_id: 'ra_user',
             });
 
             if (result.success) {

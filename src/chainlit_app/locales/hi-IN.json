@@ -161,6 +161,7 @@
   "upload.progress_title": "Eira：📄 **प्रोसेसिंग {step}**: `{filename}`",
   "upload.result_label": "**परिणाम**",
   "upload.same_version_error": "Eira：समान संस्करण का दस्तावेज़ पहले से मौजूद है ({doc_id} V{version}), डुप्लिकेट अपलोड नहीं किया जा सकता।",
+  "upload.version_downgrade_error": "Eira：संस्करण डाउनग्रेड अस्वीकृत: अपलोड किया गया संस्करण {new_version} दस्तावेज़ {doc_id} के वर्तमान संस्करण {current_version} से नया नहीं है।",
   "upload.save_duplicate": "Eira：⚠️ डुप्लिकेट दस्तावेज़ ({doc_id})",
   "upload.save_label": "**सहेजने का परिणाम**",
   "upload.save_new_version": "Eira：🔄 नया संस्करण पाया गया ({doc_id} V{old_ver} → V{new_ver})",

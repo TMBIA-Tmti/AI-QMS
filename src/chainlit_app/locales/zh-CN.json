@@ -161,6 +161,7 @@
   "upload.progress_title": "Eira：📄 **处理进度 {step}**: `{filename}`",
   "upload.result_label": "**结果**",
   "upload.same_version_error": "Eira：同版本文件已存在 ({doc_id} V{version})，无法重复上传。",
+  "upload.version_downgrade_error": "Eira：版本降级被拒绝：上传的版本 {new_version} 并未新于文件 {doc_id} 的目前版本 {current_version}，不允许以旧版覆盖新版。",
   "upload.save_duplicate": "Eira：⚠️ 重复文件 ({doc_id})",
   "upload.save_label": "**保存结果**",
   "upload.save_new_version": "Eira：🔄 检测到新版本 ({doc_id} V{old_ver} → V{new_ver})",

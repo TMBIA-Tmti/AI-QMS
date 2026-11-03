@@ -161,6 +161,7 @@
   "upload.progress_title": "Eira：📄 **İşleme {step}**: `{filename}`",
   "upload.result_label": "**Sonuç**",
   "upload.same_version_error": "Eira：Aynı sürüm belge zaten mevcut ({doc_id} V{version}), yinelenen yüklenemez.",
+  "upload.version_downgrade_error": "Eira：Sürüm düşürme reddedildi: yüklenen sürüm {new_version}, {doc_id} belgesinin mevcut sürümü {current_version} sürümünden daha yeni değil.",
   "upload.save_duplicate": "Eira：⚠️ Yinelenen belge ({doc_id})",
   "upload.save_label": "**Kayıt Sonucu**",
   "upload.save_new_version": "Eira：🔄 Yeni sürüm algılandı ({doc_id} V{old_ver} → V{new_ver})",

@@ -263,6 +263,7 @@
   "upload.progress_title": "Eira：📄 **処理進捗 {step}**: `{filename}`",
   "upload.result_label": "**結果**",
   "upload.same_version_error": "Eira：同バージョンの文書が既に存在します ({doc_id} V{version})、重複アップロードできません。",
+  "upload.version_downgrade_error": "Eira：バージョンのダウングレードは拒否されました：アップロードされたバージョン {new_version} は、文書 {doc_id} の現在のバージョン {current_version} より新しくありません。",
   "upload.save_duplicate": "Eira：⚠️ 重複文書 ({doc_id})",
   "upload.save_label": "**保存結果**",
   "upload.save_new_version": "Eira：🔄 新バージョン検出 ({doc_id} V{old_ver} → V{new_ver})",

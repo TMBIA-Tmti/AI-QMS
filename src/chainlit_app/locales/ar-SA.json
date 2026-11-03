@@ -161,6 +161,7 @@
   "upload.progress_title": "Eira：📄 **معالجة {step}**: `{filename}`",
   "upload.result_label": "**النتيجة**",
   "upload.same_version_error": "Eira：مستند بنفس الإصدار موجود بالفعل ({doc_id} V{version})، لا يمكن رفع مكرر.",
+  "upload.version_downgrade_error": "Eira：تم رفض الإصدار الأقدم: النسخة المرفوعة {new_version} ليست أحدث من النسخة الحالية {current_version} للمستند {doc_id}.",
   "upload.save_duplicate": "Eira：⚠️ مستند مكرر ({doc_id})",
   "upload.save_label": "**نتيجة الحفظ**",
   "upload.save_new_version": "Eira：🔄 تم اكتشاف إصدار جديد ({doc_id} V{old_ver} → V{new_ver})",

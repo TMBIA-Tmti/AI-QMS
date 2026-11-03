@@ -161,6 +161,7 @@
   "upload.progress_title": "Eira：📄 **Đang xử lý {step}**: `{filename}`",
   "upload.result_label": "**Kết quả**",
   "upload.same_version_error": "Eira：Tài liệu cùng phiên bản đã tồn tại ({doc_id} V{version}), không thể tải lên trùng lặp.",
+  "upload.version_downgrade_error": "Eira：Từ chối hạ cấp phiên bản: phiên bản tải lên {new_version} không mới hơn phiên bản hiện tại {current_version} của tài liệu {doc_id}.",
   "upload.save_duplicate": "Eira：⚠️ Tài liệu trùng lặp ({doc_id})",
   "upload.save_label": "**Kết quả lưu**",
   "upload.save_new_version": "Eira：🔄 Phát hiện phiên bản mới ({doc_id} V{old_ver} → V{new_ver})",

@@ -1,6 +1,21 @@
 """
 AI-QMS Phase 1 Document Control - Flask Web Application
 文件上傳與版本控制 Prototype
+
+LEGACY / SUPERSEDED — NOT LAUNCHED BY start.bat OR ANY CURRENT ENTRY POINT.
+
+This is an early Flask-based prototype UI. The current, actively used
+application is the Chainlit app at ``src/chainlit_app/app.py`` (launched by
+``start.bat``). This module is not imported by any current entry point or
+launcher script.
+
+Do NOT run this module alongside the Chainlit app: it constructs its own
+``ImmutableAuditLog()`` instance (see below), which would become a second,
+independent writer to the same tamper-evident audit chain file that the
+Chainlit app's ``src/database/audit_log.py`` singleton also writes to —
+risking concurrent/inconsistent writes to that chain. Kept in the repo only
+as legacy reference; it is not deleted here because it has not been
+confirmed to be safe to remove for all deployments.
 """
 import os
 import hashlib

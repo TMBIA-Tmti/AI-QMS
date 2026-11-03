@@ -72,6 +72,8 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional
 
+from werkzeug.utils import secure_filename
+
 # Session logging: persist Chainlit app output to logs/chainlit/
 _chainlit_log_dir = Path(__file__).parent.parent.parent / "logs" / "chainlit"
 _chainlit_log_dir.mkdir(parents=True, exist_ok=True)
@@ -723,6 +725,58 @@ except Exception as _mount_err:
     logging.getLogger(__name__).warning(
         f"Failed to mount report API router: {_mount_err}"
     )
+
+# ============================================================
+# Authentication (21 CFR Part 11 §11.10(d)/(g) — attributable records)
+# ============================================================
+# Registering a password auth callback makes Chainlit require a login and
+# issue a signed session cookie. src/analysis/report_api.py reads that same
+# cookie to attribute RA overrides/notes/restores to a verified identity,
+# so this gate is what makes the report API's audit trail trustworthy.
+#
+# 2026-09-03: temporarily disabled per request — see src/config.py
+# AUTH_ENABLED. The callback body below is untouched; when AUTH_ENABLED is
+# flipped back to True, the decorator registers again with zero code changes.
+from src.config import AUTH_ENABLED as _AUTH_ENABLED
+from src.utils.auth_store import (
+    authenticate as _authenticate_user,
+    ensure_jwt_secret as _ensure_jwt_secret,
+)
+
+if _AUTH_ENABLED:
+    _ensure_jwt_secret()
+
+    @cl.password_auth_callback
+    def password_auth_callback(username: str, password: str):
+        """Validate credentials against the local credential store.
+
+        Returns a cl.User whose identifier is recorded in the audit trail for
+        every subsequent write, or None to reject the login.
+        """
+        try:
+            account = _authenticate_user(username, password)
+        except Exception as _auth_err:  # never leak internals to the login form
+            logging.getLogger(__name__).error(f"Authentication error: {_auth_err}")
+            return None
+
+        if not account:
+            logging.getLogger(__name__).warning(
+                f"Failed login attempt for user '{str(username)[:64]}'"
+            )
+            return None
+
+        return cl.User(
+            identifier=account["username"],
+            metadata={"role": account["role"], "provider": "credentials"},
+        )
+else:
+    logging.getLogger(__name__).warning(
+        "AUTH_ENABLED=false (no login accounts exist yet) — login page "
+        "disabled, report API writes will be attributed to 'anonymous'. "
+        "Run scripts/create_qms_user.py and restart to require login, or "
+        "set QMS_AUTH_ENABLED=true/false to override auto-detection."
+    )
+
 
 # ============================================================
 # Internationalization (i18n) - v3.2.0 (20 languages)
@@ -5211,7 +5265,7 @@ async def _ask_product_docs_upload() -> Optional[str]:
                 "不限數量，不需簽章。\n\n"
                 "上傳完成後點擊確認即可。"
             ),
-            accept=["*/*"],
+            accept={"*/*": sorted(ALLOWED_EXTENSIONS)},
             max_files=20,
             max_size_mb=50,
             timeout=300,
@@ -8673,7 +8727,12 @@ def process_uploaded_file_sync(
         }
 
     ensure_upload_folder()
-    dest_path = UPLOAD_FOLDER / f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
+    # Sanitize the client-supplied filename before using it in a filesystem
+    # path — a crafted name (e.g. "..\\..\\startup\\x.bat") could otherwise
+    # write outside UPLOAD_FOLDER. Only the on-disk filename is sanitized;
+    # `filename` itself is kept as-is for display/metadata use below.
+    safe_name = secure_filename(filename) or f"upload{suffix}"
+    dest_path = UPLOAD_FOLDER / f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{safe_name}"
     shutil.copy(file_path, dest_path)
 
     # Signature detection BEFORE OCR — fail fast for unsigned documents.
@@ -8835,23 +8894,54 @@ def process_uploaded_file_sync(
                             version=norm_existing,
                         ),
                     }
-                else:
-                    # Different version (or version unknown) = potential version update
+
+                # ISO 13485 §4.2.4: reject a version DOWNGRADE — a new
+                # version must be strictly greater than the current
+                # version, not merely different from it. Reuses the same
+                # dotted-integer-tuple comparison as
+                # src/database/document_store.py's _parse_version() so
+                # both code paths agree on what "newer" means.
+                from src.database.document_store import _parse_version
+
+                new_parsed = _parse_version(norm_new)
+                existing_parsed = _parse_version(norm_existing)
+                if (
+                    new_parsed is not None
+                    and existing_parsed is not None
+                    and new_parsed <= existing_parsed
+                ):
+                    try:
+                        dest_path.unlink()
+                    except Exception:
+                        pass
                     return {
-                        "success": True,
+                        "success": False,
                         "filename": filename,
-                        "dest_path": str(dest_path),
-                        "ocr_result": ocr_result,
-                        "doc_info": doc_info,
-                        "sig_result": sig_result,
-                        "obsolete_result": obsolete_result,
-                        "hierarchy_result": hierarchy_result,
-                        "duplicate_doc": existing_doc,
-                        "is_duplicate": True,
-                        "is_version_update": True,
-                        "new_version": new_version,
-                        "existing_version": existing_version,
+                        "error": _t(
+                            "upload.version_downgrade_error",
+                            doc_id=extracted_doc_id,
+                            new_version=norm_new,
+                            current_version=norm_existing,
+                        ),
                     }
+
+                # Different version (or version unknown, or unparsable) and not a
+                # downgrade = potential version update
+                return {
+                    "success": True,
+                    "filename": filename,
+                    "dest_path": str(dest_path),
+                    "ocr_result": ocr_result,
+                    "doc_info": doc_info,
+                    "sig_result": sig_result,
+                    "obsolete_result": obsolete_result,
+                    "hierarchy_result": hierarchy_result,
+                    "duplicate_doc": existing_doc,
+                    "is_duplicate": True,
+                    "is_version_update": True,
+                    "new_version": new_version,
+                    "existing_version": existing_version,
+                }
 
     save_result = md_service.save_ocr_result(
         markdown_content=ocr_result["markdown_content"],

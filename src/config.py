@@ -41,7 +41,33 @@ POSTGRES_URL = os.getenv("POSTGRES_URL", "")
 # ============================================================
 
 UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", "./uploads")
-ALLOWED_EXTENSIONS = {"pdf", "docx", "doc", "png", "jpg", "jpeg", "tiff"}
+
+# Single source of truth for allowed upload extensions (no leading dot —
+# consumed by legacy src/app.py's `allowed_file()`). Mirrors what the OCR
+# pipeline can actually process (see src/ocr/vision_ocr.SUPPORTED_EXTENSIONS).
+# src/chainlit_app/handlers/common.py derives its dotted-extension set from
+# this list — update this list only, do not maintain a separate one there.
+ALLOWED_EXTENSIONS = {
+    "pdf",
+    "png",
+    "jpg",
+    "jpeg",
+    "gif",
+    "webp",
+    "tiff",
+    "tif",
+    "bmp",
+    "docx",
+    "doc",
+    "xlsx",
+    "xls",
+    "pptx",
+    "ppt",
+    "txt",
+    "md",
+    "csv",
+    "rtf",
+}
 MAX_CONTENT_LENGTH = 100 * 1024 * 1024  # 100 MB
 
 
@@ -82,6 +108,60 @@ PERMISSIONS: dict[str, list[str]] = {
 # ============================================================
 
 SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH", "./data/qms.db")
+
+
+# ============================================================
+# 稽核紀錄鏈簽章金鑰 (21 CFR Part 11 防竄改)
+# ============================================================
+
+# HMAC-SHA256 簽章金鑰。生產環境務必以環境變數提供，切勿寫入版控檔案。
+# 未設定時，系統會在 AUDIT_LOG_KEY_FILE 自動產生隨機金鑰（僅適用於單機測試）。
+AUDIT_LOG_HMAC_KEY = os.getenv("AUDIT_LOG_HMAC_KEY", "")
+
+# 自動產生金鑰的存放位置（預設 data/，已列入 .gitignore，且與被保護的
+# audit_log.json 分開存放）
+AUDIT_LOG_KEY_FILE = os.getenv("AUDIT_LOG_KEY_FILE", "./data/.audit_key")
+
+# ============================================================
+# 登入驗證開關（2026-09-04：自動判斷 — 尚未建立帳號前預設開放使用）
+# ============================================================
+#
+# 判斷順序：
+#   1. 環境變數 QMS_AUTH_ENABLED 明確設為 true/false 時，一律以它為準
+#      （強制開啟或強制關閉，忽略帳號庫狀態）。
+#   2. 未設定環境變數時，改為自動判斷：帳號庫（data/auth/users.json）裡
+#      「目前有沒有至少一個帳號」——沒有帳號就代表沒人能登入，此時保持開放
+#      使用（不顯示登入頁面）；一旦用 scripts/create_qms_user.py 建立了第一
+#      個帳號，*下次啟動*就會自動要求登入，不需要手動改設定或設環境變數。
+#
+# 注意：Chainlit 是否顯示登入頁面，是應用程式啟動當下就決定好、不會在執行
+# 期間動態切換的——也就是說「建立帳號後自動上鎖」指的是「下一次重新啟動」，
+# 不是同一個執行中的程序會立刻變成需要登入。
+#
+# src/chainlit_app/app.py 的 password_auth_callback、src/analysis/
+# report_api.py 的 _resolve_authenticated_user 都會讀這個值：關閉時報告頁面
+# 的寫入端點（override／add_note／restore／evidence 相關／rerun／pause／
+# resume）會以固定的 "anonymous" 身分寫入稽核紀錄，功能照常可用，只是無法
+# 歸屬到真實驗證過的身分。
+
+
+def _auth_effectively_enabled() -> bool:
+    _forced = os.getenv("QMS_AUTH_ENABLED", "").strip().lower()
+    if _forced in ("true", "1", "yes"):
+        return True
+    if _forced in ("false", "0", "no"):
+        return False
+    try:
+        from src.utils.auth_store import load_users
+
+        return bool(load_users())
+    except Exception:
+        # 帳號庫讀取失敗（例如檔案損毀）時，保守起見視為「尚無帳號」，
+        # 不因為讀取失敗而意外把整個系統鎖死。
+        return False
+
+
+AUTH_ENABLED = _auth_effectively_enabled()
 
 
 # ============================================================
