@@ -137,8 +137,12 @@ def _repair_corrupt_lightrag_json(working_dir: str) -> list[str]:
             try:
                 fp.unlink()
                 deleted.append(fname)
-            except OSError:
-                pass
+            except OSError as e:
+                logger.warning(
+                    "LightRAG: failed to delete corrupt KV store file %s: %s — "
+                    "file will remain corrupt and may block future initialisation",
+                    fname, e,
+                )
     return deleted
 
 

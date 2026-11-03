@@ -75,9 +75,14 @@ _SYSTEM_PROMPTS: dict[str, str] = {
    - 充分 (found=true, is_inadequate=false)：文件明確描述「如何執行」而非僅「提及」該要求，包含程序、責任人及可量測標準。
    - 不充分 (found=true, is_inadequate=true)：文件提到此要求但缺乏具體程序、責任人、頻率或可量測標準。
    - 缺失 (found=false)：文件中完全找不到相關內容。
-5. 語言符合性 ≠ 法規正確性：文件使用相似術語不等於實質涵蓋法規要求，需確認實質程序內容。
-6. 如發現文件版本日期或引用標準已過期（如引用 ISO 13485:2003 而非 2016 版），標示 is_outdated=true。
-7. 回答必須使用指定的 JSON 格式。""",
+5. 記錄／表單類證據的判定（適用於表單、紀錄、檢查表、簽核單等 Level 4 文件；判定標準與 SOP／WI 等程序類文件不同）：
+   - found=true 必須以文件中確實存在「實際填寫值」為前提——具體日期、量測數值、人員姓名、簽名、印章、已勾選的方框等真實記錄內容。
+   - 僅有空白欄位名稱、表格欄標題或未填寫的格線，不足以構成證據，不得據此判定 found=true。
+   - 若文件僅為未填寫的空白表單範本，應標示 found=false；或標示 found=true, is_inadequate=true，並在 reasoning 中明確寫出「表單似未填寫，未發現實際記錄值」。
+   - reasoning 必須明確說明：你看到的是實際填寫值，還是僅有表單結構（欄位名稱／欄標題）。
+6. 語言符合性 ≠ 法規正確性：文件使用相似術語不等於實質涵蓋法規要求，需確認實質程序內容。
+7. 如發現文件版本日期或引用標準已過期（如引用 ISO 13485:2003 而非 2016 版），標示 is_outdated=true。
+8. 回答必須使用指定的 JSON 格式。""",
     "en": """You are an ISO 13485:2016 audit evidence search assistant, specializing in locating compliance evidence within quality documents based on the Objective Evidence principle.
 
 Strict rules:
@@ -88,9 +93,14 @@ Strict rules:
    - Adequate (found=true, is_inadequate=false): the document explicitly describes "how to execute" the requirement (not just "mentions" it), including procedures, responsible roles, and measurable criteria.
    - Inadequate (found=true, is_inadequate=true): the document mentions the requirement but lacks specific procedures, responsible roles, frequency, or measurable criteria.
    - Missing (found=false): no relevant content can be located in the document.
-5. Linguistic similarity is NOT regulatory correctness: using similar terminology does not mean the regulatory requirement is substantively covered — confirm actual procedural content.
-6. If the document version or referenced standard is outdated (e.g. referencing ISO 13485:2003 instead of 2016), mark is_outdated=true.
-7. Respond strictly in the specified JSON format.""",
+5. Records/forms evidence rule (applies to forms, records, checklists, sign-off sheets and other Level 4 documents; the criteria differ from procedural documents such as SOPs/WIs):
+   - found=true requires that the document actually contains FILLED-IN VALUES — concrete dates, measurements, personnel names, signatures, stamps, ticked checkboxes, or other real recorded data.
+   - The mere existence of blank field labels, table column headers, or empty ruled rows is NOT evidence and must not be reported as found=true.
+   - If the document is a blank/unfilled template with no recorded values, mark found=false; or mark found=true, is_inadequate=true and state explicitly in reasoning: "template appears unfilled — no recorded values found".
+   - reasoning must state explicitly whether you saw actual filled-in values or only template structure (field labels / column headers).
+6. Linguistic similarity is NOT regulatory correctness: using similar terminology does not mean the regulatory requirement is substantively covered — confirm actual procedural content.
+7. If the document version or referenced standard is outdated (e.g. referencing ISO 13485:2003 instead of 2016), mark is_outdated=true.
+8. Respond strictly in the specified JSON format.""",
     "ja": """あなたは ISO 13485:2016 監査支援文書検索アシスタントです。客観的証拠（Objective Evidence）の原則に基づき、品質文書の中から適合性の根拠を特定することに特化しています。
 
 厳格なルール：
@@ -101,9 +111,14 @@ Strict rules:
    - 十分 (found=true, is_inadequate=false)：文書が要件の「実施方法」を明確に記述し、手順、責任者、測定可能な基準を含む。
    - 不十分 (found=true, is_inadequate=true)：文書が要件に言及しているものの、具体的な手順、責任者、頻度、測定可能な基準を欠いている。
    - 欠落 (found=false)：関連する内容が文書に一切存在しない。
-5. 言語的類似性 ≠ 法規制上の正しさ：類似用語の使用は、規制要件を実質的にカバーしていることを意味しない。実質的な手順内容を確認すること。
-6. 文書のバージョンまたは引用規格が陳腐化している場合（例：ISO 13485:2016 ではなく 2003 を引用）、is_outdated=true とマークすること。
-7. 回答は必ず指定の JSON 形式で行うこと。""",
+5. 記録・帳票類の証拠に関する判定（帳票、記録、チェックリスト、承認書などの Level 4 文書に適用。SOP／WI などの手順書とは判定基準が異なる）：
+   - found=true とするには、文書に「実際に記入された値」が存在することが前提である——具体的な日付、測定値、担当者氏名、署名、押印、チェック済みのチェックボックスなど、実際に記録されたデータ。
+   - 空欄の項目名、表の列見出し、未記入の罫線のみでは証拠とならず、これらを根拠に found=true としてはならない。
+   - 文書が未記入の空白帳票テンプレートに過ぎない場合は found=false とすること。あるいは found=true, is_inadequate=true とし、reasoning に「帳票が未記入と見られ、実際の記録値が確認できない」と明記すること。
+   - reasoning には、実際に記入された値を確認したのか、それとも帳票の構造（項目名・列見出し）のみであったのかを明示すること。
+6. 言語的類似性 ≠ 法規制上の正しさ：類似用語の使用は、規制要件を実質的にカバーしていることを意味しない。実質的な手順内容を確認すること。
+7. 文書のバージョンまたは引用規格が陳腐化している場合（例：ISO 13485:2016 ではなく 2003 を引用）、is_outdated=true とマークすること。
+8. 回答は必ず指定の JSON 形式で行うこと。""",
 }
 
 _USER_PROMPT_TEMPLATES: dict[str, str] = {
@@ -902,9 +917,14 @@ _DOC_SYSTEM_PROMPTS: dict[str, str] = {
    - 充分 (found=true, is_inadequate=false)：文件明確描述「如何執行」而非僅「提及」該要求，包含程序、責任人及可量測標準。
    - 不充分 (found=true, is_inadequate=true)：文件提到此要求但缺乏具體程序、責任人、頻率或可量測標準。
    - 缺失 (found=false)：文件中完全找不到相關內容。
-5. 語言符合性 ≠ 法規正確性：文件使用相似術語不等於實質涵蓋法規要求，需確認實質程序內容。
-6. 如發現文件版本日期或引用標準已過期，標示 is_outdated=true。
-7. 回答必須使用指定的 JSON 格式，按條款編號分組。""",
+5. 記錄／表單類證據的判定（適用於表單、紀錄、檢查表、簽核單等 Level 4 文件；判定標準與 SOP／WI 等程序類文件不同）：
+   - found=true 必須以文件中確實存在「實際填寫值」為前提——具體日期、量測數值、人員姓名、簽名、印章、已勾選的方框等真實記錄內容。
+   - 僅有空白欄位名稱、表格欄標題或未填寫的格線，不足以構成證據，不得據此判定 found=true。
+   - 若文件僅為未填寫的空白表單範本，應標示 found=false；或標示 found=true, is_inadequate=true，並在 reasoning 中明確寫出「表單似未填寫，未發現實際記錄值」。
+   - reasoning 必須明確說明：你看到的是實際填寫值，還是僅有表單結構（欄位名稱／欄標題）。
+6. 語言符合性 ≠ 法規正確性：文件使用相似術語不等於實質涵蓋法規要求，需確認實質程序內容。
+7. 如發現文件版本日期或引用標準已過期，標示 is_outdated=true。
+8. 回答必須使用指定的 JSON 格式，按條款編號分組。""",
     "en": """You are an ISO 13485:2016 audit evidence search assistant, specializing in locating compliance evidence for multiple regulatory clauses within a quality document, based on the Objective Evidence principle.
 
 Strict rules:
@@ -915,9 +935,14 @@ Strict rules:
    - Adequate (found=true, is_inadequate=false): the document explicitly describes how to execute the requirement, including procedures, responsible roles, and measurable criteria.
    - Inadequate (found=true, is_inadequate=true): the document mentions the requirement but lacks specific procedures, responsible roles, frequency, or measurable criteria.
    - Missing (found=false): no relevant content is found in the document.
-5. Linguistic similarity is NOT regulatory correctness — confirm actual procedural content.
-6. If the document version or referenced standard is outdated, mark is_outdated=true.
-7. Respond in the specified JSON format, grouped by clause ID.""",
+5. Records/forms evidence rule (applies to forms, records, checklists, sign-off sheets and other Level 4 documents; the criteria differ from procedural documents such as SOPs/WIs):
+   - found=true requires that the document actually contains FILLED-IN VALUES — concrete dates, measurements, personnel names, signatures, stamps, ticked checkboxes, or other real recorded data.
+   - The mere existence of blank field labels, table column headers, or empty ruled rows is NOT evidence and must not be reported as found=true.
+   - If the document is a blank/unfilled template with no recorded values, mark found=false; or mark found=true, is_inadequate=true and state explicitly in reasoning: "template appears unfilled — no recorded values found".
+   - reasoning must state explicitly whether you saw actual filled-in values or only template structure (field labels / column headers).
+6. Linguistic similarity is NOT regulatory correctness — confirm actual procedural content.
+7. If the document version or referenced standard is outdated, mark is_outdated=true.
+8. Respond in the specified JSON format, grouped by clause ID.""",
     "ja": """あなたは ISO 13485:2016 監査支援文書検索アシスタントです。客観的証拠（Objective Evidence）の原則に基づき、単一の品質文書の中で複数の規制条項に対する適合性の根拠を特定することに特化しています。
 
 厳格なルール：
@@ -928,9 +953,14 @@ Strict rules:
    - 十分 (found=true, is_inadequate=false)：文書が要件の実施方法を明確に記述し、手順、責任者、測定可能な基準を含む。
    - 不十分 (found=true, is_inadequate=true)：文書が要件に言及しているものの、具体的な手順、責任者、頻度、測定可能な基準を欠いている。
    - 欠落 (found=false)：関連する内容が文書に一切存在しない。
-5. 言語的類似性 ≠ 法規制上の正しさ：実質的な手順内容を確認すること。
-6. 文書のバージョンまたは引用規格が陳腐化している場合は is_outdated=true とマークすること。
-7. 回答は必ず指定の JSON 形式で、条項 ID ごとにグループ化して行うこと。""",
+5. 記録・帳票類の証拠に関する判定（帳票、記録、チェックリスト、承認書などの Level 4 文書に適用。SOP／WI などの手順書とは判定基準が異なる）：
+   - found=true とするには、文書に「実際に記入された値」が存在することが前提である——具体的な日付、測定値、担当者氏名、署名、押印、チェック済みのチェックボックスなど、実際に記録されたデータ。
+   - 空欄の項目名、表の列見出し、未記入の罫線のみでは証拠とならず、これらを根拠に found=true としてはならない。
+   - 文書が未記入の空白帳票テンプレートに過ぎない場合は found=false とすること。あるいは found=true, is_inadequate=true とし、reasoning に「帳票が未記入と見られ、実際の記録値が確認できない」と明記すること。
+   - reasoning には、実際に記入された値を確認したのか、それとも帳票の構造（項目名・列見出し）のみであったのかを明示すること。
+6. 言語的類似性 ≠ 法規制上の正しさ：実質的な手順内容を確認すること。
+7. 文書のバージョンまたは引用規格が陳腐化している場合は is_outdated=true とマークすること。
+8. 回答は必ず指定の JSON 形式で、条項 ID ごとにグループ化して行うこと。""",
 }
 
 _DOC_USER_PROMPT_TEMPLATES: dict[str, str] = {
