@@ -23,7 +23,15 @@ $outputFile = "$outputDir\${timestamp}_terminal.md"
 $raw = Get-Content $TranscriptPath -Encoding UTF8 -ErrorAction SilentlyContinue
 if (-not $raw) { exit 0 }
 
-$md = [System.Collections.Generic.List[string]]::new()
+# Keep only terminal sessions that touched THIS project (its folder name appears in
+# the transcript: cd into it, paths, error messages). Other terminal work on this
+# machine is discarded so logs/sessions/terminal stays project-only.
+if (-not ($raw | Select-String -SimpleMatch "AI-QMS-Phase1-DocControl" -Quiet)) {
+    Remove-Item $TranscriptPath -Force -ErrorAction SilentlyContinue
+    exit 0
+}
+
+$md =[System.Collections.Generic.List[string]]::new()
 $md.Add("# Terminal Session Log")
 $md.Add("")
 $md.Add("- **Date**: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')")
