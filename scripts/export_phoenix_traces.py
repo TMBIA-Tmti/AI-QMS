@@ -32,6 +32,22 @@ ROOT = Path(__file__).resolve().parent.parent
 BATCH = 2000
 
 
+def to_local(ts) -> str:
+    """Phoenix stores naive UTC timestamps; return them as local-time ISO text
+    (with UTC offset) so they line up with every other log under logs/."""
+    from datetime import timezone
+
+    if not ts:
+        return ""
+    try:
+        t = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+        if t.tzinfo is None:
+            t = t.replace(tzinfo=timezone.utc)
+        return t.astimezone().isoformat(sep=" ", timespec="milliseconds")
+    except Exception:
+        return ""
+
+
 def default_db() -> Path:
     base = os.environ.get("PHOENIX_WORKING_DIR") or str(Path.home() / ".phoenix")
     return Path(base) / "phoenix.db"
@@ -75,7 +91,8 @@ def write_session_md(rows, sessions_dir: Path) -> None:
     handles: dict[Path, object] = {}
     try:
         for r in rows:
-            day = str(r["start_time"])[:10]
+            loc = to_local(r["start_time"]) or str(r["start_time"])
+            day = loc[:10]
             fp = sessions_dir / f"{day}_phoenix.md"
             if fp not in handles:
                 new = not fp.exists()
@@ -83,12 +100,14 @@ def write_session_md(rows, sessions_dir: Path) -> None:
                 if new:
                     handles[fp].write(
                         f"# Phoenix LLM Traces - {day}\n\n"
+                        f"Times are LOCAL time (UTC{datetime.now().astimezone().strftime('%z')}); "
+                        "raw database values are UTC.\n\n"
                         "| Time | Project | Name | Model | Status | Latency(s) | Tokens | Trace |\n"
                         "|------|---------|------|-------|--------|------------|--------|-------|\n"
                     )
             tokens = (r["tokens_prompt"] or 0) + (r["tokens_completion"] or 0)
             handles[fp].write(
-                f"| {str(r['start_time'])[11:19]} | {r['project']} | {r['name']} | {_model(r['attributes'])} "
+                f"| {loc[11:19]} | {r['project']} | {r['name']} | {_model(r['attributes'])} "
                 f"| {r['status_code']} | {_latency(r['start_time'], r['end_time'])} | {tokens} | {str(r['trace_id'])[:8]} |\n"
             )
     finally:
@@ -166,7 +185,9 @@ def export(db: Path, out: Path, mark_current: bool = False, sessions: Path | Non
                                 d[k] = json.loads(d[k])
                             except Exception:
                                 pass
-                    day = str(d["start_time"])[:10]
+                    d["start_time_local"] = to_local(d["start_time"])
+                    d["end_time_local"] = to_local(d["end_time"])
+                    day = (d["start_time_local"] or str(d["start_time"]))[:10]
                     safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in d["project"])
                     fp = out / f"spans_{safe}_{day}.jsonl"
                     if fp not in handles:
@@ -187,7 +208,9 @@ def export(db: Path, out: Path, mark_current: bool = False, sessions: Path | Non
         n_traces = 0
         new_traces = con.execute(
             """select t.id, p.name, t.trace_id, t.start_time, t.end_time,
-                      (select count(*) from spans s where s.trace_rowid = t.id)
+                      (select count(*) from spans s where s.trace_rowid = t.id),
+                      (select sum(cumulative_llm_token_count_prompt + cumulative_llm_token_count_completion)
+                         from spans s where s.trace_rowid = t.id and s.parent_id is null)
                from traces t join projects p on t.project_rowid = p.id
                where t.id > ? order by t.id""",
             (mark["trace_id"],),
@@ -198,9 +221,10 @@ def export(db: Path, out: Path, mark_current: bool = False, sessions: Path | Non
             with open(csv_path, "a", newline="", encoding="utf-8-sig") as f:
                 w = csv.writer(f)
                 if new_file:
-                    w.writerow(["project", "trace_id", "start_time", "end_time", "spans"])
+                    w.writerow(["project", "trace_id", "start_time", "end_time", "spans", "tokens",
+                                "start_time_local", "end_time_local"])
                 for r in new_traces:
-                    w.writerow(list(r)[1:])
+                    w.writerow(list(r)[1:] + [to_local(r[3]), to_local(r[4])])
             mark["trace_id"] = new_traces[-1][0]
             n_traces = len(new_traces)
             save_mark(mark_file, mark)
@@ -208,6 +232,34 @@ def export(db: Path, out: Path, mark_current: bool = False, sessions: Path | Non
         return n_spans, n_traces
     finally:
         con.close()
+
+
+def add_local_fields(out: Path) -> None:
+    """One-off: add start_time_local/end_time_local to files exported earlier."""
+    for f in sorted(out.glob("spans_*.jsonl")):
+        tmp = f.with_suffix(".tmp")
+        n = 0
+        with open(f, encoding="utf-8") as src, open(tmp, "w", encoding="utf-8") as dst:
+            for line in src:
+                d = json.loads(line)
+                if "start_time_local" not in d:
+                    d["start_time_local"] = to_local(d.get("start_time"))
+                    d["end_time_local"] = to_local(d.get("end_time"))
+                dst.write(json.dumps(d, ensure_ascii=False, default=str) + "\n")
+                n += 1
+        tmp.replace(f)
+        print(f"[phoenix-export] {f.name}: {n} line(s) updated")
+    csv_path = out / "traces_summary.csv"
+    if csv_path.exists():
+        with open(csv_path, newline="", encoding="utf-8-sig") as fh:
+            rows = list(csv.reader(fh))
+        if rows and "start_time_local" not in rows[0]:
+            rows[0] += ["start_time_local", "end_time_local"]
+            for r in rows[1:]:
+                r += [to_local(r[2]), to_local(r[3])]
+            with open(csv_path, "w", newline="", encoding="utf-8-sig") as fh:
+                csv.writer(fh).writerows(rows)
+            print(f"[phoenix-export] traces_summary.csv: {len(rows) - 1} row(s) updated")
 
 
 def main() -> int:
@@ -218,9 +270,13 @@ def main() -> int:
     ap.add_argument("--rebuild-sessions", action="store_true",
                     help="regenerate all daily summaries in --sessions from the whole database")
     ap.add_argument("--mark-current", action="store_true")
+    ap.add_argument("--add-local-time", action="store_true",
+                    help="one-off: add local-time fields to previously exported files")
     a = ap.parse_args()
     try:
-        if a.rebuild_sessions:
+        if a.add_local_time:
+            add_local_fields(a.out)
+        elif a.rebuild_sessions:
             rebuild_sessions(a.db or default_db(), a.sessions)
         else:
             export(a.db or default_db(), a.out, a.mark_current, a.sessions)
