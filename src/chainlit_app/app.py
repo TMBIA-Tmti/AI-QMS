@@ -3377,6 +3377,20 @@ def _write_last_crawl_date(trigger_source: str) -> None:
         )
     except Exception:
         pass
+    # Keep a permanent history: last_crawl_date.json is overwritten on every
+    # crawl, so also append one line per crawl to data/crawl_history.jsonl.
+    try:
+        _res = Path("data/regulatory_crawl_results.json")
+        _entry = dict(data)
+        if _res.exists():
+            _entry["results_file_bytes"] = _res.stat().st_size
+            _entry["results_file_modified"] = _dt_wcd.datetime.fromtimestamp(
+                _res.stat().st_mtime
+            ).isoformat()
+        with open(Path("data/crawl_history.jsonl"), "a", encoding="utf-8") as _fh:
+            _fh.write(_json.dumps(_entry, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
 
 
 def _should_run_freshness_check() -> bool:
