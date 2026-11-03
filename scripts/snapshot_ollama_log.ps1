@@ -16,7 +16,12 @@ $chainDir   = Join-Path $projectDir "logs\chainlit"
 $sourceLog  = Join-Path $env:LOCALAPPDATA "Ollama\server.log"
 $culture    = [Globalization.CultureInfo]::InvariantCulture
 
-if (-not (Test-Path $sourceLog)) { exit 0 }
+# Ollama rotates its log (server.log -> server-1.log -> server-2.log ...), so read the
+# current log AND every rotated one, oldest first.
+$ollamaDir  = Split-Path -Parent $sourceLog
+$sourceLogs = @(Get-ChildItem $ollamaDir -Filter 'server*.log' -File -ErrorAction SilentlyContinue |
+                Sort-Object LastWriteTime)
+if ($sourceLogs.Count -eq 0) { exit 0 }
 
 # --- project run windows -------------------------------------------------------
 $windows = @()
@@ -41,7 +46,8 @@ function Test-InWindow([datetime]$t) {
 # Lines without a timestamp follow the decision of the previous timestamped line.
 $byDate = @{}
 $keep = $false; $curDate = $null
-foreach ($l in (Get-Content $sourceLog -Encoding UTF8 -ErrorAction SilentlyContinue)) {
+$allLines = foreach ($sf in $sourceLogs) { Get-Content $sf.FullName -Encoding UTF8 -ErrorAction SilentlyContinue }
+foreach ($l in $allLines) {
     $t = $null
     if ($l -match 'time=(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})') {
         $t = [datetime]::ParseExact("$($Matches[1]) $($Matches[2])", 'yyyy-MM-dd HH:mm:ss', $culture)
