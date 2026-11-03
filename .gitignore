@@ -124,3 +124,4 @@ scripts/test_*.py
 
 # Phoenix trace exports (large, generated)
 logs/phoenix/export/
+logs/phoenix/export_txt/

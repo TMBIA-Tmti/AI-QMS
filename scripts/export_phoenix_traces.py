@@ -176,6 +176,7 @@ def export(db: Path, out: Path, mark_current: bool = False, sessions: Path | Non
             if not rows:
                 break
             handles: dict[Path, object] = {}
+            batch_dicts = []
             try:
                 for r in rows:
                     d = dict(r)
@@ -193,9 +194,14 @@ def export(db: Path, out: Path, mark_current: bool = False, sessions: Path | Non
                     if fp not in handles:
                         handles[fp] = open(fp, "a", encoding="utf-8")
                     handles[fp].write(json.dumps(d, ensure_ascii=False, default=str) + "\n")
+                    batch_dicts.append(d)
             finally:
                 for h in handles.values():
                     h.close()
+            try:
+                write_txt(batch_dicts, out.parent / "export_txt")
+            except Exception as exc:
+                print(f"[phoenix-export] txt export failed: {exc!r}", file=sys.stderr)
             if sessions is not None:
                 try:
                     write_session_md(rows, sessions)
@@ -232,6 +238,82 @@ def export(db: Path, out: Path, mark_current: bool = False, sessions: Path | Non
         return n_spans, n_traces
     finally:
         con.close()
+
+
+def _msgs(v) -> str:
+    """Render llm.input_messages / llm.output_messages as readable text."""
+    if isinstance(v, str):
+        try:
+            v = json.loads(v)
+        except Exception:
+            return v
+    parts = []
+    for m in v if isinstance(v, list) else []:
+        m = m.get("message", m) if isinstance(m, dict) else m
+        if isinstance(m, dict):
+            c = m.get("content")
+            if c is None and m.get("contents"):
+                c = "\n".join(str(x.get("message_content", {}).get("text", x)) for x in m["contents"])
+            parts.append(f"[{m.get('role', '?')}]\n{c}")
+        else:
+            parts.append(str(m))
+    return "\n\n".join(parts)
+
+
+def format_span_txt(d: dict) -> str:
+    a = d.get("attributes") or {}
+    llm = a.get("llm") or {}
+    inp = _msgs(llm.get("input_messages")) if llm.get("input_messages") else str((a.get("input") or {}).get("value", ""))
+    outp = _msgs(llm.get("output_messages")) if llm.get("output_messages") else str((a.get("output") or {}).get("value", ""))
+    tc = llm.get("token_count") or {}
+    lat = _latency(d.get("start_time"), d.get("end_time"))
+    return (
+        "=" * 100 + "\n"
+        f"{(d.get('start_time_local') or d.get('start_time') or '')[:23]} | {d.get('project')} | {d.get('name')} | "
+        f"{llm.get('model_name', '-')} | {d.get('status_code')} | {lat}s | tokens {tc.get('total', '-')}\n"
+        f"trace {d.get('trace_id')}  span {d.get('span_id')}\n" + "-" * 100 + "\n"
+        f"INPUT:\n{inp}\n\nOUTPUT:\n{outp}\n"
+        + (f"\nSTATUS MESSAGE: {d['status_message']}\n" if d.get("status_message") else "")
+        + "\n"
+    )
+
+
+def write_txt(spans, txt_dir: Path) -> None:
+    """Append spans (dicts with *_local fields) to per-day readable .txt files."""
+    txt_dir.mkdir(parents=True, exist_ok=True)
+    handles: dict[Path, object] = {}
+    try:
+        for d in spans:
+            day = (d.get("start_time_local") or str(d.get("start_time")))[:10]
+            fp = txt_dir / f"{day}_phoenix.txt"
+            if fp not in handles:
+                new = not fp.exists()
+                handles[fp] = open(fp, "a", encoding="utf-8-sig" if new else "utf-8")
+                if new:
+                    handles[fp].write(f"Phoenix LLM traces - {day} (local time, UTC{datetime.now().astimezone().strftime('%z')})\n\n")
+            handles[fp].write(format_span_txt(d))
+    finally:
+        for h in handles.values():
+            h.close()
+
+
+def rebuild_txt(out: Path, txt_dir: Path) -> int:
+    """Regenerate every per-day .txt from the exported JSONL files (time-ordered)."""
+    if txt_dir.exists():
+        for f in txt_dir.glob("*_phoenix.txt"):
+            f.unlink()
+    n = 0
+    for f in sorted(out.glob("spans_*.jsonl")):
+        buf = []
+        with open(f, encoding="utf-8") as fh:
+            for line in fh:
+                buf.append(json.loads(line))
+                if len(buf) >= 2000:
+                    write_txt(buf, txt_dir); n += len(buf); buf = []
+        if buf:
+            write_txt(buf, txt_dir); n += len(buf)
+    print(f"[phoenix-export] wrote {n} span(s) as readable text -> {txt_dir}")
+    return n
 
 
 def add_local_fields(out: Path) -> None:
@@ -272,9 +354,14 @@ def main() -> int:
     ap.add_argument("--mark-current", action="store_true")
     ap.add_argument("--add-local-time", action="store_true",
                     help="one-off: add local-time fields to previously exported files")
+    ap.add_argument("--txt", type=Path, default=ROOT / "logs" / "phoenix" / "export_txt")
+    ap.add_argument("--make-txt", action="store_true",
+                    help="regenerate readable per-day .txt files from the exported JSONL")
     a = ap.parse_args()
     try:
-        if a.add_local_time:
+        if a.make_txt:
+            rebuild_txt(a.out, a.txt)
+        elif a.add_local_time:
             add_local_fields(a.out)
         elif a.rebuild_sessions:
             rebuild_sessions(a.db or default_db(), a.sessions)
