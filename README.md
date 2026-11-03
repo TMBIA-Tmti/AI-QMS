@@ -111,7 +111,7 @@ Eira 的 Logo 由兩個核心符號交織而成，每一筆都承載著這個專
                │    └─────────────────────────────────┘
                │
 ┌──────────────┴──────────────────────────────────────┐
-│           Agent 編排引擎 (LangGraph)                  │
+│         Agent 編排引擎（函式型工具路由）                │
 │  Main Agent ──→ Document Control Sub-Agent           │
 │                 (Phase 2: Audit Sub-Agent 規劃中)     │
 └──────────────────────┬──────────────────────────────┘
@@ -140,7 +140,7 @@ Eira 的 Logo 由兩個核心符號交織而成，每一筆都承載著這個專
                        │
 ┌──────────────────────┴──────────────────────────────┐
 │                   資料層                              │
-│  [SQLite WAL] [JSON DB] [Markdown Storage]           │
+│  [JSON DB] [Markdown Storage]                        │
 │  [Audit Log] [Interaction Log] [CrossExam Store]     │
 │  [Regulatory Storage] [MDSAP Storage]                │
 └──────────────────────┬──────────────────────────────┘
@@ -313,10 +313,10 @@ Phoenix Dashboard：http://localhost:6006
 | 程式語言 | Python 3.11 |
 | UI 框架 | Chainlit 2.9.6 |
 | Web 後端 | Flask + Flask-CORS |
-| Agent 框架 | LangGraph + LangChain |
+| Agent 框架 | 函式型工具路由 (Function-Based Tool Routing) |
 | LLM 抽象層 | LiteLLM |
 | OCR 引擎 | PyMuPDF (T0) + EasyOCR (T1) + MarkItDown (T2) + Docling (T3) + LLM Vision (備援) |
-| 資料庫 | SQLite WAL + SQLAlchemy |
+| 資料庫 | JSON 檔案儲存 + Markdown 儲存層 |
 | 向量資料庫 | ChromaDB |
 | 知識圖譜 | LightRAG |
 | LLM 可觀測性 | Arize Phoenix |
@@ -421,7 +421,7 @@ The two symbols **overlap and merge** in the logo — the pen nib touches the se
                │    └─────────────────────────────────┘
                │
 ┌──────────────┴──────────────────────────────────────┐
-│          Agent Orchestration (LangGraph)              │
+│     Agent Orchestration (Function-Based Tool Routing) │
 │  Main Agent ──→ Document Control Sub-Agent           │
 │                 (Phase 2: Audit Sub-Agent planned)    │
 └──────────────────────┬──────────────────────────────┘
@@ -450,7 +450,7 @@ The two symbols **overlap and merge** in the logo — the pen nib touches the se
                        │
 ┌──────────────────────┴──────────────────────────────┐
 │                    Data Layer                         │
-│  [SQLite WAL] [JSON DB] [Markdown Storage]           │
+│  [JSON DB] [Markdown Storage]                        │
 │  [Audit Log] [Interaction Log] [CrossExam Store]     │
 │  [Regulatory Storage] [MDSAP Storage]                │
 └──────────────────────┬──────────────────────────────┘
@@ -623,10 +623,10 @@ Phoenix Dashboard: http://localhost:6006
 | Language | Python 3.11 |
 | UI Framework | Chainlit 2.9.6 |
 | Web Backend | Flask + Flask-CORS |
-| Agent Framework | LangGraph + LangChain |
+| Agent Framework | Function-Based Tool Routing (Python) |
 | LLM Abstraction | LiteLLM |
 | OCR Engine | PyMuPDF (T0) + EasyOCR (T1) + MarkItDown (T2) + Docling (T3) + LLM Vision (Fallback) |
-| Database | SQLite WAL + SQLAlchemy |
+| Database | JSON File Store + Markdown Storage Layer |
 | Vector Database | ChromaDB |
 | Knowledge Graph | LightRAG |
 | LLM Observability | Arize Phoenix |
@@ -731,7 +731,7 @@ Eira のロゴは、プロジェクトの使命を体現する 2 つのコアシ
                │    └─────────────────────────────────┘
                │
 ┌──────────────┴──────────────────────────────────────┐
-│         Agent オーケストレーション (LangGraph)         │
+│  Agent オーケストレーション（関数ベースツールルーティング）│
 │  Main Agent ──→ Document Control Sub-Agent           │
 │                 (Phase 2: 監査サブ Agent 計画中)       │
 └──────────────────────┬──────────────────────────────┘
@@ -760,7 +760,7 @@ Eira のロゴは、プロジェクトの使命を体現する 2 つのコアシ
                        │
 ┌──────────────────────┴──────────────────────────────┐
 │                  データ層                             │
-│  [SQLite WAL] [JSON DB] [Markdown Storage]           │
+│  [JSON DB] [Markdown Storage]                        │
 │  [Audit Log] [Interaction Log] [CrossExam Store]     │
 │  [Regulatory Storage] [MDSAP Storage]                │
 └──────────────────────┬──────────────────────────────┘
@@ -932,10 +932,10 @@ Phoenix ダッシュボード：http://localhost:6006
 | プログラミング言語 | Python 3.11 |
 | UI フレームワーク | Chainlit 2.9.6 |
 | Web バックエンド | Flask + Flask-CORS |
-| Agent フレームワーク | LangGraph + LangChain |
+| Agent フレームワーク | 関数ベースツールルーティング (Function-Based Tool Routing) |
 | LLM 抽象層 | LiteLLM |
 | OCR エンジン | PyMuPDF (T0) + EasyOCR (T1) + MarkItDown (T2) + Docling (T3) + LLM Vision (フォールバック) |
-| データベース | SQLite WAL + SQLAlchemy |
+| データベース | JSON ファイルストア + Markdown ストレージ層 |
 | ベクターデータベース | ChromaDB |
 | ナレッジグラフ | LightRAG |
 | LLM 可観測性 | Arize Phoenix |
