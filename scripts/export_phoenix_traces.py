@@ -51,7 +51,78 @@ def save_mark(path: Path, mark: dict) -> None:
     tmp.replace(path)
 
 
-def export(db: Path, out: Path, mark_current: bool = False) -> tuple[int, int]:
+def _model(attrs) -> str:
+    try:
+        a = json.loads(attrs) if isinstance(attrs, str) else attrs
+        return str((a.get("llm") or {}).get("model_name") or "-")
+    except Exception:
+        return "-"
+
+
+def _latency(start, end) -> str:
+    try:
+        f = "%Y-%m-%d %H:%M:%S.%f"
+        s = datetime.strptime(str(start)[:26], f if "." in str(start) else f.replace(".%f", ""))
+        e = datetime.strptime(str(end)[:26], f if "." in str(end) else f.replace(".%f", ""))
+        return f"{(e - s).total_seconds():.2f}"
+    except Exception:
+        return "-"
+
+
+def write_session_md(rows, sessions_dir: Path) -> None:
+    """Append a readable per-day table (logs/sessions/phoenix/<date>_phoenix.md)."""
+    sessions_dir.mkdir(parents=True, exist_ok=True)
+    handles: dict[Path, object] = {}
+    try:
+        for r in rows:
+            day = str(r["start_time"])[:10]
+            fp = sessions_dir / f"{day}_phoenix.md"
+            if fp not in handles:
+                new = not fp.exists()
+                handles[fp] = open(fp, "a", encoding="utf-8")
+                if new:
+                    handles[fp].write(
+                        f"# Phoenix LLM Traces - {day}\n\n"
+                        "| Time | Project | Name | Model | Status | Latency(s) | Tokens | Trace |\n"
+                        "|------|---------|------|-------|--------|------------|--------|-------|\n"
+                    )
+            tokens = (r["tokens_prompt"] or 0) + (r["tokens_completion"] or 0)
+            handles[fp].write(
+                f"| {str(r['start_time'])[11:19]} | {r['project']} | {r['name']} | {_model(r['attributes'])} "
+                f"| {r['status_code']} | {_latency(r['start_time'], r['end_time'])} | {tokens} | {str(r['trace_id'])[:8]} |\n"
+            )
+    finally:
+        for h in handles.values():
+            h.close()
+
+
+def rebuild_sessions(db: Path, sessions_dir: Path) -> int:
+    """Regenerate every daily summary from the whole database."""
+    con = sqlite3.connect(f"file:{db.as_posix()}?mode=ro", uri=True, timeout=30)
+    con.row_factory = sqlite3.Row
+    try:
+        if sessions_dir.exists():
+            for f in sessions_dir.glob("*_phoenix.md"):
+                f.unlink()
+        last, n = 0, 0
+        while True:
+            rows = con.execute(
+                """select s.id, p.name project, t.trace_id, s.name, s.start_time, s.end_time, s.status_code,
+                          s.attributes, s.cumulative_llm_token_count_prompt tokens_prompt,
+                          s.cumulative_llm_token_count_completion tokens_completion
+                   from spans s join traces t on s.trace_rowid = t.id join projects p on t.project_rowid = p.id
+                   where s.id > ? order by s.id limit ?""", (last, BATCH)).fetchall()
+            if not rows:
+                break
+            write_session_md(rows, sessions_dir)
+            last, n = rows[-1]["id"], n + len(rows)
+        print(f"[phoenix-export] rebuilt session summaries from {n} span(s) -> {sessions_dir}")
+        return n
+    finally:
+        con.close()
+
+
+def export(db: Path, out: Path, mark_current: bool = False, sessions: Path | None = None) -> tuple[int, int]:
     if not db.exists():
         print(f"[phoenix-export] db not found: {db}")
         return 0, 0
@@ -104,6 +175,11 @@ def export(db: Path, out: Path, mark_current: bool = False) -> tuple[int, int]:
             finally:
                 for h in handles.values():
                     h.close()
+            if sessions is not None:
+                try:
+                    write_session_md(rows, sessions)
+                except Exception as exc:
+                    print(f"[phoenix-export] session summary failed: {exc!r}", file=sys.stderr)
             mark["span_id"] = rows[-1]["id"]
             n_spans += len(rows)
             save_mark(mark_file, mark)  # persist progress per batch
@@ -138,10 +214,16 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--db", type=Path, default=None)
     ap.add_argument("--out", type=Path, default=ROOT / "logs" / "phoenix" / "export")
+    ap.add_argument("--sessions", type=Path, default=ROOT / "logs" / "sessions" / "phoenix")
+    ap.add_argument("--rebuild-sessions", action="store_true",
+                    help="regenerate all daily summaries in --sessions from the whole database")
     ap.add_argument("--mark-current", action="store_true")
     a = ap.parse_args()
     try:
-        export(a.db or default_db(), a.out, a.mark_current)
+        if a.rebuild_sessions:
+            rebuild_sessions(a.db or default_db(), a.sessions)
+        else:
+            export(a.db or default_db(), a.out, a.mark_current, a.sessions)
     except Exception as exc:  # never break a launcher
         print(f"[phoenix-export] failed: {exc!r}", file=sys.stderr)
     return 0
