@@ -107,14 +107,43 @@ if not errorlevel 1 (
 )
 echo.
 
-:: Auto-update: always sync all packages from requirements.txt
+:: Auto-update: only reinstall when requirements.txt has changed since the
+:: last SUCCESSFUL install (tracked via a SHA-256 hash marker under data\).
+:: This avoids silently re-syncing 56+ mostly-unpinned (>=) dependencies on
+:: every launch, which could otherwise let the validated environment drift
+:: between runs (breaking IQ/OQ reproducibility) with install errors that
+:: used to be discarded to nul. Install output/errors now go to a log file,
+:: and a non-zero pip exit is surfaced on-screen instead of hidden.
+if not exist "%PROJECT_DIR%data" mkdir "%PROJECT_DIR%data"
+if not exist "%PROJECT_DIR%logs\pip" mkdir "%PROJECT_DIR%logs\pip"
+set "REQ_HASH_FILE=%PROJECT_DIR%data\.requirements_hash"
+set "PIP_LOG=%PROJECT_DIR%logs\pip\%SESSION_STAMP%_pip_install.log"
+
 echo [INFO] Checking dependencies...
-"%QMS_PYTHON%" -m pip install -r "%PROJECT_DIR%requirements.txt" --quiet --disable-pip-version-check < nul 2>nul
+set "REQ_HASH="
+for /f %%h in ('powershell -NoProfile -Command "(Get-FileHash -Algorithm SHA256 -LiteralPath '%PROJECT_DIR%requirements.txt').Hash"') do set "REQ_HASH=%%h"
+
+set "REQ_HASH_PREV="
+if exist "%REQ_HASH_FILE%" set /p REQ_HASH_PREV=<"%REQ_HASH_FILE%"
+
+if "%REQ_HASH%"=="%REQ_HASH_PREV%" if not "%REQ_HASH%"=="" goto :deps_unchanged
+
+echo [INFO] requirements.txt changed ^(or no prior successful install^) - installing dependencies...
+echo [INFO] Install log: logs\pip\%SESSION_STAMP%_pip_install.log
+"%QMS_PYTHON%" -m pip install -r "%PROJECT_DIR%requirements.txt" --disable-pip-version-check > "%PIP_LOG%" 2>&1
 if errorlevel 1 (
-    echo [WARN] Some packages failed to install. App will continue with available features.
+    echo [WARN] pip install exited with an error. App will continue with available features.
+    echo [WARN] See log for details: %PIP_LOG%
 ) else (
-    echo [OK] All dependencies up to date.
+    echo [OK] Dependencies installed successfully.
+    >"%REQ_HASH_FILE%" echo %REQ_HASH%
 )
+goto :deps_done
+
+:deps_unchanged
+echo [OK] requirements.txt unchanged since last successful install - skipping pip install.
+
+:deps_done
 echo.
 
 :: Auto-cleanup: Kill orphaned Chainlit Python processes on ports 3000-3010
