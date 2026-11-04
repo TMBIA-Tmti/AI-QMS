@@ -19,6 +19,7 @@ Flow:
 import asyncio
 import json
 import logging
+import os
 import re
 from datetime import datetime
 from typing import Callable, Optional
@@ -36,6 +37,8 @@ from src.analysis.compliance_rules import (
 )
 
 logger = logging.getLogger(__name__)
+
+from src.services.regulatory_source_check import reject_reason as _reject_reason
 
 _BATCH_SIZE = 24  # clauses per LLM call (71 clauses → 3 batches)
 _MAX_CONCURRENT_BATCHES = 3
@@ -375,6 +378,10 @@ def _build_focused_regulatory_text(
     for ct in crawled_texts:
         if not (ct.get("content_markdown") or "").strip():
             continue
+        _why = _reject_reason(ct["content_markdown"])
+        if _why:  # bot-block page / search stub / raw PDF: never show it to the LLM
+            logger.warning("Skipping unusable regulatory text (%s): %s", ct.get("agency", ""), _why)
+            continue
         doc_type = ct.get("doc_type") or (_gdt(ct) if _gdt else "primary")
         if doc_type == "portal":
             continue
@@ -409,6 +416,80 @@ def _build_focused_regulatory_text(
         parts.append(f"{header}\n{excerpt}")
 
     return "\n---\n".join(parts)[:max_chars]
+
+
+# ============================================================
+# LightRAG retrieval (per-country regulatory graph)
+# ============================================================
+
+_UNIQUE_REQ_QUERY = (
+    "Country-specific medical device requirements beyond ISO 13485: product "
+    "registration or listing, authorized representative or local agent, import "
+    "and distribution licence, labeling language, UDI, adverse event and "
+    "vigilance reporting deadlines, post-market surveillance, clinical evidence"
+)
+
+
+def _lightrag_enabled() -> bool:
+    return os.getenv("REG_USE_LIGHTRAG", "1").strip().lower() not in ("0", "false", "no", "off")
+
+
+async def _lightrag_context(region_name: str, question: str, max_chars: int) -> str:
+    """Region-graph context for ``question``; '' when unavailable (caller falls back)."""
+    if not _lightrag_enabled():
+        return ""
+    try:
+        from src.services.lightrag_regulatory import has_region_index, retrieve_context
+
+        if not has_region_index(region_name):
+            return ""
+        return await retrieve_context(region_name, question, max_chars=max_chars)
+    except Exception as exc:  # never let retrieval break the analysis
+        logger.warning("LightRAG retrieval skipped for %s: %s", region_name, exc)
+        return ""
+
+
+def _merge_contexts(lr_text: str, kw_text: str, max_chars: int) -> str:
+    """Union of LightRAG context and keyword excerpt within ``max_chars``.
+
+    LightRAG gets up to 60% of the budget; the keyword excerpt (primary law
+    text) fills the rest, minus paragraphs the LightRAG context already shows.
+    Retrieval alone is lossy, so it must never fully replace the excerpt.
+    """
+    lr_part = lr_text[: int(max_chars * 0.6)] if kw_text else lr_text[:max_chars]
+    seen = {_norm_para(p) for p in lr_part.split("\n\n")}
+    extra = [p for p in kw_text.split("\n\n") if _norm_para(p) not in seen]
+    room = max_chars - len(lr_part) - 8
+    merged_extra, used = [], 0
+    for p in extra:
+        if used + len(p) + 2 > room:
+            break
+        merged_extra.append(p)
+        used += len(p) + 2
+    parts = [x for x in (lr_part, "\n\n".join(merged_extra)) if x.strip()]
+    return "\n\n---\n\n".join(parts)
+
+
+def _norm_para(p: str) -> str:
+    return "".join(p.split()).lower()[:200]
+
+
+def _primary_texts(crawled_texts: list[dict]) -> list[dict]:
+    """Primary-law subset (guidance such as MDCG is reached through LightRAG)."""
+    try:
+        from src.services.regulatory_crawler import get_site_doc_type as _gdt
+    except ImportError:
+        return crawled_texts
+    prim = [ct for ct in crawled_texts if (ct.get("doc_type") or _gdt(ct)) == "primary"]
+    return prim or crawled_texts
+
+
+def _clause_batch_query(batch_clauses: list[dict]) -> str:
+    parts = []
+    for c in batch_clauses:
+        q = (c.get("audit_question") or "").strip()
+        parts.append(f"ISO 13485 {c['clause_id']} {c.get('title', '')}" + (f": {q}" if q else ""))
+    return "Regulatory requirements corresponding to:\n" + "\n".join(parts)
 
 
 # ============================================================
@@ -524,13 +605,17 @@ If no additional QMS requirements found, return empty array: []"""
 
         messages = [{"role": "user", "content": prompt}]
         try:
-            resp = await llm_completion_fn(
-                messages=messages,
-                model=model,
-                temperature=0.1,
-                max_tokens=2048,
-                stream=False,
-            )
+            # manager.completion is synchronous; only await genuine coroutines.
+            if asyncio.iscoroutinefunction(llm_completion_fn):
+                resp = await llm_completion_fn(
+                    messages=messages, model=model, temperature=0.1,
+                    max_tokens=2048, stream=False,
+                )
+            else:
+                resp = await asyncio.to_thread(
+                    llm_completion_fn, messages=messages, model=model,
+                    temperature=0.1, max_tokens=2048, stream=False,
+                )
             raw = resp.get("content", "") if isinstance(resp, dict) else str(resp)
             # Extract JSON array
             import re as _re
@@ -678,6 +763,10 @@ async def analyze_regulation_with_llm(
     # queue before even starting, reliably triggering the timeout.
     semaphore = asyncio.Semaphore(1 if is_local else _MAX_CONCURRENT_BATCHES)
 
+    # LightRAG only helps when the corpus is larger than what fits in one prompt;
+    # for a small corpus the keyword excerpt already contains everything.
+    _corpus_chars = sum(len(ct.get("content_markdown") or "") for ct in crawled_texts)
+
     async def _run_batch(batch_idx: int, batch: list[str]) -> None:
         batch_clauses = [
             {
@@ -695,6 +784,22 @@ async def analyze_regulation_with_llm(
         focused_text = _build_focused_regulatory_text(
             crawled_texts, batch_kw, _params["max_regulatory_chars"]
         )
+        # LightRAG: replace the keyword excerpt with graph/chunk context retrieved
+        # for exactly these clauses (falls back to the excerpt when unavailable).
+        _lr_text = ""
+        if _corpus_chars > _params["max_regulatory_chars"]:
+            async with semaphore:
+                _lr_text = await _lightrag_context(
+                    region_name, _clause_batch_query(batch_clauses),
+                    _params["max_regulatory_chars"],
+                )
+        if _lr_text:
+            _kw_primary = _build_focused_regulatory_text(
+                _primary_texts(crawled_texts), batch_kw, _params["max_regulatory_chars"]
+            )
+            focused_text = _merge_contexts(
+                _lr_text, _kw_primary, _params["max_regulatory_chars"]
+            )
         if is_local:
             messages = _build_clause_batch_prompt_compact(
                 batch_clauses, focused_text, zh_name, en_name
@@ -857,6 +962,20 @@ async def analyze_regulation_with_llm(
         focused_unique = _build_focused_regulatory_text(
             crawled_texts, _ALL_UNIQUE_REQ_KEYWORDS, _params["max_unique_req_chars"]
         )
+        _lr_unique = ""
+        if _corpus_chars > _params["max_unique_req_chars"]:
+            _lr_unique = await _lightrag_context(
+                region_name, _UNIQUE_REQ_QUERY, _params["max_unique_req_chars"]
+            )
+        if _lr_unique:
+            focused_unique = _merge_contexts(
+                _lr_unique,
+                _build_focused_regulatory_text(
+                    _primary_texts(crawled_texts), _ALL_UNIQUE_REQ_KEYWORDS,
+                    _params["max_unique_req_chars"],
+                ),
+                _params["max_unique_req_chars"],
+            )
         if is_local:
             _unique_messages = _build_unique_requirements_prompt_compact(
                 focused_unique, zh_name, en_name, profile_id

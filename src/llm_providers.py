@@ -1173,6 +1173,7 @@ class LLMProviderManager:
                 },
                 "model": response.model,
                 "provider": provider["provider_id"],
+                "finish_reason": getattr(response.choices[0], "finish_reason", None),
             }
 
         except Exception as e:
@@ -1191,6 +1192,14 @@ class LLMProviderManager:
                 "cannot connect", "failed to establish", "remotedisconnected",
                 "broken pipe", "econnrefused", "network error",
             ))
+            # A request that timed out means the server is up but busy (or a
+            # runaway generation is holding it) - waiting for a "reconnect" does
+            # not help and just repeats the same stuck request.
+            _is_timeout_error = any(t in error_msg.lower() for t in (
+                "timed out", "timeout",
+            ))
+            if _is_timeout_error:
+                _is_conn_error = False
             if provider["is_local"] and _is_conn_error and not stream:
                 _wait_for_local_service_ready(provider)
                 # Retry with backoff after service recovers.

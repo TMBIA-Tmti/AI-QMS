@@ -2980,7 +2980,13 @@ def get_site_doc_type(site: dict) -> str:
     explicit = site.get("doc_type")
     if explicit:
         return explicit
-    return _AGENCY_DOC_TYPE.get(site.get("agency", ""), "primary")
+    agency = site.get("agency", "")
+    if agency in _AGENCY_DOC_TYPE:
+        return _AGENCY_DOC_TYPE[agency]
+    # MDCG documents are guidance (e.g. "MDCG:md-2020-13-..."), never the law itself.
+    if agency.upper().startswith("MDCG"):
+        return "qms_guidance"
+    return "primary"
 
 
 # QMS-related keywords for sitemap URL filtering

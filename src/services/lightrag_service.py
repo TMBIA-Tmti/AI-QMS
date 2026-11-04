@@ -5,6 +5,7 @@ Wraps lightrag-hku with EmbeddingProvider. Graceful degraded mode.
 from __future__ import annotations
 import asyncio
 import logging
+import os
 from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
@@ -97,10 +98,39 @@ async def _llm_model_func(
     messages.extend(history_messages or [])
     messages.append({"role": "user", "content": prompt})
 
+    # Cap the output length. The provider default (32768 for local models) turns
+    # one runaway extraction (e.g. endless "N/A") into a 10-minute call that
+    # blocks Ollama for every other request. Entity extraction needs ~1k tokens.
+    call_kwargs: dict[str, Any] = {"max_tokens": _resolve_max_tokens(kwargs)}
+    if kwargs.get("temperature") is not None:
+        call_kwargs["temperature"] = kwargs["temperature"]
+    extract_model = os.getenv("LIGHTRAG_LLM_MODEL", "").strip()
+    if extract_model:
+        call_kwargs["model"] = extract_model
+
     # completion() is synchronous (litellm.completion under the hood) — push it
     # to a worker thread so it doesn't block the event loop during ainsert/aquery.
-    result = await asyncio.to_thread(completion_fn, messages)
+    result = await asyncio.to_thread(completion_fn, messages, **call_kwargs)
     return result.get("content", "") if isinstance(result, dict) else str(result)
+
+
+def _resolve_max_tokens(kwargs: dict) -> int:
+    """Output cap for LightRAG LLM calls: caller kwarg > env > 4096."""
+    default = int(os.getenv("LIGHTRAG_LLM_MAX_TOKENS", "4096"))
+    requested = kwargs.get("max_tokens")
+    try:
+        requested = int(requested) if requested else default
+    except (TypeError, ValueError):
+        requested = default
+    return max(256, min(requested, default))
+
+
+def _llm_max_async() -> int:
+    """LightRAG LLM concurrency; local Ollama serves requests sequentially."""
+    try:
+        return max(1, int(os.getenv("LIGHTRAG_LLM_MAX_ASYNC", "2")))
+    except ValueError:
+        return 2
 
 
 _LIGHTRAG_KV_STORES = [
@@ -164,6 +194,7 @@ async def initialize_lightrag() -> bool:
             working_dir=str(LIGHTRAG_WORKING_DIR),
             embedding_func=ef,
             llm_model_func=_llm_model_func,
+            llm_model_max_async=_llm_max_async(),
         )
         # lightrag-hku >= 1.4 requires explicit storage initialisation before
         # any ainsert/aquery call, otherwise JsonDocStatusStorage raises
@@ -189,6 +220,7 @@ async def initialize_lightrag() -> bool:
                         working_dir=str(_wd),
                         embedding_func=ef if 'ef' in dir() else await _build_embed_func(),
                         llm_model_func=_llm_model_func,
+                        llm_model_max_async=_llm_max_async(),
                     )
                     await _instance.initialize_storages()
                     _initialized = True
